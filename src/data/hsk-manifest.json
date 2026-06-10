@@ -1,0 +1,8 @@
+{
+  "source": "Complete HSK Vocabulary",
+  "version": "pinned-at-build-time",
+  "downloadedAt": "TBD by build script",
+  "license": "MIT",
+  "url": "https://github.com/drkameleon/complete-hsk-vocabulary",
+  "note": "HSK metadata overlay only — CC-CEDICT stays the definition source. Secondary cross-check source: https://github.com/ivankra/hsk30 (licensing uncertainty noted by upstream)."
+}

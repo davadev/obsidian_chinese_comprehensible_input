@@ -1,0 +1,8 @@
+{
+  "source": "CC-CEDICT (MDBG)",
+  "version": "pinned-at-build-time",
+  "downloadedAt": "TBD by build script",
+  "license": "CC BY-SA 4.0",
+  "url": "https://www.mdbg.net/chinese/dictionary?page=cc-cedict",
+  "note": "Real dictionary data is NOT bundled in this repo. Use the build script in NOTICE.md to fetch and convert CC-CEDICT into JSON shards, then drop them into the user vault as .cci-dictionary.json (loaded lazily at runtime)."
+}

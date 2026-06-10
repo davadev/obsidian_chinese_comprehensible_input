@@ -1,0 +1,523 @@
+import { App, PluginSettingTab, Setting, Notice } from "obsidian";
+import type CciPlugin from "../main";
+
+export class CciSettingsTab extends PluginSettingTab {
+  constructor(app: App, private plugin: CciPlugin) {
+    super(app, plugin);
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "Chinese Comprehensible Input" });
+
+    this.renderDictionary(containerEl);
+    this.renderDisplay(containerEl);
+    this.renderColors(containerEl);
+    this.renderTokenizer(containerEl);
+    this.renderExposure(containerEl);
+    this.renderSrs(containerEl);
+    this.renderAi(containerEl);
+    this.renderStory(containerEl);
+    this.renderData(containerEl);
+    this.renderAbout(containerEl);
+  }
+
+  private renderDictionary(c: HTMLElement) {
+    c.createEl("h3", { text: "Dictionary" });
+    c.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Plugin ships with a tiny seed dictionary. For real use, download CC-CEDICT (~8 MB, CC BY-SA 4.0). " +
+        "Data is written to a vault-side file and loaded lazily at runtime.",
+    });
+
+    const statusEl = c.createDiv({ cls: "setting-item-description" });
+    const updateStatusEl = () => {
+      const meta = this.plugin.settings.dictionarySource;
+      const live = this.plugin.dictDownloader.getStatus();
+      if (live.state === "downloading" || live.state === "parsing" || live.state === "writing") {
+        statusEl.setText(`${live.message} (parsed ${live.entriesParsed})`);
+        return;
+      }
+      if (meta) {
+        statusEl.setText(
+          `Active: ${meta.source} · ${meta.versionLine || "version unknown"} · ` +
+            `${meta.entryCount} entries · downloaded ${meta.downloadedAt.slice(0, 10)} · file ${meta.outputPath}`
+        );
+      } else {
+        statusEl.setText("No external dictionary downloaded yet (seed dictionary in use).");
+      }
+    };
+    updateStatusEl();
+    const unsub = this.plugin.dictDownloader.onStatus(() => updateStatusEl());
+
+    new Setting(c)
+      .setName("Download CC-CEDICT")
+      .setDesc("Fetches the latest CC-CEDICT archive and installs it into the vault.")
+      .addButton((b) =>
+        b
+          .setButtonText("Download dictionary")
+          .setCta()
+          .onClick(async () => {
+            b.setDisabled(true);
+            try {
+              const count = await this.plugin.dictDownloader.run();
+              const status = this.plugin.dictDownloader.getStatus();
+              this.plugin.settings.dictionarySource = {
+                source: "CC-CEDICT",
+                versionLine: status.versionLine ?? "",
+                downloadedAt: status.downloadedAt ?? new Date().toISOString(),
+                entryCount: count,
+                outputPath: ".cci-dictionary.json",
+              };
+              await this.plugin.saveSettings();
+              await this.plugin.dictionary.reload();
+              this.plugin.tokenizer.invalidate();
+              new Notice(`Dictionary installed: ${count} entries.`);
+            } catch (e) {
+              new Notice("Download failed: " + (e as Error).message);
+            } finally {
+              b.setDisabled(false);
+              updateStatusEl();
+            }
+          })
+      )
+      .addButton((b) =>
+        b.setButtonText("Remove").setWarning().onClick(async () => {
+          if (!confirm("Delete the downloaded CC-CEDICT file from the vault?")) return;
+          const path = this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json";
+          try {
+            if (await this.app.vault.adapter.exists(path)) {
+              await this.app.vault.adapter.remove(path);
+            }
+            this.plugin.settings.dictionarySource = undefined;
+            await this.plugin.saveSettings();
+            await this.plugin.dictionary.reload();
+            this.plugin.tokenizer.invalidate();
+            new Notice("Dictionary removed; seed dictionary back in use.");
+          } catch (e) {
+            new Notice("Remove failed: " + (e as Error).message);
+          }
+          updateStatusEl();
+        })
+      );
+
+    // Detach status listener when the settings tab rebuilds.
+    this.plugin.register(() => unsub());
+  }
+
+  private renderDisplay(c: HTMLElement) {
+    c.createEl("h3", { text: "Display" });
+    new Setting(c)
+      .setName("Default display mode")
+      .setDesc("How annotations are shown by default in Read mode.")
+      .addDropdown((d) => {
+        d.addOption("two-line", "Two-line (pinyin)");
+        d.addOption("three-line", "Three-line (pinyin + gloss)");
+        d.addOption("popup-only", "Popup only");
+        d.addOption("color-only", "Color only");
+        d.setValue(this.plugin.settings.defaultDisplayMode);
+        d.onChange(async (v) => {
+          this.plugin.settings.defaultDisplayMode = v as any;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(c)
+      .setName("Pinyin style")
+      .addDropdown((d) => {
+        d.addOption("marks", "Tone marks");
+        d.addOption("numbers", "Tone numbers");
+        d.addOption("none", "None");
+        d.setValue(this.plugin.settings.pinyinStyle);
+        d.onChange(async (v) => {
+          this.plugin.settings.pinyinStyle = v as any;
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(c)
+      .setName("Annotation density cap (%)")
+      .setDesc("If more than this % of visible words are densely annotated, auto-degrade to popup-only.")
+      .addText((t) => {
+        t.setValue(String(this.plugin.settings.densityCapPercent));
+        t.onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            this.plugin.settings.densityCapPercent = n;
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+
+    new Setting(c)
+      .setName("Known-word popups")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.knownWordPopups).onChange(async (v) => {
+          this.plugin.settings.knownWordPopups = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(c)
+      .setName("Show mnemonic before full definition")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.mnemonicsFirst).onChange(async (v) => {
+          this.plugin.settings.mnemonicsFirst = v;
+          await this.plugin.saveSettings();
+        })
+      );
+  }
+
+  private renderColors(c: HTMLElement) {
+    c.createEl("h3", { text: "Colors" });
+    new Setting(c).setName("Color known words").addToggle((t) =>
+      t.setValue(this.plugin.settings.showKnownColor).onChange(async (v) => {
+        this.plugin.settings.showKnownColor = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Color partial words").addToggle((t) =>
+      t.setValue(this.plugin.settings.showPartialColor).onChange(async (v) => {
+        this.plugin.settings.showPartialColor = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Color unknown words").addToggle((t) =>
+      t.setValue(this.plugin.settings.showUnknownColor).onChange(async (v) => {
+        this.plugin.settings.showUnknownColor = v;
+        await this.plugin.saveSettings();
+      })
+    );
+  }
+
+  private renderTokenizer(c: HTMLElement) {
+    c.createEl("h3", { text: "Tokenizer" });
+    new Setting(c).setName("Engine").addDropdown((d) => {
+      d.addOption("lattice", "Dictionary lattice (recommended)");
+      d.addOption("intl-segmenter", "Intl.Segmenter (helper/fallback)");
+      d.addOption("experimental", "Experimental WASM (not bundled)");
+      d.setValue(this.plugin.settings.tokenizerEngine);
+      d.onChange(async (v) => {
+        this.plugin.settings.tokenizerEngine = v as any;
+        await this.plugin.saveSettings();
+      });
+    });
+
+    new Setting(c).setName("HSK source").addDropdown((d) => {
+      d.addOption("2.0", "HSK 2.0");
+      d.addOption("3.0", "HSK 3.0 / new HSK");
+      d.addOption("both", "Both");
+      d.setValue(this.plugin.settings.hskSource);
+      d.onChange(async (v) => {
+        this.plugin.settings.hskSource = v as any;
+        await this.plugin.saveSettings();
+      });
+    });
+  }
+
+  private renderExposure(c: HTMLElement) {
+    c.createEl("h3", { text: "Exposure tracking" });
+    new Setting(c)
+      .setName("Minimum visible time (ms)")
+      .setDesc("How long a word must be visible before it counts as seen.")
+      .addText((t) => {
+        t.setValue(String(this.plugin.settings.exposure.minVisibleMs));
+        t.onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            this.plugin.settings.exposure.minVisibleMs = n;
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+
+    new Setting(c)
+      .setName("Limit: one exposure per word per note per session")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.exposure.maxOncePerNotePerSession).onChange(async (v) => {
+          this.plugin.settings.exposure.maxOncePerNotePerSession = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(c)
+      .setName("Limit: one exposure per word per day")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.exposure.maxOncePerDay).onChange(async (v) => {
+          this.plugin.settings.exposure.maxOncePerDay = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(c).setName("Popup counts as exposure").addToggle((t) =>
+      t.setValue(this.plugin.settings.exposure.popupCountsAsExposure).onChange(async (v) => {
+        this.plugin.settings.exposure.popupCountsAsExposure = v;
+        await this.plugin.saveSettings();
+      })
+    );
+
+    new Setting(c).setName("Generated stories count as exposure").addToggle((t) =>
+      t.setValue(this.plugin.settings.exposure.generatedReadingCountsAsExposure).onChange(async (v) => {
+        this.plugin.settings.exposure.generatedReadingCountsAsExposure = v;
+        await this.plugin.saveSettings();
+      })
+    );
+
+    new Setting(c)
+      .setName("Exact timestamp retention limit (per word)")
+      .addText((t) => {
+        t.setValue(String(this.plugin.settings.exactTimestampRetentionLimit));
+        t.onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            this.plugin.settings.exactTimestampRetentionLimit = n;
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+
+    new Setting(c)
+      .setName("Store ALL exact timestamps (storage-heavy)")
+      .setDesc("Warning: enabling this disables retention pruning and can grow storage large over time.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.storeAllExactTimestamps).onChange(async (v) => {
+          this.plugin.settings.storeAllExactTimestamps = v;
+          await this.plugin.saveSettings();
+        })
+      );
+  }
+
+  private renderSrs(c: HTMLElement) {
+    c.createEl("h3", { text: "Spaced repetition" });
+    new Setting(c).setName("Review known words occasionally").addToggle((t) =>
+      t.setValue(this.plugin.settings.srs.scheduleKnownOccasionally).onChange(async (v) => {
+        this.plugin.settings.srs.scheduleKnownOccasionally = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c)
+      .setName("Popup on a due word counts as a failed recall")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.srs.popupOnDueIsFailedRecall).onChange(async (v) => {
+          this.plugin.settings.srs.popupOnDueIsFailedRecall = v;
+          await this.plugin.saveSettings();
+        })
+      );
+    new Setting(c).setName("Initial interval (days)").addText((t) => {
+      t.setValue(String(this.plugin.settings.srs.initialIntervalDays));
+      t.onChange(async (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.srs.initialIntervalDays = n;
+          await this.plugin.saveSettings();
+        }
+      });
+    });
+    new Setting(c).setName("Initial ease").addText((t) => {
+      t.setValue(String(this.plugin.settings.srs.initialEase));
+      t.onChange(async (v) => {
+        const n = parseFloat(v);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.srs.initialEase = n;
+          await this.plugin.saveSettings();
+        }
+      });
+    });
+  }
+
+  private renderAi(c: HTMLElement) {
+    c.createEl("h3", { text: "AI provider" });
+    c.createEl("p", {
+      cls: "setting-item-description",
+      text:
+        "Plugin works fully without AI. When enabled, the provider must be OpenAI-compatible. " +
+        "For Ollama, the default localhost URL is for desktop only; on mobile use the LAN host/IP of the Ollama machine.",
+    });
+
+    new Setting(c).setName("Enabled").addToggle((t) =>
+      t.setValue(this.plugin.settings.ai.enabled).onChange(async (v) => {
+        this.plugin.settings.ai.enabled = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Provider name").addText((t) =>
+      t.setValue(this.plugin.settings.ai.providerName).onChange(async (v) => {
+        this.plugin.settings.ai.providerName = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Base URL").addText((t) =>
+      t.setValue(this.plugin.settings.ai.baseUrl).onChange(async (v) => {
+        this.plugin.settings.ai.baseUrl = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("API key").addText((t) =>
+      t.setValue(this.plugin.settings.ai.apiKey).onChange(async (v) => {
+        this.plugin.settings.ai.apiKey = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Chat model").addText((t) =>
+      t.setValue(this.plugin.settings.ai.chatModel).onChange(async (v) => {
+        this.plugin.settings.ai.chatModel = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Endpoint mode").addDropdown((d) => {
+      d.addOption("chat", "/v1/chat/completions");
+      d.addOption("responses", "/v1/responses (if supported)");
+      d.setValue(this.plugin.settings.ai.endpointMode);
+      d.onChange(async (v) => {
+        this.plugin.settings.ai.endpointMode = v as any;
+        await this.plugin.saveSettings();
+      });
+    });
+    new Setting(c).setName("Temperature").addText((t) =>
+      t.setValue(String(this.plugin.settings.ai.temperature)).onChange(async (v) => {
+        const n = parseFloat(v);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.ai.temperature = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+    new Setting(c).setName("Max output tokens").addText((t) =>
+      t.setValue(String(this.plugin.settings.ai.maxOutputTokens)).onChange(async (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.ai.maxOutputTokens = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+    new Setting(c).setName("Timeout (ms)").addText((t) =>
+      t.setValue(String(this.plugin.settings.ai.timeoutMs)).onChange(async (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.ai.timeoutMs = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+    new Setting(c).setName("Max repair iterations").addText((t) =>
+      t.setValue(String(this.plugin.settings.ai.maxRepairIterations)).onChange(async (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.ai.maxRepairIterations = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+
+    new Setting(c).setName("Test connection").addButton((b) => {
+      b.setButtonText("Test").onClick(async () => {
+        try {
+          const ok = await this.plugin.ai.testConnection();
+          new Notice(ok ? "AI provider reachable." : "AI provider unreachable.");
+        } catch (e) {
+          new Notice("AI test error: " + (e as Error).message);
+        }
+      });
+    });
+  }
+
+  private renderStory(c: HTMLElement) {
+    c.createEl("h3", { text: "Generated stories" });
+    new Setting(c).setName("Folder").addText((t) =>
+      t.setValue(this.plugin.settings.story.folder).onChange(async (v) => {
+        this.plugin.settings.story.folder = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c).setName("Default due word count").addText((t) =>
+      t.setValue(String(this.plugin.settings.story.defaultDueCount)).onChange(async (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.story.defaultDueCount = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+    new Setting(c).setName("Default length (chars)").addText((t) =>
+      t.setValue(String(this.plugin.settings.story.defaultLengthChars)).onChange(async (v) => {
+        const n = parseInt(v, 10);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.story.defaultLengthChars = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+    new Setting(c).setName("Default style").addDropdown((d) => {
+      d.addOption("story", "Story");
+      d.addOption("article", "Article");
+      d.addOption("dialogue", "Dialogue");
+      d.setValue(this.plugin.settings.story.defaultStyle);
+      d.onChange(async (v) => {
+        this.plugin.settings.story.defaultStyle = v as any;
+        await this.plugin.saveSettings();
+      });
+    });
+    new Setting(c).setName("Known coverage threshold (0..1)").addText((t) =>
+      t.setValue(String(this.plugin.settings.story.knownCoverageThreshold)).onChange(async (v) => {
+        const n = parseFloat(v);
+        if (!Number.isNaN(n)) {
+          this.plugin.settings.story.knownCoverageThreshold = n;
+          await this.plugin.saveSettings();
+        }
+      })
+    );
+    new Setting(c).setName("Include glossary in note").addToggle((t) =>
+      t.setValue(this.plugin.settings.story.includeGlossary).onChange(async (v) => {
+        this.plugin.settings.story.includeGlossary = v;
+        await this.plugin.saveSettings();
+      })
+    );
+  }
+
+  private renderData(c: HTMLElement) {
+    c.createEl("h3", { text: "Data" });
+
+    new Setting(c).setName("Export vocabulary JSON").addButton((b) =>
+      b.setButtonText("Export JSON").onClick(async () => {
+        const json = await this.plugin.vocab.exportJson();
+        await navigator.clipboard.writeText(json);
+        new Notice("Vocabulary JSON copied to clipboard.");
+      })
+    );
+
+    new Setting(c).setName("Export vocabulary CSV").addButton((b) =>
+      b.setButtonText("Export CSV").onClick(async () => {
+        const csv = await this.plugin.vocab.exportCsv();
+        await navigator.clipboard.writeText(csv);
+        new Notice("Vocabulary CSV copied to clipboard.");
+      })
+    );
+
+    new Setting(c)
+      .setName("Reset plugin data")
+      .setDesc("Permanently deletes all word records and resets settings. Cannot be undone.")
+      .addButton((b) =>
+        b.setButtonText("Reset").setWarning().onClick(async () => {
+          if (confirm("Really reset all plugin data?")) {
+            await this.plugin.vocab.resetAll();
+            new Notice("Plugin data reset.");
+          }
+        })
+      );
+  }
+
+  private renderAbout(c: HTMLElement) {
+    c.createEl("h3", { text: "About / Licenses" });
+    const ul = c.createEl("ul");
+    ul.createEl("li", { text: "Dictionary: CC-CEDICT (CC BY-SA 4.0)" });
+    ul.createEl("li", { text: "HSK overlay: Complete HSK Vocabulary (MIT)" });
+    ul.createEl("li", { text: "Plugin code: MIT" });
+    c.createEl("p", {
+      text:
+        "See NOTICE.md in the plugin folder for attribution details and release-blocker reminder.",
+    });
+  }
+}

@@ -1,0 +1,212 @@
+/* Chinese Comprehensible Input — view styles. Theme-friendly via Obsidian CSS variables. */
+
+.cci-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.cci-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.cci-toolbar .cci-group {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.cci-toolbar button,
+.cci-toolbar select {
+  min-height: 32px;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.cci-toolbar button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.cci-toolbar .cci-banner {
+  flex: 1 1 100%;
+  padding: 0.35rem 0.5rem;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.cci-toolbar .cci-banner.is-known {
+  background: var(--color-green, #2ea043);
+}
+.cci-toolbar .cci-banner.is-unknown {
+  background: var(--color-orange, #d29922);
+}
+
+.cci-editor {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+/* Word annotations */
+.cci-word {
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 60ms linear;
+}
+
+.cci-word.cci-status-known {
+  /* default: no color */
+}
+.cci-word.cci-status-unknown {
+  background: rgba(255, 165, 0, 0.18);
+  border-bottom: 1px dotted var(--color-orange, #d29922);
+}
+.cci-word.cci-status-meaningKnownPinyinUnknown {
+  border-bottom: 1px dashed var(--color-blue, #58a6ff);
+}
+.cci-word.cci-status-pinyinKnownMeaningUnknown {
+  border-bottom: 1px dashed var(--color-purple, #a371f7);
+}
+.cci-word.cci-status-new {
+  background: rgba(88, 166, 255, 0.10);
+}
+.cci-word.cci-status-ignored {
+  opacity: 0.85;
+}
+
+/* Ruby annotations */
+ruby.cci-ruby {
+  ruby-align: center;
+}
+ruby.cci-ruby rt {
+  font-size: 0.55em;
+  color: var(--text-muted);
+  user-select: none;
+}
+ruby.cci-ruby rt.cci-gloss {
+  font-size: 0.5em;
+  color: var(--text-faint);
+}
+
+/* Popup */
+.cci-popup {
+  position: absolute;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  padding: 0.75rem;
+  min-width: 240px;
+  max-width: 360px;
+  z-index: 100;
+  color: var(--text-normal);
+}
+
+.cci-popup-head {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.cci-popup-pinyin {
+  color: var(--text-accent);
+  margin-bottom: 0.4rem;
+}
+.cci-popup-defs {
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+  color: var(--text-normal);
+}
+.cci-popup-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.15rem 0.6rem;
+}
+.cci-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.cci-popup-actions button {
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+/* Mobile bottom sheet */
+.cci-bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  border-radius: 14px 14px 0 0;
+  padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0)) 0.75rem;
+  box-shadow: 0 -4px 22px rgba(0, 0, 0, 0.25);
+  z-index: 200;
+  max-height: 70vh;
+  overflow: auto;
+}
+
+/* Stats view */
+.cci-stats {
+  padding: 1rem;
+  overflow: auto;
+}
+.cci-stats table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.cci-stats th,
+.cci-stats td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+}
+.cci-stats th {
+  background: var(--background-secondary);
+  position: sticky;
+  top: 0;
+}
+.cci-stats-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.cci-stats-graph {
+  width: 100%;
+  height: 80px;
+}
+
+/* Sparkline */
+.cci-sparkline {
+  width: 100%;
+  height: 30px;
+}
