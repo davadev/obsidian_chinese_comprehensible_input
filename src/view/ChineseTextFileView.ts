@@ -9,8 +9,6 @@ import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
-import { wikilinkPlugin } from "../editor/wikilinkPlugin";
-import { frontmatterPlugin } from "../editor/frontmatterPlugin";
 
 /**
  * Markdown syntax highlighting tuned for the Chinese reader.
@@ -107,15 +105,9 @@ export class ChineseTextFileView extends TextFileView {
       this.plugin,
       top,
       () => {
-        // Display / font / color toggles: just refresh CSS + the
-        // attribute hooks and ask the decoration plugin to re-render.
-        // We deliberately avoid reconfigureEditor() here so the user's
-        // scroll position and cursor are not disturbed when switching
-        // popup-only ↔ 2-line ↔ 3-line ↔ color-only.
         this.applyReaderFont();
         this.applyDisplayAttr();
-        this.redecorate();
-        this.toolbar?.refresh();
+        this.reconfigureEditor();
       },
       () => this.editor?.state.doc.toString() ?? this.data ?? ""
     );
@@ -161,10 +153,6 @@ export class ChineseTextFileView extends TextFileView {
         syntaxHighlighting(cciMarkdownHighlight),
         buildChineseDecorations(this.plugin),
         wordInteractionPlugin(this.plugin),
-        // Mount Obsidian-flavour decorations AFTER the Chinese widget so
-        // they layer on top and cannot mask its rendering.
-        wikilinkPlugin(),
-        frontmatterPlugin(),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
             this.suppressNextSetData = true;
