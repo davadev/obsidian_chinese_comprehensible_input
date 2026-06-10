@@ -97,10 +97,11 @@ export class WordPopup {
     this.renderSparkline(el, rec);
 
     const actions = el.createDiv({ cls: "cci-popup-actions" });
-    this.action(actions, "Mark known", () => this.mark(rec, "known"));
-    this.action(actions, "Mark unknown", () => this.mark(rec, "unknown"));
+    this.action(actions, "✓ Known", () => this.mark(rec, "known"));
+    this.action(actions, "✗ Unknown", () => this.mark(rec, "unknown"));
     this.action(actions, "Meaning ✓, pinyin ?", () => this.mark(rec, "meaningKnownPinyinUnknown"));
     this.action(actions, "Pinyin ✓, meaning ?", () => this.mark(rec, "pinyinKnownMeaningUnknown"));
+    this.action(actions, "Spoken ✓, chars ?", () => this.mark(rec, "charactersUnknown"));
     this.action(actions, "Ignore", () => this.mark(rec, "ignored"));
     this.action(actions, "Mnemonic…", () => this.openMnemonicPrompt(rec));
   }

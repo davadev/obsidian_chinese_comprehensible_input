@@ -39,6 +39,13 @@ export class StatsView extends ItemView {
     const root = this.containerEl.children[1] as HTMLElement;
     root.empty();
 
+    const header = root.createDiv({ cls: "cci-stats-header" });
+    const back = header.createEl("button", { cls: "cci-stats-back", text: "← Back" });
+    back.addEventListener("click", () => {
+      this.leaf.detach();
+    });
+    header.createEl("h2", { text: "Vocabulary stats", cls: "cci-stats-title" });
+
     const controls = root.createDiv({ cls: "cci-stats-controls" });
 
     const search = controls.createEl("input", { type: "search", placeholder: "Search…" });
@@ -49,8 +56,18 @@ export class StatsView extends ItemView {
     });
 
     const statusSel = controls.createEl("select");
-    for (const v of ["all", "new", "known", "unknown", "meaningKnownPinyinUnknown", "pinyinKnownMeaningUnknown", "ignored"]) {
-      const o = statusSel.createEl("option", { text: v });
+    const statusOptions: [string, string][] = [
+      ["all", "Status: all"],
+      ["new", "Status: new"],
+      ["known", "Status: known"],
+      ["unknown", "Status: unknown"],
+      ["meaningKnownPinyinUnknown", "Status: meaning ✓ / pinyin ?"],
+      ["pinyinKnownMeaningUnknown", "Status: pinyin ✓ / meaning ?"],
+      ["charactersUnknown", "Status: spoken ✓ / chars ?"],
+      ["ignored", "Status: ignored"],
+    ];
+    for (const [v, l] of statusOptions) {
+      const o = statusSel.createEl("option", { text: l });
       o.value = v;
     }
     statusSel.value = this.statusFilter;
@@ -61,7 +78,7 @@ export class StatsView extends ItemView {
 
     const hskSel = controls.createEl("select");
     for (const v of ["all", "1", "2", "3", "4", "5", "6", "7+"]) {
-      const o = hskSel.createEl("option", { text: `HSK ${v}` });
+      const o = hskSel.createEl("option", { text: v === "all" ? "HSK: all" : `HSK ${v}` });
       o.value = v;
     }
     hskSel.value = this.hskFilter;
@@ -71,8 +88,15 @@ export class StatsView extends ItemView {
     });
 
     const sortSel = controls.createEl("select");
-    for (const v of ["seenCount", "lastSeenAt", "dueAt", "status", "hsk"]) {
-      const o = sortSel.createEl("option", { text: `Sort: ${v}` });
+    const sortOptions: [SortKey, string][] = [
+      ["seenCount", "Sort: seen"],
+      ["lastSeenAt", "Sort: last seen"],
+      ["dueAt", "Sort: due"],
+      ["status", "Sort: status"],
+      ["hsk", "Sort: HSK"],
+    ];
+    for (const [v, l] of sortOptions) {
+      const o = sortSel.createEl("option", { text: l });
       o.value = v;
     }
     sortSel.value = this.sortKey;
@@ -81,7 +105,7 @@ export class StatsView extends ItemView {
       this.render();
     });
 
-    const sortDir = controls.createEl("button", { text: this.sortDesc ? "↓" : "↑" });
+    const sortDir = controls.createEl("button", { text: this.sortDesc ? "↓" : "↑", attr: { "aria-label": "Toggle sort direction" } });
     sortDir.addEventListener("click", () => {
       this.sortDesc = !this.sortDesc;
       this.render();
@@ -90,7 +114,8 @@ export class StatsView extends ItemView {
     this.renderSummary(root);
 
     const records = this.filterAndSort();
-    const table = root.createEl("table");
+    const wrap = root.createDiv({ cls: "cci-stats-tablewrap" });
+    const table = wrap.createEl("table");
     const head = table.createEl("thead").createEl("tr");
     ["Word", "Pinyin", "Definition", "HSK", "Status", "Seen", "Last seen", "Due"].forEach((h) =>
       head.createEl("th", { text: h })
@@ -100,7 +125,7 @@ export class StatsView extends ItemView {
       const tr = body.createEl("tr");
       tr.createEl("td", { text: r.simplified ?? r.surfaces[0] });
       tr.createEl("td", { text: r.pinyin ?? "" });
-      tr.createEl("td", { text: (r.definitions ?? []).slice(0, 1).join("; ") });
+      tr.createEl("td", { cls: "cci-stats-defcol", text: (r.definitions ?? []).slice(0, 1).join("; ") });
       tr.createEl("td", { text: (r.hsk?.levels ?? []).join("/") });
       tr.createEl("td", { text: r.status });
       tr.createEl("td", { text: String(r.seenCount) });
@@ -156,8 +181,8 @@ export class StatsView extends ItemView {
       else counts.new++;
     }
     const estimated = estimateLearnerHsk(all, this.plugin.settings.story.knownCoverageThreshold);
-    const p = root.createEl("p");
-    p.textContent = `Total words tracked: ${all.length} — known: ${counts.known}, unknown: ${counts.unknown}, partial: ${counts.partial}, new: ${counts.new}, ignored: ${counts.ignored}. Estimated HSK comfort level: ${estimated}.`;
+    const p = root.createEl("p", { cls: "cci-stats-summary" });
+    p.textContent = `Tracked: ${all.length} · known: ${counts.known} · unknown: ${counts.unknown} · partial: ${counts.partial} · new: ${counts.new} · ignored: ${counts.ignored} · est. comfort: ${estimated}`;
   }
 
   private openDetail(r: WordRecord) {

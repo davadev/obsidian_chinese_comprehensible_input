@@ -4,7 +4,7 @@ import { EditorView, lineNumbers } from "@codemirror/view";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
-import { buildChineseDecorations } from "../editor/chineseDecorations";
+import { buildChineseDecorations, cciRedecorateEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 
 /**
@@ -125,6 +125,33 @@ export class ChineseTextFileView extends TextFileView {
   reconfigureEditor(): void {
     if (!this.editor || !this.editorContainer) return;
     const data = this.editor.state.doc.toString();
+    const scrollTop = this.editor.scrollDOM.scrollTop;
+    const selection = this.editor.state.selection.main;
     this.ensureEditor(data);
+    if (this.editor) {
+      try {
+        const len = this.editor.state.doc.length;
+        const anchor = Math.min(selection.anchor, len);
+        const head = Math.min(selection.head, len);
+        this.editor.dispatch({ selection: { anchor, head } });
+      } catch {
+        // selection restore is best-effort
+      }
+      // Restore scroll after layout settles.
+      requestAnimationFrame(() => {
+        if (this.editor) this.editor.scrollDOM.scrollTop = scrollTop;
+      });
+    }
+  }
+
+  /**
+   * Lightweight redraw that does NOT rebuild the editor — used after status
+   * changes (mark known/unknown) so the user's scroll position is preserved.
+   * Forces the decoration view-plugin to recompute by dispatching an empty
+   * transaction; the plugin's `update()` runs on every transaction.
+   */
+  redecorate(): void {
+    if (!this.editor) return;
+    this.editor.dispatch({ effects: cciRedecorateEffect.of(null) });
   }
 }

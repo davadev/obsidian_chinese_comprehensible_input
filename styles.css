@@ -8,56 +8,114 @@
 }
 
 .cci-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  padding: 0.5rem;
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-secondary);
-  align-items: center;
   position: sticky;
   top: 0;
   z-index: 5;
+  padding: 0.25rem 0.4rem;
 }
 
-.cci-toolbar .cci-group {
-  display: inline-flex;
-  gap: 0.25rem;
+.cci-toolbar-row {
+  display: flex;
   align-items: center;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
-.cci-toolbar button,
-.cci-toolbar select {
-  min-height: 32px;
-  padding: 0.25rem 0.6rem;
+.cci-toolbar .cci-icon-btn {
+  min-width: 34px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   border-radius: 6px;
   border: 1px solid var(--background-modifier-border);
   background: var(--interactive-normal);
   color: var(--text-normal);
   cursor: pointer;
+}
+
+.cci-toolbar .cci-icon-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.cci-toolbar .cci-display-sel {
+  height: 32px;
+  flex: 0 1 auto;
+  min-width: 80px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
   font-size: 0.85rem;
 }
 
-.cci-toolbar button.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-
 .cci-toolbar .cci-banner {
-  flex: 1 1 100%;
-  padding: 0.35rem 0.5rem;
-  background: var(--background-modifier-error);
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--color-orange, #d29922);
   color: var(--text-on-accent);
   border-radius: 6px;
-  text-align: center;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .cci-toolbar .cci-banner.is-known {
   background: var(--color-green, #2ea043);
 }
-.cci-toolbar .cci-banner.is-unknown {
-  background: var(--color-orange, #d29922);
+.cci-toolbar .cci-banner button {
+  height: 28px;
+  padding: 0 0.6rem;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text-on-accent);
+  cursor: pointer;
+}
+
+/* Overflow menu */
+.cci-overflow-menu {
+  position: fixed;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+  padding: 0.3rem 0;
+  min-width: 200px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+}
+.cci-overflow-item,
+.cci-overflow-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.cci-overflow-item:hover,
+.cci-overflow-btn:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-overflow-sep {
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: 0.25rem 0;
 }
 
 .cci-editor {
@@ -84,6 +142,9 @@
 }
 .cci-word.cci-status-pinyinKnownMeaningUnknown {
   border-bottom: 1px dashed var(--color-purple, #a371f7);
+}
+.cci-word.cci-status-charactersUnknown {
+  border-bottom: 1px dashed var(--color-cyan, #1fb6ff);
 }
 .cci-word.cci-status-new {
   background: rgba(88, 166, 255, 0.10);
@@ -174,31 +235,112 @@ ruby.cci-ruby rt.cci-gloss {
 }
 
 /* Stats view */
+.cci-stats-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.4rem;
+}
+.cci-stats-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+.cci-stats-back {
+  height: 32px;
+  padding: 0 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.cci-stats-back:hover {
+  background: var(--background-modifier-hover);
+}
 .cci-stats {
-  padding: 1rem;
+  padding: 0.6rem 0.6rem 1rem;
   overflow: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+.cci-stats-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+.cci-stats-controls input[type="search"] {
+  flex: 1 1 140px;
+  min-width: 110px;
+  max-width: 220px;
+  height: 30px;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+}
+.cci-stats-controls select {
+  height: 30px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+  max-width: 130px;
+}
+.cci-stats-controls button {
+  height: 30px;
+  min-width: 32px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+}
+.cci-stats-summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+.cci-stats-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
 }
 .cci-stats table {
   width: 100%;
+  min-width: 720px;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 .cci-stats th,
 .cci-stats td {
-  padding: 0.3rem 0.5rem;
+  padding: 0.25rem 0.4rem;
   border-bottom: 1px solid var(--background-modifier-border);
   text-align: left;
+  white-space: nowrap;
+}
+.cci-stats td.cci-stats-defcol {
+  white-space: normal;
+  max-width: 220px;
 }
 .cci-stats th {
   background: var(--background-secondary);
   position: sticky;
   top: 0;
-}
-.cci-stats-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  z-index: 1;
 }
 .cci-stats-graph {
   width: 100%;

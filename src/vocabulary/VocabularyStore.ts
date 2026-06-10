@@ -234,6 +234,7 @@ function pickWinningStatus(a: WordStatus, b: WordStatus): WordStatus {
     unknown: 1,
     meaningKnownPinyinUnknown: 2,
     pinyinKnownMeaningUnknown: 2,
+    charactersUnknown: 2,
     known: 3,
     ignored: 4,
   };

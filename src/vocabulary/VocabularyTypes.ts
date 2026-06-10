@@ -4,6 +4,7 @@ export type WordStatus =
   | "unknown"
   | "meaningKnownPinyinUnknown"
   | "pinyinKnownMeaningUnknown"
+  | "charactersUnknown"
   | "ignored";
 
 export interface WordRecord {

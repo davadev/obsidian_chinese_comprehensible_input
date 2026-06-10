@@ -124,11 +124,14 @@ export default class CciPlugin extends Plugin {
   }
 
   setActiveViewMode(m: ViewMode): void {
+    const prev = this.viewMode;
     this.viewMode = m;
+    const editBoundaryCrossed = (prev === "edit") !== (m === "edit");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
       const v = leaf.view as ChineseTextFileView;
       v.refreshToolbar();
-      v.reconfigureEditor();
+      if (editBoundaryCrossed) v.reconfigureEditor();
+      else v.redecorate();
     }
   }
 
@@ -179,7 +182,7 @@ export default class CciPlugin extends Plugin {
     this.vocab.setStatus(surface, status);
     new Notice(`${surface} → ${status}`);
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
-      (leaf.view as ChineseTextFileView).reconfigureEditor();
+      (leaf.view as ChineseTextFileView).redecorate();
     }
   }
 }

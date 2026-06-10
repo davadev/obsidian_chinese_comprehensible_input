@@ -16,7 +16,13 @@ export class SrsScheduler {
     return this.vocab.values().filter((r) => {
       if (r.status === "ignored") return false;
       if (r.status === "known") return s.srs.scheduleKnownOccasionally;
-      return r.status === "unknown" || r.status === "meaningKnownPinyinUnknown" || r.status === "pinyinKnownMeaningUnknown" || r.status === "new";
+      return (
+        r.status === "unknown" ||
+        r.status === "meaningKnownPinyinUnknown" ||
+        r.status === "pinyinKnownMeaningUnknown" ||
+        r.status === "charactersUnknown" ||
+        r.status === "new"
+      );
     });
   }
 

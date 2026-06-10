@@ -1,5 +1,8 @@
 import { Decoration, DecorationSet, EditorView, ViewPlugin, ViewUpdate, WidgetType } from "@codemirror/view";
-import { RangeSetBuilder } from "@codemirror/state";
+import { RangeSetBuilder, StateEffect } from "@codemirror/state";
+
+/** Dispatch this effect to make the decoration plugin recompute without rebuilding the editor. */
+export const cciRedecorateEffect = StateEffect.define<null>();
 import type CciPlugin from "../main";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
 import { Token } from "../tokenizer/tokenizerTypes";
@@ -27,7 +30,17 @@ export function buildChineseDecorations(plugin: CciPlugin) {
       }
 
       update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged) {
+        const redecorate = update.transactions.some((tr) =>
+          tr.effects.some((e) => e.is(cciRedecorateEffect))
+        );
+        if (update.docChanged || update.viewportChanged || redecorate) {
+          if (redecorate) {
+            // Reuse cached tokens; only rebuild decorations against new state.
+            if (this.lastTokens.length > 0) {
+              this.decorations = this.build(update.view, update.view.state.doc.toString(), this.lastTokens);
+              return;
+            }
+          }
           this.scheduleTokenize(update.view);
         }
       }
@@ -96,12 +109,16 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           status === "new";
 
         // Inline ruby modes wrap word as a replacing widget so pinyin/gloss appear above.
+        // In two/three-line modes we annotate ANY non-known/non-ignored word — including
+        // `new` ones — because the reader explicitly opted into inline annotation by
+        // picking that display mode.
         const wantsRuby =
           (mode === "two-line" || mode === "three-line") &&
           (status === "unknown" ||
             status === "meaningKnownPinyinUnknown" ||
             status === "pinyinKnownMeaningUnknown" ||
-            (status === "new" && settings.newWordBehavior === "annotate"));
+            status === "charactersUnknown" ||
+            status === "new");
 
         if (wantsRuby) {
           builder.add(
@@ -165,13 +182,18 @@ class RubyWidget extends WidgetType {
     ruby.appendChild(document.createTextNode(this.surface));
 
     const pinyin = this.tok.selected?.pinyin ?? this.rec?.pinyin ?? "";
-    if (pinyin && status !== "pinyinKnownMeaningUnknown") {
+    const showPinyin = pinyin && status !== "pinyinKnownMeaningUnknown";
+    if (showPinyin) {
       const rt = document.createElement("rt");
       rt.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
       ruby.appendChild(rt);
     }
 
-    if (this.mode === "three-line" && status !== "meaningKnownPinyinUnknown") {
+    // Three-line gloss: skip for statuses where the meaning is already known
+    // via the pinyin row (meaningKnownPinyinUnknown, charactersUnknown).
+    const skipGloss =
+      status === "meaningKnownPinyinUnknown" || status === "charactersUnknown";
+    if (this.mode === "three-line" && !skipGloss) {
       const def = this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? "";
       if (def) {
         const rt2 = document.createElement("rt");
