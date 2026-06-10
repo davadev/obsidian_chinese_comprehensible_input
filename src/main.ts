@@ -199,7 +199,40 @@ export default class CciPlugin extends Plugin {
 
   refreshChineseViews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
-      (leaf.view as ChineseTextFileView).redecorate();
+      const v = leaf.view as ChineseTextFileView;
+      v.redecorate();
+      v.refreshToolbar();
     }
+  }
+
+  /**
+   * Tokenize a Chinese-bearing text and return how many word-level CJK
+   * tokens fall into each color bucket. Cached via tokenizer; cheap to
+   * call from the toolbar after every redecorate.
+   */
+  async computeNoteStats(text: string): Promise<{
+    total: number;
+    known: number;
+    partial: number;
+    unknown: number;
+    newCount: number;
+  }> {
+    const tokens = await this.tokenizer.tokenize(text);
+    const counts = { total: 0, known: 0, partial: 0, unknown: 0, newCount: 0 };
+    for (const tok of tokens) {
+      if (!tok.isWord || tok.candidates.length === 0) continue;
+      counts.total++;
+      const rec = this.vocab.bySurface(tok.surface);
+      const status = rec?.status ?? "new";
+      if (status === "ignored") {
+        counts.total--; // don't count ignored
+        continue;
+      }
+      if (status === "new") counts.newCount++;
+      else if (status === "known") counts.known++;
+      else if (status === "unknown") counts.unknown++;
+      else counts.partial++;
+    }
+    return counts;
   }
 }

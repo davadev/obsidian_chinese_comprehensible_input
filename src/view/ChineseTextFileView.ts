@@ -1,11 +1,36 @@
 import { TextFileView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { markdown } from "@codemirror/lang-markdown";
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
+import { tags as t } from "@lezer/highlight";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
+
+/**
+ * Markdown syntax highlighting tuned for the Chinese reader.
+ * Larger headings, bold/italic, code dim, list markers de-emphasized.
+ */
+const cciMarkdownHighlight = HighlightStyle.define([
+  { tag: t.heading1, fontSize: "1.7em", fontWeight: "700", color: "var(--text-normal)" },
+  { tag: t.heading2, fontSize: "1.45em", fontWeight: "700", color: "var(--text-normal)" },
+  { tag: t.heading3, fontSize: "1.25em", fontWeight: "700", color: "var(--text-normal)" },
+  { tag: t.heading4, fontSize: "1.1em", fontWeight: "700", color: "var(--text-normal)" },
+  { tag: t.heading5, fontSize: "1em", fontWeight: "700", color: "var(--text-normal)" },
+  { tag: t.heading6, fontSize: "1em", fontWeight: "700", color: "var(--text-muted)" },
+  { tag: t.strong, fontWeight: "700" },
+  { tag: t.emphasis, fontStyle: "italic" },
+  { tag: t.strikethrough, textDecoration: "line-through", color: "var(--text-muted)" },
+  { tag: t.link, color: "var(--text-accent)" },
+  { tag: t.url, color: "var(--text-accent)" },
+  { tag: t.monospace, fontFamily: "var(--font-monospace, ui-monospace, monospace)", background: "var(--background-secondary)" },
+  { tag: t.quote, color: "var(--text-muted)", fontStyle: "italic" },
+  { tag: t.list, color: "var(--text-muted)" },
+  { tag: t.processingInstruction, color: "var(--text-faint)" }, // markdown markers like # *
+]);
 
 /**
  * Custom view that owns its own CodeMirror 6 editor pointed at the underlying
@@ -76,11 +101,16 @@ export class ChineseTextFileView extends TextFileView {
     this.applyDisplayAttr();
 
     const top = this.containerEl.children[1].createDiv({ cls: "cci-toolbar-wrap" });
-    this.toolbar = new ViewToolbar(this.plugin, top, () => {
-      this.applyReaderFont();
-      this.applyDisplayAttr();
-      this.reconfigureEditor();
-    });
+    this.toolbar = new ViewToolbar(
+      this.plugin,
+      top,
+      () => {
+        this.applyReaderFont();
+        this.applyDisplayAttr();
+        this.reconfigureEditor();
+      },
+      () => this.editor?.state.doc.toString() ?? this.data ?? ""
+    );
 
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
     this.ensureEditor(this.data ?? "");
@@ -119,12 +149,15 @@ export class ChineseTextFileView extends TextFileView {
       doc: initialDoc,
       extensions: [
         EditorView.lineWrapping,
+        markdown(),
+        syntaxHighlighting(cciMarkdownHighlight),
         buildChineseDecorations(this.plugin),
         wordInteractionPlugin(this.plugin),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
             this.suppressNextSetData = true;
             this.requestSave();
+            this.toolbar?.refresh();
           }
         }),
         EditorView.editable.of(this.plugin.activeViewMode() === "edit"),

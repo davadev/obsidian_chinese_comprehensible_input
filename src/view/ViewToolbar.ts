@@ -10,18 +10,23 @@ import { DisplayMode, ViewMode } from "../settings/types";
  */
 export class ViewToolbar {
   private bannerEl: HTMLElement | null = null;
+  private badgeEl: HTMLElement | null = null;
+  private getDocText: () => string;
 
   constructor(
     private plugin: CciPlugin,
     private container: HTMLElement,
-    private onChange: () => void
+    private onChange: () => void,
+    getDocText?: () => string
   ) {
+    this.getDocText = getDocText ?? (() => "");
     this.render();
   }
 
   refresh(): void {
     this.updateActiveStates();
     this.updateBanner();
+    this.updateBadge();
   }
 
   private render() {
@@ -57,6 +62,14 @@ export class ViewToolbar {
       attr: { "aria-label": "More" },
     });
     setIcon(overflow, "more-horizontal");
+
+    this.badgeEl = row.createDiv({
+      cls: "cci-known-badge",
+      attr: { title: "Words in this note that you know — tap for stats" },
+    });
+    this.badgeEl.textContent = "—";
+    this.badgeEl.addEventListener("click", () => this.plugin.openStatsView());
+    this.updateBadge();
     let menu: HTMLElement | null = null;
     overflow.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -94,6 +107,37 @@ export class ViewToolbar {
       const m = b.getAttribute("data-mode");
       b.toggleClass("is-active", m === cur);
     });
+  }
+
+  private async updateBadge() {
+    if (!this.badgeEl) return;
+    const text = this.getDocText();
+    if (!text) {
+      this.badgeEl.textContent = "—";
+      this.badgeEl.setAttribute("data-state", "empty");
+      return;
+    }
+    try {
+      const s = await this.plugin.computeNoteStats(text);
+      if (!this.badgeEl) return;
+      if (s.total === 0) {
+        this.badgeEl.textContent = "—";
+        this.badgeEl.setAttribute("data-state", "empty");
+        return;
+      }
+      const pct = Math.round((s.known / s.total) * 100);
+      this.badgeEl.textContent = `${pct}%`;
+      this.badgeEl.setAttribute(
+        "title",
+        `${pct}% of ${s.total} words known · partial ${s.partial} · unknown ${s.unknown} · new ${s.newCount}`
+      );
+      this.badgeEl.setAttribute(
+        "data-state",
+        pct >= 80 ? "high" : pct >= 50 ? "mid" : "low"
+      );
+    } catch {
+      // Tokenizer not ready yet — leave placeholder.
+    }
   }
 
   private updateBanner() {

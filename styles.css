@@ -60,6 +60,27 @@
   border-color: var(--interactive-accent);
 }
 
+.cci-known-badge {
+  margin-left: 0.3rem;
+  min-width: 44px;
+  padding: 0 0.4rem;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-on-accent);
+  background: var(--background-modifier-border);
+  cursor: pointer;
+  user-select: none;
+}
+.cci-known-badge[data-state="high"] { background: rgba(46, 160, 67, 0.85); }
+.cci-known-badge[data-state="mid"]  { background: rgba(220, 180, 30, 0.85); color: #111; }
+.cci-known-badge[data-state="low"]  { background: rgba(220, 60, 60, 0.85); }
+.cci-known-badge[data-state="empty"]{ background: var(--background-modifier-border); color: var(--text-muted); }
+
 .cci-toolbar .cci-display-sel {
   height: 32px;
   flex: 0 1 auto;
