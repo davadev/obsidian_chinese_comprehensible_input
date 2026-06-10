@@ -183,40 +183,52 @@ class RubyWidget extends WidgetType {
       ? this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? ""
       : "";
 
-    if (this.mode === "three-line") {
-      // Native <ruby> with two <rt> elements renders side-by-side in
-      // WebKit/Chromium, so for 3-line we build a vertical inline-flex stack
-      // by hand: gloss → pinyin → chars (top to bottom).
-      const stack = document.createElement("span");
-      stack.className = `cci-stack cci-word cci-color-${color}`;
-      stack.setAttribute("data-cci-surface", this.surface);
-      stack.setAttribute("data-cci-color", color);
+    // Annotated word widget.
+    //
+    // Each character renders inline at the normal text baseline. Pinyin is
+    // split into syllables and each syllable is absolutely positioned above
+    // its own character so multi-syllable words (eg 想象 → xiǎng xiàng) stay
+    // horizontally aligned. The gloss row, when shown, is anchored to the
+    // whole-word stack and centered above.
+    //
+    // The surrounding .cm-content reserves vertical space for the
+    // annotation rows via `line-height` (data-display attribute), so
+    // annotated and unannotated chars share one baseline on the same line.
+    const stack = document.createElement("span");
+    stack.className = `cci-stack cci-word cci-color-${color}`;
+    stack.setAttribute("data-cci-surface", this.surface);
+    stack.setAttribute("data-cci-color", color);
 
-      if (def) {
-        const g = stack.createSpan({ cls: "cci-stack-gloss" });
-        g.textContent = shortenDefinition(def, 24);
+    const chars = Array.from(this.surface);
+    const formattedPinyin = showPinyin && pinyin ? formatPinyin(pinyin, this.settings.pinyinStyle) : "";
+    const syllables = formattedPinyin ? formattedPinyin.split(/\s+/).filter(Boolean) : [];
+    const perChar = showPinyin && syllables.length === chars.length;
+
+    if (perChar) {
+      for (let i = 0; i < chars.length; i++) {
+        const cell = stack.createSpan({ cls: "cci-stack-cell" });
+        const p = cell.createSpan({ cls: "cci-stack-pinyin" });
+        p.textContent = syllables[i];
+        const c = cell.createSpan({ cls: "cci-stack-chars" });
+        c.textContent = chars[i];
       }
+    } else {
+      // Fallback: word-level layout (e.g. pinyin syllable count doesn't
+      // match char count, or pinyin is hidden).
       if (showPinyin && pinyin) {
-        const p = stack.createSpan({ cls: "cci-stack-pinyin" });
-        p.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
+        const p = stack.createSpan({ cls: "cci-stack-pinyin cci-stack-pinyin-word" });
+        p.textContent = formattedPinyin;
       }
       const c = stack.createSpan({ cls: "cci-stack-chars" });
       c.textContent = this.surface;
-      return stack;
     }
 
-    // 2-line — native ruby works fine for a single rt.
-    const ruby = document.createElement("ruby");
-    ruby.className = `cci-ruby cci-word cci-color-${color}`;
-    ruby.setAttribute("data-cci-surface", this.surface);
-    ruby.setAttribute("data-cci-color", color);
-    ruby.appendChild(document.createTextNode(this.surface));
-    if (showPinyin && pinyin) {
-      const rt = document.createElement("rt");
-      rt.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
-      ruby.appendChild(rt);
+    if (this.mode === "three-line" && def) {
+      const g = stack.createSpan({ cls: "cci-stack-gloss" });
+      g.textContent = shortenDefinition(def, 24);
     }
-    return ruby;
+
+    return stack;
   }
 
   ignoreEvent(): boolean {
