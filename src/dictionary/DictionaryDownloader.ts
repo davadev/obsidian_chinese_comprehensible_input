@@ -2,11 +2,11 @@ import { App, normalizePath, requestUrl } from "obsidian";
 import { DictionaryEntry } from "./DictionaryTypes";
 import { numbersToToneMarks } from "./normalizeChinese";
 
-export const CC_CEDICT_URL =
-  "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8.zip";
+export const CC_CEDICT_GZ_URL =
+  "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz";
 
-export const CC_CEDICT_TXT_URL =
-  "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8.txt";
+export const CC_CEDICT_ZIP_URL =
+  "https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.zip";
 
 export interface DownloadStatus {
   state: "idle" | "downloading" | "parsing" | "writing" | "done" | "error";
@@ -108,26 +108,38 @@ export class DictionaryDownloader {
   }
 
   /**
-   * Try the plain UTF-8 .txt first (no decompression needed). If that 404s,
-   * fall back to the .zip endpoint and unzip via DecompressionStream.
+   * Prefer the .txt.gz endpoint — single gzip stream, no ZIP parsing needed.
+   * Fall back to the .zip endpoint if the gz request fails for any reason.
    */
   private async fetchText(): Promise<string> {
     try {
-      const resp = await requestUrl({ url: CC_CEDICT_TXT_URL, method: "GET", throw: false });
-      if (resp.status >= 200 && resp.status < 300 && resp.text.length > 1000) {
-        return resp.text;
+      const resp = await requestUrl({ url: CC_CEDICT_GZ_URL, method: "GET", throw: false });
+      if (resp.status >= 200 && resp.status < 300 && resp.arrayBuffer.byteLength > 1000) {
+        const inflated = await gunzip(new Uint8Array(resp.arrayBuffer));
+        return new TextDecoder("utf-8").decode(inflated);
       }
     } catch {
       // fall through to zip
     }
-    const resp = await requestUrl({ url: CC_CEDICT_URL, method: "GET", throw: false });
+    const resp = await requestUrl({ url: CC_CEDICT_ZIP_URL, method: "GET", throw: false });
     if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`HTTP ${resp.status} fetching CC-CEDICT archive`);
+      throw new Error(`HTTP ${resp.status} fetching CC-CEDICT archive from MDBG`);
     }
-    const buf = resp.arrayBuffer;
-    const inflated = await unzipFirstEntry(new Uint8Array(buf));
+    const inflated = await unzipFirstEntry(new Uint8Array(resp.arrayBuffer));
     return new TextDecoder("utf-8").decode(inflated);
   }
+}
+
+async function gunzip(input: Uint8Array): Promise<Uint8Array> {
+  // @ts-ignore — DecompressionStream is available in Obsidian's Chromium/WebKit runtime.
+  const ds = new DecompressionStream("gzip");
+  const blobPart: BlobPart = input.buffer.slice(
+    input.byteOffset,
+    input.byteOffset + input.byteLength
+  ) as ArrayBuffer;
+  const stream = new Blob([blobPart]).stream().pipeThrough(ds);
+  const out = await new Response(stream).arrayBuffer();
+  return new Uint8Array(out);
 }
 
 /**
