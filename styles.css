@@ -13,6 +13,29 @@
   line-height: 1.85;
 }
 
+/* YAML frontmatter: dim monospace strip styled like Obsidian's default. */
+.cci-view .cci-editor .cci-frontmatter-line {
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-family: var(--font-monospace, ui-monospace, monospace);
+  font-size: 0.85em;
+  border-left: 3px solid var(--background-modifier-border);
+}
+
+/* Obsidian-style links */
+.cci-md-wikilink {
+  color: var(--text-accent);
+  text-decoration: underline;
+  text-decoration-color: var(--background-modifier-border);
+  text-underline-offset: 2px;
+}
+.cci-md-embed {
+  color: var(--text-accent);
+  background: var(--background-secondary);
+  padding: 0 2px;
+  border-radius: 3px;
+}
+
 /* Reserve vertical space so unannotated CJK chars share baseline with
    annotated ones; the larger line-height keeps stacked pinyin/gloss inside
    the line box instead of pushing the next line down unevenly. */
