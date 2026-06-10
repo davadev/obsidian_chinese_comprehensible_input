@@ -33,6 +33,31 @@ const cciMarkdownHighlight = HighlightStyle.define([
 ]);
 
 /**
+ * Splits a Markdown file's YAML `---` … `---` frontmatter from its body.
+ * Returns `{ frontmatter: "", body: data }` when no frontmatter is present.
+ * The closing newline after the second `---` is included in `frontmatter`
+ * so the body starts cleanly. Pure string ops — no CM6 dependency.
+ */
+function splitFrontmatter(data: string): { frontmatter: string; body: string } {
+  if (!data.startsWith("---")) return { frontmatter: "", body: data };
+  const firstNL = data.indexOf("\n");
+  if (firstNL === -1) return { frontmatter: "", body: data };
+  if (data.substring(0, firstNL).trim() !== "---") return { frontmatter: "", body: data };
+  let pos = firstNL + 1;
+  for (let i = 0; i < 200 && pos <= data.length; i++) {
+    const nextNL = data.indexOf("\n", pos);
+    const lineEnd = nextNL === -1 ? data.length : nextNL;
+    if (data.substring(pos, lineEnd).trim() === "---") {
+      const cut = nextNL === -1 ? data.length : nextNL + 1;
+      return { frontmatter: data.substring(0, cut), body: data.substring(cut) };
+    }
+    if (nextNL === -1) break;
+    pos = nextNL + 1;
+  }
+  return { frontmatter: "", body: data };
+}
+
+/**
  * Custom view that owns its own CodeMirror 6 editor pointed at the underlying
  * Markdown file. Extends TextFileView so Obsidian wires save/load and the
  * file lifecycle correctly across mobile and desktop.
@@ -42,6 +67,13 @@ export class ChineseTextFileView extends TextFileView {
   private editorContainer: HTMLElement | null = null;
   private editor: EditorView | null = null;
   private suppressNextSetData = false;
+  /**
+   * YAML frontmatter is stripped before reaching the editor and re-prefixed
+   * on save. The editor never sees the `---` … `---` block, which keeps the
+   * Chinese decoration pipeline simple and avoids the CM6 layout breakage
+   * that plagued the in-editor hide attempts (0.1.13 / 0.1.14).
+   */
+  private frontmatterText = "";
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -63,7 +95,7 @@ export class ChineseTextFileView extends TextFileView {
 
   getViewData(): string {
     if (!this.editor) return this.data;
-    return this.editor.state.doc.toString();
+    return this.frontmatterText + this.editor.state.doc.toString();
   }
 
   setViewData(data: string, _clear: boolean): void {
@@ -72,19 +104,23 @@ export class ChineseTextFileView extends TextFileView {
       this.suppressNextSetData = false;
       return;
     }
+    const split = splitFrontmatter(data);
+    this.frontmatterText = split.frontmatter;
+    const visible = split.body;
     if (this.editor) {
       const current = this.editor.state.doc.toString();
-      if (current !== data) {
+      if (current !== visible) {
         this.editor.dispatch({
-          changes: { from: 0, to: current.length, insert: data },
+          changes: { from: 0, to: current.length, insert: visible },
         });
       }
     } else {
-      this.ensureEditor(data);
+      this.ensureEditor(visible);
     }
   }
 
   clear(): void {
+    this.frontmatterText = "";
     if (this.editor) {
       this.editor.dispatch({
         changes: { from: 0, to: this.editor.state.doc.length, insert: "" },
@@ -113,7 +149,9 @@ export class ChineseTextFileView extends TextFileView {
     );
 
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
-    this.ensureEditor(this.data ?? "");
+    const split = splitFrontmatter(this.data ?? "");
+    this.frontmatterText = split.frontmatter;
+    this.ensureEditor(split.body);
   }
 
   applyReaderFont(): void {
