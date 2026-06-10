@@ -13,6 +13,11 @@
   line-height: 1.85;
 }
 
+/* YAML frontmatter is hidden in the Chinese reader. */
+.cci-view .cci-editor .cm-line.cci-frontmatter-hide {
+  display: none;
+}
+
 /* Reserve vertical space so unannotated CJK chars share baseline with
    annotated ones; the larger line-height keeps stacked pinyin/gloss inside
    the line box instead of pushing the next line down unevenly. */

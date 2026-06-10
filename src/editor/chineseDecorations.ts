@@ -17,6 +17,21 @@ import { axesFromStatus, colorOf } from "../vocabulary/axes";
  */
 export const PLUGIN_FIELD_KEY = "__cci_plugin__";
 
+/** Hidden YAML-frontmatter line marker. CSS hides via `display: none`. */
+const FRONTMATTER_LINE_DECO = Decoration.line({ class: "cci-frontmatter-hide" });
+
+function detectFrontmatter(
+  doc: { lines: number; line: (n: number) => { text: string; from: number; to: number } }
+): { startLine: number; endLine: number } | null {
+  if (doc.lines === 0) return null;
+  if (doc.line(1).text.trim() !== "---") return null;
+  const max = Math.min(80, doc.lines);
+  for (let i = 2; i <= max; i++) {
+    if (doc.line(i).text.trim() === "---") return { startLine: 1, endLine: i };
+  }
+  return null;
+}
+
 export function buildChineseDecorations(plugin: CciPlugin) {
   return ViewPlugin.fromClass(
     class {
@@ -80,11 +95,28 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const settings = plugin.settings;
         const exclusions = computeExcludedRanges(text);
         const builder = new RangeSetBuilder<Decoration>();
+
+        // Frontmatter: hide the leading `---` … `---` block via a per-line
+        // `display: none`. Emitted first so RangeSetBuilder receives strictly
+        // increasing `from` positions; tokens inside the block are skipped
+        // below. Inlined here (not a separate ViewPlugin) so there is only
+        // one decoration source — avoids the cross-plugin ordering bugs
+        // that broke 0.1.8 / 0.1.11.
+        const fm = detectFrontmatter(view.state.doc);
+        if (fm) {
+          for (let i = fm.startLine; i <= fm.endLine; i++) {
+            const line = view.state.doc.line(i);
+            builder.add(line.from, line.from, FRONTMATTER_LINE_DECO);
+          }
+        }
+        const fmEndOffset = fm ? view.state.doc.line(fm.endLine).to : -1;
+
         const ranges = view.visibleRanges;
         for (const range of ranges) {
           for (const tok of tokens) {
             if (tok.end <= range.from) continue;
             if (tok.start >= range.to) break;
+            if (tok.start < fmEndOffset) continue;
             if (!tok.isWord || tok.candidates.length === 0) continue;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
             this.emitDecoration(builder, tok, settings, plugin);
