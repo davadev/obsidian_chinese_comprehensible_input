@@ -210,8 +210,21 @@ export class ChineseTextFileView extends TextFileView {
   reconfigureEditor(): void {
     if (!this.editor || !this.editorContainer) return;
     const data = this.editor.state.doc.toString();
-    const scrollTop = this.editor.scrollDOM.scrollTop;
     const selection = this.editor.state.selection.main;
+    // Capture the document offset of the line at the top of the viewport.
+    // Restoring by pixel scrollTop fails on display-mode change because the
+    // new mode has a different line-height: the same scrollTop maps to a
+    // different logical line. Restoring by document offset lands the user
+    // on approximately the same line.
+    let topOffset = 0;
+    try {
+      const block = this.editor.lineBlockAtHeight(
+        this.editor.scrollDOM.scrollTop + 1
+      );
+      topOffset = block.from;
+    } catch {
+      topOffset = 0;
+    }
     this.ensureEditor(data);
     if (this.editor) {
       try {
@@ -222,9 +235,15 @@ export class ChineseTextFileView extends TextFileView {
       } catch {
         // selection restore is best-effort
       }
-      // Restore scroll after layout settles.
+      const target = Math.min(topOffset, this.editor.state.doc.length);
       requestAnimationFrame(() => {
-        if (this.editor) this.editor.scrollDOM.scrollTop = scrollTop;
+        try {
+          this.editor?.dispatch({
+            effects: EditorView.scrollIntoView(target, { y: "start" }),
+          });
+        } catch {
+          // scroll restore is best-effort
+        }
       });
     }
   }

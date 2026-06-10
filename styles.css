@@ -283,6 +283,16 @@
   line-height: 1;
 }
 
+/* When the widget sits inside a Markdown heading line, scale the chars row
+   so the heading still reads as a heading in 2-line / 3-line modes. Pinyin
+   and gloss stay proportionally small. */
+.cci-stack-h1 .cci-stack-chars { font-size: 1.7em;  font-weight: 700; }
+.cci-stack-h2 .cci-stack-chars { font-size: 1.45em; font-weight: 700; }
+.cci-stack-h3 .cci-stack-chars { font-size: 1.25em; font-weight: 700; }
+.cci-stack-h4 .cci-stack-chars { font-size: 1.1em;  font-weight: 700; }
+.cci-stack-h5 .cci-stack-chars { font-size: 1em;    font-weight: 700; }
+.cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--text-muted); }
+
 /* Popup */
 .cci-popup {
   position: absolute;
@@ -503,3 +513,101 @@
   width: 100%;
   height: 30px;
 }
+
+/* Stats tabs */
+.cci-stats-tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0.6rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.cci-stats-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.35rem 0.7rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.cci-stats-tab.is-active {
+  color: var(--text-normal);
+  border-bottom-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+/* Dashboard */
+.cci-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+.cci-dash-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.cci-dash-card.cci-color-known   { border-left: 3px solid rgba(46, 160, 67, 0.85); }
+.cci-dash-card.cci-color-partial { border-left: 3px solid rgba(220, 180, 30, 0.85); }
+.cci-dash-card.cci-color-unknown { border-left: 3px solid rgba(220, 60, 60, 0.85); }
+.cci-dash-card.cci-color-new     { border-left: 3px solid rgba(88, 166, 255, 0.55); }
+.cci-dash-card-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cci-dash-card-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+.cci-dash-card-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+.cci-dash-notes {
+  margin-top: 0.6rem;
+}
+.cci-dash-notes h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.cci-dash-notes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.cci-dash-notes-table th,
+.cci-dash-notes-table td {
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+}
+.cci-dash-notes-table th {
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+.cci-clickable {
+  color: var(--text-accent);
+  cursor: pointer;
+}
+.cci-clickable:hover {
+  text-decoration: underline;
+}
+
+/* Status cell + row tint in Words table */
+.cci-status-cell.cci-color-known   { color: rgba(46, 160, 67, 1); font-weight: 600; }
+.cci-status-cell.cci-color-partial { color: rgba(190, 140, 0, 1);  font-weight: 600; }
+.cci-status-cell.cci-color-unknown { color: rgba(200, 50, 50, 1);  font-weight: 600; }
+.cci-status-cell.cci-color-new     { color: rgba(60, 130, 220, 1); font-weight: 600; }
+.cci-row-color-known   td { background: rgba(46, 160, 67, 0.05); }
+.cci-row-color-partial td { background: rgba(220, 180, 30, 0.06); }
+.cci-row-color-unknown td { background: rgba(220, 60, 60, 0.06); }

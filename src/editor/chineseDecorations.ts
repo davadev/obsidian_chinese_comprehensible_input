@@ -18,22 +18,30 @@ import { axesFromStatus, colorOf } from "../vocabulary/axes";
 export const PLUGIN_FIELD_KEY = "__cci_plugin__";
 
 /**
- * Dispatch the redecorate effect on the next animation frame. Doing it
- * synchronously can race the editor's first measure pass, which leaves the
- * freshly-built decoration set unpainted until the user touches the view.
- * Wrapped in try/catch because the view may be destroyed before the frame
- * fires (e.g. note closed while tokenizing).
+ * Dispatch the redecorate effect across a few short windows. CM6's initial
+ * measure pass can complete between any two of these dispatches, so firing
+ * at rAF, rAF+rAF, and at 120ms makes the first paint reliable even when
+ * the view's parent layout settles slowly. Each dispatch is cheap (just
+ * triggers `update()` which hits the cached-token fast path). Wrapped in
+ * try/catch because the view may be destroyed before a tick fires.
  */
 function dispatchRedecorate(view: EditorView): void {
-  const run = () => {
+  const fire = () => {
     try {
       view.dispatch({ effects: cciRedecorateEffect.of(null) });
     } catch {
-      // view destroyed mid-flight; ignore
+      // view destroyed mid-flight; stop retrying
     }
   };
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
-  else run();
+  if (typeof requestAnimationFrame === "function") {
+    requestAnimationFrame(() => {
+      fire();
+      requestAnimationFrame(fire);
+    });
+  } else {
+    fire();
+  }
+  if (typeof setTimeout === "function") setTimeout(fire, 120);
 }
 
 export function buildChineseDecorations(plugin: CciPlugin) {
@@ -103,13 +111,30 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const exclusions = computeExcludedRanges(text);
         const builder = new RangeSetBuilder<Decoration>();
         const ranges = view.visibleRanges;
+        // Cache heading level per line so multi-token heading lines don't
+        // re-parse. Computed lazily on first hit.
+        const headingByLine = new Map<number, number>();
+        const headingLevelAt = (offset: number): number => {
+          try {
+            const lineNum = view.state.doc.lineAt(offset).number;
+            const cached = headingByLine.get(lineNum);
+            if (cached !== undefined) return cached;
+            const lineText = view.state.doc.line(lineNum).text;
+            const m = /^(#{1,6})\s/.exec(lineText);
+            const level = m ? m[1].length : 0;
+            headingByLine.set(lineNum, level);
+            return level;
+          } catch {
+            return 0;
+          }
+        };
         for (const range of ranges) {
           for (const tok of tokens) {
             if (tok.end <= range.from) continue;
             if (tok.start >= range.to) break;
             if (!tok.isWord || tok.candidates.length === 0) continue;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
-            this.emitDecoration(builder, tok, settings, plugin);
+            this.emitDecoration(builder, tok, settings, plugin, headingLevelAt(tok.start));
           }
         }
         return builder.finish();
@@ -119,7 +144,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         builder: RangeSetBuilder<Decoration>,
         tok: Token,
         settings: CciSettings,
-        plugin: CciPlugin
+        plugin: CciPlugin,
+        headingLevel: number
       ) {
         const rec = plugin.vocab.bySurface(tok.surface);
         const color: ColorState = colorOf(rec);
@@ -141,7 +167,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             tok.start,
             tok.end,
             Decoration.replace({
-              widget: new RubyWidget(tok.surface, tok, rec, mode, settings),
+              widget: new RubyWidget(tok.surface, tok, rec, mode, settings, headingLevel),
               inclusive: false,
             })
           );
@@ -191,7 +217,8 @@ class RubyWidget extends WidgetType {
     tok: Token,
     rec: WordRecord | undefined,
     private mode: DisplayMode,
-    private settings: CciSettings
+    private settings: CciSettings,
+    private headingLevel: number = 0
   ) {
     super();
     this.color = colorOf(rec);
@@ -214,7 +241,8 @@ class RubyWidget extends WidgetType {
       other.axes.pinyin === this.axes.pinyin &&
       other.axes.meaning === this.axes.meaning &&
       other.pinyin === this.pinyin &&
-      other.def === this.def
+      other.def === this.def &&
+      other.headingLevel === this.headingLevel
     );
   }
 
@@ -241,7 +269,8 @@ class RubyWidget extends WidgetType {
      * spacing words apart so glosses do not overlap their neighbors.
      */
     const stack = document.createElement("span");
-    stack.className = `cci-stack cci-word cci-color-${this.color}`;
+    const headingCls = this.headingLevel > 0 ? ` cci-stack-h${this.headingLevel}` : "";
+    stack.className = `cci-stack cci-word cci-color-${this.color}${headingCls}`;
     stack.setAttribute("data-cci-surface", this.surface);
     stack.setAttribute("data-cci-color", this.color);
 
