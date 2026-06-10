@@ -7,6 +7,7 @@ import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
 import { VocabularyStore } from "./vocabulary/VocabularyStore";
 import { ExposureTracker } from "./vocabulary/ExposureTracker";
+import { indexVaultWithNotice } from "./vocabulary/VaultIndexer";
 import { SrsScheduler } from "./srs/SrsScheduler";
 import { AiProviderService } from "./ai/AiProviderService";
 import { StoryGenerator } from "./ai/StoryGenerator";
@@ -68,6 +69,46 @@ export default class CciPlugin extends Plugin {
     this.addRibbonIcon("book-open-check", "Open current note in Chinese Learning View", () => {
       this.openCurrentInChineseView();
     });
+
+    // Background bootstrap: auto-download the dictionary if missing, then
+    // index the vault on first run so the stats dashboard reflects every
+    // Chinese note, not only the ones the user has visited. Fire-and-forget
+    // so we don't block onload.
+    void this.bootstrapVault();
+  }
+
+  /**
+   * Auto-download the dictionary (if enabled + missing), then warm the
+   * tokenizer, then scan the vault once to seed vocabulary records. Idempotent
+   * — re-running it just re-records exposures on the canonical keys.
+   */
+  private async bootstrapVault(): Promise<void> {
+    try {
+      if (this.settings.autoDownloadDictionary && !(await this.dictionary.isOnDisk())) {
+        const notice = new Notice("Chinese plugin: downloading dictionary…", 0);
+        try {
+          await this.dictDownloader.run();
+          await this.dictionary.reload();
+          notice.setMessage("Chinese plugin: dictionary ready.");
+          setTimeout(() => notice.hide(), 3000);
+        } catch (err) {
+          notice.setMessage(
+            "Chinese plugin: dictionary download failed — " + (err as Error).message
+          );
+          setTimeout(() => notice.hide(), 6000);
+          return;
+        }
+      } else {
+        // Dictionary is already on disk (or auto-download disabled). Make
+        // sure it is loaded into memory.
+        await this.dictionary.ensureLoaded();
+      }
+      if (!this.settings.vaultIndexed) {
+        await indexVaultWithNotice(this);
+      }
+    } catch (err) {
+      console.error("CCI bootstrap failed", err);
+    }
   }
 
   async onunload(): Promise<void> {

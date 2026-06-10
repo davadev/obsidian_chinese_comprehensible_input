@@ -34,6 +34,15 @@ export class DictionaryService {
     await this.ensureLoaded();
   }
 
+  /** True iff the vault-side dictionary file `.cci-dictionary.json` exists. */
+  async isOnDisk(): Promise<boolean> {
+    try {
+      return await this.app.vault.adapter.exists(normalizePath(".cci-dictionary.json"));
+    } catch {
+      return false;
+    }
+  }
+
   private async doLoad(): Promise<void> {
     for (const e of SEED_ENTRIES) this.index(e);
     await this.tryLoadVaultDictionary();

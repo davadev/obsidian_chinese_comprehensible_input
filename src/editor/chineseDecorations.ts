@@ -6,6 +6,7 @@ export const cciRedecorateEffect = StateEffect.define<null>();
 import type CciPlugin from "../main";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
 import { Token } from "../tokenizer/tokenizerTypes";
+import { getCachedTokens, hashText } from "../tokenizer/tokenCache";
 import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { CciSettings, DisplayMode } from "../settings/types";
 import { hasCjk, shortenDefinition } from "../dictionary/normalizeChinese";
@@ -18,30 +19,24 @@ import { axesFromStatus, colorOf } from "../vocabulary/axes";
 export const PLUGIN_FIELD_KEY = "__cci_plugin__";
 
 /**
- * Dispatch the redecorate effect across a few short windows. CM6's initial
- * measure pass can complete between any two of these dispatches, so firing
- * at rAF, rAF+rAF, and at 120ms makes the first paint reliable even when
- * the view's parent layout settles slowly. Each dispatch is cheap (just
- * triggers `update()` which hits the cached-token fast path). Wrapped in
- * try/catch because the view may be destroyed before a tick fires.
+ * Dispatch the redecorate effect on the next animation frame so the new
+ * decoration set is picked up after CM6's measure pass. Wrapped in
+ * try/catch because the view may be destroyed before the frame fires.
+ *
+ * Only used for the async/cache-miss path. The cache-hit happy path
+ * computes decorations synchronously in the constructor and needs no
+ * dispatch — the decoration set is in place before CM6 reads it.
  */
 function dispatchRedecorate(view: EditorView): void {
   const fire = () => {
     try {
       view.dispatch({ effects: cciRedecorateEffect.of(null) });
     } catch {
-      // view destroyed mid-flight; stop retrying
+      // view destroyed mid-flight; ignore
     }
   };
-  if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(() => {
-      fire();
-      requestAnimationFrame(fire);
-    });
-  } else {
-    fire();
-  }
-  if (typeof setTimeout === "function") setTimeout(fire, 120);
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(fire);
+  else fire();
 }
 
 export function buildChineseDecorations(plugin: CciPlugin) {
@@ -54,7 +49,20 @@ export function buildChineseDecorations(plugin: CciPlugin) {
 
       constructor(view: EditorView) {
         this.decorations = Decoration.none;
-        this.scheduleTokenize(view);
+        // Synchronous cache check: if the host view pre-warmed the shared
+        // token cache (see ChineseTextFileView.onOpen), we can build
+        // decorations immediately so the first paint already has them.
+        // Eliminates the async race that caused the "open note → no
+        // annotations until I switch the mode" bug.
+        const text = view.state.doc.toString();
+        const cached = getCachedTokens(text);
+        if (cached) {
+          this.lastTokens = cached;
+          this.lastSourceVersion = hashText(text);
+          this.decorations = this.build(view, text, cached);
+        } else {
+          this.scheduleTokenize(view);
+        }
       }
 
       update(update: ViewUpdate) {
@@ -75,7 +83,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
 
       scheduleTokenize(view: EditorView) {
         const text = view.state.doc.toString();
-        const version = hash(text);
+        const version = hashText(text);
         if (version === this.lastSourceVersion && this.lastTokens.length > 0) {
           this.decorations = this.build(view, text, this.lastTokens);
           return;
@@ -120,7 +128,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             const cached = headingByLine.get(lineNum);
             if (cached !== undefined) return cached;
             const lineText = view.state.doc.line(lineNum).text;
-            const m = /^(#{1,6})\s/.exec(lineText);
+            const m = /^\s{0,3}(#{1,6})\s/.exec(lineText);
             const level = m ? m[1].length : 0;
             headingByLine.set(lineNum, level);
             return level;
@@ -333,11 +341,3 @@ function formatPinyin(p: string, style: CciSettings["pinyinStyle"]): string {
   return toneMarksToNumbers(p);
 }
 
-function hash(s: string): number {
-  let h = 2166136261 >>> 0;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h;
-}

@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type CciPlugin from "../main";
+import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 
 export class CciSettingsTab extends PluginSettingTab {
   constructor(app: App, private plugin: CciPlugin) {
@@ -499,6 +500,34 @@ export class CciSettingsTab extends PluginSettingTab {
       .setDesc("Dashboard, per-note breakdown, and the full word list.")
       .addButton((b) =>
         b.setButtonText("Open stats").onClick(() => this.plugin.openStatsView())
+      );
+
+    new Setting(c)
+      .setName("Index vault")
+      .setDesc(
+        "Scan every Markdown file for Chinese words and record exposures. " +
+          "Runs automatically once on first plugin load; use this to re-scan after large vault edits."
+      )
+      .addButton((b) =>
+        b.setButtonText(this.plugin.settings.vaultIndexed ? "Reindex" : "Index now").onClick(async () => {
+          this.plugin.settings.vaultIndexed = false;
+          await this.plugin.saveSettings();
+          await indexVaultWithNotice(this.plugin);
+        })
+      );
+
+    new Setting(c)
+      .setName("Auto-download dictionary on first load")
+      .setDesc(
+        "Silently fetch CC-CEDICT from MDBG when the vault doesn't have a dictionary yet."
+      )
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.autoDownloadDictionary)
+          .onChange(async (v) => {
+            this.plugin.settings.autoDownloadDictionary = v;
+            await this.plugin.saveSettings();
+          })
       );
 
     new Setting(c).setName("Export vocabulary JSON").addButton((b) =>

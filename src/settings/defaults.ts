@@ -52,4 +52,6 @@ export const DEFAULT_SETTINGS: CciSettings = {
   densityCapPercent: 35,
   mnemonicsFirst: false,
   readerFontPx: 22,
+  vaultIndexed: false,
+  autoDownloadDictionary: true,
 };

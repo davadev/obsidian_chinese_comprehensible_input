@@ -3,7 +3,7 @@ import type CciPlugin from "../main";
 import { VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorOf } from "../vocabulary/axes";
-import { renderDailyGraph } from "./StatsGraph";
+import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressGraph } from "./StatsGraph";
 
 type SortKey = "seenCount" | "lastSeenAt" | "dueAt" | "status" | "hsk";
 type Tab = "dashboard" | "words";
@@ -16,6 +16,8 @@ export class StatsView extends ItemView {
   private sortDesc = true;
   private noteScope = "";
   private tab: Tab = "dashboard";
+  private progressBucket: Bucket = "day";
+  private progressWindow = { day: 30, week: 12, month: 12 } as const;
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -120,6 +122,8 @@ export class StatsView extends ItemView {
       this.statCard(grid, "Overall known", `${globalPct}%`, "Known out of all words this plugin has tracked across notes.");
     }
 
+    this.renderProgressSection(root, scoped);
+
     // Per-note exposure breakdown.
     const notePaths = this.plugin.vocab.knownNotePaths();
     if (notePaths.length > 0 && !this.noteScope) {
@@ -147,6 +151,44 @@ export class StatsView extends ItemView {
         tr.createEl("td", { text: `${pctKnown}%` });
       }
     }
+  }
+
+  private renderProgressSection(root: HTMLElement, records: WordRecord[]) {
+    const wrap = root.createDiv({ cls: "cci-dash-progress" });
+    const head = wrap.createDiv({ cls: "cci-dash-progress-head" });
+    head.createEl("h3", { text: "Progress" });
+    const sel = head.createEl("select", { cls: "cci-dash-progress-bucket" });
+    for (const [v, l] of [["day", "Daily (30)"], ["week", "Weekly (12)"], ["month", "Monthly (12)"]] as [Bucket, string][]) {
+      const o = sel.createEl("option", { text: l });
+      o.value = v;
+    }
+    sel.value = this.progressBucket;
+    sel.addEventListener("change", () => {
+      this.progressBucket = sel.value as Bucket;
+      this.render();
+    });
+
+    const trackedStamps = records.map((r) => r.firstSeenAt);
+    const knownStamps = records.map((r) => r.knownAt);
+    const n = this.progressWindow[this.progressBucket];
+    const trackedSeries = bucketTimestamps(trackedStamps, this.progressBucket, n);
+    const knownSeries = bucketTimestamps(knownStamps, this.progressBucket, n);
+
+    const graphHost = wrap.createDiv({ cls: "cci-dash-progress-graph" });
+    renderProgressGraph(graphHost, [
+      { label: "Tracked added", color: "rgba(88, 166, 255, 0.85)", data: trackedSeries },
+      { label: "Learned", color: "rgba(46, 160, 67, 0.85)", data: knownSeries },
+    ]);
+
+    const trackedRecent = trackedSeries.reduce((a, b) => a + b.count, 0);
+    const knownRecent = knownSeries.reduce((a, b) => a + b.count, 0);
+    const range =
+      this.progressBucket === "day" ? "30 days" :
+      this.progressBucket === "week" ? "12 weeks" : "12 months";
+    wrap.createEl("p", {
+      cls: "cci-dash-progress-summary",
+      text: `Last ${range}: ${trackedRecent} tracked, ${knownRecent} learned.`,
+    });
   }
 
   private statCard(parent: HTMLElement, label: string, value: string, hint: string, accent?: string) {

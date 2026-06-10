@@ -32,6 +32,12 @@ export interface WordRecord {
   axes?: KnownAxes;
   firstSeenAt?: string;
   lastSeenAt?: string;
+  /**
+   * ISO timestamp the first time this word reached `known` status. Used by
+   * the dashboard "learned per day/week/month" progress graph. Optional so
+   * pre-existing records can be filled in lazily.
+   */
+  knownAt?: string;
   seenCount: number;
 
   recentSeenAt: string[];

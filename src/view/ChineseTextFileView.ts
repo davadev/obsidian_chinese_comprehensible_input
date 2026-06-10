@@ -107,6 +107,11 @@ export class ChineseTextFileView extends TextFileView {
     const split = splitFrontmatter(data);
     this.frontmatterText = split.frontmatter;
     const visible = split.body;
+    // Best-effort: pre-warm the shared token cache for the new doc so the
+    // decoration plugin's next build hits the cache instead of racing the
+    // async tokenize. Fire-and-forget — the existing async path still
+    // dispatchRedecorates when it lands.
+    void this.plugin.tokenizer.tokenize(visible).catch(() => {});
     if (this.editor) {
       const current = this.editor.state.doc.toString();
       if (current !== visible) {
@@ -140,18 +145,61 @@ export class ChineseTextFileView extends TextFileView {
     this.toolbar = new ViewToolbar(
       this.plugin,
       top,
-      () => {
-        this.applyReaderFont();
-        this.applyDisplayAttr();
-        this.reconfigureEditor();
-      },
+      () => this.handleToolbarChange(),
       () => this.editor?.state.doc.toString() ?? this.data ?? ""
     );
 
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
     const split = splitFrontmatter(this.data ?? "");
     this.frontmatterText = split.frontmatter;
+    // Pre-warm the shared token cache BEFORE creating the editor. The
+    // decoration ViewPlugin's constructor reads the cache synchronously and
+    // builds decorations in time for the first paint, so the user sees
+    // annotations on first open without having to toggle the display mode.
+    try {
+      await this.plugin.tokenizer.tokenize(split.body);
+    } catch {
+      // tokenizer not ready (no dictionary yet) — the ViewPlugin will fall
+      // back to its async path and dispatchRedecorate when it finishes
+    }
     this.ensureEditor(split.body);
+  }
+
+  /**
+   * Display-mode / font toggle from the toolbar. Does NOT rebuild the
+   * editor — that path destroys the EditorView and races CM6's first
+   * measure on rebuild, which is what kept losing the scroll position.
+   * Instead: capture the topmost-visible doc offset, change CSS + ask
+   * the decoration plugin to redecorate, then scroll the captured
+   * offset back to the top of the viewport on the next frame.
+   */
+  private handleToolbarChange(): void {
+    let topOffset = 0;
+    if (this.editor) {
+      try {
+        topOffset = this.editor.lineBlockAtHeight(
+          this.editor.scrollDOM.scrollTop + 1
+        ).from;
+      } catch {
+        topOffset = 0;
+      }
+    }
+    this.applyReaderFont();
+    this.applyDisplayAttr();
+    this.redecorate();
+    this.toolbar?.refresh();
+    if (this.editor) {
+      const target = Math.min(topOffset, this.editor.state.doc.length);
+      requestAnimationFrame(() => {
+        try {
+          this.editor?.dispatch({
+            effects: EditorView.scrollIntoView(target, { y: "start" }),
+          });
+        } catch {
+          // best-effort
+        }
+      });
+    }
   }
 
   applyReaderFont(): void {

@@ -26,6 +26,44 @@ export class VocabularyStore {
     const raw = initialBlob?.[this.namespace];
     this.data = migrateVocab(raw);
     this.loaded = true;
+    this.dedupeOnLoad();
+  }
+
+  /**
+   * One-time pass on load: re-key any record whose stored `key` doesn't match
+   * the canonical `makeKey(simplified, pinyin)`. Merge with any existing
+   * record under the canonical key. Fixes the "marked known in note A, shows
+   * untracked in note B" duplicate caused by older entries keyed by raw
+   * surface instead of by simplified|pinyin.
+   */
+  private dedupeOnLoad(): void {
+    let mutated = false;
+    const out: Record<string, WordRecord> = {};
+    for (const r of Object.values(this.data.words)) {
+      // Backfill knownAt for records already in the "known" bucket — best
+      // approximation is updatedAt, which at least won't shift on future
+      // edits.
+      if (r.status === "known" && !r.knownAt) {
+        r.knownAt = r.updatedAt;
+        mutated = true;
+      }
+      const canonical = makeKey(r.simplified ?? r.surfaces[0] ?? r.key, r.pinyin);
+      if (canonical !== r.key) {
+        r.key = canonical;
+        mutated = true;
+      }
+      const prev = out[canonical];
+      if (!prev) {
+        out[canonical] = r;
+        continue;
+      }
+      out[canonical] = mergeRecords(prev, r);
+      mutated = true;
+    }
+    if (mutated) {
+      this.data.words = out;
+      this.scheduleSave();
+    }
   }
 
   /** Returns a frozen view of the persisted blob to be merged with settings. */
@@ -41,9 +79,19 @@ export class VocabularyStore {
     return this.data.words[key];
   }
 
+  /**
+   * Look up a record by the visible surface. Resolves the canonical
+   * `simplified|pinyin` key via the dictionary so the same word marked in
+   * any note (in any variant — simplified, traditional, or alternate
+   * surface) lands on the same record. Falls back to the surfaces[] scan
+   * for records that pre-date this canonical-key logic; if the load-time
+   * dedupe has already run there will not be any.
+   */
   bySurface(surface: string): WordRecord | undefined {
-    // Fast path: same-key lookup if user keyed by surface only.
-    if (this.data.words[surface]) return this.data.words[surface];
+    const top = this.dict.lookup(surface)[0];
+    const canonical = makeKey(top?.simplified ?? surface, top?.pinyin);
+    const direct = this.data.words[canonical];
+    if (direct) return direct;
     for (const r of Object.values(this.data.words)) {
       if (r.surfaces.includes(surface)) return r;
     }
@@ -52,7 +100,13 @@ export class VocabularyStore {
 
   ensure(surface: string): WordRecord {
     const existing = this.bySurface(surface);
-    if (existing) return existing;
+    if (existing) {
+      if (!existing.surfaces.includes(surface)) {
+        existing.surfaces.push(surface);
+        this.scheduleSave();
+      }
+      return existing;
+    }
     const entries = this.dict.lookup(surface);
     const top = entries[0];
     const key = makeKey(top?.simplified ?? surface, top?.pinyin);
@@ -86,7 +140,9 @@ export class VocabularyStore {
     const derived = axesFromStatus(status);
     if (derived) r.axes = derived;
     if (status === "ignored" && reason) r.ignoredReason = reason;
-    r.updatedAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    if (status === "known" && !r.knownAt) r.knownAt = now;
+    r.updatedAt = now;
     this.scheduleSave();
     return r;
   }
@@ -95,7 +151,9 @@ export class VocabularyStore {
     const r = this.ensure(surface);
     r.axes = axes;
     r.status = statusFromAxes(axes);
-    r.updatedAt = new Date().toISOString();
+    const now = new Date().toISOString();
+    if (r.status === "known" && !r.knownAt) r.knownAt = now;
+    r.updatedAt = now;
     this.scheduleSave();
     return r;
   }
@@ -243,6 +301,8 @@ function csv(s: string): string {
 }
 
 function mergeRecords(a: WordRecord, b: WordRecord): WordRecord {
+  const firstSeenAt = pickEarlier(a.firstSeenAt, b.firstSeenAt);
+  const knownAt = pickEarlier(a.knownAt, b.knownAt);
   return {
     ...a,
     ...b,
@@ -251,8 +311,16 @@ function mergeRecords(a: WordRecord, b: WordRecord): WordRecord {
     recentSeenAt: [...a.recentSeenAt, ...b.recentSeenAt].sort(),
     dailySeenCounts: mergeCounts(a.dailySeenCounts, b.dailySeenCounts),
     status: pickWinningStatus(a.status, b.status),
+    firstSeenAt,
+    knownAt,
     updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt,
   };
+}
+
+function pickEarlier(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a < b ? a : b;
 }
 
 function mergeCounts(a: Record<string, number>, b: Record<string, number>): Record<string, number> {

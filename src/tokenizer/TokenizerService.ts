@@ -4,6 +4,7 @@ import { Trie } from "./Trie";
 import { tokenizeLatticeSpan, LatticeScoringContext } from "./latticeTokenizer";
 import { Token, TokenizerOverride } from "./tokenizerTypes";
 import { CciSettings } from "../settings/types";
+import { clearTokenCache, getCachedTokens, putCachedTokens } from "./tokenCache";
 
 export interface TokenizationCacheEntry {
   fileVersion: number;
@@ -32,6 +33,8 @@ export class TokenizerService {
   invalidate(): void {
     this.cache.clear();
     this.trie = null;
+    // Drop the module-level shared cache too — overrides change tokenization.
+    clearTokenCache();
   }
 
   private async ensureTrie(): Promise<Trie> {
@@ -48,9 +51,14 @@ export class TokenizerService {
   }
 
   async tokenize(text: string): Promise<Token[]> {
+    const cached = getCachedTokens(text);
+    if (cached) return cached;
     const engine = this.settings().tokenizerEngine;
-    if (engine === "intl-segmenter") return this.tokenizeIntl(text);
-    return this.tokenizeLattice(text);
+    const tokens = engine === "intl-segmenter"
+      ? await this.tokenizeIntl(text)
+      : await this.tokenizeLattice(text);
+    putCachedTokens(text, tokens);
+    return tokens;
   }
 
   private async tokenizeLattice(text: string): Promise<Token[]> {

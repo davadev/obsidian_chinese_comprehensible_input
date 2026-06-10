@@ -27,3 +27,130 @@ export function renderDailyGraph(container: HTMLElement, dailyCounts: Record<str
   });
   container.appendChild(svg);
 }
+
+export type Bucket = "day" | "week" | "month";
+
+/**
+ * Drop ISO timestamps into time buckets relative to today, return the last
+ * `windowSize` buckets in chronological order with their counts. Missing
+ * buckets render as zero so the chart stays evenly spaced.
+ */
+export function bucketTimestamps(
+  stamps: (string | undefined)[],
+  bucket: Bucket,
+  windowSize: number
+): { label: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const iso of stamps) {
+    if (!iso) continue;
+    const key = bucketKey(new Date(iso), bucket);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const labels = recentBucketLabels(bucket, windowSize);
+  return labels.map((label) => ({ label, count: counts.get(label) ?? 0 }));
+}
+
+function bucketKey(d: Date, bucket: Bucket): string {
+  if (bucket === "day") return d.toISOString().slice(0, 10);
+  if (bucket === "month") return d.toISOString().slice(0, 7);
+  // ISO week (week starting Monday). yyyy-Www format.
+  const tmp = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dayNum = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((tmp.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${tmp.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
+
+function recentBucketLabels(bucket: Bucket, n: number): string[] {
+  const out: string[] = [];
+  const today = new Date();
+  if (bucket === "day") {
+    for (let i = n - 1; i >= 0; i--) {
+      out.push(bucketKey(new Date(today.getTime() - i * 86400000), "day"));
+    }
+  } else if (bucket === "week") {
+    for (let i = n - 1; i >= 0; i--) {
+      out.push(bucketKey(new Date(today.getTime() - i * 7 * 86400000), "week"));
+    }
+  } else {
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(today.getUTCFullYear(), today.getUTCMonth() - i, 1);
+      out.push(bucketKey(d, "month"));
+    }
+  }
+  return out;
+}
+
+/**
+ * Two-series bar chart (Tracked added, Learned). Both series share the same
+ * Y axis. SVG only — no charting library.
+ */
+export function renderProgressGraph(
+  container: HTMLElement,
+  series: { label: string; color: string; data: { label: string; count: number }[] }[]
+): void {
+  container.empty();
+  if (series.length === 0 || series[0].data.length === 0) return;
+  const buckets = series[0].data.map((d) => d.label);
+  const n = buckets.length;
+  const maxVal = Math.max(
+    1,
+    ...series.flatMap((s) => s.data.map((d) => d.count))
+  );
+  const cellW = 12;
+  const barW = Math.max(2, Math.floor((cellW - 2) / series.length));
+  const W = n * cellW;
+  const H = 100;
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("class", "cci-progress-graph");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+  series.forEach((s, si) => {
+    s.data.forEach((d, i) => {
+      const h = Math.round((d.count / maxVal) * (H - 14));
+      const r = document.createElementNS(svgNs, "rect");
+      r.setAttribute("x", String(i * cellW + si * barW + 1));
+      r.setAttribute("y", String(H - 14 - h));
+      r.setAttribute("width", String(barW));
+      r.setAttribute("height", String(h));
+      r.setAttribute("fill", s.color);
+      r.setAttribute("opacity", "0.85");
+      const title = document.createElementNS(svgNs, "title");
+      title.textContent = `${d.label} · ${s.label}: ${d.count}`;
+      r.appendChild(title);
+      svg.appendChild(r);
+    });
+  });
+  // Sparse x-axis tick labels: first, last, midpoint.
+  const tickIdx = [0, Math.floor(n / 2), n - 1];
+  for (const i of tickIdx) {
+    const t = document.createElementNS(svgNs, "text");
+    t.setAttribute("x", String(i * cellW + cellW / 2));
+    t.setAttribute("y", String(H - 2));
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("font-size", "8");
+    t.setAttribute("fill", "currentColor");
+    t.setAttribute("opacity", "0.55");
+    t.textContent = buckets[i];
+    svg.appendChild(t);
+  }
+  container.appendChild(svg);
+
+  // Legend
+  const legend = document.createElement("div");
+  legend.className = "cci-progress-legend";
+  for (const s of series) {
+    const item = document.createElement("span");
+    item.className = "cci-progress-legend-item";
+    const swatch = document.createElement("span");
+    swatch.className = "cci-progress-legend-swatch";
+    swatch.style.background = s.color;
+    item.appendChild(swatch);
+    const total = s.data.reduce((a, b) => a + b.count, 0);
+    item.appendChild(document.createTextNode(`${s.label} (${total})`));
+    legend.appendChild(item);
+  }
+  container.appendChild(legend);
+}
