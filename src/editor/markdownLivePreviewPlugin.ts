@@ -1,4 +1,3 @@
-import { syntaxTree } from "@codemirror/language";
 import { RangeSetBuilder } from "@codemirror/state";
 import {
   Decoration,
@@ -9,23 +8,18 @@ import {
 } from "@codemirror/view";
 
 /**
- * Markdown "live preview lite":
- *   - Hides markdown markers ( #  *  _  >  -  `  ~ ) on every line that
- *     does NOT currently contain the cursor or selection. Editing a line
- *     reveals its markers again.
- *   - Marks YAML frontmatter ( leading --- block --- ) with a `cm-line`
- *     class so it can be styled like Obsidian's default callout-ish view.
+ * Visual styling for Obsidian-flavoured markdown elements that
+ * `@codemirror/lang-markdown` doesn't handle:
+ *
+ *  - YAML frontmatter ( leading `---` block ) → line class for dim styling
+ *  - Obsidian wikilinks `[[note]]` and embeds `![[asset]]` → mark decoration
+ *
+ * Deliberately does NOT hide any markdown markers — earlier versions of
+ * this plugin attempted a "live preview lite" that hid `#`, `*`, etc.
+ * on lines without the cursor; that turned out to interact badly with
+ * the Chinese annotation widgets, so it's been removed.
  */
-const MARKER_NODE_NAMES = new Set([
-  "HeaderMark",
-  "EmphasisMark",
-  "CodeMark",
-  "QuoteMark",
-  "LinkMark",
-  "StrikethroughMark",
-  "ListMark",
-  "URL", // URL inside autolinks
-]);
+const WIKILINK_RE = /(!?)\[\[([^\]\n]+?)\]\]/g;
 
 export function markdownLivePreviewPlugin() {
   return ViewPlugin.fromClass(
@@ -37,7 +31,7 @@ export function markdownLivePreviewPlugin() {
       }
 
       update(u: ViewUpdate) {
-        if (u.docChanged || u.viewportChanged || u.selectionSet) {
+        if (u.docChanged || u.viewportChanged) {
           this.decorations = this.build(u.view);
         }
       }
@@ -45,67 +39,52 @@ export function markdownLivePreviewPlugin() {
       build(view: EditorView): DecorationSet {
         const builder = new RangeSetBuilder<Decoration>();
         const { state } = view;
-        const cursorLine = state.doc.lineAt(state.selection.main.head).number;
-
         const frontmatter = detectFrontmatter(view);
 
-        // Emit decorations in source order: line decorations at line.from,
-        // then range decorations within the line.
-        const lineMarkers = new Map<number, { from: number; to: number }[]>();
-        if (frontmatter) {
-          for (const range of view.visibleRanges) {
-            // Annotated frontmatter line class is emitted later in order.
-            void range;
-          }
-        }
+        // Collect (lineNo, line-decoration) and (range, mark) entries
+        // then emit them in source order so RangeSetBuilder stays happy.
+        type Entry = { from: number; to: number; deco: Decoration };
+        const entries: Entry[] = [];
 
-        try {
-          for (const range of view.visibleRanges) {
-            syntaxTree(state).iterate({
-              from: range.from,
-              to: range.to,
-              enter: (node) => {
-                if (!MARKER_NODE_NAMES.has(node.name)) return;
-                const lineNo = state.doc.lineAt(node.from).number;
-                if (lineNo === cursorLine) return;
-                // Skip hiding URL inside [text](url): leave the markers
-                // intact when inside selection's line; otherwise hide the
-                // raw URL. (CM6 + Obsidian default: URL hidden too.)
-                const list = lineMarkers.get(lineNo) ?? [];
-                list.push({ from: node.from, to: node.to });
-                lineMarkers.set(lineNo, list);
-              },
+        if (frontmatter) {
+          for (let i = frontmatter.startLine; i <= frontmatter.endLine; i++) {
+            const line = state.doc.line(i);
+            entries.push({
+              from: line.from,
+              to: line.from,
+              deco: Decoration.line({ class: "cci-frontmatter-line" }),
             });
           }
-        } catch {
-          // syntaxTree might not be ready on first render; skip silently.
         }
 
-        // Collect per-line work and emit in document order.
-        const linesWithWork = new Set<number>();
-        for (const ln of lineMarkers.keys()) linesWithWork.add(ln);
-        if (frontmatter) {
-          for (let i = frontmatter.startLine; i <= frontmatter.endLine; i++) linesWithWork.add(i);
-        }
-        const sortedLines = Array.from(linesWithWork).sort((a, b) => a - b);
-
-        for (const ln of sortedLines) {
-          const line = state.doc.line(ln);
-          if (frontmatter && ln >= frontmatter.startLine && ln <= frontmatter.endLine) {
-            builder.add(line.from, line.from, Decoration.line({ class: "cci-frontmatter-line" }));
-          }
-          const markers = lineMarkers.get(ln);
-          if (!markers) continue;
-          markers.sort((a, b) => a.from - b.from);
-          for (const m of markers) {
-            // Also swallow a single trailing space after a HeaderMark, so
-            // "# Title" cleanly becomes "Title" when the marker hides.
-            let to = m.to;
-            if (state.doc.sliceString(to, to + 1) === " ") to += 1;
-            builder.add(m.from, to, Decoration.replace({}));
+        for (const range of view.visibleRanges) {
+          const text = state.doc.sliceString(range.from, range.to);
+          WIKILINK_RE.lastIndex = 0;
+          let m: RegExpExecArray | null;
+          while ((m = WIKILINK_RE.exec(text))) {
+            const start = range.from + m.index;
+            const end = start + m[0].length;
+            const isEmbed = m[1] === "!";
+            entries.push({
+              from: start,
+              to: end,
+              deco: Decoration.mark({
+                class: isEmbed ? "cci-md-embed" : "cci-md-wikilink",
+                attributes: { "data-cci-target": m[2] },
+              }),
+            });
           }
         }
 
+        entries.sort((a, b) => {
+          if (a.from !== b.from) return a.from - b.from;
+          // Line decorations (from === to) before mark decorations
+          if (a.from === a.to && b.from !== b.to) return -1;
+          if (a.from !== a.to && b.from === b.to) return 1;
+          return 0;
+        });
+
+        for (const e of entries) builder.add(e.from, e.to, e.deco);
         return builder.finish();
       }
     },
@@ -115,11 +94,6 @@ export function markdownLivePreviewPlugin() {
   );
 }
 
-/**
- * Detect a YAML-ish frontmatter block: file starts with `---` on the
- * first non-empty line and has a matching closing `---` within the first
- * 80 lines.
- */
 function detectFrontmatter(view: EditorView): { startLine: number; endLine: number } | null {
   const doc = view.state.doc;
   if (doc.lines === 0) return null;

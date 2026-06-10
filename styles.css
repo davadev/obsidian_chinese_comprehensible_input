@@ -14,13 +14,27 @@
 }
 
 /* YAML frontmatter: dim monospace block similar to Obsidian's default. */
-.cci-view .cci-editor .cm-line.cci-frontmatter-line {
+.cci-view .cci-editor .cci-frontmatter-line {
   background: var(--background-secondary);
   color: var(--text-muted);
   font-family: var(--font-monospace, ui-monospace, monospace);
   font-size: 0.85em;
-  padding-left: 0.6em;
+  padding-left: 0.6em !important;
   border-left: 3px solid var(--background-modifier-border);
+}
+
+/* Obsidian wikilinks and embeds */
+.cci-md-wikilink {
+  color: var(--text-accent);
+  text-decoration: underline;
+  text-decoration-color: var(--background-modifier-border);
+  text-underline-offset: 2px;
+}
+.cci-md-embed {
+  color: var(--text-accent);
+  background: var(--background-secondary);
+  padding: 0 2px;
+  border-radius: 3px;
 }
 
 /* Reserve vertical space so unannotated CJK chars share baseline with
