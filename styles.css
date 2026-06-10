@@ -13,30 +13,6 @@
   line-height: 1.85;
 }
 
-/* YAML frontmatter: dim monospace block similar to Obsidian's default. */
-.cci-view .cci-editor .cci-frontmatter-line {
-  background: var(--background-secondary);
-  color: var(--text-muted);
-  font-family: var(--font-monospace, ui-monospace, monospace);
-  font-size: 0.85em;
-  padding-left: 0.6em !important;
-  border-left: 3px solid var(--background-modifier-border);
-}
-
-/* Obsidian wikilinks and embeds */
-.cci-md-wikilink {
-  color: var(--text-accent);
-  text-decoration: underline;
-  text-decoration-color: var(--background-modifier-border);
-  text-underline-offset: 2px;
-}
-.cci-md-embed {
-  color: var(--text-accent);
-  background: var(--background-secondary);
-  padding: 0 2px;
-  border-radius: 3px;
-}
-
 /* Reserve vertical space so unannotated CJK chars share baseline with
    annotated ones; the larger line-height keeps stacked pinyin/gloss inside
    the line box instead of pushing the next line down unevenly. */
@@ -486,93 +462,6 @@
   margin: 0 0 0.5rem;
   line-height: 1.4;
 }
-.cci-stats-tabs {
-  display: flex;
-  gap: 0.25rem;
-  margin-bottom: 0.6rem;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-.cci-stats-tab {
-  height: 32px;
-  padding: 0 0.8rem;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-.cci-stats-tab.is-active {
-  color: var(--text-normal);
-  border-bottom-color: var(--interactive-accent);
-}
-
-.cci-dash-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-.cci-dash-card {
-  padding: 0.6rem 0.7rem;
-  border-radius: 8px;
-  background: var(--background-secondary);
-  border: 1px solid var(--background-modifier-border);
-  border-left: 4px solid var(--background-modifier-border);
-}
-.cci-dash-card.cci-color-known { border-left-color: rgba(46, 160, 67, 0.85); }
-.cci-dash-card.cci-color-partial { border-left-color: rgba(220, 180, 30, 0.85); }
-.cci-dash-card.cci-color-unknown { border-left-color: rgba(220, 60, 60, 0.85); }
-.cci-dash-card.cci-color-new { border-left-color: rgba(88, 166, 255, 0.85); }
-.cci-dash-card-label {
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-.cci-dash-card-value {
-  font-size: 1.6rem;
-  font-weight: 700;
-  margin: 0.1rem 0;
-}
-.cci-dash-card-hint {
-  font-size: 0.72rem;
-  color: var(--text-faint);
-}
-.cci-dash-notes {
-  margin-top: 1rem;
-}
-.cci-dash-notes h3 {
-  font-size: 0.95rem;
-  margin: 0 0 0.4rem;
-}
-.cci-dash-notes-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-.cci-dash-notes-table th,
-.cci-dash-notes-table td {
-  padding: 0.3rem 0.5rem;
-  border-bottom: 1px solid var(--background-modifier-border);
-  text-align: left;
-}
-.cci-dash-notes-table .cci-clickable {
-  color: var(--text-accent);
-  cursor: pointer;
-}
-
-/* Row coloring in the words table */
-.cci-stats tbody tr.cci-row-color-known { background: rgba(46, 160, 67, 0.06); }
-.cci-stats tbody tr.cci-row-color-partial { background: rgba(220, 180, 30, 0.08); }
-.cci-stats tbody tr.cci-row-color-unknown { background: rgba(220, 60, 60, 0.07); }
-.cci-stats tbody tr.cci-row-color-new { background: transparent; }
-.cci-stats tbody tr.cci-row-color-ignored { opacity: 0.7; }
-
-.cci-status-cell.cci-color-known   { color: rgba(46, 160, 67, 1); font-weight: 600; }
-.cci-status-cell.cci-color-partial { color: rgba(190, 150, 20, 1); font-weight: 600; }
-.cci-status-cell.cci-color-unknown { color: rgba(220, 60, 60, 1); font-weight: 600; }
-
 .cci-stats-tablewrap {
   width: 100%;
   overflow-x: auto;

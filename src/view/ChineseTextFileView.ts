@@ -9,7 +9,6 @@ import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
-import { markdownLivePreviewPlugin } from "../editor/markdownLivePreviewPlugin";
 
 /**
  * Markdown syntax highlighting tuned for the Chinese reader.
@@ -106,16 +105,9 @@ export class ChineseTextFileView extends TextFileView {
       this.plugin,
       top,
       () => {
-        // Display/font/color toggles do NOT need an editor rebuild — just
-        // refresh the inline CSS variable, the data-display attribute, and
-        // ask the decoration plugin to re-render. Avoiding a full
-        // reconfigureEditor here keeps the user's scroll position and
-        // cursor intact when switching display modes (popup-only ↔ 2-line
-        // ↔ 3-line ↔ color-only).
         this.applyReaderFont();
         this.applyDisplayAttr();
-        this.redecorate();
-        this.toolbar?.refresh();
+        this.reconfigureEditor();
       },
       () => this.editor?.state.doc.toString() ?? this.data ?? ""
     );
@@ -159,7 +151,6 @@ export class ChineseTextFileView extends TextFileView {
         EditorView.lineWrapping,
         markdown(),
         syntaxHighlighting(cciMarkdownHighlight),
-        markdownLivePreviewPlugin(),
         buildChineseDecorations(this.plugin),
         wordInteractionPlugin(this.plugin),
         EditorView.updateListener.of((u) => {
