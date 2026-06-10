@@ -60,14 +60,16 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               this.lastTokens = [];
               this.lastSourceVersion = version;
               this.decorations = Decoration.none;
-              view.dispatch({}); // poke
+              view.dispatch({ effects: cciRedecorateEffect.of(null) });
               return;
             }
             const tokens = await plugin.tokenizer.tokenize(text);
             this.lastTokens = tokens;
             this.lastSourceVersion = version;
             this.decorations = this.build(view, text, tokens);
-            view.dispatch({});
+            // Tell CM6 to re-render: a plain empty transaction is treated
+            // as a no-op, so we dispatch our redecorate effect.
+            view.dispatch({ effects: cciRedecorateEffect.of(null) });
           } finally {
             this.tokenPromise = null;
           }
@@ -145,87 +147,114 @@ export function buildChineseDecorations(plugin: CciPlugin) {
   );
 }
 
+/**
+ * Widget that renders one annotated word.
+ *
+ * Constructor captures a *snapshot* of the rendered state (color, axes,
+ * pinyin, gloss) so that CM6's `eq()` check can compare primitives rather
+ * than chase the live WordRecord that the vocabulary store mutates in
+ * place — otherwise both widgets would see the same up-to-date record and
+ * the DOM would not refresh after a status change.
+ */
 class RubyWidget extends WidgetType {
+  private readonly color: ColorState;
+  private readonly axes: KnownAxes;
+  private readonly pinyin: string;
+  private readonly def: string;
+  private readonly showPinyin: boolean;
+  private readonly showGloss: boolean;
+
   constructor(
     private surface: string,
-    private tok: Token,
-    private rec: WordRecord | undefined,
+    tok: Token,
+    rec: WordRecord | undefined,
     private mode: DisplayMode,
     private settings: CciSettings
   ) {
     super();
+    this.color = colorOf(rec);
+    this.axes = rec?.axes ?? axesFromStatus(rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
+    const isNew = !rec || rec.status === "new";
+    this.pinyin = tok.selected?.pinyin ?? rec?.pinyin ?? "";
+    this.showPinyin = isNew || !this.axes.pinyin || !this.axes.chars;
+    this.showGloss = mode === "three-line" && (isNew || !this.axes.meaning);
+    this.def = this.showGloss
+      ? tok.selected?.definitions?.[0] ?? rec?.definitions?.[0] ?? ""
+      : "";
   }
 
   eq(other: RubyWidget): boolean {
     return (
       other.surface === this.surface &&
       other.mode === this.mode &&
-      colorOf(other.rec) === colorOf(this.rec) &&
-      sameAxes(other.rec, this.rec)
+      other.color === this.color &&
+      other.axes.chars === this.axes.chars &&
+      other.axes.pinyin === this.axes.pinyin &&
+      other.axes.meaning === this.axes.meaning &&
+      other.pinyin === this.pinyin &&
+      other.def === this.def
     );
   }
 
   toDOM(): HTMLElement {
-    const color = colorOf(this.rec);
-    const axes: KnownAxes =
-      this.rec?.axes ?? axesFromStatus(this.rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
-    const pinyin = this.tok.selected?.pinyin ?? this.rec?.pinyin ?? "";
-    // Decide what inline info to show. Logic:
-    //   - if pinyin axis unknown → show pinyin
-    //   - if chars axis unknown (but meaning known via pinyin) → still show pinyin for char-recognition aid
-    //   - if meaning axis unknown → show gloss (3-line only)
-    //   - default for `new` (no record yet) → show everything.
-    const isNew = !this.rec || this.rec.status === "new";
-    const showPinyin = isNew || !axes.pinyin || !axes.chars;
-    const showGloss =
-      this.mode === "three-line" && (isNew || !axes.meaning);
-    const def = showGloss
-      ? this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? ""
-      : "";
-
-    // Annotated word widget.
-    //
-    // Each character renders inline at the normal text baseline. Pinyin is
-    // split into syllables and each syllable is absolutely positioned above
-    // its own character so multi-syllable words (eg 想象 → xiǎng xiàng) stay
-    // horizontally aligned. The gloss row, when shown, is anchored to the
-    // whole-word stack and centered above.
-    //
-    // The surrounding .cm-content reserves vertical space for the
-    // annotation rows via `line-height` (data-display attribute), so
-    // annotated and unannotated chars share one baseline on the same line.
+    /*
+     * Layout:
+     *
+     *   <span class="cci-stack">                       inline-block, baseline = chars baseline
+     *     <span class="cci-stack-gloss">English</span> block, drives word width if wider
+     *     <span class="cci-stack-cells">               block, white-space: nowrap
+     *       <span class="cci-stack-cell">              inline-block
+     *         <span class="cci-stack-pinyin">pīn</span> block, centered above char
+     *         <span class="cci-stack-chars">字</span>   block
+     *       </span>
+     *       ...
+     *     </span>
+     *   </span>
+     *
+     * Because the chars row is the LAST in-flow block inside the inline-
+     * block `.cci-stack`, that's the baseline CM6/Chromium reports for the
+     * inline-block — so the chars row sits on the same baseline as plain
+     * surrounding text. The gloss row, if present, pushes the inline-block
+     * wider when its content is longer than the chars row, naturally
+     * spacing words apart so glosses do not overlap their neighbors.
+     */
     const stack = document.createElement("span");
-    stack.className = `cci-stack cci-word cci-color-${color}`;
+    stack.className = `cci-stack cci-word cci-color-${this.color}`;
     stack.setAttribute("data-cci-surface", this.surface);
-    stack.setAttribute("data-cci-color", color);
+    stack.setAttribute("data-cci-color", this.color);
 
+    if (this.showGloss && this.def) {
+      const g = stack.createSpan({ cls: "cci-stack-gloss" });
+      g.textContent = shortenDefinition(this.def, 28);
+    }
+
+    const cells = stack.createSpan({ cls: "cci-stack-cells" });
     const chars = Array.from(this.surface);
-    const formattedPinyin = showPinyin && pinyin ? formatPinyin(pinyin, this.settings.pinyinStyle) : "";
+    const formattedPinyin =
+      this.showPinyin && this.pinyin
+        ? formatPinyin(this.pinyin, this.settings.pinyinStyle)
+        : "";
     const syllables = formattedPinyin ? formattedPinyin.split(/\s+/).filter(Boolean) : [];
-    const perChar = showPinyin && syllables.length === chars.length;
+    const perChar = this.showPinyin && syllables.length === chars.length;
 
     if (perChar) {
       for (let i = 0; i < chars.length; i++) {
-        const cell = stack.createSpan({ cls: "cci-stack-cell" });
+        const cell = cells.createSpan({ cls: "cci-stack-cell" });
         const p = cell.createSpan({ cls: "cci-stack-pinyin" });
         p.textContent = syllables[i];
         const c = cell.createSpan({ cls: "cci-stack-chars" });
         c.textContent = chars[i];
       }
     } else {
-      // Fallback: word-level layout (e.g. pinyin syllable count doesn't
-      // match char count, or pinyin is hidden).
-      if (showPinyin && pinyin) {
-        const p = stack.createSpan({ cls: "cci-stack-pinyin cci-stack-pinyin-word" });
+      // Pinyin syllable count doesn't match char count → fall back to a
+      // single pinyin row above the entire word.
+      const cell = cells.createSpan({ cls: "cci-stack-cell cci-stack-cell-word" });
+      if (this.showPinyin && this.pinyin) {
+        const p = cell.createSpan({ cls: "cci-stack-pinyin cci-stack-pinyin-word" });
         p.textContent = formattedPinyin;
       }
-      const c = stack.createSpan({ cls: "cci-stack-chars" });
+      const c = cell.createSpan({ cls: "cci-stack-chars" });
       c.textContent = this.surface;
-    }
-
-    if (this.mode === "three-line" && def) {
-      const g = stack.createSpan({ cls: "cci-stack-gloss" });
-      g.textContent = shortenDefinition(def, 24);
     }
 
     return stack;
@@ -234,14 +263,6 @@ class RubyWidget extends WidgetType {
   ignoreEvent(): boolean {
     return false;
   }
-}
-
-function sameAxes(a: WordRecord | undefined, b: WordRecord | undefined): boolean {
-  const ax = a?.axes ?? axesFromStatus(a?.status ?? "new");
-  const bx = b?.axes ?? axesFromStatus(b?.status ?? "new");
-  if (!ax && !bx) return true;
-  if (!ax || !bx) return false;
-  return ax.chars === bx.chars && ax.pinyin === bx.pinyin && ax.meaning === bx.meaning;
 }
 
 function colorShouldShow(color: ColorState, settings: CciSettings): boolean {

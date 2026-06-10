@@ -203,62 +203,62 @@
  * the annotations via `line-height` so annotated and unannotated chars
  * share one baseline on the same line.
  */
+/*
+ * Annotated word widget.
+ *
+ * Outer `.cci-stack` is an inline-block whose baseline is the baseline of
+ * its last in-flow line — the chars row. Because gloss + pinyin are block
+ * children rendered above the chars row, the chars row stays at the
+ * surrounding text's baseline.
+ *
+ * `.cci-stack-gloss` is a normal block-level child (not absolute), so it
+ * contributes to the inline-block's width and pushes neighboring words
+ * apart when the English is wider than the chars.
+ */
 .cci-stack {
-  position: relative;
   display: inline-block;
   vertical-align: baseline;
   line-height: 1;
+  text-align: center;
   user-select: none;
-  margin: 0;
+  margin: 0 1px;
 }
-/* Per-character cell: each Chinese char is its own box with its own
-   absolute-positioned pinyin syllable above. Lets multi-syllable words
-   like 想象 (xiǎng xiàng) keep each syllable centered over its char. */
+.cci-stack-gloss {
+  display: block;
+  font-size: 0.42em;
+  color: var(--text-faint);
+  white-space: nowrap;
+  line-height: 1.1;
+  margin-bottom: 0.45em;
+  padding: 0 0.4em;
+}
+.cci-stack-cells {
+  display: block;
+  white-space: nowrap;
+  line-height: 1;
+}
 .cci-stack-cell {
-  position: relative;
   display: inline-block;
   vertical-align: baseline;
   line-height: 1;
+  text-align: center;
+}
+.cci-stack-pinyin {
+  display: block;
+  font-size: 0.5em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
+  margin-bottom: 0.15em;
+}
+.cci-stack-pinyin-word {
+  font-size: 0.45em;
 }
 .cci-stack-chars {
-  display: inline-block;
+  display: block;
   font-size: 1em;
   color: var(--text-normal);
   line-height: 1;
-}
-.cci-stack-pinyin {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(100% + 0.05em);
-  white-space: nowrap;
-  pointer-events: none;
-  line-height: 1;
-  text-align: center;
-  font-size: 0.5em;
-  color: var(--text-muted);
-}
-/* Fallback word-level pinyin (when syllable count doesn't match chars). */
-.cci-stack-pinyin-word {
-  font-size: 0.45em;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cci-stack-gloss {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(100% + 0.75em);
-  white-space: nowrap;
-  pointer-events: none;
-  line-height: 1;
-  text-align: center;
-  font-size: 0.45em;
-  color: var(--text-faint);
-  max-width: 14em;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Popup */

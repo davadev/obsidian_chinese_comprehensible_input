@@ -1,6 +1,6 @@
 import { TextFileView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
-import { EditorView, lineNumbers } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
@@ -118,7 +118,6 @@ export class ChineseTextFileView extends TextFileView {
     const state = EditorState.create({
       doc: initialDoc,
       extensions: [
-        lineNumbers(),
         EditorView.lineWrapping,
         buildChineseDecorations(this.plugin),
         wordInteractionPlugin(this.plugin),
