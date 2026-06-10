@@ -1,6 +1,7 @@
 import { Platform } from "obsidian";
 import type CciPlugin from "../main";
-import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
+import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
+import { axesFromStatus } from "../vocabulary/axes";
 
 export class WordPopup {
   private el: HTMLElement | null = null;
@@ -10,7 +11,6 @@ export class WordPopup {
 
   open(surface: string, anchor: HTMLElement, _ev: Event): void {
     this.close();
-    // Drop focus from any editor input so the on-screen keyboard hides on mobile.
     (document.activeElement as HTMLElement | null)?.blur?.();
     const rec = this.plugin.vocab.ensure(surface);
 
@@ -59,6 +59,10 @@ export class WordPopup {
     el.style.left = `${left}px`;
   }
 
+  private currentAxes(rec: WordRecord): KnownAxes {
+    return rec.axes ?? axesFromStatus(rec.status) ?? { chars: false, pinyin: false, meaning: false };
+  }
+
   private renderInto(el: HTMLElement, rec: WordRecord): void {
     el.empty();
 
@@ -82,6 +86,9 @@ export class WordPopup {
     }
     for (const d of rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
 
+    // Knowledge checkboxes — the primary marking control.
+    this.renderAxesCheckboxes(el, rec);
+
     const meta = el.createDiv({ cls: "cci-popup-meta" });
     if (rec.hsk?.levels?.length) {
       meta.createSpan({ text: "HSK:" });
@@ -99,13 +106,37 @@ export class WordPopup {
     this.renderSparkline(el, rec);
 
     const actions = el.createDiv({ cls: "cci-popup-actions" });
-    this.action(actions, "✓ Known", () => this.mark(rec, "known"));
-    this.action(actions, "✗ Unknown", () => this.mark(rec, "unknown"));
-    this.action(actions, "Meaning ✓, pinyin ?", () => this.mark(rec, "meaningKnownPinyinUnknown"));
-    this.action(actions, "Pinyin ✓, meaning ?", () => this.mark(rec, "pinyinKnownMeaningUnknown"));
-    this.action(actions, "Spoken ✓, chars ?", () => this.mark(rec, "charactersUnknown"));
-    this.action(actions, "Ignore", () => this.mark(rec, "ignored"));
+    this.action(actions, "Ignore", () => {
+      this.plugin.markWordIgnored(rec.surfaces[0]);
+      this.refresh();
+    });
     this.action(actions, "Mnemonic…", () => this.openMnemonicPrompt(rec));
+  }
+
+  private renderAxesCheckboxes(parent: HTMLElement, rec: WordRecord): void {
+    const axes = this.currentAxes(rec);
+    const wrap = parent.createDiv({ cls: "cci-popup-axes" });
+    wrap.createDiv({ cls: "cci-popup-axes-hint", text: "I know:" });
+    const row = wrap.createDiv({ cls: "cci-popup-axes-row" });
+
+    const surface = rec.surfaces[0];
+    const cb = (label: string, key: keyof KnownAxes) => {
+      const item = row.createEl("label", { cls: "cci-popup-axis" });
+      const input = item.createEl("input", { type: "checkbox" });
+      input.checked = !!axes[key];
+      item.createSpan({ text: label });
+      input.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const cur = this.currentAxes(this.plugin.vocab.bySurface(surface) ?? rec);
+        cur[key] = input.checked;
+        this.plugin.vocab.setAxes(surface, cur);
+        this.plugin.refreshChineseViews();
+        this.refresh();
+      });
+    };
+    cb("Characters", "chars");
+    cb("Pinyin", "pinyin");
+    cb("Translation", "meaning");
   }
 
   private renderSparkline(el: HTMLElement, rec: WordRecord): void {
@@ -135,14 +166,7 @@ export class WordPopup {
     b.addEventListener("click", (e) => {
       e.stopPropagation();
       fn();
-      this.refresh();
     });
-  }
-
-  private mark(rec: WordRecord, status: WordStatus) {
-    const surface = rec.surfaces[0];
-    this.plugin.markWord(surface, status);
-    this.plugin.srs.applyGrade(surface, status === "known" ? "good" : "again");
   }
 
   private openMnemonicPrompt(rec: WordRecord) {

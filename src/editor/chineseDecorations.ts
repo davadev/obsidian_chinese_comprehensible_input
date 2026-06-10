@@ -6,9 +6,10 @@ export const cciRedecorateEffect = StateEffect.define<null>();
 import type CciPlugin from "../main";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
 import { Token } from "../tokenizer/tokenizerTypes";
-import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
+import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { CciSettings, DisplayMode } from "../settings/types";
 import { hasCjk, shortenDefinition } from "../dictionary/normalizeChinese";
+import { axesFromStatus, colorOf } from "../vocabulary/axes";
 
 /**
  * Symbol passed via ViewPlugin's compartment-side facet to share the plugin instance.
@@ -97,28 +98,19 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         plugin: CciPlugin
       ) {
         const rec = plugin.vocab.bySurface(tok.surface);
-        const status: WordStatus = rec?.status ?? "new";
-        if (status === "ignored") return;
+        const color: ColorState = colorOf(rec);
+        if (color === "ignored") return;
 
-        const mode = settings.defaultDisplayMode;
-        const showColor =
-          (status === "known" && settings.showKnownColor) ||
-          (status === "unknown" && settings.showUnknownColor) ||
-          ((status === "meaningKnownPinyinUnknown" || status === "pinyinKnownMeaningUnknown") &&
-            settings.showPartialColor) ||
-          status === "new";
+        const editMode = plugin.activeViewMode() === "edit";
+        // In edit mode we must NOT replace text with widgets; otherwise typing
+        // and cursor placement break. Apply only a plain mark decoration so
+        // the colour highlight remains but characters stay editable.
+        const mode = editMode ? "popup-only" : settings.defaultDisplayMode;
 
-        // Inline ruby modes wrap word as a replacing widget so pinyin/gloss appear above.
-        // In two/three-line modes we annotate ANY non-known/non-ignored word — including
-        // `new` ones — because the reader explicitly opted into inline annotation by
-        // picking that display mode.
+        const showColor = colorShouldShow(color, settings);
+
         const wantsRuby =
-          (mode === "two-line" || mode === "three-line") &&
-          (status === "unknown" ||
-            status === "meaningKnownPinyinUnknown" ||
-            status === "pinyinKnownMeaningUnknown" ||
-            status === "charactersUnknown" ||
-            status === "new");
+          (mode === "two-line" || mode === "three-line") && color !== "known";
 
         if (wantsRuby) {
           builder.add(
@@ -137,10 +129,10 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             tok.start,
             tok.end,
             Decoration.mark({
-              class: `cci-word cci-status-${status}`,
+              class: `cci-word cci-color-${color}`,
               attributes: {
                 "data-cci-surface": tok.surface,
-                "data-cci-status": status,
+                "data-cci-color": color,
               },
             })
           );
@@ -168,35 +160,43 @@ class RubyWidget extends WidgetType {
     return (
       other.surface === this.surface &&
       other.mode === this.mode &&
-      other.rec?.status === this.rec?.status
+      colorOf(other.rec) === colorOf(this.rec) &&
+      sameAxes(other.rec, this.rec)
     );
   }
 
   toDOM(): HTMLElement {
-    const status = this.rec?.status ?? "new";
+    const color = colorOf(this.rec);
+    const axes: KnownAxes =
+      this.rec?.axes ?? axesFromStatus(this.rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
     const pinyin = this.tok.selected?.pinyin ?? this.rec?.pinyin ?? "";
-    const showPinyin = pinyin && status !== "pinyinKnownMeaningUnknown";
-    const skipGloss =
-      status === "meaningKnownPinyinUnknown" || status === "charactersUnknown";
-    const def =
-      this.mode === "three-line" && !skipGloss
-        ? this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? ""
-        : "";
+    // Decide what inline info to show. Logic:
+    //   - if pinyin axis unknown → show pinyin
+    //   - if chars axis unknown (but meaning known via pinyin) → still show pinyin for char-recognition aid
+    //   - if meaning axis unknown → show gloss (3-line only)
+    //   - default for `new` (no record yet) → show everything.
+    const isNew = !this.rec || this.rec.status === "new";
+    const showPinyin = isNew || !axes.pinyin || !axes.chars;
+    const showGloss =
+      this.mode === "three-line" && (isNew || !axes.meaning);
+    const def = showGloss
+      ? this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? ""
+      : "";
 
     if (this.mode === "three-line") {
       // Native <ruby> with two <rt> elements renders side-by-side in
       // WebKit/Chromium, so for 3-line we build a vertical inline-flex stack
       // by hand: gloss → pinyin → chars (top to bottom).
       const stack = document.createElement("span");
-      stack.className = `cci-stack cci-word cci-status-${status}`;
+      stack.className = `cci-stack cci-word cci-color-${color}`;
       stack.setAttribute("data-cci-surface", this.surface);
-      stack.setAttribute("data-cci-status", status);
+      stack.setAttribute("data-cci-color", color);
 
       if (def) {
         const g = stack.createSpan({ cls: "cci-stack-gloss" });
         g.textContent = shortenDefinition(def, 24);
       }
-      if (showPinyin) {
+      if (showPinyin && pinyin) {
         const p = stack.createSpan({ cls: "cci-stack-pinyin" });
         p.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
       }
@@ -207,11 +207,11 @@ class RubyWidget extends WidgetType {
 
     // 2-line — native ruby works fine for a single rt.
     const ruby = document.createElement("ruby");
-    ruby.className = `cci-ruby cci-word cci-status-${status}`;
+    ruby.className = `cci-ruby cci-word cci-color-${color}`;
     ruby.setAttribute("data-cci-surface", this.surface);
-    ruby.setAttribute("data-cci-status", status);
+    ruby.setAttribute("data-cci-color", color);
     ruby.appendChild(document.createTextNode(this.surface));
-    if (showPinyin) {
+    if (showPinyin && pinyin) {
       const rt = document.createElement("rt");
       rt.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
       ruby.appendChild(rt);
@@ -222,6 +222,22 @@ class RubyWidget extends WidgetType {
   ignoreEvent(): boolean {
     return false;
   }
+}
+
+function sameAxes(a: WordRecord | undefined, b: WordRecord | undefined): boolean {
+  const ax = a?.axes ?? axesFromStatus(a?.status ?? "new");
+  const bx = b?.axes ?? axesFromStatus(b?.status ?? "new");
+  if (!ax && !bx) return true;
+  if (!ax || !bx) return false;
+  return ax.chars === bx.chars && ax.pinyin === bx.pinyin && ax.meaning === bx.meaning;
+}
+
+function colorShouldShow(color: ColorState, settings: CciSettings): boolean {
+  if (color === "known") return settings.showKnownColor;
+  if (color === "partial") return settings.showPartialColor;
+  if (color === "unknown") return settings.showUnknownColor;
+  if (color === "new") return true;
+  return false;
 }
 
 function formatPinyin(p: string, style: CciSettings["pinyinStyle"]): string {

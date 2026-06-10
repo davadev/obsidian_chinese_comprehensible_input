@@ -73,10 +73,12 @@ export class ChineseTextFileView extends TextFileView {
     this.containerEl.children[1].empty();
     this.containerEl.children[1].addClass("cci-view");
     this.applyReaderFont();
+    this.applyDisplayAttr();
 
     const top = this.containerEl.children[1].createDiv({ cls: "cci-toolbar-wrap" });
     this.toolbar = new ViewToolbar(this.plugin, top, () => {
       this.applyReaderFont();
+      this.applyDisplayAttr();
       this.reconfigureEditor();
     });
 
@@ -88,6 +90,11 @@ export class ChineseTextFileView extends TextFileView {
     const root = this.containerEl.children[1] as HTMLElement;
     const px = Math.max(12, Math.min(48, this.plugin.settings.readerFontPx ?? 22));
     root.style.setProperty("--cci-reader-font", `${px}px`);
+  }
+
+  applyDisplayAttr(): void {
+    const root = this.containerEl.children[1] as HTMLElement;
+    root.setAttribute("data-display", this.plugin.settings.defaultDisplayMode);
   }
 
   async onClose(): Promise<void> {

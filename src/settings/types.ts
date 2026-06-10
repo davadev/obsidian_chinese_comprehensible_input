@@ -1,5 +1,5 @@
 export type DisplayMode = "two-line" | "three-line" | "popup-only" | "color-only";
-export type ViewMode = "read" | "edit" | "mark-known" | "mark-unknown";
+export type ViewMode = "read" | "edit" | "mark-known" | "mark-unknown" | "mark-partial";
 export type PinyinStyle = "marks" | "numbers" | "none";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
 export type HskSource = "2.0" | "3.0" | "both";

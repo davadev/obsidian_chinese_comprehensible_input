@@ -3,7 +3,8 @@ import { DATA_SCHEMA_VERSION } from "../constants";
 import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
 import { migrateVocab } from "./migrations";
-import { PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
+import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
+import { axesFromStatus, statusFromAxes } from "./axes";
 
 /**
  * Vocabulary store backed by Obsidian plugin data via loadData/saveData.
@@ -80,13 +81,31 @@ export class VocabularyStore {
   setStatus(surface: string, status: WordStatus, reason?: string): WordRecord {
     const r = this.ensure(surface);
     r.status = status;
+    // Keep axes in sync with the legacy status when possible so renderers
+    // that read axes stay correct after a coarse mark-known/unknown.
+    const derived = axesFromStatus(status);
+    if (derived) r.axes = derived;
     if (status === "ignored" && reason) r.ignoredReason = reason;
     r.updatedAt = new Date().toISOString();
     this.scheduleSave();
     return r;
   }
 
-  recordExposure(surface: string, retentionLimit: number, storeAll: boolean): WordRecord {
+  setAxes(surface: string, axes: KnownAxes): WordRecord {
+    const r = this.ensure(surface);
+    r.axes = axes;
+    r.status = statusFromAxes(axes);
+    r.updatedAt = new Date().toISOString();
+    this.scheduleSave();
+    return r;
+  }
+
+  recordExposure(
+    surface: string,
+    retentionLimit: number,
+    storeAll: boolean,
+    notePath?: string
+  ): WordRecord {
     const r = this.ensure(surface);
     const now = new Date();
     const iso = now.toISOString();
@@ -99,9 +118,23 @@ export class VocabularyStore {
       r.recentSeenAt.splice(0, r.recentSeenAt.length - retentionLimit);
     }
     r.dailySeenCounts[day] = (r.dailySeenCounts[day] ?? 0) + 1;
+    if (notePath) {
+      r.notesSeenCounts = r.notesSeenCounts ?? {};
+      r.notesSeenCounts[notePath] = (r.notesSeenCounts[notePath] ?? 0) + 1;
+    }
     r.updatedAt = iso;
     this.scheduleSave();
     return r;
+  }
+
+  /** Returns the list of known note paths that have at least one record exposure. */
+  knownNotePaths(): string[] {
+    const set = new Set<string>();
+    for (const r of this.values()) {
+      if (!r.notesSeenCounts) continue;
+      for (const k of Object.keys(r.notesSeenCounts)) set.add(k);
+    }
+    return Array.from(set).sort();
   }
 
   updateMnemonic(surface: string, patch: Partial<NonNullable<WordRecord["mnemonic"]>>): WordRecord {

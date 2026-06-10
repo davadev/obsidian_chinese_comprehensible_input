@@ -3,12 +3,10 @@ import type CciPlugin from "../main";
 import { DisplayMode, ViewMode } from "../settings/types";
 
 /**
- * Compact, single-row toolbar.
- *  - Read mode is the implicit default; no button for it. Edit / Mark known /
- *    Mark unknown are toggles — all off = Read mode.
- *  - Display mode is a single select.
- *  - Color toggles + stats + generate are an overflow menu opened by `⋯`.
- *  - The active-marking banner sits below the row.
+ * Compact toolbar.
+ *   Row 1: Edit | Known | Unknown | Partial | display select | overflow menu
+ *   Row 2 (always present, may be empty): active-mode banner. Reserved
+ *   height so toggling marking mode does not shift editor scroll position.
  */
 export class ViewToolbar {
   private bannerEl: HTMLElement | null = null;
@@ -22,7 +20,8 @@ export class ViewToolbar {
   }
 
   refresh(): void {
-    this.render();
+    this.updateActiveStates();
+    this.updateBanner();
   }
 
   private render() {
@@ -31,17 +30,11 @@ export class ViewToolbar {
 
     const row = this.container.createDiv({ cls: "cci-toolbar-row" });
 
-    this.iconToggle(row, "pencil", "Edit", () => this.plugin.activeViewMode() === "edit", () =>
-      this.toggleMode("edit")
-    );
-    this.iconToggle(row, "check-circle-2", "Mark known", () => this.plugin.activeViewMode() === "mark-known", () =>
-      this.toggleMode("mark-known")
-    );
-    this.iconToggle(row, "circle-help", "Mark unknown", () => this.plugin.activeViewMode() === "mark-unknown", () =>
-      this.toggleMode("mark-unknown")
-    );
+    this.modeBtn(row, "pencil", "Edit", "edit");
+    this.modeBtn(row, "check-circle-2", "Known", "mark-known");
+    this.modeBtn(row, "x-circle", "Unknown", "mark-unknown");
+    this.modeBtn(row, "circle-help", "Partial", "mark-partial");
 
-    // Display mode select
     const sel = row.createEl("select", { cls: "cci-display-sel" });
     [
       ["two-line", "2-line"],
@@ -59,8 +52,10 @@ export class ViewToolbar {
       this.onChange();
     });
 
-    // Overflow menu trigger
-    const overflow = row.createEl("button", { cls: "cci-icon-btn", attr: { "aria-label": "More" } });
+    const overflow = row.createEl("button", {
+      cls: "cci-icon-btn cci-overflow-btn-trigger",
+      attr: { "aria-label": "More" },
+    });
     setIcon(overflow, "more-horizontal");
     let menu: HTMLElement | null = null;
     overflow.addEventListener("click", (e) => {
@@ -73,26 +68,54 @@ export class ViewToolbar {
       menu = this.buildOverflowMenu(overflow);
     });
 
+    // Reserved slot so toolbar height is constant whether or not a banner is active.
+    this.bannerEl = this.container.createDiv({ cls: "cci-banner-slot" });
     this.updateBanner();
   }
 
-  private toggleMode(m: ViewMode) {
-    const cur = this.plugin.activeViewMode();
-    this.plugin.setActiveViewMode(cur === m ? "read" : m);
-    this.refresh();
+  private modeBtn(parent: HTMLElement, icon: string, label: string, mode: ViewMode) {
+    const b = parent.createEl("button", {
+      cls: "cci-icon-btn",
+      attr: { "aria-label": label, title: label, "data-mode": mode },
+    });
+    setIcon(b, icon);
+    if (this.plugin.activeViewMode() === mode) b.addClass("is-active");
+    b.addEventListener("click", () => {
+      const cur = this.plugin.activeViewMode();
+      this.plugin.setActiveViewMode(cur === mode ? "read" : mode);
+      this.refresh();
+    });
   }
 
-  private iconToggle(
-    parent: HTMLElement,
-    icon: string,
-    label: string,
-    get: () => boolean,
-    onClick: () => void
-  ) {
-    const b = parent.createEl("button", { cls: "cci-icon-btn", attr: { "aria-label": label, title: label } });
-    setIcon(b, icon);
-    if (get()) b.addClass("is-active");
-    b.addEventListener("click", onClick);
+  private updateActiveStates() {
+    const cur = this.plugin.activeViewMode();
+    const btns = this.container.querySelectorAll<HTMLButtonElement>(".cci-icon-btn[data-mode]");
+    btns.forEach((b) => {
+      const m = b.getAttribute("data-mode");
+      b.toggleClass("is-active", m === cur);
+    });
+  }
+
+  private updateBanner() {
+    if (!this.bannerEl) return;
+    this.bannerEl.empty();
+    const mode = this.plugin.activeViewMode();
+    if (mode === "read" || mode === "edit") return;
+    const cls =
+      mode === "mark-known" ? "is-known" : mode === "mark-unknown" ? "is-unknown" : "is-partial";
+    const label =
+      mode === "mark-known"
+        ? "Marking KNOWN — tap a word"
+        : mode === "mark-unknown"
+        ? "Marking UNKNOWN — tap a word"
+        : "Marking PARTIAL — tap a word to open the checkboxes";
+    const banner = this.bannerEl.createDiv({ cls: `cci-banner ${cls}` });
+    banner.createSpan({ text: label });
+    const exit = banner.createEl("button", { text: "Exit" });
+    exit.addEventListener("click", () => {
+      this.plugin.setActiveViewMode("read");
+      this.refresh();
+    });
   }
 
   private buildOverflowMenu(anchor: HTMLElement): HTMLElement {
@@ -174,24 +197,5 @@ export class ViewToolbar {
     };
     setTimeout(() => document.addEventListener("click", off), 0);
     return menu;
-  }
-
-  private updateBanner() {
-    if (this.bannerEl) {
-      this.bannerEl.remove();
-      this.bannerEl = null;
-    }
-    const mode = this.plugin.activeViewMode();
-    if (mode === "mark-known" || mode === "mark-unknown") {
-      const cls = mode === "mark-known" ? "is-known" : "is-unknown";
-      const label = mode === "mark-known" ? "Marking KNOWN — tap a word" : "Marking UNKNOWN — tap a word";
-      this.bannerEl = this.container.createDiv({ cls: `cci-banner ${cls}` });
-      this.bannerEl.createSpan({ text: label });
-      const exit = this.bannerEl.createEl("button", { text: "Exit" });
-      exit.addEventListener("click", () => {
-        this.plugin.setActiveViewMode("read");
-        this.refresh();
-      });
-    }
   }
 }

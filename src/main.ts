@@ -155,15 +155,22 @@ export default class CciPlugin extends Plugin {
     return leaf;
   }
 
-  async openStatsView(): Promise<void> {
+  async openStatsView(scopeNotePath?: string): Promise<void> {
+    const path = scopeNotePath ?? this.currentNoteKey();
+    const useScope = path && path !== "_no_note" ? path : "";
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS);
     if (existing.length) {
       this.app.workspace.revealLeaf(existing[0]);
-      (existing[0].view as StatsView).render();
+      const view = existing[0].view as StatsView;
+      view.setScope(useScope);
+      view.render();
       return;
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: VIEW_TYPE_STATS });
+    const view = leaf.view as StatsView;
+    view.setScope(useScope);
+    view.render();
   }
 
   openGenerateStoryModal(): void {
@@ -181,6 +188,16 @@ export default class CciPlugin extends Plugin {
   markWord(surface: string, status: WordStatus): void {
     this.vocab.setStatus(surface, status);
     new Notice(`${surface} → ${status}`);
+    this.refreshChineseViews();
+  }
+
+  markWordIgnored(surface: string, reason?: string): void {
+    this.vocab.setStatus(surface, "ignored", reason);
+    new Notice(`${surface} → ignored`);
+    this.refreshChineseViews();
+  }
+
+  refreshChineseViews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
       (leaf.view as ChineseTextFileView).redecorate();
     }

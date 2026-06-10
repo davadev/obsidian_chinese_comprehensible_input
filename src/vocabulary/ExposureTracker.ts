@@ -58,7 +58,8 @@ export class ExposureTracker {
     this.vocab.recordExposure(
       surface,
       s.exactTimestampRetentionLimit,
-      s.storeAllExactTimestamps
+      s.storeAllExactTimestamps,
+      noteKey === "_no_note" ? undefined : noteKey
     );
   }
 

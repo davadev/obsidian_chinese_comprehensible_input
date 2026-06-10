@@ -13,6 +13,16 @@
   line-height: 1.85;
 }
 
+/* Reserve vertical space so unannotated CJK chars share baseline with
+   annotated ones; the larger line-height keeps stacked pinyin/gloss inside
+   the line box instead of pushing the next line down unevenly. */
+.cci-view[data-display="two-line"] .cci-editor .cm-content {
+  line-height: 2.4;
+}
+.cci-view[data-display="three-line"] .cci-editor .cm-content {
+  line-height: 3.1;
+}
+
 .cci-toolbar {
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-secondary);
@@ -62,8 +72,18 @@
   font-size: 0.85rem;
 }
 
-.cci-toolbar .cci-banner {
+/* Reserved banner slot so toggling a marking mode doesn't shift editor scroll. */
+.cci-banner-slot {
+  min-height: 36px;
   margin-top: 0.3rem;
+  display: flex;
+  align-items: stretch;
+}
+.cci-banner-slot:empty {
+  /* keep height even with no banner */
+}
+.cci-toolbar .cci-banner {
+  flex: 1 1 auto;
   padding: 0.3rem 0.5rem;
   background: var(--color-orange, #d29922);
   color: var(--text-on-accent);
@@ -74,9 +94,11 @@
   justify-content: space-between;
   gap: 0.5rem;
 }
-
 .cci-toolbar .cci-banner.is-known {
   background: var(--color-green, #2ea043);
+}
+.cci-toolbar .cci-banner.is-partial {
+  background: var(--color-yellow, #d4a72c);
 }
 .cci-toolbar .cci-banner button {
   height: 28px;
@@ -151,27 +173,25 @@
   transition: background 60ms linear;
 }
 
-.cci-word.cci-status-known {
-  /* default: no color */
+/* Three-state color coding: green = known, red = unknown, yellow = partial. */
+.cci-word.cci-color-known {
+  background: rgba(46, 160, 67, 0.16);
+  border-bottom: 1px solid rgba(46, 160, 67, 0.55);
 }
-.cci-word.cci-status-unknown {
-  background: rgba(255, 165, 0, 0.18);
-  border-bottom: 1px dotted var(--color-orange, #d29922);
+.cci-word.cci-color-unknown {
+  background: rgba(220, 60, 60, 0.18);
+  border-bottom: 1px solid rgba(220, 60, 60, 0.65);
 }
-.cci-word.cci-status-meaningKnownPinyinUnknown {
-  border-bottom: 1px dashed var(--color-blue, #58a6ff);
+.cci-word.cci-color-partial {
+  background: rgba(220, 180, 30, 0.20);
+  border-bottom: 1px solid rgba(220, 180, 30, 0.75);
 }
-.cci-word.cci-status-pinyinKnownMeaningUnknown {
-  border-bottom: 1px dashed var(--color-purple, #a371f7);
-}
-.cci-word.cci-status-charactersUnknown {
-  border-bottom: 1px dashed var(--color-cyan, #1fb6ff);
-}
-.cci-word.cci-status-new {
+.cci-word.cci-color-new {
   background: rgba(88, 166, 255, 0.10);
+  border-bottom: 1px dotted rgba(88, 166, 255, 0.45);
 }
-.cci-word.cci-status-ignored {
-  opacity: 0.85;
+.cci-word.cci-color-ignored {
+  opacity: 0.7;
 }
 
 /* Ruby annotations (2-line) */
@@ -248,6 +268,30 @@ ruby.cci-ruby rt {
   grid-template-columns: auto auto;
   gap: 0.15rem 0.6rem;
 }
+.cci-popup-axes {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+.cci-popup-axes-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+.cci-popup-axes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+}
+.cci-popup-axis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
 .cci-popup-actions {
   display: flex;
   flex-wrap: wrap;
@@ -304,6 +348,17 @@ ruby.cci-ruby rt {
 }
 .cci-stats-back:hover {
   background: var(--background-modifier-hover);
+}
+.cci-stats-scope {
+  margin-left: auto;
+  height: 32px;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+  max-width: 60%;
 }
 .cci-stats {
   padding: 0.6rem 0.6rem 1rem;

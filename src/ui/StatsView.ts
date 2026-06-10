@@ -12,6 +12,13 @@ export class StatsView extends ItemView {
   private hskFilter = "all";
   private sortKey: SortKey = "seenCount";
   private sortDesc = true;
+  /** "" = global scope; otherwise vault note path. */
+  private noteScope = "";
+
+  setScope(notePath: string): void {
+    this.noteScope = notePath;
+    if (this.containerEl.children[1]) this.render();
+  }
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -45,6 +52,24 @@ export class StatsView extends ItemView {
       this.leaf.detach();
     });
     header.createEl("h2", { text: "Vocabulary stats", cls: "cci-stats-title" });
+
+    const scopeSel = header.createEl("select", { cls: "cci-stats-scope" });
+    const opts: [string, string][] = [["", "Scope: all vocabulary"]];
+    for (const p of this.plugin.vocab.knownNotePaths()) {
+      opts.push([p, `Note: ${p}`]);
+    }
+    if (this.noteScope && !opts.find(([v]) => v === this.noteScope)) {
+      opts.push([this.noteScope, `Note: ${this.noteScope}`]);
+    }
+    for (const [v, l] of opts) {
+      const o = scopeSel.createEl("option", { text: l });
+      o.value = v;
+    }
+    scopeSel.value = this.noteScope;
+    scopeSel.addEventListener("change", () => {
+      this.noteScope = scopeSel.value;
+      this.render();
+    });
 
     const controls = root.createDiv({ cls: "cci-stats-controls" });
 
@@ -140,6 +165,9 @@ export class StatsView extends ItemView {
 
   private filterAndSort(): WordRecord[] {
     let rows = this.plugin.vocab.values();
+    if (this.noteScope) {
+      rows = rows.filter((r) => (r.notesSeenCounts ?? {})[this.noteScope] > 0);
+    }
     if (this.statusFilter !== "all") rows = rows.filter((r) => r.status === this.statusFilter);
     if (this.hskFilter !== "all") {
       rows = rows.filter((r) => {
@@ -165,7 +193,10 @@ export class StatsView extends ItemView {
   }
 
   private renderSummary(root: HTMLElement) {
-    const all = this.plugin.vocab.values();
+    let scoped = this.plugin.vocab.values();
+    if (this.noteScope) {
+      scoped = scoped.filter((r) => (r.notesSeenCounts ?? {})[this.noteScope] > 0);
+    }
     const counts = {
       known: 0,
       unknown: 0,
@@ -173,16 +204,22 @@ export class StatsView extends ItemView {
       new: 0,
       ignored: 0,
     };
-    for (const r of all) {
+    for (const r of scoped) {
       if (r.status === "known") counts.known++;
       else if (r.status === "unknown") counts.unknown++;
-      else if (r.status === "meaningKnownPinyinUnknown" || r.status === "pinyinKnownMeaningUnknown") counts.partial++;
+      else if (
+        r.status === "meaningKnownPinyinUnknown" ||
+        r.status === "pinyinKnownMeaningUnknown" ||
+        r.status === "charactersUnknown"
+      )
+        counts.partial++;
       else if (r.status === "ignored") counts.ignored++;
       else counts.new++;
     }
-    const estimated = estimateLearnerHsk(all, this.plugin.settings.story.knownCoverageThreshold);
+    const estimated = estimateLearnerHsk(scoped, this.plugin.settings.story.knownCoverageThreshold);
+    const scopeText = this.noteScope ? `note "${this.noteScope}"` : "all vocabulary";
     const p = root.createEl("p", { cls: "cci-stats-summary" });
-    p.textContent = `Tracked: ${all.length} · known: ${counts.known} · unknown: ${counts.unknown} · partial: ${counts.partial} · new: ${counts.new} · ignored: ${counts.ignored} · est. comfort: ${estimated}`;
+    p.textContent = `Scope: ${scopeText} · tracked: ${scoped.length} · known: ${counts.known} · unknown: ${counts.unknown} · partial: ${counts.partial} · new: ${counts.new} · ignored: ${counts.ignored} · est. comfort: ${estimated}`;
   }
 
   private openDetail(r: WordRecord) {

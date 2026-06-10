@@ -128,6 +128,13 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           plugin.markWord(surface, "unknown");
           return;
         }
+        if (mode === "mark-partial") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          (document.activeElement as HTMLElement | null)?.blur?.();
+          plugin.openWordPopup(surface, target, ev);
+          return;
+        }
         if (mode === "edit") {
           // Let CM6 handle the click normally — do not open popup, do not
           // intercept caret placement.
