@@ -17,17 +17,26 @@ import { axesFromStatus, colorOf } from "../vocabulary/axes";
  */
 export const PLUGIN_FIELD_KEY = "__cci_plugin__";
 
-/** Hidden YAML-frontmatter line marker. CSS hides via `display: none`. */
-const FRONTMATTER_LINE_DECO = Decoration.line({ class: "cci-frontmatter-hide" });
+/**
+ * Single inline `Decoration.replace` covering the whole `---` … `---` block.
+ * CM6 collapses the range internally so its layout / line measurement stays
+ * coherent. Avoid `display: none` on `.cm-line` — that desyncs CM6's measure
+ * cache and silently drops downstream decorations (suspected root cause of
+ * the 0.1.13 regression).
+ */
+const FRONTMATTER_HIDE_DECO = Decoration.replace({ inclusive: false });
 
 function detectFrontmatter(
-  doc: { lines: number; line: (n: number) => { text: string; from: number; to: number } }
-): { startLine: number; endLine: number } | null {
+  doc: { lines: number; length: number; line: (n: number) => { text: string; from: number; to: number } }
+): { from: number; to: number } | null {
   if (doc.lines === 0) return null;
   if (doc.line(1).text.trim() !== "---") return null;
   const max = Math.min(80, doc.lines);
   for (let i = 2; i <= max; i++) {
-    if (doc.line(i).text.trim() === "---") return { startLine: 1, endLine: i };
+    if (doc.line(i).text.trim() === "---") {
+      const closing = doc.line(i);
+      return { from: doc.line(1).from, to: Math.min(closing.to + 1, doc.length) };
+    }
   }
   return null;
 }
@@ -96,27 +105,21 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const exclusions = computeExcludedRanges(text);
         const builder = new RangeSetBuilder<Decoration>();
 
-        // Frontmatter: hide the leading `---` … `---` block via a per-line
-        // `display: none`. Emitted first so RangeSetBuilder receives strictly
-        // increasing `from` positions; tokens inside the block are skipped
-        // below. Inlined here (not a separate ViewPlugin) so there is only
-        // one decoration source — avoids the cross-plugin ordering bugs
-        // that broke 0.1.8 / 0.1.11.
+        // Frontmatter: one atomic `Decoration.replace` over the whole block.
+        // Emitted before the token loop so RangeSetBuilder still receives
+        // strictly increasing `from`; tokens inside the block are skipped.
+        // Inlined here (no separate ViewPlugin) to keep a single decoration
+        // source.
         const fm = detectFrontmatter(view.state.doc);
-        if (fm) {
-          for (let i = fm.startLine; i <= fm.endLine; i++) {
-            const line = view.state.doc.line(i);
-            builder.add(line.from, line.from, FRONTMATTER_LINE_DECO);
-          }
-        }
-        const fmEndOffset = fm ? view.state.doc.line(fm.endLine).to : -1;
+        if (fm) builder.add(fm.from, fm.to, FRONTMATTER_HIDE_DECO);
+        const skipUntil = fm ? fm.to : -1;
 
         const ranges = view.visibleRanges;
         for (const range of ranges) {
           for (const tok of tokens) {
             if (tok.end <= range.from) continue;
             if (tok.start >= range.to) break;
-            if (tok.start < fmEndOffset) continue;
+            if (tok.start < skipUntil) continue;
             if (!tok.isWord || tok.candidates.length === 0) continue;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
             this.emitDecoration(builder, tok, settings, plugin);
