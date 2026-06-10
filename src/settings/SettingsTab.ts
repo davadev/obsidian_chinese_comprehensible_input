@@ -494,6 +494,13 @@ export class CciSettingsTab extends PluginSettingTab {
   private renderData(c: HTMLElement) {
     c.createEl("h3", { text: "Data" });
 
+    new Setting(c)
+      .setName("Open vocabulary stats")
+      .setDesc("Dashboard, per-note breakdown, and the full word list.")
+      .addButton((b) =>
+        b.setButtonText("Open stats").onClick(() => this.plugin.openStatsView())
+      );
+
     new Setting(c).setName("Export vocabulary JSON").addButton((b) =>
       b.setButtonText("Export JSON").onClick(async () => {
         const json = await this.plugin.vocab.exportJson();
