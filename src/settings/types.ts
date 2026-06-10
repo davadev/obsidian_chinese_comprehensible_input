@@ -71,4 +71,6 @@ export interface CciSettings {
   storeAllExactTimestamps: boolean;
   densityCapPercent: number;
   mnemonicsFirst: boolean;
+  /** Base font size for the Chinese Learning view, in pixels. */
+  readerFontPx: number;
 }

@@ -51,4 +51,5 @@ export const DEFAULT_SETTINGS: CciSettings = {
   storeAllExactTimestamps: false,
   densityCapPercent: 35,
   mnemonicsFirst: false,
+  readerFontPx: 22,
 };

@@ -134,8 +134,27 @@ export class ViewToolbar {
       await this.plugin.saveSettings();
     });
 
-    const sep = menu.createDiv({ cls: "cci-overflow-sep" });
-    sep.setAttr("role", "separator");
+    const sep1 = menu.createDiv({ cls: "cci-overflow-sep" });
+    sep1.setAttr("role", "separator");
+
+    const fontRow = menu.createDiv({ cls: "cci-overflow-item cci-overflow-slider" });
+    fontRow.createSpan({ text: "Font size" });
+    const slider = fontRow.createEl("input", { type: "range" });
+    slider.min = "14";
+    slider.max = "40";
+    slider.step = "1";
+    slider.value = String(this.plugin.settings.readerFontPx ?? 22);
+    const sizeLabel = fontRow.createSpan({ cls: "cci-slider-value", text: `${slider.value}px` });
+    slider.addEventListener("input", async () => {
+      const px = parseInt(slider.value, 10);
+      this.plugin.settings.readerFontPx = px;
+      sizeLabel.setText(`${px}px`);
+      await this.plugin.saveSettings();
+      this.onChange();
+    });
+
+    const sep2 = menu.createDiv({ cls: "cci-overflow-sep" });
+    sep2.setAttr("role", "separator");
 
     const stats = menu.createEl("button", { cls: "cci-overflow-btn", text: "Stats" });
     stats.addEventListener("click", () => {

@@ -5,6 +5,12 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
+  --cci-reader-font: 22px;
+}
+
+.cci-view .cci-editor .cm-content {
+  font-size: var(--cci-reader-font);
+  line-height: 1.85;
 }
 
 .cci-toolbar {
@@ -117,6 +123,21 @@
   background: var(--background-modifier-border);
   margin: 0.25rem 0;
 }
+.cci-overflow-slider {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cci-overflow-slider input[type="range"] {
+  flex: 1 1 120px;
+  min-width: 100px;
+}
+.cci-overflow-slider .cci-slider-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  min-width: 38px;
+  text-align: right;
+}
 
 .cci-editor {
   flex: 1 1 auto;
@@ -153,7 +174,7 @@
   opacity: 0.85;
 }
 
-/* Ruby annotations */
+/* Ruby annotations (2-line) */
 ruby.cci-ruby {
   ruby-align: center;
 }
@@ -162,9 +183,33 @@ ruby.cci-ruby rt {
   color: var(--text-muted);
   user-select: none;
 }
-ruby.cci-ruby rt.cci-gloss {
+
+/* 3-line vertical stack: gloss → pinyin → chars */
+.cci-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: baseline;
+  line-height: 1.05;
+  margin: 0 2px;
+  user-select: none;
+}
+.cci-stack-gloss {
   font-size: 0.5em;
   color: var(--text-faint);
+  white-space: nowrap;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cci-stack-pinyin {
+  font-size: 0.55em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.cci-stack-chars {
+  font-size: 1em;
+  color: var(--text-normal);
 }
 
 /* Popup */

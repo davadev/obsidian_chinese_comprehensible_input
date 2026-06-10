@@ -10,6 +10,8 @@ export class WordPopup {
 
   open(surface: string, anchor: HTMLElement, _ev: Event): void {
     this.close();
+    // Drop focus from any editor input so the on-screen keyboard hides on mobile.
+    (document.activeElement as HTMLElement | null)?.blur?.();
     const rec = this.plugin.vocab.ensure(surface);
 
     if (this.plugin.settings.exposure.popupCountsAsExposure) {

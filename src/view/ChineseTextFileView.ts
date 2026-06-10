@@ -72,14 +72,22 @@ export class ChineseTextFileView extends TextFileView {
   async onOpen(): Promise<void> {
     this.containerEl.children[1].empty();
     this.containerEl.children[1].addClass("cci-view");
+    this.applyReaderFont();
 
     const top = this.containerEl.children[1].createDiv({ cls: "cci-toolbar-wrap" });
     this.toolbar = new ViewToolbar(this.plugin, top, () => {
+      this.applyReaderFont();
       this.reconfigureEditor();
     });
 
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
     this.ensureEditor(this.data ?? "");
+  }
+
+  applyReaderFont(): void {
+    const root = this.containerEl.children[1] as HTMLElement;
+    const px = Math.max(12, Math.min(48, this.plugin.settings.readerFontPx ?? 22));
+    root.style.setProperty("--cci-reader-font", `${px}px`);
   }
 
   async onClose(): Promise<void> {

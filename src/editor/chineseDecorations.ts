@@ -174,35 +174,48 @@ class RubyWidget extends WidgetType {
 
   toDOM(): HTMLElement {
     const status = this.rec?.status ?? "new";
+    const pinyin = this.tok.selected?.pinyin ?? this.rec?.pinyin ?? "";
+    const showPinyin = pinyin && status !== "pinyinKnownMeaningUnknown";
+    const skipGloss =
+      status === "meaningKnownPinyinUnknown" || status === "charactersUnknown";
+    const def =
+      this.mode === "three-line" && !skipGloss
+        ? this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? ""
+        : "";
+
+    if (this.mode === "three-line") {
+      // Native <ruby> with two <rt> elements renders side-by-side in
+      // WebKit/Chromium, so for 3-line we build a vertical inline-flex stack
+      // by hand: gloss → pinyin → chars (top to bottom).
+      const stack = document.createElement("span");
+      stack.className = `cci-stack cci-word cci-status-${status}`;
+      stack.setAttribute("data-cci-surface", this.surface);
+      stack.setAttribute("data-cci-status", status);
+
+      if (def) {
+        const g = stack.createSpan({ cls: "cci-stack-gloss" });
+        g.textContent = shortenDefinition(def, 24);
+      }
+      if (showPinyin) {
+        const p = stack.createSpan({ cls: "cci-stack-pinyin" });
+        p.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
+      }
+      const c = stack.createSpan({ cls: "cci-stack-chars" });
+      c.textContent = this.surface;
+      return stack;
+    }
+
+    // 2-line — native ruby works fine for a single rt.
     const ruby = document.createElement("ruby");
     ruby.className = `cci-ruby cci-word cci-status-${status}`;
     ruby.setAttribute("data-cci-surface", this.surface);
     ruby.setAttribute("data-cci-status", status);
-
     ruby.appendChild(document.createTextNode(this.surface));
-
-    const pinyin = this.tok.selected?.pinyin ?? this.rec?.pinyin ?? "";
-    const showPinyin = pinyin && status !== "pinyinKnownMeaningUnknown";
     if (showPinyin) {
       const rt = document.createElement("rt");
       rt.textContent = formatPinyin(pinyin, this.settings.pinyinStyle);
       ruby.appendChild(rt);
     }
-
-    // Three-line gloss: skip for statuses where the meaning is already known
-    // via the pinyin row (meaningKnownPinyinUnknown, charactersUnknown).
-    const skipGloss =
-      status === "meaningKnownPinyinUnknown" || status === "charactersUnknown";
-    if (this.mode === "three-line" && !skipGloss) {
-      const def = this.tok.selected?.definitions?.[0] ?? this.rec?.definitions?.[0] ?? "";
-      if (def) {
-        const rt2 = document.createElement("rt");
-        rt2.textContent = shortenDefinition(def, 24);
-        rt2.className = "cci-gloss";
-        ruby.appendChild(rt2);
-      }
-    }
-
     return ruby;
   }
 

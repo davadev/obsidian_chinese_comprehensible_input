@@ -138,6 +138,20 @@ export class CciSettingsTab extends PluginSettingTab {
       });
 
     new Setting(c)
+      .setName("Reader font size (px)")
+      .setDesc("Base font size used inside the Chinese Learning View.")
+      .addSlider((s) =>
+        s
+          .setLimits(14, 40, 1)
+          .setValue(this.plugin.settings.readerFontPx ?? 22)
+          .setDynamicTooltip()
+          .onChange(async (v) => {
+            this.plugin.settings.readerFontPx = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(c)
       .setName("Annotation density cap (%)")
       .setDesc("If more than this % of visible words are densely annotated, auto-degrade to popup-only.")
       .addText((t) => {
