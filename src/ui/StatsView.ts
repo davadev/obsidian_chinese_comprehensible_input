@@ -4,9 +4,12 @@ import { VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorOf } from "../vocabulary/axes";
 import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
+import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
 
 type SortKey = "seenCount" | "lastSeenAt" | "dueAt" | "status" | "hsk";
 type Tab = "dashboard" | "words" | "triage";
+type ProgressSeriesId = "tracked" | "classified" | "known" | "partial" | "unknown";
+type HskBucketId = "known" | "partial" | "unknown" | "new" | "untracked";
 
 export class StatsView extends ItemView {
   private query = "";
@@ -21,7 +24,24 @@ export class StatsView extends ItemView {
   private triageIndex = 0;
   private triageContextCache = new Map<string, string>();
   private triagePartialAxes: { surface: string; chars: boolean; pinyin: boolean; meaning: boolean } | null = null;
+  private triageReveal = 0; // 0 = chars only, 1 = + pinyin, 2 = + definitions
   private chartStyle: "bars" | "area" = "area";
+  // Progress-chart series filter. Order matters for the legend.
+  private progressSeries: Record<ProgressSeriesId, boolean> = {
+    tracked: false,
+    classified: true,
+    known: true,
+    partial: false,
+    unknown: false,
+  };
+  // HSK coverage chart bucket filter.
+  private hskBuckets: Record<HskBucketId, boolean> = {
+    known: true,
+    partial: false,
+    unknown: false,
+    new: false,
+    untracked: false,
+  };
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -179,6 +199,7 @@ export class StatsView extends ItemView {
     }
 
     this.renderProgressSection(root, scoped);
+    this.renderHskCoverageSection(root);
 
     // Per-note exposure breakdown.
     const notePaths = this.plugin.vocab.knownNotePaths();
@@ -239,31 +260,160 @@ export class StatsView extends ItemView {
       this.render();
     });
 
-    // "Classified" series uses `classifiedAt` (first transition out of
-    // status === "new") so today's triage activity shows up in today's
-    // bucket even when firstSeenAt is days old.
-    const classifiedStamps = records.map((r) => r.classifiedAt);
-    const knownStamps = records.map((r) => r.knownAt);
+    // Series filter row — user picks which curves appear on the chart.
+    const filterRow = wrap.createDiv({ cls: "cci-dash-progress-filter" });
+    const seriesDefs: { id: ProgressSeriesId; label: string; color: string }[] = [
+      { id: "tracked",    label: "Tracked",    color: "rgba(150, 150, 150, 0.85)" },
+      { id: "classified", label: "Classified", color: "rgba(88, 166, 255, 0.85)" },
+      { id: "known",      label: "Known",      color: "rgba(46, 160, 67, 0.85)" },
+      { id: "partial",    label: "Partial",    color: "rgba(220, 180, 30, 0.85)" },
+      { id: "unknown",    label: "Unknown",    color: "rgba(220, 60, 60, 0.85)" },
+    ];
+    for (const def of seriesDefs) {
+      const lbl = filterRow.createEl("label", { cls: "cci-dash-progress-filter-item" });
+      const cb = lbl.createEl("input", { type: "checkbox" });
+      cb.checked = this.progressSeries[def.id];
+      cb.addEventListener("change", () => {
+        this.progressSeries[def.id] = cb.checked;
+        this.render();
+      });
+      const swatch = lbl.createSpan({ cls: "cci-dash-progress-filter-swatch" });
+      swatch.style.background = def.color;
+      lbl.createSpan({ text: ` ${def.label}` });
+    }
+
     const n = this.progressWindow[this.progressBucket];
-    const classifiedSeries = bucketTimestamps(classifiedStamps, this.progressBucket, n);
-    const knownSeries = bucketTimestamps(knownStamps, this.progressBucket, n);
+
+    // Build per-series timestamps with the appropriate filter.
+    const stampFor = (id: ProgressSeriesId): (string | undefined)[] => {
+      switch (id) {
+        case "tracked":    return records.map((r) => r.firstSeenAt);
+        case "classified": return records.map((r) => r.classifiedAt);
+        case "known":      return records.filter((r) => r.status === "known").map((r) => r.knownAt);
+        case "partial":    return records
+          .filter((r) => {
+            const c = colorOf(r);
+            return c === "partial";
+          })
+          .map((r) => r.classifiedAt);
+        case "unknown":    return records.filter((r) => r.status === "unknown").map((r) => r.classifiedAt);
+      }
+    };
+
+    const activeSeries = seriesDefs
+      .filter((d) => this.progressSeries[d.id])
+      .map((d) => ({
+        label: d.label,
+        color: d.color,
+        data: bucketTimestamps(stampFor(d.id), this.progressBucket, n),
+      }));
 
     const graphHost = wrap.createDiv({ cls: "cci-dash-progress-graph" });
-    const seriesPayload = [
-      { label: "Classified", color: "rgba(88, 166, 255, 0.85)", data: classifiedSeries },
-      { label: "Learned", color: "rgba(46, 160, 67, 0.85)", data: knownSeries },
-    ];
-    if (this.chartStyle === "area") renderProgressArea(graphHost, seriesPayload);
-    else renderProgressGraph(graphHost, seriesPayload);
+    if (activeSeries.length === 0) {
+      graphHost.createEl("p", {
+        cls: "cci-dash-progress-summary",
+        text: "Pick at least one series above.",
+      });
+    } else if (this.chartStyle === "area") {
+      renderProgressArea(graphHost, activeSeries);
+    } else {
+      renderProgressGraph(graphHost, activeSeries);
+    }
 
-    const classifiedRecent = classifiedSeries.reduce((a, b) => a + b.count, 0);
-    const knownRecent = knownSeries.reduce((a, b) => a + b.count, 0);
     const range =
       this.progressBucket === "day" ? "30 days" :
       this.progressBucket === "week" ? "12 weeks" : "12 months";
+    const summary = activeSeries
+      .map((s) => `${s.label} ${s.data.reduce((a, b) => a + b.count, 0)}`)
+      .join(", ");
+    if (summary) {
+      wrap.createEl("p", {
+        cls: "cci-dash-progress-summary",
+        text: `Last ${range}: ${summary}.`,
+      });
+    }
+  }
+
+  // ── HSK coverage ────────────────────────────────────────────────────
+  //
+  // Per-level horizontal stacked bars showing what fraction of each
+  // HSK level the user has classified into Known / Partial / Unknown /
+  // New / still-untracked. User picks which buckets to show via the
+  // checkbox row above the chart. Default = Known only.
+
+  private renderHskCoverageSection(root: HTMLElement) {
+    const wrap = root.createDiv({ cls: "cci-dash-hsk" });
+    const head = wrap.createDiv({ cls: "cci-dash-progress-head" });
+    head.createEl("h3", { text: "HSK coverage" });
+    const filter = wrap.createDiv({ cls: "cci-dash-progress-filter" });
+    const defs: { id: HskBucketId; label: string; color: string }[] = [
+      { id: "known",     label: "Known",     color: "rgba(46, 160, 67, 0.85)" },
+      { id: "partial",   label: "Partial",   color: "rgba(220, 180, 30, 0.85)" },
+      { id: "unknown",   label: "Unknown",   color: "rgba(220, 60, 60, 0.85)" },
+      { id: "new",       label: "New",       color: "rgba(88, 166, 255, 0.70)" },
+      { id: "untracked", label: "Untracked", color: "rgba(150, 150, 150, 0.55)" },
+    ];
+    for (const def of defs) {
+      const lbl = filter.createEl("label", { cls: "cci-dash-progress-filter-item" });
+      const cb = lbl.createEl("input", { type: "checkbox" });
+      cb.checked = this.hskBuckets[def.id];
+      cb.addEventListener("change", () => {
+        this.hskBuckets[def.id] = cb.checked;
+        this.render();
+      });
+      const swatch = lbl.createSpan({ cls: "cci-dash-progress-filter-swatch" });
+      swatch.style.background = def.color;
+      lbl.createSpan({ text: ` ${def.label}` });
+    }
+
+    const all = this.plugin.vocab.values();
+    const grid = wrap.createDiv({ cls: "cci-dash-hsk-grid" });
+    for (let level = 1; level <= 6; level++) {
+      const lvlKey = String(level);
+      const recsAtLevel = all.filter((r) => r.hsk?.levels?.[0] === lvlKey);
+      let known = 0, partial = 0, unknown = 0, newCount = 0, ignored = 0;
+      for (const r of recsAtLevel) {
+        const c = colorOf(r);
+        if (c === "known") known++;
+        else if (c === "partial") partial++;
+        else if (c === "unknown") unknown++;
+        else if (c === "ignored") ignored++;
+        else newCount++;
+      }
+      const total = HSK_LEVEL_COUNTS[level] ?? 0;
+      const tracked = known + partial + unknown + newCount + ignored;
+      const untracked = Math.max(0, total - tracked);
+
+      const row = grid.createDiv({ cls: "cci-dash-hsk-row" });
+      row.createSpan({ cls: "cci-dash-hsk-label", text: `HSK ${level}` });
+      const barWrap = row.createDiv({ cls: "cci-dash-hsk-bar" });
+      const counts: Record<HskBucketId, number> = {
+        known, partial, unknown, new: newCount, untracked,
+      };
+      const segPct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+      let combinedPct = 0;
+      for (const def of defs) {
+        if (!this.hskBuckets[def.id]) continue;
+        const c = counts[def.id];
+        if (c === 0) continue;
+        const pct = segPct(c);
+        combinedPct += pct;
+        const seg = barWrap.createDiv({ cls: "cci-dash-hsk-seg" });
+        seg.style.width = `${pct}%`;
+        seg.style.background = def.color;
+        seg.setAttribute(
+          "title",
+          `HSK ${level} · ${def.label}: ${c} / ${total} (${pct.toFixed(1)}%)`
+        );
+      }
+      row.createSpan({
+        cls: "cci-dash-hsk-pct",
+        text: `${combinedPct.toFixed(0)}% · ${total}`,
+      });
+    }
     wrap.createEl("p", {
       cls: "cci-dash-progress-summary",
-      text: `Last ${range}: ${classifiedRecent} classified, ${knownRecent} learned.`,
+      text: "Percentages are out of the total HSK 2.0 word list for each level.",
     });
   }
 
@@ -300,6 +450,7 @@ export class StatsView extends ItemView {
     const skipBtn = header.createEl("button", { cls: "cci-triage-skip", text: "Skip →" });
     skipBtn.addEventListener("click", () => {
       this.triageIndex = (this.triageIndex + 1) % total;
+      this.triageReveal = 0;
       this.render();
     });
 
@@ -309,13 +460,34 @@ export class StatsView extends ItemView {
     const headTerm = headRow.createDiv({ cls: "cci-triage-term" });
     headTerm.textContent = surface;
     const meta = headRow.createDiv({ cls: "cci-triage-meta" });
-    if (rec.pinyin) meta.createDiv({ cls: "cci-triage-pinyin", text: rec.pinyin });
-    const levelLine = `Seen ${rec.seenCount}× ${rec.hsk?.levels?.length ? `· HSK ${rec.hsk.levels[0]}` : ""}`;
-    meta.createDiv({ cls: "cci-triage-stats", text: levelLine });
+    // Pinyin + definitions are answer-revealing. Hidden by default so
+    // the user assesses from context first. The Reveal button below
+    // unlocks them step by step.
+    if (rec.pinyin && this.triageReveal >= 1) {
+      meta.createDiv({ cls: "cci-triage-pinyin", text: rec.pinyin });
+    }
+    const seenLine = `Seen ${rec.seenCount}×`;
+    meta.createDiv({ cls: "cci-triage-stats", text: seenLine });
 
-    if (rec.definitions && rec.definitions.length > 0) {
+    if (rec.definitions && rec.definitions.length > 0 && this.triageReveal >= 2) {
       const defs = card.createDiv({ cls: "cci-triage-defs" });
       defs.textContent = rec.definitions.slice(0, 2).join("; ");
+    }
+
+    // Reveal control. Stages: 0 = chars only, 1 = + pinyin, 2 = + defs.
+    const canRevealPinyin = !!rec.pinyin;
+    const canRevealDefs = !!(rec.definitions && rec.definitions.length);
+    const maxStage = canRevealDefs ? 2 : canRevealPinyin ? 1 : 0;
+    if (maxStage > 0 && this.triageReveal < maxStage) {
+      const revealRow = card.createDiv({ cls: "cci-triage-reveal" });
+      const nextLabel =
+        this.triageReveal === 0 ? (canRevealPinyin ? "Reveal pinyin" : "Reveal meaning") :
+        "Reveal meaning";
+      const btn = revealRow.createEl("button", { cls: "cci-triage-reveal-btn", text: nextLabel });
+      btn.addEventListener("click", () => {
+        this.triageReveal = Math.min(maxStage, this.triageReveal + 1);
+        this.render();
+      });
     }
 
     const ctxBox = card.createDiv({ cls: "cci-triage-context" });
@@ -401,6 +573,7 @@ export class StatsView extends ItemView {
       });
       this.triagePartialAxes = null;
       this.triageContextCache.delete(surface);
+      this.triageReveal = 0;
       this.plugin.refreshChineseViews();
       this.render();
     });
@@ -413,11 +586,9 @@ export class StatsView extends ItemView {
 
   private applyTriage(surface: string, status: WordStatus) {
     this.plugin.vocab.setStatus(surface, status);
-    // Cleanup context cache for this word — it won't be re-shown.
     this.triageContextCache.delete(surface);
+    this.triageReveal = 0; // hide answers on the next card
     this.plugin.refreshChineseViews();
-    // Don't increment index; the filtered queue rebuilds on next render
-    // and the next "new" word slots in at this position automatically.
     this.render();
   }
 
