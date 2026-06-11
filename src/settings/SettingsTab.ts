@@ -645,6 +645,45 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
 
+    const doImport = async (text: string) => {
+      const result = await this.plugin.vocab.importJson(text);
+      new Notice(`Imported ${result.added} new, ${result.updated} updated.`);
+      this.plugin.refreshChineseViews();
+      this.plugin.refreshStatsViews();
+    };
+
+    new Setting(c)
+      .setName("Import vocabulary JSON")
+      .setDesc("Merges records by key. Existing entries are updated; new keys are added.")
+      .addButton((b) =>
+        b.setButtonText("From clipboard").onClick(async () => {
+          try {
+            const text = await navigator.clipboard.readText();
+            await doImport(text);
+          } catch (err) {
+            new Notice("Import failed: " + (err as Error).message);
+          }
+        })
+      )
+      .addButton((b) =>
+        b.setButtonText("From file…").onClick(() => {
+          const input = document.createElement("input");
+          input.type = "file";
+          input.accept = ".json,application/json";
+          input.addEventListener("change", async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+              const text = await file.text();
+              await doImport(text);
+            } catch (err) {
+              new Notice("Import failed: " + (err as Error).message);
+            }
+          });
+          input.click();
+        })
+      );
+
     new Setting(c)
       .setName("Reset plugin data")
       .setDesc("Permanently deletes all word records and resets settings. Cannot be undone.")
