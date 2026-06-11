@@ -1,19 +1,39 @@
-import { Notice, Platform, requestUrl, RequestUrlParam } from "obsidian";
+import { App, normalizePath, Notice, Platform, requestUrl, RequestUrlParam } from "obsidian";
 import { AiSettings } from "../settings/types";
 
 class DebugSession {
   private notice: Notice | null = null;
   private t0 = Date.now();
-  constructor(private enabled: boolean, label: string) {
+  private lines: string[] = [];
+  private attachments: { name: string; content: string }[] = [];
+
+  constructor(
+    private enabled: boolean,
+    label: string,
+    private app: App | null = null,
+    private folder: string = ""
+  ) {
     if (!this.enabled) return;
     this.notice = new Notice(`[CCI AI] ${label}`, 0);
+    this.lines.push(`# CCI AI debug — ${label}`);
+    this.lines.push(`Started: ${new Date().toISOString()}`);
+    this.lines.push("");
   }
+
   step(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
     // eslint-disable-next-line no-console
     console.log(`[CCI AI ${elapsed}s] ${msg}`);
     if (this.notice) this.notice.setMessage(`[CCI AI +${elapsed}s] ${msg}`);
+    if (this.enabled) this.lines.push(`- +${elapsed}s · ${msg}`);
   }
+
+  /** Attach a named blob (request body, raw response, headers …) to the file. */
+  attach(name: string, content: string): void {
+    if (!this.enabled) return;
+    this.attachments.push({ name, content });
+  }
+
   done(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
     // eslint-disable-next-line no-console
@@ -23,7 +43,10 @@ class DebugSession {
       setTimeout(() => this.notice?.hide(), 4000);
       this.notice = null;
     }
+    if (this.enabled) this.lines.push(`- DONE +${elapsed}s · ${msg}`);
+    void this.flush();
   }
+
   fail(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
     // eslint-disable-next-line no-console
@@ -32,6 +55,32 @@ class DebugSession {
       this.notice.setMessage(`[CCI AI ${elapsed}s] FAIL: ${msg}`);
       setTimeout(() => this.notice?.hide(), 8000);
       this.notice = null;
+    }
+    if (this.enabled) this.lines.push(`- FAIL +${elapsed}s · ${msg}`);
+    void this.flush();
+  }
+
+  private async flush(): Promise<void> {
+    if (!this.enabled || !this.app) return;
+    try {
+      const folder = normalizePath(this.folder || "/");
+      const adapter = this.app.vault.adapter;
+      if (folder !== "/" && !(await adapter.exists(folder))) {
+        try { await this.app.vault.createFolder(folder); } catch { /* race */ }
+      }
+      const stamp = new Date()
+        .toISOString()
+        .replace(/[:.]/g, "-")
+        .slice(0, 19);
+      const path = normalizePath(`${folder}/_cci-debug-${stamp}.md`);
+      let text = this.lines.join("\n") + "\n\n";
+      for (const att of this.attachments) {
+        text += `## ${att.name}\n\n\`\`\`\n${att.content}\n\`\`\`\n\n`;
+      }
+      await adapter.write(path, text);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[CCI AI] failed to write debug log:", err);
     }
   }
 }
@@ -52,7 +101,16 @@ interface SimpleResponse { status: number; text: string }
  * (localhost from the phone goes nowhere).
  */
 export class AiProviderService {
-  constructor(private getSettings: () => AiSettings) {}
+  constructor(
+    private getSettings: () => AiSettings,
+    private app: App | null = null,
+    private getDebugFolder: () => string = () => ""
+  ) {}
+
+  /** Standard prefix for every DebugSession in this service. */
+  private newDbg(label: string): DebugSession {
+    return new DebugSession(this.getSettings().debug, label, this.app, this.getDebugFolder());
+  }
 
   async testConnection(): Promise<boolean> {
     const s = this.getSettings();
@@ -161,7 +219,7 @@ export class AiProviderService {
         : await this.chatJsonStream(url, body, s);
     }
 
-    const dbg = new DebugSession(s.debug, `Buffered POST → ${url}`);
+    const dbg = this.newDbg(`Buffered POST → ${url}`);
     dbg.step("Issuing requestUrl/fetch (no streaming)…");
     let resp;
     try {
@@ -243,17 +301,20 @@ export class AiProviderService {
    * accumulated text as line-delimited JSON.
    */
   private async chatJsonStreamOllamaViaRequestUrl(url: string, body: object, s: AiSettings): Promise<string> {
-    const dbg = new DebugSession(s.debug, `Ollama via requestUrl → ${url}`);
+    const dbg = this.newDbg(`Ollama via requestUrl → ${url}`);
+    const bodyStr = JSON.stringify(body);
+    dbg.attach("Request body", bodyStr);
     try {
       dbg.step("Issuing requestUrl (stream:true keeps chunks flowing — bypasses iOS 60s idle timer).");
       const r = await requestUrl({
         url,
         method: "POST",
         headers: { "Content-Type": "application/json", ...this.headers(s) },
-        body: JSON.stringify(body),
+        body: bodyStr,
         throw: false,
       });
       dbg.step(`HTTP ${r.status}. body length=${r.text?.length ?? 0}.`);
+      dbg.attach("Raw HTTP response body", r.text ?? "");
       if (r.status < 200 || r.status >= 300) {
         const msg = `Ollama HTTP ${r.status}: ${r.text.slice(0, 300) || "(empty body)"}`;
         dbg.fail(msg);
@@ -274,6 +335,7 @@ export class AiProviderService {
           // ignore — partial lines or non-JSON keep-alive
         }
       }
+      dbg.attach("Concatenated content", content);
       if (!content || content.trim() === "") {
         const msg = "Ollama returned an empty completion from the chunked response. Check the model log.";
         dbg.fail(msg);
@@ -298,7 +360,7 @@ export class AiProviderService {
     if (Platform.isMobile) {
       return await this.chatJsonStreamOllamaViaRequestUrl(url, body, s);
     }
-    const dbg = new DebugSession(s.debug, `Ollama /api/chat → ${url}`);
+    const dbg = this.newDbg(`Ollama /api/chat → ${url}`);
     try {
       dbg.step("Issuing fetch (Ollama native)…");
       const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -381,17 +443,20 @@ export class AiProviderService {
    * lines from the accumulated text.
    */
   private async chatJsonStreamSSEViaRequestUrl(url: string, body: object, s: AiSettings): Promise<string> {
-    const dbg = new DebugSession(s.debug, `SSE via requestUrl → ${url}`);
+    const dbg = this.newDbg(`SSE via requestUrl → ${url}`);
+    const bodyStr = JSON.stringify(body);
+    dbg.attach("Request body", bodyStr);
     try {
       dbg.step("Issuing requestUrl with stream:true (SSE, chunked transfer keeps iOS alive).");
       const r = await requestUrl({
         url,
         method: "POST",
         headers: { "Content-Type": "application/json", ...this.headers(s) },
-        body: JSON.stringify(body),
+        body: bodyStr,
         throw: false,
       });
       dbg.step(`HTTP ${r.status}. body length=${r.text?.length ?? 0}.`);
+      dbg.attach("Raw HTTP response body", r.text ?? "");
       if (r.status < 200 || r.status >= 300) {
         const msg = `AI provider HTTP ${r.status}: ${r.text.slice(0, 300) || "(empty body)"}`;
         dbg.fail(msg);
@@ -414,6 +479,7 @@ export class AiProviderService {
           // ignore malformed lines / keep-alive comments
         }
       }
+      dbg.attach("Concatenated content", content);
       if (!content || content.trim() === "") {
         const hint =
           lastFinish === "length"
@@ -436,7 +502,7 @@ export class AiProviderService {
     if (Platform.isMobile) {
       return await this.chatJsonStreamSSEViaRequestUrl(url, body, s);
     }
-    const dbg = new DebugSession(s.debug, `Streaming POST → ${url}`);
+    const dbg = this.newDbg(`Streaming POST → ${url}`);
     // Two-stage timeout: only attach AbortSignal when we've received
     // the first byte. iOS WKWebView's fetch on Tailscale URLs has been
     // observed to reject with "Load failed" in <1 s when an

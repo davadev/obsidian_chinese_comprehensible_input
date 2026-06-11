@@ -55,7 +55,11 @@ export default class CciPlugin extends Plugin {
 
     this.exposure = new ExposureTracker(this.vocab, () => this.settings);
     this.srs = new SrsScheduler(this.vocab, () => this.settings);
-    this.ai = new AiProviderService(() => this.settings.ai);
+    this.ai = new AiProviderService(
+      () => this.settings.ai,
+      this.app,
+      () => this.settings.story.folder
+    );
     this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings);
     this.popup = new WordPopup(this);
 
