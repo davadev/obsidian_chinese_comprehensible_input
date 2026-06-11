@@ -157,11 +157,18 @@ export class ChineseTextFileView extends TextFileView {
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
     const split = splitFrontmatter(this.data ?? "");
     this.frontmatterText = split.frontmatter;
+    // Pre-warm the shared token cache BEFORE creating the editor. The
+    // decoration ViewPlugin's constructor reads the cache synchronously and
+    // builds decorations in time for the first paint, so the user sees
+    // annotations on first open without having to toggle the display mode.
+    try {
+      await this.plugin.tokenizer.tokenize(split.body);
+    } catch {
+      // tokenizer not ready (no dictionary yet) — the ViewPlugin will fall
+      // back to its async path and dispatchRedecorate when it finishes
+    }
     this.ensureEditor(split.body);
     this.refreshPreviewActions();
-    void this.plugin.tokenizer.tokenize(split.body)
-      .then(() => this.redecorate())
-      .catch(() => {});
   }
 
   /**
