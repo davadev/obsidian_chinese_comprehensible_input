@@ -68,7 +68,9 @@ export class ViewToolbar {
       attr: { title: "Words in this note that you know — tap for stats" },
     });
     this.badgeEl.textContent = "—";
-    this.badgeEl.addEventListener("click", () => this.plugin.openStatsView());
+    this.badgeEl.addEventListener("click", () =>
+      this.plugin.openStatsForNote(this.plugin.currentNoteKey())
+    );
     this.updateBadge();
     let menu: HTMLElement | null = null;
     overflow.addEventListener("click", (e) => {

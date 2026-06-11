@@ -99,8 +99,11 @@ export class StoryGenerator {
 
   private estimateHsk(): number {
     const all = this.vocab.values();
+    const excludeNew = this.settings().statsExcludeNew;
     const byLevel = new Map<number, { total: number; known: number }>();
     for (const r of all) {
+      if (r.status === "ignored") continue;
+      if (excludeNew && r.status === "new") continue;
       const lvl = parseInt(r.hsk?.levels?.[0] ?? "0", 10);
       if (!lvl) continue;
       const b = byLevel.get(lvl) ?? { total: 0, known: 0 };

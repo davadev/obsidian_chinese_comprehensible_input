@@ -77,4 +77,10 @@ export interface CciSettings {
   vaultIndexed: boolean;
   /** On first onload, silently download the dictionary if missing. */
   autoDownloadDictionary: boolean;
+  /**
+   * Dashboard percentage denominator excludes status === "new" so the
+   * post-vault-index "unclassified" pile does not dominate the cards.
+   * Toggled from the dashboard header.
+   */
+  statsExcludeNew: boolean;
 }

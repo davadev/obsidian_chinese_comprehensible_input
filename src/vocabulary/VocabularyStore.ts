@@ -285,6 +285,27 @@ export class VocabularyStore {
     await this.flushSave();
   }
 
+  /**
+   * Bulk-change every record currently in status === "new" to the given
+   * status. Used by the "Mark all unclassified as Unknown" button on the
+   * stats dashboard. Returns the number of records affected.
+   */
+  markAllNewAs(status: WordStatus): number {
+    let n = 0;
+    const now = new Date().toISOString();
+    const derived = axesFromStatus(status);
+    for (const r of Object.values(this.data.words)) {
+      if (r.status !== "new") continue;
+      r.status = status;
+      if (derived) r.axes = derived;
+      if (status === "known" && !r.knownAt) r.knownAt = now;
+      r.updatedAt = now;
+      n++;
+    }
+    if (n) this.scheduleSave();
+    return n;
+  }
+
   private scheduleSave(): void {
     if (!this.loaded) return;
     if (this.saveTimer != null) window.clearTimeout(this.saveTimer);

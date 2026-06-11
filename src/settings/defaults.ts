@@ -54,4 +54,5 @@ export const DEFAULT_SETTINGS: CciSettings = {
   readerFontPx: 22,
   vaultIndexed: false,
   autoDownloadDictionary: true,
+  statsExcludeNew: true,
 };

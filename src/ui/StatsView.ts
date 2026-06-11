@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
@@ -6,7 +6,7 @@ import { colorOf } from "../vocabulary/axes";
 import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressGraph } from "./StatsGraph";
 
 type SortKey = "seenCount" | "lastSeenAt" | "dueAt" | "status" | "hsk";
-type Tab = "dashboard" | "words";
+type Tab = "dashboard" | "words" | "triage";
 
 export class StatsView extends ItemView {
   private query = "";
@@ -18,6 +18,8 @@ export class StatsView extends ItemView {
   private tab: Tab = "dashboard";
   private progressBucket: Bucket = "day";
   private progressWindow = { day: 30, week: 12, month: 12 } as const;
+  private triageIndex = 0;
+  private triageContextCache = new Map<string, string>();
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -56,6 +58,7 @@ export class StatsView extends ItemView {
     this.renderHeader(root);
     this.renderTabs(root);
     if (this.tab === "dashboard") this.renderDashboard(root);
+    else if (this.tab === "triage") this.renderTriage(root);
     else this.renderWords(root);
   }
 
@@ -93,6 +96,7 @@ export class StatsView extends ItemView {
       });
     };
     mkTab("Dashboard", "dashboard");
+    mkTab("Triage", "triage");
     mkTab("Words", "words");
   }
 
@@ -102,8 +106,29 @@ export class StatsView extends ItemView {
     const scoped = this.scopedRecords();
     const counts = bucketCounts(scoped);
     const total = scoped.length;
-    const totalActive = total - counts.ignored;
-    const pct = (n: number) => (totalActive ? Math.round((n / totalActive) * 100) : 0);
+    const excludeNew = this.plugin.settings.statsExcludeNew;
+    const denom = excludeNew
+      ? counts.known + counts.partial + counts.unknown
+      : total - counts.ignored;
+    const pct = (n: number) => (denom ? Math.round((n / denom) * 100) : 0);
+
+    // Exclude-"new" toggle row (top of dashboard so it's the first thing
+    // the user sees affecting the cards).
+    const toggleRow = root.createDiv({ cls: "cci-dash-toggle" });
+    const cb = toggleRow.createEl("input", { type: "checkbox" });
+    cb.checked = excludeNew;
+    cb.addEventListener("change", async () => {
+      this.plugin.settings.statsExcludeNew = cb.checked;
+      await this.plugin.saveSettings();
+      this.render();
+    });
+    toggleRow.createSpan({
+      text: ` Exclude unclassified ("new") words from %`,
+    });
+    toggleRow.createSpan({
+      cls: "cci-dash-toggle-hint",
+      text: ` (${counts.new} hidden when on)`,
+    });
 
     const grid = root.createDiv({ cls: "cci-dash-grid" });
     this.statCard(grid, "Tracked", String(total), "Words this plugin has recorded.");
@@ -113,13 +138,33 @@ export class StatsView extends ItemView {
     this.statCard(grid, "New", `${counts.new}`, "Seen but not classified yet.", "cci-color-new");
     this.statCard(grid, "Ignored", `${counts.ignored}`, "Excluded from review.");
 
-    const estimated = estimateLearnerHsk(scoped, this.plugin.settings.story.knownCoverageThreshold);
+    const estimated = estimateLearnerHsk(
+      scoped,
+      this.plugin.settings.story.knownCoverageThreshold,
+      excludeNew
+    );
     this.statCard(grid, "Comfort level", estimated, "Highest HSK level where known-coverage ≥ threshold.");
 
     if (!this.noteScope) {
-      // Global %: known / all words tracked across vocabulary.
-      const globalPct = totalActive ? Math.round((counts.known / totalActive) * 100) : 0;
-      this.statCard(grid, "Overall known", `${globalPct}%`, "Known out of all words this plugin has tracked across notes.");
+      const globalPct = pct(counts.known);
+      this.statCard(grid, "Overall known", `${globalPct}%`, "Known out of the denominator selected above.");
+    }
+
+    // Batch action: only meaningful in global scope.
+    if (!this.noteScope && counts.new > 0) {
+      const actions = root.createDiv({ cls: "cci-dash-actions" });
+      const btn = actions.createEl("button", {
+        cls: "cci-dash-batch-btn",
+        text: `Mark all ${counts.new} new words as Unknown`,
+      });
+      btn.addEventListener("click", () => {
+        if (!confirm(`Mark ${counts.new} unclassified words as "unknown"? This can be reversed per-word.`)) return;
+        const n = this.plugin.vocab.markAllNewAs("unknown");
+        this.plugin.refreshChineseViews();
+        this.plugin.refreshStatsViews();
+        // refreshStatsViews re-renders this view, so just return.
+        void n;
+      });
     }
 
     this.renderProgressSection(root, scoped);
@@ -137,8 +182,10 @@ export class StatsView extends ItemView {
       for (const p of notePaths) {
         const recs = allRecords.filter((r) => (r.notesSeenCounts ?? {})[p] > 0);
         const c = bucketCounts(recs);
-        const active = recs.length - c.ignored;
-        const pctKnown = active ? Math.round((c.known / active) * 100) : 0;
+        const denomP = excludeNew
+          ? c.known + c.partial + c.unknown
+          : recs.length - c.ignored;
+        const pctKnown = denomP ? Math.round((c.known / denomP) * 100) : 0;
         const tr = body.createEl("tr");
         const noteTd = tr.createEl("td", { text: p });
         noteTd.addClass("cci-clickable");
@@ -189,6 +236,143 @@ export class StatsView extends ItemView {
       cls: "cci-dash-progress-summary",
       text: `Last ${range}: ${trackedRecent} tracked, ${knownRecent} learned.`,
     });
+  }
+
+  // ── Triage ──────────────────────────────────────────────────────────
+  // Card UI: pick the most-frequent unclassified words and let the user
+  // mark known/unknown/partial/ignore with one tap. The example sentence
+  // is pulled from a note the word was actually seen in so the user can
+  // judge from context.
+
+  private renderTriage(root: HTMLElement) {
+    const wrap = root.createDiv({ cls: "cci-triage" });
+    const queue = this.scopedRecords()
+      .filter((r) => r.status === "new")
+      .sort((a, b) => (b.seenCount ?? 0) - (a.seenCount ?? 0));
+
+    if (queue.length === 0) {
+      wrap.createEl("p", {
+        cls: "cci-triage-empty",
+        text: "No unclassified words in this scope. Open a Chinese note (or run Reindex vault) to surface more.",
+      });
+      return;
+    }
+
+    if (this.triageIndex >= queue.length) this.triageIndex = 0;
+    const total = queue.length;
+    const i = this.triageIndex;
+    const rec = queue[i];
+
+    const header = wrap.createDiv({ cls: "cci-triage-header" });
+    header.createSpan({
+      cls: "cci-triage-progress",
+      text: `Word ${i + 1} of ${total}  ·  sorted by frequency`,
+    });
+    const skipBtn = header.createEl("button", { cls: "cci-triage-skip", text: "Skip →" });
+    skipBtn.addEventListener("click", () => {
+      this.triageIndex = (this.triageIndex + 1) % total;
+      this.render();
+    });
+
+    const card = wrap.createDiv({ cls: "cci-triage-card" });
+    const surface = rec.simplified ?? rec.surfaces[0] ?? "";
+    const headRow = card.createDiv({ cls: "cci-triage-headrow" });
+    const headTerm = headRow.createDiv({ cls: "cci-triage-term" });
+    headTerm.textContent = surface;
+    const meta = headRow.createDiv({ cls: "cci-triage-meta" });
+    if (rec.pinyin) meta.createDiv({ cls: "cci-triage-pinyin", text: rec.pinyin });
+    const levelLine = `Seen ${rec.seenCount}× ${rec.hsk?.levels?.length ? `· HSK ${rec.hsk.levels[0]}` : ""}`;
+    meta.createDiv({ cls: "cci-triage-stats", text: levelLine });
+
+    if (rec.definitions && rec.definitions.length > 0) {
+      const defs = card.createDiv({ cls: "cci-triage-defs" });
+      defs.textContent = rec.definitions.slice(0, 2).join("; ");
+    }
+
+    const ctxBox = card.createDiv({ cls: "cci-triage-context" });
+    ctxBox.textContent = "Loading context…";
+    void this.loadTriageContext(rec).then((ctx) => {
+      ctxBox.empty();
+      if (!ctx) {
+        ctxBox.createSpan({ cls: "cci-triage-context-none", text: "No example sentence found." });
+        return;
+      }
+      const before = ctx.sentence.slice(0, ctx.matchStart);
+      const matched = ctx.sentence.slice(ctx.matchStart, ctx.matchStart + surface.length);
+      const after = ctx.sentence.slice(ctx.matchStart + surface.length);
+      ctxBox.appendText(before);
+      ctxBox.createSpan({ cls: "cci-triage-hit", text: matched });
+      ctxBox.appendText(after);
+      const src = card.createDiv({ cls: "cci-triage-context-src" });
+      src.createSpan({ text: "from " });
+      const a = src.createEl("a", { text: ctx.notePath, href: "#" });
+      a.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        const f = this.plugin.app.vault.getAbstractFileByPath(ctx.notePath);
+        if (f instanceof TFile) this.plugin.app.workspace.openLinkText(ctx.notePath, "", false);
+      });
+    });
+
+    const actions = card.createDiv({ cls: "cci-triage-actions" });
+    const mkAct = (text: string, cls: string, fn: () => void) => {
+      const b = actions.createEl("button", { cls: `cci-triage-act ${cls}`, text });
+      b.addEventListener("click", fn);
+    };
+    mkAct("✓ Known", "is-known", () => this.applyTriage(surface, "known"));
+    mkAct("? Partial", "is-partial", () => this.applyTriage(surface, "pinyinKnownMeaningUnknown"));
+    mkAct("✗ Unknown", "is-unknown", () => this.applyTriage(surface, "unknown"));
+    mkAct("Ignore", "is-ignored", () => this.applyTriage(surface, "ignored"));
+  }
+
+  private applyTriage(surface: string, status: WordStatus) {
+    this.plugin.vocab.setStatus(surface, status);
+    // Cleanup context cache for this word — it won't be re-shown.
+    this.triageContextCache.delete(surface);
+    this.plugin.refreshChineseViews();
+    // Don't increment index; the filtered queue rebuilds on next render
+    // and the next "new" word slots in at this position automatically.
+    this.render();
+  }
+
+  /**
+   * Fetch one example sentence containing `surface` from a note the
+   * record was seen in. Results are memoised per surface for the
+   * lifetime of the StatsView so flipping between cards stays snappy.
+   */
+  private async loadTriageContext(
+    rec: WordRecord
+  ): Promise<{ sentence: string; matchStart: number; notePath: string } | null> {
+    const key = rec.simplified ?? rec.surfaces[0] ?? rec.key;
+    if (!key) return null;
+    const cached = this.triageContextCache.get(key);
+    if (cached) return JSON.parse(cached);
+    const surfaces = [
+      key,
+      ...rec.surfaces.filter((s) => s && s !== key),
+    ];
+    const candidates = Object.entries(rec.notesSeenCounts ?? {})
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
+      .map(([p]) => p);
+    for (const notePath of candidates) {
+      const f = this.plugin.app.vault.getAbstractFileByPath(notePath);
+      if (!(f instanceof TFile)) continue;
+      let text: string;
+      try {
+        text = await this.plugin.app.vault.cachedRead(f);
+      } catch {
+        continue;
+      }
+      for (const surface of surfaces) {
+        const idx = text.indexOf(surface);
+        if (idx < 0) continue;
+        const sentence = extractSentenceAround(text, idx);
+        const matchStart = sentence.matchStart;
+        const result = { sentence: sentence.text, matchStart, notePath };
+        this.triageContextCache.set(key, JSON.stringify(result));
+        return result;
+      }
+    }
+    return null;
   }
 
   private statCard(parent: HTMLElement, label: string, value: string, hint: string, accent?: string) {
@@ -391,9 +575,39 @@ function bucketCounts(rows: WordRecord[]): {
   return out;
 }
 
-function estimateLearnerHsk(all: WordRecord[], threshold: number): string {
+/**
+ * Find the sentence containing `text[matchOffset]`. Sentence boundaries are
+ * Chinese full-stop / exclamation / question marks plus their ASCII
+ * equivalents and newlines. Returns the surrounding sentence and the
+ * position of `matchOffset` within that sentence. Caps the slice to
+ * 200 chars on each side so a punctuation-less paragraph does not blow
+ * out the card.
+ */
+function extractSentenceAround(text: string, matchOffset: number): { text: string; matchStart: number } {
+  const BOUNDARY = /[。！？!?；;\n\r…]/;
+  const MAX_BACK = 200;
+  const MAX_FWD = 200;
+  let start = matchOffset;
+  while (start > 0 && matchOffset - start < MAX_BACK && !BOUNDARY.test(text[start - 1])) {
+    start--;
+  }
+  let end = matchOffset;
+  while (end < text.length && end - matchOffset < MAX_FWD && !BOUNDARY.test(text[end])) {
+    end++;
+  }
+  if (end < text.length && BOUNDARY.test(text[end])) end++; // include the closing punctuation
+  const sentence = text.slice(start, end).trim();
+  // Recompute matchStart against the (possibly trimmed) slice.
+  const adjusted = text.slice(start, end);
+  const trimLead = adjusted.length - adjusted.trimStart().length;
+  return { text: sentence, matchStart: matchOffset - start - trimLead };
+}
+
+function estimateLearnerHsk(all: WordRecord[], threshold: number, excludeNew: boolean): string {
   const byLevel = new Map<number, { total: number; known: number }>();
   for (const r of all) {
+    if (r.status === "ignored") continue;
+    if (excludeNew && r.status === "new") continue;
     const lvl = parseInt(r.hsk?.levels?.[0] ?? "0", 10);
     if (!lvl) continue;
     const b = byLevel.get(lvl) ?? { total: 0, known: 0 };

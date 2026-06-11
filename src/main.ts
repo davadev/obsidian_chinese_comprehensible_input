@@ -196,9 +196,21 @@ export default class CciPlugin extends Plugin {
     return leaf;
   }
 
-  async openStatsView(scopeNotePath?: string): Promise<void> {
-    const path = scopeNotePath ?? this.currentNoteKey();
-    const useScope = path && path !== "_no_note" ? path : "";
+  /**
+   * Open the global stats view scoped to all vocabulary. The per-note view
+   * is reached explicitly via `openStatsForNote(notePath)` (used by the
+   * toolbar badge); the command palette / ribbon use this method.
+   */
+  async openStatsView(): Promise<void> {
+    return this.openStatsScoped("");
+  }
+
+  async openStatsForNote(notePath: string): Promise<void> {
+    const useScope = notePath && notePath !== "_no_note" ? notePath : "";
+    return this.openStatsScoped(useScope);
+  }
+
+  private async openStatsScoped(useScope: string): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS);
     if (existing.length) {
       this.app.workspace.revealLeaf(existing[0]);
@@ -212,6 +224,12 @@ export default class CciPlugin extends Plugin {
     const view = leaf.view as StatsView;
     view.setScope(useScope);
     view.render();
+  }
+
+  refreshStatsViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
+      (leaf.view as StatsView).render();
+    }
   }
 
   openGenerateStoryModal(): void {
@@ -230,12 +248,14 @@ export default class CciPlugin extends Plugin {
     this.vocab.setStatus(surface, status);
     new Notice(`${surface} → ${status}`);
     this.refreshChineseViews();
+    this.refreshStatsViews();
   }
 
   markWordIgnored(surface: string, reason?: string): void {
     this.vocab.setStatus(surface, "ignored", reason);
     new Notice(`${surface} → ignored`);
     this.refreshChineseViews();
+    this.refreshStatsViews();
   }
 
   refreshChineseViews(): void {
