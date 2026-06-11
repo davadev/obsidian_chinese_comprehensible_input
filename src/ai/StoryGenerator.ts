@@ -247,12 +247,53 @@ export interface StoryPreview {
 function parseStory(raw: string): GeneratedStory {
   let txt = raw.trim();
   // Strip code fences if model wrapped output.
-  txt = txt.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  const parsed = JSON.parse(txt);
-  if (!parsed || typeof parsed.textChinese !== "string") {
-    throw new Error("AI returned invalid story JSON.");
+  txt = txt.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  // Trim to the outermost JSON object so leading "thinking" or trailing
+  // tool-call chatter from chat-style models gets dropped.
+  const start = txt.indexOf("{");
+  const end = txt.lastIndexOf("}");
+  if (start >= 0 && end > start) txt = txt.slice(start, end + 1);
+
+  // First try as-is.
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(txt);
+  } catch {
+    // Recovery: model output got truncated mid-array / mid-string
+    // (Unexpected EOF). Try to salvage just the `textChinese` field by
+    // hand — that's the only field downstream code strictly requires;
+    // glossary / target lists are optional.
+    const salvaged = salvageTextChinese(txt);
+    if (salvaged) {
+      parsed = { textChinese: salvaged, title: "", glossary: [], targetWordsUsed: [] };
+    } else {
+      const snippet = txt.length > 240
+        ? txt.slice(0, 120) + "…" + txt.slice(-120)
+        : txt;
+      throw new Error(`AI returned invalid story JSON: ${snippet}`);
+    }
+  }
+  if (!parsed || typeof (parsed as Record<string, unknown>).textChinese !== "string") {
+    throw new Error("AI returned a story JSON object without a `textChinese` field.");
   }
   return parsed as GeneratedStory;
+}
+
+/**
+ * Last-resort recovery when the model truncated its JSON output before
+ * closing. Pulls the value of `"textChinese": "…"` directly out of the
+ * raw text, handling escaped quotes and newlines. Returns null if no
+ * complete textChinese string is present.
+ */
+function salvageTextChinese(raw: string): string | null {
+  const re = /"textChinese"\s*:\s*"((?:\\.|[^"\\])*)"/;
+  const m = re.exec(raw);
+  if (!m) return null;
+  try {
+    return JSON.parse(`"${m[1]}"`);
+  } catch {
+    return null;
+  }
 }
 
 async function ensureFolder(app: App, path: string): Promise<void> {

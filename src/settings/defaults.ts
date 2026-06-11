@@ -35,7 +35,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
     embeddingModel: "",
     endpointMode: "chat",
     temperature: 0.6,
-    maxOutputTokens: 1500,
+    maxOutputTokens: 3000,
     timeoutMs: 60000,
     maxRepairIterations: 2,
   },

@@ -476,17 +476,48 @@ export class StatsView extends ItemView {
     }
   }
 
+  /**
+   * Single source of truth for what queue each Flashcards mode shows.
+   * Reused by the renderer, the Skip button, and the post-classification
+   * "advance past the current rec" logic.
+   */
+  private flashcardsQueue(mode: FlashcardsMode): WordRecord[] {
+    if (mode === "due") {
+      return this.plugin.srs.due().slice().sort((a, b) => {
+        const da = Date.parse(a.srs?.dueAt ?? "");
+        const db = Date.parse(b.srs?.dueAt ?? "");
+        return (isNaN(da) ? 0 : da) - (isNaN(db) ? 0 : db);
+      });
+    }
+    return this.scopedRecords()
+      .filter((r) => r.status === "new")
+      .sort((a, b) => (b.seenCount ?? 0) - (a.seenCount ?? 0));
+  }
+
+  /**
+   * After a classification, advance the index past `markedKey` if the
+   * post-mutation queue still contains it (this happens in Due mode
+   * when the grade didn't push the word past `dueAt`'s threshold,
+   * or in Unclassified if the marked record's seenCount math left it
+   * in the bucket). Otherwise leave the index alone — the marked
+   * record dropped out of the queue and the next item naturally slid
+   * into the same slot.
+   */
+  private advancePastIfPresent(markedKey: string | undefined): void {
+    const queue = this.flashcardsQueue(this.plugin.settings.flashcardsMode);
+    if (queue.length === 0) {
+      this.triageIndex = 0;
+      return;
+    }
+    if (markedKey && queue.some((r) => r.key === markedKey)) {
+      this.triageIndex = (this.triageIndex + 1) % queue.length;
+    } else if (this.triageIndex >= queue.length) {
+      this.triageIndex = 0;
+    }
+  }
+
   private renderFlashcardsCards(root: HTMLElement, mode: FlashcardsMode) {
-    const queue =
-      mode === "due"
-        ? this.plugin.srs.due().slice().sort((a, b) => {
-            const da = Date.parse(a.srs?.dueAt ?? "");
-            const db = Date.parse(b.srs?.dueAt ?? "");
-            return (isNaN(da) ? 0 : da) - (isNaN(db) ? 0 : db);
-          })
-        : this.scopedRecords()
-            .filter((r) => r.status === "new")
-            .sort((a, b) => (b.seenCount ?? 0) - (a.seenCount ?? 0));
+    const queue = this.flashcardsQueue(mode);
 
     if (queue.length === 0) {
       root.createEl("p", {
@@ -630,11 +661,15 @@ export class StatsView extends ItemView {
     const btnRow = editor.createDiv({ cls: "cci-triage-partial-buttons" });
     const save = btnRow.createEl("button", { cls: "cci-triage-act is-partial", text: "Save" });
     save.addEventListener("click", () => {
+      const before = this.flashcardsQueue(this.plugin.settings.flashcardsMode);
+      const markedKey = before[this.triageIndex]?.key;
       this.plugin.vocab.setAxes(surface, {
         chars: axes.chars,
         pinyin: axes.pinyin,
         meaning: axes.meaning,
       });
+      try { this.plugin.srs.applyGrade(surface, "hard"); } catch { /* best effort */ }
+      this.advancePastIfPresent(markedKey);
       this.triagePartialAxes = null;
       this.triageContextCache.delete(surface);
       this.triageReveal = 0;
@@ -649,9 +684,30 @@ export class StatsView extends ItemView {
   }
 
   private applyTriage(surface: string, status: WordStatus) {
+    // Capture the key the card represents BEFORE the mutation so we can
+    // detect whether the record stayed in the queue and advance past it
+    // if so.
+    const before = this.flashcardsQueue(this.plugin.settings.flashcardsMode);
+    const markedKey = before[this.triageIndex]?.key;
+
     this.plugin.vocab.setStatus(surface, status);
+    // Apply an SRS grade alongside the status change so the word's
+    // `dueAt` advances. Without this, words in Due mode classified as
+    // Partial / Unknown stayed permanently due and the same card came
+    // back on every tap. "ignored" exits the SRS lane entirely — no
+    // grade.
+    if (status !== "ignored") {
+      const grade =
+        status === "known" ? "good" :
+        status === "unknown" ? "again" :
+        "hard";
+      try { this.plugin.srs.applyGrade(surface, grade); } catch { /* best effort */ }
+    }
+
+    this.advancePastIfPresent(markedKey);
     this.triageContextCache.delete(surface);
-    this.triageReveal = 0; // hide answers on the next card
+    this.triageReveal = 0;
+    this.triagePartialAxes = null;
     this.plugin.refreshChineseViews();
     this.render();
   }
