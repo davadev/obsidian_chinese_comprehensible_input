@@ -74,8 +74,14 @@ function recentBucketLabels(bucket: Bucket, n: number): string[] {
       out.push(bucketKey(new Date(today.getTime() - i * 7 * 86400000), "week"));
     }
   } else {
+    // Build first-of-month in UTC. The local-time `new Date(yyyy, m, 1)`
+    // form was rolling into the previous month under .toISOString() in any
+    // positive-UTC timezone, producing labels that never matched
+    // bucketKey()'s UTC YYYY-MM keys -> no bars rendered.
     for (let i = n - 1; i >= 0; i--) {
-      const d = new Date(today.getUTCFullYear(), today.getUTCMonth() - i, 1);
+      const d = new Date(
+        Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - i, 1)
+      );
       out.push(bucketKey(d, "month"));
     }
   }

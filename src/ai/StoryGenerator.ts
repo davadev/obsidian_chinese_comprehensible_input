@@ -20,7 +20,14 @@ export class StoryGenerator {
     private settings: () => CciSettings
   ) {}
 
-  async generateAndSave(req: StoryRequest): Promise<TFile> {
+  /**
+   * Full LLM + validate + repair loop without committing a permanent
+   * note. Writes the result to a fixed preview path inside the story
+   * folder so the existing Chinese view can open it; the caller decides
+   * whether to commit it as a real note (see commitPreviewAsNote) or
+   * discard it (deletePreview).
+   */
+  async generatePreview(req: StoryRequest): Promise<StoryPreview> {
     const dueRecords = this.srs.due().slice(0, req.dueCount);
     if (dueRecords.length === 0) {
       throw new Error("No due words to review yet. Mark some words first.");
@@ -71,7 +78,7 @@ export class StoryGenerator {
       );
     }
 
-    const file = await this.saveNote(story, dueRecords, targetHsk, report.score);
+    const file = await this.writePreviewFile(story, dueRecords, targetHsk, report.score);
 
     if (this.settings().exposure.generatedReadingCountsAsExposure) {
       for (const r of dueRecords) this.vocab.recordExposure(
@@ -81,9 +88,56 @@ export class StoryGenerator {
       );
     }
 
+    return { story, targets: dueRecords, targetHsk, score: report.score, file, iterations: iter };
+  }
+
+  /**
+   * Promote a preview file to a permanent note inside `story.folder`,
+   * using the same slug used by the legacy "Generate Review Story"
+   * modal. Reuses the preview content verbatim.
+   */
+  async commitPreviewAsNote(preview: StoryPreview): Promise<TFile> {
+    const settings = this.settings();
+    const folder = normalizePath(settings.story.folder);
+    await ensureFolder(this.app, folder);
+    const stamp = new Date().toISOString().slice(0, 10);
+    let filename = `${stamp} - Review Story.md`;
+    let target = normalizePath(`${folder}/${filename}`);
+    let n = 2;
+    while (this.app.vault.getAbstractFileByPath(target)) {
+      filename = `${stamp} - Review Story (${n}).md`;
+      target = normalizePath(`${folder}/${filename}`);
+      n++;
+    }
+    await this.app.fileManager.renameFile(preview.file, target);
+    return preview.file;
+  }
+
+  /** Delete the preview file if it still exists. */
+  async deletePreview(preview: StoryPreview): Promise<void> {
+    try {
+      await this.app.vault.delete(preview.file);
+    } catch {
+      // ignore — already gone
+    }
+  }
+
+  /**
+   * Path that `generatePreview` writes to and that the smart-flashcards
+   * panel watches.  Stable so callers can `getAbstractFileByPath` it on
+   * panel render.
+   */
+  previewPath(): string {
+    return normalizePath(`${this.settings().story.folder}/.cci-flashcards-preview.md`);
+  }
+
+  /** Existing modal-driven entry point. Generates + persists in one shot. */
+  async generateAndSave(req: StoryRequest): Promise<TFile> {
+    const preview = await this.generatePreview(req);
+    const saved = await this.commitPreviewAsNote(preview);
     const leaf = this.app.workspace.getLeaf(true);
-    await leaf.setViewState({ type: VIEW_TYPE_CHINESE, state: { file: file.path } });
-    return file;
+    await leaf.setViewState({ type: VIEW_TYPE_CHINESE, state: { file: saved.path } });
+    return saved;
   }
 
   private async callOnce(req: StoryRequest, target: TargetWord[], targetHsk: string): Promise<GeneratedStory> {
@@ -119,20 +173,31 @@ export class StoryGenerator {
     return highest;
   }
 
-  private async saveNote(
+  private async writePreviewFile(
     story: GeneratedStory,
     targets: WordRecord[],
     targetHsk: string,
     score: number
   ): Promise<TFile> {
-    const settings = this.settings();
-    const folder = normalizePath(settings.story.folder);
-    const stamp = new Date().toISOString().slice(0, 10);
-    const filename = `${stamp} - Review Story.md`;
-    const path = normalizePath(`${folder}/${filename}`);
-
+    const folder = normalizePath(this.settings().story.folder);
     await ensureFolder(this.app, folder);
+    const previewPath = this.previewPath();
+    const content = this.formatStoryMarkdown(story, targets, targetHsk, score);
+    const existing = this.app.vault.getAbstractFileByPath(previewPath);
+    if (existing instanceof TFile) {
+      await this.app.vault.process(existing, () => content);
+      return existing;
+    }
+    return await this.app.vault.create(previewPath, content);
+  }
 
+  private formatStoryMarkdown(
+    story: GeneratedStory,
+    targets: WordRecord[],
+    targetHsk: string,
+    score: number
+  ): string {
+    const settings = this.settings();
     const fm = [
       "---",
       "chinese_learning_generated: true",
@@ -166,15 +231,17 @@ export class StoryGenerator {
       body.push(`> [!note] Notes for learner`);
       body.push(`> ${story.notesForLearner.replace(/\n/g, "\n> ")}`);
     }
-
-    const content = fm + body.join("\n");
-    const existing = this.app.vault.getAbstractFileByPath(path);
-    if (existing instanceof TFile) {
-      await this.app.vault.process(existing, () => content);
-      return existing;
-    }
-    return await this.app.vault.create(path, content);
+    return fm + body.join("\n");
   }
+}
+
+export interface StoryPreview {
+  story: GeneratedStory;
+  targets: WordRecord[];
+  targetHsk: string;
+  score: number;
+  file: TFile;
+  iterations: number;
 }
 
 function parseStory(raw: string): GeneratedStory {

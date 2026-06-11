@@ -55,4 +55,5 @@ export const DEFAULT_SETTINGS: CciSettings = {
   vaultIndexed: false,
   autoDownloadDictionary: true,
   statsExcludeNew: true,
+  flashcardsMode: "unclassified",
 };

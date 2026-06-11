@@ -1,13 +1,15 @@
-import { ItemView, TFile, WorkspaceLeaf } from "obsidian";
+import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type CciPlugin from "../main";
-import { VIEW_TYPE_STATS } from "../constants";
+import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorOf } from "../vocabulary/axes";
 import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
 import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
+import { StoryPreview } from "../ai/StoryGenerator";
 
 type SortKey = "seenCount" | "lastSeenAt" | "dueAt" | "status" | "hsk";
-type Tab = "dashboard" | "words" | "triage";
+type Tab = "dashboard" | "words" | "flashcards";
+type FlashcardsMode = "unclassified" | "due" | "smart";
 type ProgressSeriesId = "tracked" | "classified" | "known" | "partial" | "unknown";
 type HskBucketId = "known" | "partial" | "unknown" | "new" | "untracked";
 
@@ -25,6 +27,11 @@ export class StatsView extends ItemView {
   private triageContextCache = new Map<string, string>();
   private triagePartialAxes: { surface: string; chars: boolean; pinyin: boolean; meaning: boolean } | null = null;
   private triageReveal = 0; // 0 = chars only, 1 = + pinyin, 2 = + definitions
+  // Flashcards tab — mode is persisted in settings. Smart story panel
+  // caches the AI connection test result for the lifetime of the view.
+  private smartReady: boolean | null = null;
+  private smartGenerating = false;
+  private currentPreview: StoryPreview | null = null;
   private chartStyle: "bars" | "area" = "area";
   // Progress-chart series filter. Order matters for the legend.
   private progressSeries: Record<ProgressSeriesId, boolean> = {
@@ -80,7 +87,7 @@ export class StatsView extends ItemView {
     this.renderHeader(root);
     this.renderTabs(root);
     if (this.tab === "dashboard") this.renderDashboard(root);
-    else if (this.tab === "triage") this.renderTriage(root);
+    else if (this.tab === "flashcards") this.renderFlashcards(root);
     else this.renderWords(root);
   }
 
@@ -118,7 +125,7 @@ export class StatsView extends ItemView {
       });
     };
     mkTab("Dashboard", "dashboard");
-    mkTab("Triage", "triage");
+    mkTab("Flashcards", "flashcards");
     mkTab("Words", "words");
   }
 
@@ -206,7 +213,8 @@ export class StatsView extends ItemView {
     if (notePaths.length > 0 && !this.noteScope) {
       const wrap = root.createDiv({ cls: "cci-dash-notes" });
       wrap.createEl("h3", { text: "Per-note exposure" });
-      const tbl = wrap.createEl("table", { cls: "cci-dash-notes-table" });
+      const tableWrap = wrap.createDiv({ cls: "cci-dash-notes-tablewrap" });
+      const tbl = tableWrap.createEl("table", { cls: "cci-dash-notes-table" });
       const head = tbl.createEl("thead").createEl("tr");
       ["Note", "Tracked", "Known", "Known %"].forEach((h) => head.createEl("th", { text: h }));
       const body = tbl.createEl("tbody");
@@ -423,19 +431,75 @@ export class StatsView extends ItemView {
   // is pulled from a note the word was actually seen in so the user can
   // judge from context.
 
-  private renderTriage(root: HTMLElement) {
+  /**
+   * Flashcards tab entry: renders the mode selector and dispatches into
+   * the per-mode body. "Unclassified" and "Due" share the card UI; the
+   * caller only differs in the queue source. "Smart" is a separate
+   * panel that talks to the LLM via StoryGenerator.
+   */
+  private renderFlashcards(root: HTMLElement) {
     const wrap = root.createDiv({ cls: "cci-triage" });
-    const queue = this.scopedRecords()
-      .filter((r) => r.status === "new")
-      .sort((a, b) => (b.seenCount ?? 0) - (a.seenCount ?? 0));
+    this.renderFlashcardsModeSelector(wrap);
+    const mode = this.plugin.settings.flashcardsMode;
+    if (mode === "smart") {
+      this.renderFlashcardsSmart(wrap);
+      return;
+    }
+    this.renderFlashcardsCards(wrap, mode);
+  }
+
+  private renderFlashcardsModeSelector(parent: HTMLElement) {
+    const row = parent.createDiv({ cls: "cci-fc-mode" });
+    const opts: { id: FlashcardsMode; label: string; hint: string }[] = [
+      { id: "unclassified", label: "Unclassified", hint: "Frequency-sorted new words" },
+      { id: "due",          label: "Due",          hint: "SRS-due reviews"            },
+      { id: "smart",        label: "Smart story",  hint: "LLM story over due words"   },
+    ];
+    for (const opt of opts) {
+      const btn = row.createEl("button", {
+        cls:
+          "cci-fc-mode-btn" +
+          (this.plugin.settings.flashcardsMode === opt.id ? " is-active" : ""),
+        attr: { title: opt.hint },
+      });
+      btn.textContent = opt.label;
+      btn.addEventListener("click", async () => {
+        if (this.plugin.settings.flashcardsMode === opt.id) return;
+        this.plugin.settings.flashcardsMode = opt.id;
+        await this.plugin.saveSettings();
+        this.triageIndex = 0;
+        this.triageReveal = 0;
+        this.triagePartialAxes = null;
+        if (opt.id === "smart") this.smartReady = null;
+        this.render();
+      });
+    }
+  }
+
+  private renderFlashcardsCards(root: HTMLElement, mode: FlashcardsMode) {
+    const queue =
+      mode === "due"
+        ? this.plugin.srs.due().slice().sort((a, b) => {
+            const da = Date.parse(a.srs?.dueAt ?? "");
+            const db = Date.parse(b.srs?.dueAt ?? "");
+            return (isNaN(da) ? 0 : da) - (isNaN(db) ? 0 : db);
+          })
+        : this.scopedRecords()
+            .filter((r) => r.status === "new")
+            .sort((a, b) => (b.seenCount ?? 0) - (a.seenCount ?? 0));
 
     if (queue.length === 0) {
-      wrap.createEl("p", {
+      root.createEl("p", {
         cls: "cci-triage-empty",
-        text: "No unclassified words in this scope. Open a Chinese note (or run Reindex vault) to surface more.",
+        text:
+          mode === "due"
+            ? "Nothing due right now. Mark a few words via the popup so SRS has something to schedule."
+            : "No unclassified words in this scope. Open a Chinese note (or run Reindex vault) to surface more.",
       });
       return;
     }
+
+    const wrap = root;
 
     if (this.triageIndex >= queue.length) this.triageIndex = 0;
     const total = queue.length;
@@ -590,6 +654,155 @@ export class StatsView extends ItemView {
     this.triageReveal = 0; // hide answers on the next card
     this.plugin.refreshChineseViews();
     this.render();
+  }
+
+  // ── Smart-story flashcards ─────────────────────────────────────────
+
+  private renderFlashcardsSmart(root: HTMLElement) {
+    const wrap = root.createDiv({ cls: "cci-fc-smart" });
+    const settings = this.plugin.settings;
+
+    // 1. AI gating.
+    if (!settings.ai.enabled) {
+      this.renderSmartDisabled(wrap, "AI provider is disabled. Enable it in Settings → AI provider, then come back.");
+      return;
+    }
+    if (this.smartReady === null) {
+      wrap.createEl("p", { cls: "cci-fc-smart-status", text: "Testing AI connection…" });
+      void this.plugin.ai.testConnection().then((ok) => {
+        this.smartReady = ok;
+        this.render();
+      }).catch(() => {
+        this.smartReady = false;
+        this.render();
+      });
+      return;
+    }
+    if (!this.smartReady) {
+      this.renderSmartDisabled(wrap, "AI connection failed. Verify Settings → AI provider → Test connection.");
+      return;
+    }
+
+    // 2. Params recap.
+    const dueCount = this.plugin.srs.due().length;
+    const params = wrap.createDiv({ cls: "cci-fc-smart-params" });
+    params.createEl("h3", { text: "Smart story flashcards" });
+    const list = params.createEl("ul");
+    list.createEl("li", { text: `Due words today: ${dueCount} (story will use up to ${settings.story.defaultDueCount}).` });
+    list.createEl("li", { text: `Target HSK level for filler vocabulary: ${settings.story.defaultStyle === "story" ? "auto" : "(see story settings)"}.` });
+    list.createEl("li", { text: `Length: ~${settings.story.defaultLengthChars} characters.` });
+    list.createEl("li", { text: `Known-coverage threshold: ${Math.round(settings.story.knownCoverageThreshold * 100)}%.` });
+    list.createEl("li", { text: `Max repair iterations: ${settings.ai.maxRepairIterations}.` });
+
+    // 3. Existing preview, if any.
+    const previewPath = this.plugin.story.previewPath();
+    const previewFile = this.plugin.app.vault.getAbstractFileByPath(previewPath);
+    if (previewFile instanceof TFile) {
+      const row = wrap.createDiv({ cls: "cci-fc-smart-actions" });
+      const open = row.createEl("button", { cls: "cci-triage-act is-known", text: "Open preview" });
+      open.addEventListener("click", () => this.openInChineseView(previewFile));
+      const save = row.createEl("button", { cls: "cci-triage-act is-partial", text: "Save as note" });
+      save.addEventListener("click", async () => {
+        await this.commitSavedPreview(previewFile);
+      });
+      const regen = row.createEl("button", {
+        cls: "cci-triage-act is-known",
+        text: this.smartGenerating ? "Generating…" : "Generate again",
+      });
+      if (this.smartGenerating) regen.setAttribute("disabled", "true");
+      regen.addEventListener("click", () => this.runSmartGenerate(true));
+      const discard = row.createEl("button", { cls: "cci-triage-act is-ignored", text: "Discard" });
+      discard.addEventListener("click", async () => {
+        try {
+          await this.plugin.app.vault.delete(previewFile);
+        } catch {}
+        this.currentPreview = null;
+        this.render();
+      });
+    } else {
+      // 4. Initial Generate button.
+      const row = wrap.createDiv({ cls: "cci-fc-smart-actions" });
+      const btn = row.createEl("button", {
+        cls: "cci-triage-act is-known",
+        text: this.smartGenerating ? "Generating…" : "Generate story",
+      });
+      if (this.smartGenerating || dueCount === 0) btn.setAttribute("disabled", "true");
+      if (dueCount === 0) {
+        wrap.createEl("p", {
+          cls: "cci-triage-empty",
+          text: "No due words right now. Mark a few words via the popup, then come back.",
+        });
+      }
+      btn.addEventListener("click", () => this.runSmartGenerate(false));
+    }
+  }
+
+  private renderSmartDisabled(wrap: HTMLElement, msg: string) {
+    const panel = wrap.createDiv({ cls: "cci-fc-smart-disabled" });
+    panel.createEl("p", { text: msg });
+  }
+
+  private async runSmartGenerate(regen: boolean): Promise<void> {
+    if (this.smartGenerating) return;
+    this.smartGenerating = true;
+    this.render();
+    const settings = this.plugin.settings;
+    const notice = new Notice("Generating Chinese story…", 0);
+    try {
+      // If regen, delete the old preview file first so the new write is
+      // a fresh create (cleaner content cycling).
+      const previewPath = this.plugin.story.previewPath();
+      const existing = this.plugin.app.vault.getAbstractFileByPath(previewPath);
+      if (regen && existing instanceof TFile) {
+        try { await this.plugin.app.vault.delete(existing); } catch {}
+      }
+      const preview = await this.plugin.story.generatePreview({
+        dueCount: settings.story.defaultDueCount,
+        lengthChars: settings.story.defaultLengthChars,
+        style: settings.story.defaultStyle,
+        targetHsk: "auto",
+        includeGlossary: settings.story.includeGlossary,
+      });
+      this.currentPreview = preview;
+      notice.setMessage(
+        `Story ready · score ${preview.score.toFixed(2)} · ${preview.iterations} repair pass(es).`
+      );
+      setTimeout(() => notice.hide(), 4000);
+      await this.openInChineseView(preview.file);
+    } catch (err) {
+      notice.setMessage("Story generation failed: " + (err as Error).message);
+      setTimeout(() => notice.hide(), 6000);
+    } finally {
+      this.smartGenerating = false;
+      this.render();
+    }
+  }
+
+  private async commitSavedPreview(previewFile: TFile): Promise<void> {
+    if (!this.currentPreview || this.currentPreview.file.path !== previewFile.path) {
+      // Re-hydrate a minimal preview wrapper from the file alone.
+      this.currentPreview = {
+        story: { textChinese: "", title: "", glossary: [], targetWordsUsed: [] } as never,
+        targets: [],
+        targetHsk: "0",
+        score: 0,
+        file: previewFile,
+        iterations: 0,
+      };
+    }
+    try {
+      const saved = await this.plugin.story.commitPreviewAsNote(this.currentPreview);
+      new Notice(`Saved to ${saved.path}.`);
+      this.currentPreview = null;
+      this.render();
+    } catch (err) {
+      new Notice("Save failed: " + (err as Error).message);
+    }
+  }
+
+  private async openInChineseView(file: TFile): Promise<void> {
+    const leaf = this.plugin.app.workspace.getLeaf(true);
+    await leaf.setViewState({ type: VIEW_TYPE_CHINESE, state: { file: file.path } });
   }
 
   /**

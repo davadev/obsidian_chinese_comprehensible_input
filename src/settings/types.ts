@@ -83,4 +83,6 @@ export interface CciSettings {
    * Toggled from the dashboard header.
    */
   statsExcludeNew: boolean;
+  /** Remembered Flashcards-tab mode. */
+  flashcardsMode: "unclassified" | "due" | "smart";
 }

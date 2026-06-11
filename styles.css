@@ -622,7 +622,68 @@
   background: var(--background-modifier-hover);
 }
 
-/* Triage tab */
+/* Flashcards mode selector */
+.cci-fc-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+.cci-fc-mode-btn {
+  flex: 1 1 100px;
+  height: 32px;
+  padding: 0 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.cci-fc-mode-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.cci-fc-mode-btn:hover { filter: brightness(1.05); }
+
+/* Smart story panel */
+.cci-fc-smart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cci-fc-smart-disabled {
+  padding: 0.7rem 0.8rem;
+  background: var(--background-secondary);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.cci-fc-smart-params h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.cci-fc-smart-params ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+.cci-fc-smart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cci-fc-smart-status {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Triage tab (card UI shared between Unclassified + Due modes) */
 .cci-triage {
   display: flex;
   flex-direction: column;
@@ -923,8 +984,16 @@
   font-size: 0.9rem;
   font-weight: 600;
 }
+.cci-dash-notes-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
 .cci-dash-notes-table {
   width: 100%;
+  min-width: 480px;
   border-collapse: collapse;
   font-size: 0.78rem;
 }
