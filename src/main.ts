@@ -78,6 +78,9 @@ export default class CciPlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("file-open", () => this.injectMarkdownHeaderActions())
     );
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => this.injectMarkdownHeaderActions())
+    );
     this.app.workspace.onLayoutReady(() => this.injectMarkdownHeaderActions());
 
     // Background bootstrap: auto-download the dictionary if missing, then
