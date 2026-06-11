@@ -1,6 +1,7 @@
 import { App, normalizePath } from "obsidian";
 import { DictionaryEntry } from "./DictionaryTypes";
 import { SEED_ENTRIES } from "./seedDictionary";
+import { HSK_MAP, HSK_SOURCE } from "./hskMap.generated";
 
 /**
  * Lazy dictionary store.
@@ -68,6 +69,22 @@ export class DictionaryService {
   }
 
   private index(e: DictionaryEntry) {
+    // Backfill HSK level metadata from the generated hskMap when the
+    // entry has none of its own. Seed entries that already carry an
+    // explicit `hsk` are NOT overwritten — they win per the project's
+    // "existing HSK 1-3 data has priority" rule. CC-CEDICT entries
+    // (which never carry HSK) get filled here so the downloaded
+    // dictionary picks up HSK 1-6 categorization without us modifying
+    // the dictionary file on disk.
+    if (!e.hsk) {
+      const level = HSK_MAP[e.simplified];
+      if (level) {
+        e = {
+          ...e,
+          hsk: { source: HSK_SOURCE, levels: [String(level)] },
+        };
+      }
+    }
     const s = this.bySimplified.get(e.simplified) ?? [];
     s.push(e);
     this.bySimplified.set(e.simplified, s);

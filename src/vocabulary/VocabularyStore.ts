@@ -2,6 +2,7 @@ import { Plugin } from "obsidian";
 import { DATA_SCHEMA_VERSION } from "../constants";
 import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
+import { HSK_MAP, HSK_SOURCE } from "../dictionary/hskMap.generated";
 import { migrateVocab } from "./migrations";
 import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
 import { axesFromStatus, statusFromAxes } from "./axes";
@@ -46,6 +47,16 @@ export class VocabularyStore {
       if (r.status === "known" && !r.knownAt) {
         r.knownAt = r.updatedAt;
         mutated = true;
+      }
+      // Backfill HSK level metadata from the imported map. Records with an
+      // existing `hsk` keep theirs unchanged (existing HSK 1-3 data wins).
+      if (!r.hsk) {
+        const surface = r.simplified ?? r.surfaces[0];
+        const level = surface ? HSK_MAP[surface] : undefined;
+        if (level) {
+          r.hsk = { source: HSK_SOURCE, levels: [String(level)] };
+          mutated = true;
+        }
       }
       const canonical = makeKey(r.simplified ?? r.surfaces[0] ?? r.key, r.pinyin);
       if (canonical !== r.key) {
