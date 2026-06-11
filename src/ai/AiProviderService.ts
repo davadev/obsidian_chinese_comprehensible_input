@@ -104,9 +104,13 @@ export class AiProviderService {
             // system prompt is also still appended above as belt-and-
             // suspenders for non-Ollama paths.
             think: s.suppressThinking ? false : undefined,
-            // Native /api/chat ignores response_format; the prompt
-            // alone steers JSON shape. That's fine — parseStory
-            // already has the three-tier fallback for plain prose.
+            // Ollama-native JSON enforcement. `format: "json"` makes
+            // Ollama constrain the model output to valid JSON; without
+            // it the model often returns prose despite the system
+            // prompt asking for JSON (qwen3 did this for 6457 chars
+            // in a real session). Sent only when the user actually
+            // wants JSON (responseFormat ≠ "none").
+            ...(s.responseFormat !== "none" ? { format: "json" } : {}),
           }
         : s.endpointMode === "responses"
         ? {

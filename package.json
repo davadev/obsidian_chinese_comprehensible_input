@@ -1,6 +1,6 @@
 {
   "name": "chinese-comprehensible-input",
-  "version": "0.1.36",
+  "version": "0.1.37",
   "description": "Obsidian plugin: Chinese comprehensible input reading view with dictionary tokenization, SRS, and AI story generation.",
   "main": "main.js",
   "scripts": {
