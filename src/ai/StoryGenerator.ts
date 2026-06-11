@@ -11,6 +11,8 @@ import { CciSettings } from "../settings/types";
 import { VIEW_TYPE_CHINESE } from "../constants";
 
 export class StoryGenerator {
+  private generationInFlight = false;
+
   constructor(
     private app: App,
     private ai: AiProviderService,
@@ -28,67 +30,75 @@ export class StoryGenerator {
    * discard it (deletePreview).
    */
   async generatePreview(req: StoryRequest): Promise<StoryPreview> {
-    const dueRecords = this.srs.due().slice(0, req.dueCount);
-    if (dueRecords.length === 0) {
-      throw new Error("No due words to review yet. Mark some words first.");
+    if (this.generationInFlight) {
+      throw new Error("Story generation is already running.");
     }
-    const targetWords: TargetWord[] = dueRecords.map((r) => ({
-      word: r.simplified ?? r.surfaces[0],
-      pinyin: r.pinyin ?? "",
-      definition: (r.definitions ?? []).slice(0, 2).join("; "),
-    }));
-
-    const targetHsk = req.targetHsk === "auto" ? String(this.estimateHsk()) : req.targetHsk;
-
-    let story = await this.callOnce(req, targetWords, targetHsk);
-    const cfg: ValidatorConfig = {
-      targetHsk: parseInt(targetHsk, 10) || 0,
-      lengthChars: req.lengthChars,
-      tooHardRatioCap: 0.15,
-    };
-    let report = await validateStory(
-      story,
-      targetWords.map((t) => t.word),
-      this.tokenizer,
-      cfg
-    );
-
-    const maxIters = this.settings().ai.maxRepairIterations;
-    let iter = 0;
-    while (!report.ok && iter < maxIters) {
-      iter++;
-      const repair = buildRepairPrompt({
-        originalText: story.textChinese,
-        missingWords: report.missingWords,
-        tooHardWords: report.tooHardWords,
-        targetHsk,
-      });
-      try {
-        const out = await this.ai.chatJson(STORY_SYSTEM_PROMPT, repair, "ChineseStory", STORY_SCHEMA);
-        story = parseStory(out);
-      } catch (e) {
-        new Notice("Repair iteration failed: " + (e as Error).message);
-        break;
+    this.generationInFlight = true;
+    try {
+      const dueRecords = this.srs.due().slice(0, req.dueCount);
+      if (dueRecords.length === 0) {
+        throw new Error("No due words to review yet. Mark some words first.");
       }
-      report = await validateStory(
+      const targetWords: TargetWord[] = dueRecords.map((r) => ({
+        word: r.simplified ?? r.surfaces[0],
+        pinyin: r.pinyin ?? "",
+        definition: (r.definitions ?? []).slice(0, 2).join("; "),
+      }));
+
+      const targetHsk = req.targetHsk === "auto" ? String(this.estimateHsk()) : req.targetHsk;
+
+      let story = await this.callOnce(req, targetWords, targetHsk);
+      const cfg: ValidatorConfig = {
+        targetHsk: parseInt(targetHsk, 10) || 0,
+        lengthChars: req.lengthChars,
+        tooHardRatioCap: 0.15,
+      };
+      let report = await validateStory(
         story,
         targetWords.map((t) => t.word),
         this.tokenizer,
         cfg
       );
+
+      const maxIters = this.settings().ai.maxRepairIterations;
+      let iter = 0;
+      while (!report.ok && iter < maxIters) {
+        iter++;
+        const repair = buildRepairPrompt({
+          originalText: story.textChinese,
+          missingWords: report.missingWords,
+          tooHardWords: report.tooHardWords,
+          targetHsk,
+        });
+        try {
+          const out = await this.ai.chatJson(STORY_SYSTEM_PROMPT, repair, "ChineseStory", STORY_SCHEMA);
+          story = parseStory(out);
+        } catch (e) {
+          new Notice("Repair iteration failed: " + (e as Error).message);
+          break;
+        }
+        report = await validateStory(
+          story,
+          targetWords.map((t) => t.word),
+          this.tokenizer,
+          cfg
+        );
+      }
+
+      const file = await this.writePreviewFile(story, dueRecords, targetHsk, report.score);
+
+      if (this.settings().exposure.generatedReadingCountsAsExposure) {
+        for (const r of dueRecords) this.vocab.recordExposure(
+          r.surfaces[0],
+          this.settings().exactTimestampRetentionLimit,
+          this.settings().storeAllExactTimestamps
+        );
+      }
+
+      return { story, targets: dueRecords, targetHsk, score: report.score, file, iterations: iter };
+    } finally {
+      this.generationInFlight = false;
     }
-
-    const file = await this.writePreviewFile(story, dueRecords, targetHsk, report.score);
-
-    if (this.settings().exposure.generatedReadingCountsAsExposure) {
-      for (const r of dueRecords) this.vocab.recordExposure(
-        r.surfaces[0],
-        this.settings().exactTimestampRetentionLimit,
-        this.settings().storeAllExactTimestamps
-      );
-    }
-
-    return { story, targets: dueRecords, targetHsk, score: report.score, file, iterations: iter };
   }
 
   /**
@@ -268,7 +278,7 @@ function parseStory(raw: string): GeneratedStory {
   if (start >= 0 && end > start) {
     try {
       const parsed = JSON.parse(stripped.slice(start, end + 1));
-      if (parsed && typeof parsed.textChinese === "string") {
+      if (parsed && (typeof parsed.textChinese === "string" || typeof parsed.text === "string" || typeof parsed.content === "string")) {
         return shapeStory(parsed);
       }
     } catch {
@@ -299,13 +309,14 @@ function parseStory(raw: string): GeneratedStory {
 }
 
 function shapeStory(partial: Partial<GeneratedStory>): GeneratedStory {
+  const p = partial as Partial<GeneratedStory> & { text?: string; content?: string };
   return {
-    title: partial.title ?? "复习故事",
-    targetLevel: partial.targetLevel ?? "",
-    textChinese: partial.textChinese ?? "",
-    targetWordsUsed: partial.targetWordsUsed ?? [],
-    glossary: partial.glossary ?? [],
-    notesForLearner: partial.notesForLearner,
+    title: p.title ?? "复习故事",
+    targetLevel: p.targetLevel ?? "",
+    textChinese: p.textChinese ?? p.text ?? p.content ?? "",
+    targetWordsUsed: p.targetWordsUsed ?? [],
+    glossary: p.glossary ?? [],
+    notesForLearner: p.notesForLearner,
   };
 }
 

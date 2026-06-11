@@ -2,7 +2,9 @@ export const STORY_SYSTEM_PROMPT =
   "You are an expert writer of graded Chinese comprehensible input for adult Chinese learners. " +
   "Write natural, engaging Chinese using simple grammar and vocabulary appropriate to the requested HSK level. " +
   "Include all required target words naturally. Do not explain in English inside the story. " +
-  "Output valid JSON only matching the provided schema. " +
+  "Output valid JSON only matching this shape: " +
+  "{\"title\":string,\"targetLevel\":string,\"textChinese\":string,\"targetWordsUsed\":[{\"word\":string,\"used\":boolean,\"sentence\":string}],\"glossary\":[{\"word\":string,\"pinyin\":string,\"definition\":string}],\"notesForLearner\":string}. " +
+  "Do not use keys named text, content, keywords, meaning, or term. " +
   "Return ONLY a single JSON object. No prose before or after. No markdown code fences.";
 
 export interface TargetWord {
@@ -26,7 +28,7 @@ export function buildUserPrompt(args: {
     `For all other vocabulary, prefer words at or below HSK ${args.targetHsk}.\n` +
     `Keep the ${args.style} coherent, enjoyable, and not childish unless requested.\n` +
     `Length: roughly ${args.lengthChars} Chinese characters.\n` +
-    `Return JSON only matching the schema. Do not include English explanations inside the Chinese text.`
+    `Return JSON only with the key textChinese for the Chinese text. Do not include English explanations inside the Chinese text.`
   );
 }
 
