@@ -206,13 +206,17 @@
 .cci-editor {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 .cci-editor .cm-editor {
   height: 100%;
 }
 .cci-editor .cm-scroller {
   overflow-y: auto;
+  scroll-padding-bottom: 200px;
+}
+.cci-editor .cm-content {
+  min-height: unset;
 }
 
 /* Word annotations */
