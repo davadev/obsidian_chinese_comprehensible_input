@@ -102,11 +102,15 @@ export class AiProviderService {
     // Streaming defeats Tailscale / corporate-VPN idle-connection
     // kills that fire when the server takes 60+s to start sending.
     // Each token chunk arrives as a `data: {…}\n\n` line; we
-    // concatenate `choices[0].delta.content` across chunks. Enabled
-    // on mobile too — iOS WKWebView's fetch DOES support
-    // ReadableStream.body in modern Obsidian, and requestUrl's
-    // hidden ~30s timeout is the very thing the user was hitting.
-    const wantStream = s.stream && typeof fetch === "function";
+    // concatenate `choices[0].delta.content` across chunks.
+    //
+    // Mobile is excluded because iOS WKWebView enforces CORS on cross-
+    // origin fetches; Ollama doesn't send CORS headers so the
+    // preflight fails with "Load failed" in under a second. requestUrl
+    // runs in Obsidian's main process and bypasses CORS, so it is the
+    // only viable channel on iOS even though it inherits the
+    // NSURLSession 60s timeout.
+    const wantStream = s.stream && typeof fetch === "function" && !Platform.isMobile;
     const body = wantStream ? { ...baseBody, stream: true } : baseBody;
 
     // eslint-disable-next-line no-console
@@ -121,7 +125,15 @@ export class AiProviderService {
       return await this.chatJsonStream(url, body, s);
     }
 
-    const dbg = new DebugSession(s.debug, `Buffered POST → ${url}`);
+    const dbg = new DebugSession(
+      s.debug,
+      Platform.isMobile && s.stream
+        ? `Mobile fallback (no stream): POST → ${url}`
+        : `Buffered POST → ${url}`
+    );
+    if (Platform.isMobile && s.stream) {
+      dbg.step("Streaming toggle ON but mobile uses requestUrl (iOS CORS blocks fetch streams).");
+    }
     dbg.step("Issuing requestUrl/fetch (no streaming)…");
     let resp;
     try {
