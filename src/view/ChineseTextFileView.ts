@@ -175,26 +175,42 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   /**
-   * iOS Safari does not shrink the layout viewport when the soft keyboard
-   * opens — only `visualViewport.height` shrinks. Without compensation, our
-   * flex layout keeps `.cm-scroller` extending behind the keyboard, leaving
-   * a gap. Mirror the keyboard inset into a CSS custom property so the
-   * `.cci-view`'s padding-bottom can absorb it (see styles.css).
+   * iOS Safari keeps the layout viewport at full size when the soft keyboard
+   * opens — only `visualViewport.height` shrinks — so flex/`height: 100%`
+   * chains leave `.cm-scroller` extending behind the keyboard. Cap the
+   * editor's height directly via inline `max-height = vv.height - rect.top`
+   * (both in visual-viewport coords on iOS) so the editor ends at the visible
+   * region's bottom.
    */
   private attachVisualViewportSync(): void {
     const vv = window.visualViewport;
     if (!vv) return;
-    const root = this.containerEl.children[1] as HTMLElement;
+
     const update = () => {
-      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      root.style.setProperty("--cci-kb-inset", `${inset}px`);
+      if (!this.editorContainer) return;
+      const rect = this.editorContainer.getBoundingClientRect();
+      const maxH = Math.max(0, vv.height - rect.top);
+      this.editorContainer.style.maxHeight = `${maxH}px`;
+      // eslint-disable-next-line no-console
+      console.log("[cci-kb]", {
+        innerH: window.innerHeight,
+        vvH: vv.height,
+        vvOT: vv.offsetTop,
+        editorTop: rect.top,
+        maxH,
+      });
     };
-    update();
+
+    requestAnimationFrame(update);
     vv.addEventListener("resize", update);
     vv.addEventListener("scroll", update);
+    window.addEventListener("resize", update);
+
     this.vvCleanup = () => {
       vv.removeEventListener("resize", update);
       vv.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      this.editorContainer?.style.removeProperty("max-height");
     };
   }
 

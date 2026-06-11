@@ -5,12 +5,10 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  /* iOS keyboard fix: `--cci-kb-inset` is updated from JS via the
-     visualViewport API. With `box-sizing: border-box`, this padding shrinks
-     the flex content area when the keyboard is open, so .cci-editor and
-     .cm-scroller end above the keyboard instead of behind it. */
-  box-sizing: border-box;
-  padding-bottom: var(--cci-kb-inset, 0px);
+  /* iOS keyboard fix: block .view-content from being the auto-scroll-to-focus
+     target. The editor's height is capped directly via inline max-height from
+     a visualViewport listener in ChineseTextFileView. */
+  overflow: hidden;
   --cci-reader-font: 22px;
 }
 
