@@ -211,9 +211,17 @@ export default class CciPlugin extends Plugin {
   }
 
   private async openStatsScoped(useScope: string): Promise<void> {
+    // If the call originated from the Settings modal, close it so the
+    // user actually sees the stats tab they just asked for.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const setting = (this.app as any)?.setting;
+    if (setting && typeof setting.close === "function") {
+      try { setting.close(); } catch { /* best effort */ }
+    }
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS);
     if (existing.length) {
       this.app.workspace.revealLeaf(existing[0]);
+      this.app.workspace.setActiveLeaf(existing[0], { focus: true });
       const view = existing[0].view as StatsView;
       view.setScope(useScope);
       view.render();
@@ -221,6 +229,8 @@ export default class CciPlugin extends Plugin {
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: VIEW_TYPE_STATS });
+    this.app.workspace.revealLeaf(leaf);
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
     const view = leaf.view as StatsView;
     view.setScope(useScope);
     view.render();
