@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
@@ -34,6 +34,14 @@ export default class CciPlugin extends Plugin {
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
   async onload(): Promise<void> {
+    // Custom icon: the character 中 (zhōng / middle) — clearly signals
+    // "Chinese view" and avoids visual collision with Obsidian's native
+    // read/edit toggle which uses book-open / pencil.
+    addIcon(
+      "cci-zhong",
+      '<text x="50" y="82" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-size="95" font-weight="600" fill="currentColor">中</text>'
+    );
+
     // Keep onload light. Load just settings + small services.
     const blob = (await this.loadData()) ?? {};
     this.settings = { ...DEFAULT_SETTINGS, ...((blob.settings as Partial<CciSettings>) ?? {}) };
@@ -71,7 +79,7 @@ export default class CciPlugin extends Plugin {
 
     this.registerCommands();
 
-    this.addRibbonIcon("book-open-check", "Open current note in Chinese Learning View", () => {
+    this.addRibbonIcon("cci-zhong", "Open current note in Chinese Learning View", () => {
       this.openCurrentInChineseView();
     });
 
@@ -213,7 +221,7 @@ export default class CciPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view as MarkdownView;
       if (this.injectedMarkdownViews.has(view)) continue;
-      view.addAction("book-open-check", "Open in Chinese Learning View", () => {
+      view.addAction("cci-zhong", "Open in Chinese Learning View", () => {
         if (view.file) void this.openFileInChineseView(view.file);
       });
       this.injectedMarkdownViews.add(view);

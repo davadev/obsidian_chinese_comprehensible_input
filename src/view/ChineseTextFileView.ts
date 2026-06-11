@@ -90,7 +90,7 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   getIcon(): string {
-    return "book-open-check";
+    return "cci-zhong";
   }
 
   // TextFileView API ---------------------------------------------------
