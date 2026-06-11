@@ -754,6 +754,13 @@ export class StatsView extends ItemView {
     const previewPath = this.plugin.story.previewPath();
     const previewFile = this.plugin.app.vault.getAbstractFileByPath(previewPath);
     if (previewFile instanceof TFile) {
+      if (this.currentPreview?.file.path === previewFile.path) {
+        const preview = wrap.createDiv({ cls: "cci-fc-smart-preview" });
+        preview.createEl("h4", { text: this.currentPreview.story.title || "Generated story" });
+        const text = preview.createDiv({ cls: "cci-fc-smart-preview-text" });
+        text.style.whiteSpace = "pre-wrap";
+        text.setText(this.currentPreview.story.textChinese);
+      }
       const row = wrap.createDiv({ cls: "cci-fc-smart-actions" });
       const open = row.createEl("button", { cls: "cci-triage-act is-known", text: "Open preview" });
       open.addEventListener("click", () => this.openInChineseView(previewFile));
@@ -824,7 +831,6 @@ export class StatsView extends ItemView {
         `Story ready · score ${preview.score.toFixed(2)} · ${preview.iterations} repair pass(es).`
       );
       setTimeout(() => notice.hide(), 4000);
-      await this.openInChineseView(preview.file);
     } catch (err) {
       notice.setMessage("Story generation failed: " + (err as Error).message);
       setTimeout(() => notice.hide(), 6000);
