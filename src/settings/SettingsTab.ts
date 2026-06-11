@@ -565,6 +565,27 @@ export class CciSettingsTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    new Setting(c)
+      .setName("Send known words to AI")
+      .setDesc("Opt in to include a sample of your known vocabulary in story prompts, so the model sees examples of your current Chinese level.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.story.sendKnownWords ?? false).onChange(async (v) => {
+          this.plugin.settings.story.sendKnownWords = v;
+          await this.plugin.saveSettings();
+        })
+      );
+    new Setting(c)
+      .setName("Known words sample percent")
+      .setDesc("When sending known words, randomly include this percent of all known words. Lower values keep prompts smaller.")
+      .addText((t) =>
+        t.setValue(String(this.plugin.settings.story.knownWordsSamplePercent ?? 30)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            this.plugin.settings.story.knownWordsSamplePercent = Math.max(1, Math.min(100, n));
+            await this.plugin.saveSettings();
+          }
+        })
+      );
   }
 
   private renderData(c: HTMLElement) {

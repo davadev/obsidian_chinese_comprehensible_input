@@ -17,14 +17,19 @@ export function buildUserPrompt(args: {
   style: "story" | "article" | "dialogue";
   targetHsk: string;
   targetWords: TargetWord[];
+  knownWords?: string[];
   lengthChars: number;
 }): string {
   const wordsBlock = args.targetWords
     .map((w, i) => `  ${i + 1}. ${w.word} (${w.pinyin}) — ${w.definition}`)
     .join("\n");
+  const knownWordsBlock = args.knownWords?.length
+    ? `Words the learner already knows (use these as examples for suitable filler vocabulary, but target words above are still required):\n${args.knownWords.join("、")}\n`
+    : "";
   return (
     `Create a Chinese ${args.style} for a learner around HSK ${args.targetHsk}.\n` +
     `Required target words (use every one at least once, naturally):\n${wordsBlock}\n` +
+    knownWordsBlock +
     `For all other vocabulary, prefer words at or below HSK ${args.targetHsk}.\n` +
     `Keep the ${args.style} coherent, enjoyable, and not childish unless requested.\n` +
     `Length: roughly ${args.lengthChars} Chinese characters.\n` +

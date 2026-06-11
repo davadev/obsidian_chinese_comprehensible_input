@@ -155,6 +155,7 @@ export class StoryGenerator {
       style: req.style,
       targetHsk,
       targetWords: target,
+      knownWords: this.sampleKnownWords(),
       lengthChars: req.lengthChars,
     });
     const raw = await this.ai.chatJson(STORY_SYSTEM_PROMPT, user, "ChineseStory", STORY_SCHEMA);
@@ -181,6 +182,18 @@ export class StoryGenerator {
       if (b.total > 0 && b.known / b.total >= thr && lvl > highest) highest = lvl;
     }
     return highest;
+  }
+
+  private sampleKnownWords(): string[] {
+    const story = this.settings().story;
+    if (!story.sendKnownWords) return [];
+    const pct = Math.max(1, Math.min(100, story.knownWordsSamplePercent ?? 30));
+    const words = this.vocab.values()
+      .filter((r) => r.status === "known")
+      .map((r) => r.simplified ?? r.surfaces[0])
+      .filter(Boolean);
+    const n = Math.ceil(words.length * pct / 100);
+    return words.sort(() => Math.random() - 0.5).slice(0, n);
   }
 
   private async writePreviewFile(

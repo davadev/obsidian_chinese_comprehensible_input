@@ -69,6 +69,8 @@ export interface StorySettings {
   defaultStyle: "story" | "article" | "dialogue";
   knownCoverageThreshold: number;
   includeGlossary: boolean;
+  sendKnownWords: boolean;
+  knownWordsSamplePercent: number;
 }
 
 export interface DictionarySourceMeta {

@@ -50,6 +50,8 @@ export const DEFAULT_SETTINGS: CciSettings = {
     defaultStyle: "story",
     knownCoverageThreshold: 0.8,
     includeGlossary: true,
+    sendKnownWords: false,
+    knownWordsSamplePercent: 30,
   },
   exactTimestampRetentionLimit: 500,
   storeAllExactTimestamps: false,

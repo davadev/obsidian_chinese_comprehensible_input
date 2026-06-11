@@ -1,4 +1,4 @@
-import { TextFileView, WorkspaceLeaf } from "obsidian";
+import { Notice, TextFileView, WorkspaceLeaf } from "obsidian";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
@@ -64,6 +64,7 @@ function splitFrontmatter(data: string): { frontmatter: string; body: string } {
  */
 export class ChineseTextFileView extends TextFileView {
   private toolbar: ViewToolbar | null = null;
+  private previewActionsEl: HTMLElement | null = null;
   private editorContainer: HTMLElement | null = null;
   private editor: EditorView | null = null;
   private suppressNextSetData = false;
@@ -149,6 +150,8 @@ export class ChineseTextFileView extends TextFileView {
       () => this.editor?.state.doc.toString() ?? this.data ?? "",
       () => void this.openAsRegularMarkdown()
     );
+    this.previewActionsEl = this.containerEl.children[1].createDiv({ cls: "cci-preview-actions" });
+    this.refreshPreviewActions();
 
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
     const split = splitFrontmatter(this.data ?? "");
@@ -238,6 +241,78 @@ export class ChineseTextFileView extends TextFileView {
 
   refreshToolbar(): void {
     this.toolbar?.refresh();
+    this.refreshPreviewActions();
+  }
+
+  private refreshPreviewActions(): void {
+    const host = this.previewActionsEl;
+    if (!host) return;
+    host.empty();
+    const file = this.file;
+    if (!file || file.path !== this.plugin.story.previewPath()) return;
+
+    host.createSpan({ cls: "cci-preview-actions-label", text: "Unsaved smart story preview" });
+    const save = host.createEl("button", { text: "Save as note" });
+    save.addEventListener("click", async () => {
+      try {
+        const saved = await this.plugin.story.commitPreviewAsNote({
+          story: { textChinese: "", title: "", targetLevel: "", glossary: [], targetWordsUsed: [] },
+          targets: [],
+          targetHsk: "0",
+          score: 0,
+          file,
+          iterations: 0,
+        });
+        new Notice(`Saved to ${saved.path}.`);
+        await this.plugin.openFileInChineseView(saved);
+      } catch (err) {
+        new Notice("Save failed: " + (err as Error).message);
+      }
+    });
+
+    const discard = host.createEl("button", { text: "Discard" });
+    discard.addEventListener("click", async () => {
+      try { await this.plugin.app.vault.delete(file); } catch {}
+      await this.openSmartStories();
+    });
+
+    const regen = host.createEl("button", { text: "Generate again" });
+    regen.addEventListener("click", async () => {
+      regen.setAttribute("disabled", "true");
+      regen.setText("Generating...");
+      try {
+        await this.plugin.story.deletePreview({
+          story: { textChinese: "", title: "", targetLevel: "", glossary: [], targetWordsUsed: [] },
+          targets: [],
+          targetHsk: "0",
+          score: 0,
+          file,
+          iterations: 0,
+        });
+        const settings = this.plugin.settings;
+        const preview = await this.plugin.story.generatePreview({
+          dueCount: settings.story.defaultDueCount,
+          lengthChars: settings.story.defaultLengthChars,
+          style: settings.story.defaultStyle,
+          targetHsk: "auto",
+          includeGlossary: settings.story.includeGlossary,
+        });
+        await this.plugin.openFileInChineseView(preview.file);
+      } catch (err) {
+        new Notice("Generation failed: " + (err as Error).message);
+        regen.setText("Generate again");
+        regen.removeAttribute("disabled");
+      }
+    });
+
+    const back = host.createEl("button", { text: "Back to Smart stories" });
+    back.addEventListener("click", () => void this.openSmartStories());
+  }
+
+  private async openSmartStories(): Promise<void> {
+    this.plugin.settings.flashcardsMode = "smart";
+    await this.plugin.saveSettings();
+    await this.plugin.openStatsView();
   }
 
   private ensureEditor(initialDoc: string): void {
