@@ -17,7 +17,8 @@ export class ViewToolbar {
     private plugin: CciPlugin,
     private container: HTMLElement,
     private onChange: () => void,
-    getDocText?: () => string
+    getDocText?: () => string,
+    private onOpenAsMarkdown?: () => void
   ) {
     this.getDocText = getDocText ?? (() => "");
     this.render();
@@ -56,6 +57,18 @@ export class ViewToolbar {
       await this.plugin.saveSettings();
       this.onChange();
     });
+
+    // "Open as standard Markdown view" — swaps the current leaf to
+    // Obsidian's built-in editor on the same file. Round-trip back is
+    // via the ribbon icon (already registered in main.ts).
+    if (this.onOpenAsMarkdown) {
+      const mdBtn = row.createEl("button", {
+        cls: "cci-icon-btn",
+        attr: { "aria-label": "Open as Markdown", title: "Open as Markdown" },
+      });
+      setIcon(mdBtn, "file-text");
+      mdBtn.addEventListener("click", () => this.onOpenAsMarkdown?.());
+    }
 
     const overflow = row.createEl("button", {
       cls: "cci-icon-btn cci-overflow-btn-trigger",

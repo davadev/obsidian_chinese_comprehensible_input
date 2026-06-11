@@ -2,7 +2,8 @@ export const STORY_SYSTEM_PROMPT =
   "You are an expert writer of graded Chinese comprehensible input for adult Chinese learners. " +
   "Write natural, engaging Chinese using simple grammar and vocabulary appropriate to the requested HSK level. " +
   "Include all required target words naturally. Do not explain in English inside the story. " +
-  "Output valid JSON only matching the provided schema.";
+  "Output valid JSON only matching the provided schema. " +
+  "Return ONLY a single JSON object. No prose before or after. No markdown code fences.";
 
 export interface TargetWord {
   word: string;

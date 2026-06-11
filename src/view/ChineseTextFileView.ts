@@ -146,7 +146,8 @@ export class ChineseTextFileView extends TextFileView {
       this.plugin,
       top,
       () => this.handleToolbarChange(),
-      () => this.editor?.state.doc.toString() ?? this.data ?? ""
+      () => this.editor?.state.doc.toString() ?? this.data ?? "",
+      () => void this.openAsRegularMarkdown()
     );
 
     this.editorContainer = this.containerEl.children[1].createDiv({ cls: "cci-editor" });
@@ -219,6 +220,20 @@ export class ChineseTextFileView extends TextFileView {
       this.editor = null;
     }
     this.plugin.exposure.resetSession();
+  }
+
+  /**
+   * Swap the current leaf to Obsidian's built-in Markdown editor on the
+   * same file. To come back, the user hits the "Open in Chinese
+   * Learning View" ribbon icon (registered in main.ts onload).
+   */
+  private async openAsRegularMarkdown(): Promise<void> {
+    const file = this.file;
+    if (!file) return;
+    await this.leaf.setViewState({
+      type: "markdown",
+      state: { file: file.path },
+    });
   }
 
   refreshToolbar(): void {

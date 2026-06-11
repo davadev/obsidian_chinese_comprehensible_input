@@ -245,38 +245,77 @@ export interface StoryPreview {
 }
 
 function parseStory(raw: string): GeneratedStory {
-  let txt = raw.trim();
-  // Strip code fences if model wrapped output.
-  txt = txt.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
-  // Trim to the outermost JSON object so leading "thinking" or trailing
-  // tool-call chatter from chat-style models gets dropped.
-  const start = txt.indexOf("{");
-  const end = txt.lastIndexOf("}");
-  if (start >= 0 && end > start) txt = txt.slice(start, end + 1);
+  // Always log so the user/maintainer can see what the model returned
+  // when a fallback path triggers.
+  // eslint-disable-next-line no-console
+  console.log("[CCI Story] raw LLM response:", raw);
 
-  // First try as-is.
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(txt);
-  } catch {
-    // Recovery: model output got truncated mid-array / mid-string
-    // (Unexpected EOF). Try to salvage just the `textChinese` field by
-    // hand — that's the only field downstream code strictly requires;
-    // glossary / target lists are optional.
-    const salvaged = salvageTextChinese(txt);
-    if (salvaged) {
-      parsed = { textChinese: salvaged, title: "", glossary: [], targetWordsUsed: [] };
-    } else {
-      const snippet = txt.length > 240
-        ? txt.slice(0, 120) + "…" + txt.slice(-120)
-        : txt;
-      throw new Error(`AI returned invalid story JSON: ${snippet}`);
+  const stripped = raw
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  // Tier 1: outermost {…} slice + strict JSON.parse.
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    try {
+      const parsed = JSON.parse(stripped.slice(start, end + 1));
+      if (parsed && typeof parsed.textChinese === "string") {
+        return shapeStory(parsed);
+      }
+    } catch {
+      // fall through to next tier
     }
   }
-  if (!parsed || typeof (parsed as Record<string, unknown>).textChinese !== "string") {
-    throw new Error("AI returned a story JSON object without a `textChinese` field.");
+
+  // Tier 2: regex-salvage just the `textChinese` field.
+  const salvaged = salvageTextChinese(stripped);
+  if (salvaged && salvaged.length > 0) {
+    new Notice("Story parsed via regex fallback — open the dev console to see the raw response.");
+    return shapeStory({ textChinese: salvaged });
   }
-  return parsed as GeneratedStory;
+
+  // Tier 3: longest contiguous CJK-ish run (CJK chars + Chinese / ASCII
+  // punctuation + whitespace) becomes the story. Triggers when the
+  // model returned plain Chinese prose with no JSON wrapping at all.
+  const cjk = longestCjkRun(raw);
+  if (cjk && cjk.length >= 30) {
+    new Notice("Story parsed as raw Chinese — provider did not return JSON. Open the dev console to see the raw response.");
+    return shapeStory({ textChinese: cjk });
+  }
+
+  const snippet = stripped.length > 240
+    ? stripped.slice(0, 120) + "…" + stripped.slice(-120)
+    : stripped;
+  throw new Error(`AI returned invalid story JSON.\nRaw snippet:\n${snippet}`);
+}
+
+function shapeStory(partial: Partial<GeneratedStory>): GeneratedStory {
+  return {
+    title: partial.title ?? "复习故事",
+    targetLevel: partial.targetLevel ?? "",
+    textChinese: partial.textChinese ?? "",
+    targetWordsUsed: partial.targetWordsUsed ?? [],
+    glossary: partial.glossary ?? [],
+    notesForLearner: partial.notesForLearner,
+  };
+}
+
+/**
+ * Find the longest contiguous run made of CJK ideographs + common
+ * Chinese / ASCII punctuation + whitespace. Used as a last-resort
+ * fallback when the model returned plain prose with no JSON wrapping.
+ */
+function longestCjkRun(s: string): string {
+  const re = /[㐀-鿿豈-﫿，。！？、；：""''「」『』《》（）()…—\-—\s\n\r,.!?:;"'\[\]]+/g;
+  let best = "";
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    if (m[0].length > best.length) best = m[0];
+  }
+  return best.trim();
 }
 
 /**
