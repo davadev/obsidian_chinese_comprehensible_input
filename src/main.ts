@@ -142,7 +142,7 @@ export default class CciPlugin extends Plugin {
     });
     this.addCommand({
       id: "open-vocab-stats",
-      name: "Open Chinese Vocabulary Stats",
+      name: "Data Management",
       callback: () => this.openStatsView(),
     });
     this.addCommand({

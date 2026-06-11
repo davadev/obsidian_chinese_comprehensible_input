@@ -12,6 +12,7 @@ export class CciSettingsTab extends PluginSettingTab {
     containerEl.empty();
     containerEl.createEl("h2", { text: "Chinese Comprehensible Input" });
 
+    this.renderDataManagement(containerEl);
     this.renderDictionary(containerEl);
     this.renderDisplay(containerEl);
     this.renderColors(containerEl);
@@ -22,6 +23,15 @@ export class CciSettingsTab extends PluginSettingTab {
     this.renderStory(containerEl);
     this.renderData(containerEl);
     this.renderAbout(containerEl);
+  }
+
+  private renderDataManagement(c: HTMLElement) {
+    c.createEl("h3", { text: "Data Management" });
+    new Setting(c)
+      .setDesc("Dashboard, per-note breakdown, flashcards, and the full word list.")
+      .addButton((b) =>
+        b.setButtonText("Open").onClick(() => this.plugin.openStatsView())
+      );
   }
 
   private renderDictionary(c: HTMLElement) {
@@ -590,13 +600,6 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderData(c: HTMLElement) {
     c.createEl("h3", { text: "Data" });
-
-    new Setting(c)
-      .setName("Open vocabulary stats")
-      .setDesc("Dashboard, per-note breakdown, and the full word list.")
-      .addButton((b) =>
-        b.setButtonText("Open stats").onClick(() => this.plugin.openStatsView())
-      );
 
     new Setting(c)
       .setName("Index vault")
