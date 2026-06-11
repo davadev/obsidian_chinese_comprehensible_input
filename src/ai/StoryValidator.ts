@@ -42,10 +42,9 @@ export async function validateStory(
     1 -
     (missing.length / Math.max(1, targetWords.length)) * 0.6 -
     Math.min(0.3, tooHardWords.size / 50) -
-    (englishRatio > 0.1 ? 0.2 : 0) -
-    (lengthOk ? 0 : 0.1);
+    (englishRatio > 0.1 ? 0.2 : 0);
 
-  const ok = missing.length === 0 && englishRatio <= 0.1 && lengthOk && tooHardWords.size <= 10;
+  const ok = missing.length === 0 && englishRatio <= 0.1 && tooHardWords.size <= 10;
 
   const notes: string[] = [];
   if (missing.length) notes.push(`Missing target words: ${missing.join(", ")}`);

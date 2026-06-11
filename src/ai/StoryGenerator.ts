@@ -138,7 +138,7 @@ export class StoryGenerator {
    * panel render.
    */
   previewPath(): string {
-    return normalizePath(`${this.settings().story.folder}/.cci-flashcards-preview.md`);
+    return normalizePath(`${this.settings().story.folder}/CCI Flashcards Preview.md`);
   }
 
   /** Existing modal-driven entry point. Generates + persists in one shot. */
