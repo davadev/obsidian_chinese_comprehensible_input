@@ -82,6 +82,26 @@
 .cci-known-badge[data-state="low"]  { background: rgba(220, 60, 60, 0.85); }
 .cci-known-badge[data-state="empty"]{ background: var(--background-modifier-border); color: var(--text-muted); }
 
+.cci-note-stats-row {
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 0.82rem;
+  line-height: 1.25;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cci-note-stats-row[data-state="high"] { border-left: 4px solid rgba(46, 160, 67, 0.85); }
+.cci-note-stats-row[data-state="mid"]  { border-left: 4px solid rgba(220, 180, 30, 0.85); }
+.cci-note-stats-row[data-state="low"]  { border-left: 4px solid rgba(220, 60, 60, 0.85); }
+.cci-note-stats-row[data-state="empty"]{ color: var(--text-muted); }
+
 .cci-toolbar .cci-display-sel {
   height: 32px;
   flex: 0 1 auto;
@@ -431,7 +451,7 @@
   font-size: 0.85rem;
 }
 .cci-stats {
-  padding: 0.6rem 0.6rem 1rem;
+  padding: 0.6rem 0.6rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
   overflow-x: hidden;
   overflow-y: auto;
   height: 100%;

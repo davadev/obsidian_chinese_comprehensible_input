@@ -10,7 +10,7 @@ import { DisplayMode, ViewMode } from "../settings/types";
  */
 export class ViewToolbar {
   private bannerEl: HTMLElement | null = null;
-  private badgeEl: HTMLElement | null = null;
+  private statsEl: HTMLElement | null = null;
   private getDocText: () => string;
 
   constructor(
@@ -76,15 +76,6 @@ export class ViewToolbar {
     });
     setIcon(overflow, "more-horizontal");
 
-    this.badgeEl = row.createDiv({
-      cls: "cci-known-badge",
-      attr: { title: "Words in this note that you know — tap for stats" },
-    });
-    this.badgeEl.textContent = "—";
-    this.badgeEl.addEventListener("click", () =>
-      this.plugin.openStatsForNote(this.plugin.currentNoteKey())
-    );
-    this.updateBadge();
     let menu: HTMLElement | null = null;
     overflow.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -96,7 +87,7 @@ export class ViewToolbar {
       menu = this.buildOverflowMenu(overflow);
     });
 
-    // Reserved slot so toolbar height is constant whether or not a banner is active.
+    // Reserved slot: active marking banner, otherwise note vocabulary stats.
     this.bannerEl = this.container.createDiv({ cls: "cci-banner-slot" });
     this.updateBanner();
   }
@@ -125,30 +116,31 @@ export class ViewToolbar {
   }
 
   private async updateBadge() {
-    if (!this.badgeEl) return;
+    if (!this.statsEl) return;
     const text = this.getDocText();
     if (!text) {
-      this.badgeEl.textContent = "—";
-      this.badgeEl.setAttribute("data-state", "empty");
+      this.statsEl.textContent = "No Chinese words in this note";
+      this.statsEl.setAttribute("data-state", "empty");
       return;
     }
     try {
       const s = await this.plugin.computeNoteStats(text);
-      if (!this.badgeEl) return;
+      if (!this.statsEl) return;
       if (s.total === 0) {
-        this.badgeEl.textContent = "—";
-        this.badgeEl.setAttribute("data-state", "empty");
+        this.statsEl.textContent = "No Chinese words in this note";
+        this.statsEl.setAttribute("data-state", "empty");
         return;
       }
-      const pct = Math.round((s.known / s.total) * 100);
-      this.badgeEl.textContent = `${pct}%`;
-      this.badgeEl.setAttribute(
+      const pct = (n: number) => Math.round((n / s.total) * 100);
+      const knownPct = pct(s.known);
+      this.statsEl.textContent = `Known ${knownPct}% · Partial ${pct(s.partial)}% · Unknown ${pct(s.unknown)}% · New ${pct(s.newCount)}%${s.topHsk ? ` · Top HSK ${s.topHsk}` : ""}`;
+      this.statsEl.setAttribute(
         "title",
-        `${pct}% of ${s.total} words known · partial ${s.partial} · unknown ${s.unknown} · new ${s.newCount}`
+        `${knownPct}% of ${s.total} words known · partial ${s.partial} · unknown ${s.unknown} · new ${s.newCount}${s.topHsk ? ` · top HSK ${s.topHsk}` : ""}`
       );
-      this.badgeEl.setAttribute(
+      this.statsEl.setAttribute(
         "data-state",
-        pct >= 80 ? "high" : pct >= 50 ? "mid" : "low"
+        knownPct >= 80 ? "high" : knownPct >= 50 ? "mid" : "low"
       );
     } catch {
       // Tokenizer not ready yet — leave placeholder.
@@ -159,7 +151,19 @@ export class ViewToolbar {
     if (!this.bannerEl) return;
     this.bannerEl.empty();
     const mode = this.plugin.activeViewMode();
-    if (mode === "read" || mode === "edit") return;
+    this.statsEl = null;
+    if (mode === "read" || mode === "edit") {
+      this.statsEl = this.bannerEl.createDiv({
+        cls: "cci-note-stats-row",
+        attr: { title: "Words in this note — tap for stats" },
+      });
+      this.statsEl.textContent = "Loading note stats...";
+      this.statsEl.addEventListener("click", () =>
+        this.plugin.openStatsForNote(this.plugin.currentNoteKey())
+      );
+      void this.updateBadge();
+      return;
+    }
     const cls =
       mode === "mark-known" ? "is-known" : mode === "mark-unknown" ? "is-unknown" : "is-partial";
     const label =

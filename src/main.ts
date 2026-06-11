@@ -291,12 +291,16 @@ export default class CciPlugin extends Plugin {
     partial: number;
     unknown: number;
     newCount: number;
+    topHsk: string;
   }> {
     const tokens = await this.tokenizer.tokenize(text);
     const counts = { total: 0, known: 0, partial: 0, unknown: 0, newCount: 0 };
+    const hskCounts = new Map<string, number>();
     for (const tok of tokens) {
       if (!tok.isWord || tok.candidates.length === 0) continue;
       counts.total++;
+      const hsk = tok.selected?.hsk?.levels?.[0];
+      if (hsk) hskCounts.set(hsk, (hskCounts.get(hsk) ?? 0) + 1);
       const rec = this.vocab.bySurface(tok.surface);
       const status = rec?.status ?? "new";
       if (status === "ignored") {
@@ -308,6 +312,14 @@ export default class CciPlugin extends Plugin {
       else if (status === "unknown") counts.unknown++;
       else counts.partial++;
     }
-    return counts;
+    let topHsk = "";
+    let topCount = 0;
+    for (const [hsk, count] of hskCounts) {
+      if (count > topCount) {
+        topHsk = hsk;
+        topCount = count;
+      }
+    }
+    return { ...counts, topHsk };
   }
 }
