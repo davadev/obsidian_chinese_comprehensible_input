@@ -1,9 +1,20 @@
-import { requestUrl, RequestUrlParam } from "obsidian";
+import { Platform, requestUrl, RequestUrlParam } from "obsidian";
 import { AiSettings } from "../settings/types";
+
+interface SimpleResponse { status: number; text: string }
 
 /**
  * Thin wrapper around an OpenAI-compatible HTTP endpoint.
- * Uses Obsidian's `requestUrl` so it works on mobile (no Node `fetch` quirks).
+ *
+ * Desktop uses native `fetch` + `AbortController` so the user's
+ * `timeoutMs` setting is the actual ceiling — Obsidian's `requestUrl`
+ * has an undocumented internal timeout (~120 s on Electron) that was
+ * firing before our 5- or 10-minute setting could kick in. Local
+ * 35B-class models routinely need longer than that.
+ *
+ * Mobile still uses `requestUrl` because mobile Electron's fetch is
+ * more locked down. Mobile users hitting local LLMs are rare anyway
+ * (localhost from the phone goes nowhere).
  */
 export class AiProviderService {
   constructor(private getSettings: () => AiSettings) {}
@@ -100,29 +111,62 @@ export class AiProviderService {
     return h;
   }
 
-  private async tryRequest(p: RequestUrlParam) {
-    // Obsidian's requestUrl has no built-in timeout, so enforce one here
-    // via Promise.race. The underlying HTTP request still runs to
-    // completion in the background (we can't cancel it), but the caller
-    // sees a clear timeout error after `timeoutMs` instead of hanging
-    // until the model finishes.
+  private async tryRequest(p: RequestUrlParam): Promise<SimpleResponse> {
     const timeoutMs = this.getSettings().timeoutMs;
-    const reqPromise = requestUrl({ ...p, throw: false });
-    if (!timeoutMs || timeoutMs <= 0) return reqPromise;
-    return await Promise.race([
-      reqPromise,
-      new Promise<never>((_, rej) =>
-        setTimeout(
-          () =>
-            rej(
-              new Error(
-                `AI request timed out after ${Math.round(timeoutMs / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`
-              )
-            ),
-          timeoutMs
-        )
-      ),
-    ]);
+
+    // Mobile path: requestUrl + Promise.race timeout. Mobile's fetch
+    // doesn't talk to localhost anyway, so this branch is mostly here
+    // for OpenAI / hosted endpoints.
+    if (Platform.isMobile) {
+      const reqPromise = (async () => {
+        const r = await requestUrl({ ...p, throw: false });
+        return { status: r.status, text: r.text } as SimpleResponse;
+      })();
+      if (!timeoutMs || timeoutMs <= 0) return reqPromise;
+      return await Promise.race([reqPromise, this.timeoutGuard(timeoutMs)]);
+    }
+
+    // Desktop path: native fetch with a real AbortController. This is
+    // the only way to extend the request past ~120 s (Obsidian's
+    // requestUrl internally times out earlier than that, undocumented).
+    const ac = new AbortController();
+    const timer =
+      timeoutMs && timeoutMs > 0
+        ? setTimeout(() => ac.abort(), timeoutMs)
+        : null;
+    try {
+      const res = await fetch(p.url, {
+        method: p.method ?? "GET",
+        headers: (p.headers as HeadersInit) ?? {},
+        body: typeof p.body === "string" ? p.body : undefined,
+        signal: ac.signal,
+      });
+      const text = await res.text();
+      return { status: res.status, text };
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === "AbortError") {
+        throw new Error(
+          `AI request timed out after ${Math.round((timeoutMs || 0) / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`
+        );
+      }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  private timeoutGuard(ms: number): Promise<never> {
+    return new Promise<never>((_, rej) =>
+      setTimeout(
+        () =>
+          rej(
+            new Error(
+              `AI request timed out after ${Math.round(ms / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`
+            )
+          ),
+        ms
+      )
+    );
   }
 }
 
