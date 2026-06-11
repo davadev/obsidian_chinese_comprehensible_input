@@ -102,41 +102,66 @@ export class AiProviderService {
     // Streaming defeats Tailscale / corporate-VPN idle-connection
     // kills that fire when the server takes 60+s to start sending.
     // Each token chunk arrives as a `data: {…}\n\n` line; we
-    // concatenate `choices[0].delta.content` across chunks. Falls
-    // back to non-streaming if the user disabled it OR the runtime
-    // doesn't expose ReadableStream.body.
-    const wantStream = s.stream && typeof fetch === "function" && !Platform.isMobile;
+    // concatenate `choices[0].delta.content` across chunks. Enabled
+    // on mobile too — iOS WKWebView's fetch DOES support
+    // ReadableStream.body in modern Obsidian, and requestUrl's
+    // hidden ~30s timeout is the very thing the user was hitting.
+    const wantStream = s.stream && typeof fetch === "function";
     const body = wantStream ? { ...baseBody, stream: true } : baseBody;
 
     // eslint-disable-next-line no-console
-    console.log("[CCI AI] POST", url, "stream:", wantStream, "body:", body);
+    console.log(
+      "[CCI AI] POST", url,
+      "stream:", wantStream,
+      "platform:", Platform.isMobile ? "mobile" : "desktop",
+      "body:", body
+    );
 
     if (wantStream) {
       return await this.chatJsonStream(url, body, s);
     }
 
-    const resp = await this.tryRequest({
-      url,
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...this.headers(s) },
-      body: JSON.stringify(body),
-    });
+    const dbg = new DebugSession(s.debug, `Buffered POST → ${url}`);
+    dbg.step("Issuing requestUrl/fetch (no streaming)…");
+    let resp;
+    try {
+      resp = await this.tryRequest({
+        url,
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.headers(s) },
+        body: JSON.stringify(body),
+      });
+    } catch (err: unknown) {
+      const m = (err as Error)?.message || String(err);
+      // iOS bubbles "Request failed. The request timed out." from
+      // NSURLErrorTimedOut. Translate to something actionable.
+      const friendly = /timed out|timeout/i.test(m)
+        ? `${m} — iOS / requestUrl hit its internal timeout. Enable "Stream responses (SSE)" in Settings → AI provider to keep the connection alive byte-by-byte.`
+        : m;
+      dbg.fail(friendly);
+      throw new Error(friendly);
+    }
+    dbg.step(`HTTP ${resp.status}. body length=${resp.text?.length ?? 0}.`);
     // eslint-disable-next-line no-console
     console.log("[CCI AI] HTTP", resp.status, "response text:", resp.text);
 
     if (resp.status < 200 || resp.status >= 300) {
-      throw new Error(`AI provider HTTP ${resp.status}: ${resp.text.slice(0, 300) || "(empty body)"}`);
+      const msg = `AI provider HTTP ${resp.status}: ${resp.text.slice(0, 300) || "(empty body)"}`;
+      dbg.fail(msg);
+      throw new Error(msg);
     }
     if (!resp.text || resp.text.trim() === "") {
-      throw new Error("AI provider returned an empty body. The model may not be reachable or may have crashed.");
+      const msg = "AI provider returned an empty body. The model may not be reachable or may have crashed.";
+      dbg.fail(msg);
+      throw new Error(msg);
     }
     let json: unknown;
     try {
       json = JSON.parse(resp.text);
     } catch (err) {
-      throw new Error(
-        `AI provider returned non-JSON envelope: ${(err as Error).message}. First 300 chars: ${resp.text.slice(0, 300)}`
-      );
+      const msg = `AI provider returned non-JSON envelope: ${(err as Error).message}. First 300 chars: ${resp.text.slice(0, 300)}`;
+      dbg.fail(msg);
+      throw new Error(msg);
     }
     const out = extractText(json);
     if (!out || out.trim() === "") {
@@ -148,8 +173,11 @@ export class AiProviderService {
           : reasoning
           ? `The model emitted ${reasoning.length} chars of reasoning but no answer — enable Suppress thinking in Settings → AI provider.`
           : "Check the model log for errors.";
-      throw new Error(`AI provider returned an empty completion. ${hint}`);
+      const msg = `AI provider returned an empty completion. ${hint}`;
+      dbg.fail(msg);
+      throw new Error(msg);
     }
+    dbg.done(`Buffered OK · ${out.length} chars.`);
     return out;
   }
 
