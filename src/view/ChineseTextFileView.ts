@@ -69,6 +69,7 @@ export class ChineseTextFileView extends TextFileView {
   private editor: EditorView | null = null;
   private editableComp = new Compartment();
   private suppressNextSetData = false;
+  private vvCleanup: (() => void) | null = null;
   /**
    * YAML frontmatter is stripped before reaching the editor and re-prefixed
    * on save. The editor never sees the `---` … `---` block, which keeps the
@@ -170,6 +171,31 @@ export class ChineseTextFileView extends TextFileView {
     }
     this.ensureEditor(split.body);
     this.refreshPreviewActions();
+    this.attachVisualViewportSync();
+  }
+
+  /**
+   * iOS Safari does not shrink the layout viewport when the soft keyboard
+   * opens — only `visualViewport.height` shrinks. Without compensation, our
+   * flex layout keeps `.cm-scroller` extending behind the keyboard, leaving
+   * a gap. Mirror the keyboard inset into a CSS custom property so the
+   * `.cci-view`'s padding-bottom can absorb it (see styles.css).
+   */
+  private attachVisualViewportSync(): void {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = this.containerEl.children[1] as HTMLElement;
+    const update = () => {
+      const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      root.style.setProperty("--cci-kb-inset", `${inset}px`);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    this.vvCleanup = () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
   }
 
   /**
@@ -221,6 +247,8 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   async onClose(): Promise<void> {
+    this.vvCleanup?.();
+    this.vvCleanup = null;
     if (this.editor) {
       this.editor.destroy();
       this.editor = null;
