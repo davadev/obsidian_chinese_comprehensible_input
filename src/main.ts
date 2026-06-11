@@ -1,4 +1,4 @@
-import { Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
@@ -31,6 +31,7 @@ export default class CciPlugin extends Plugin {
   popup!: WordPopup;
 
   private viewMode: ViewMode = "read";
+  private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
   async onload(): Promise<void> {
     // Keep onload light. Load just settings + small services.
@@ -73,6 +74,11 @@ export default class CciPlugin extends Plugin {
     this.addRibbonIcon("book-open-check", "Open current note in Chinese Learning View", () => {
       this.openCurrentInChineseView();
     });
+
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => this.injectMarkdownHeaderActions())
+    );
+    this.app.workspace.onLayoutReady(() => this.injectMarkdownHeaderActions());
 
     // Background bootstrap: auto-download the dictionary if missing, then
     // index the vault on first run so the stats dashboard reflects every
@@ -192,6 +198,23 @@ export default class CciPlugin extends Plugin {
       return;
     }
     await this.openFileInChineseView(file);
+  }
+
+  /**
+   * Add a "Open in Chinese Learning View" action to every MarkdownView's
+   * header so the round trip from Obsidian's Markdown editor back to our
+   * annotated view is one tap. WeakSet dedupes — file-open fires on every
+   * file switch, but MarkdownView instances are reused per leaf.
+   */
+  private injectMarkdownHeaderActions(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view as MarkdownView;
+      if (this.injectedMarkdownViews.has(view)) continue;
+      view.addAction("book-open-check", "Open in Chinese Learning View", () => {
+        if (view.file) void this.openFileInChineseView(view.file);
+      });
+      this.injectedMarkdownViews.add(view);
+    }
   }
 
   async openFileInChineseView(file: TFile): Promise<WorkspaceLeaf> {
