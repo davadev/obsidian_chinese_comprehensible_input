@@ -101,7 +101,28 @@ export class AiProviderService {
   }
 
   private async tryRequest(p: RequestUrlParam) {
-    return await requestUrl({ ...p, throw: false });
+    // Obsidian's requestUrl has no built-in timeout, so enforce one here
+    // via Promise.race. The underlying HTTP request still runs to
+    // completion in the background (we can't cancel it), but the caller
+    // sees a clear timeout error after `timeoutMs` instead of hanging
+    // until the model finishes.
+    const timeoutMs = this.getSettings().timeoutMs;
+    const reqPromise = requestUrl({ ...p, throw: false });
+    if (!timeoutMs || timeoutMs <= 0) return reqPromise;
+    return await Promise.race([
+      reqPromise,
+      new Promise<never>((_, rej) =>
+        setTimeout(
+          () =>
+            rej(
+              new Error(
+                `AI request timed out after ${Math.round(timeoutMs / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`
+              )
+            ),
+          timeoutMs
+        )
+      ),
+    ]);
   }
 }
 
