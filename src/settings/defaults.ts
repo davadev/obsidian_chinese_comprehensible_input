@@ -35,9 +35,11 @@ export const DEFAULT_SETTINGS: CciSettings = {
     embeddingModel: "",
     endpointMode: "chat",
     temperature: 0.6,
-    maxOutputTokens: 3000,
+    maxOutputTokens: 8000,
     timeoutMs: 60000,
     maxRepairIterations: 2,
+    responseFormat: "json_object",
+    suppressThinking: true,
   },
   story: {
     folder: GENERATED_NOTES_FOLDER_DEFAULT,

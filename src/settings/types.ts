@@ -16,6 +16,21 @@ export interface AiSettings {
   maxOutputTokens: number;
   timeoutMs: number;
   maxRepairIterations: number;
+  /**
+   * How to ask the model for structured output. `json_object` is the
+   * broadest-compatibility choice (works for Ollama, OpenAI, vLLM,
+   * Anthropic-compat shims). `json_schema` is stricter but only OpenAI
+   * + Ollama >= 0.5.7 honour it; some MLX builds return empty when it
+   * is set. `none` sends no `response_format` flag — relies on the
+   * prompt alone, useful when both flags break the provider.
+   */
+  responseFormat: "json_object" | "json_schema" | "none";
+  /**
+   * Append `/no_think` to the system prompt so qwen3-style thinking
+   * models skip the long reasoning trace that otherwise eats the
+   * completion-token budget. Harmless to non-thinking models.
+   */
+  suppressThinking: boolean;
 }
 
 export interface ExposureSettings {

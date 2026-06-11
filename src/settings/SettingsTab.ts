@@ -427,6 +427,42 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
 
+    new Setting(c)
+      .setName("Structured-output format")
+      .setDesc(
+        "json_object works on the widest range of providers (Ollama, OpenAI, vLLM). " +
+          "json_schema is stricter but only OpenAI + Ollama >= 0.5.7 honour it. " +
+          "none sends no response_format flag — the prompt alone steers the model."
+      )
+      .addDropdown((d) =>
+        d
+          .addOptions({
+            json_object: "json_object (recommended)",
+            json_schema: "json_schema (strict)",
+            none: "none",
+          })
+          .setValue(this.plugin.settings.ai.responseFormat)
+          .onChange(async (v) => {
+            this.plugin.settings.ai.responseFormat = v as "json_object" | "json_schema" | "none";
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(c)
+      .setName("Suppress thinking trace")
+      .setDesc(
+        "Append /no_think to the system prompt so qwen3-style reasoning models skip the long thought trace " +
+          "that otherwise eats the completion-token budget. Harmless to non-thinking models."
+      )
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.ai.suppressThinking)
+          .onChange(async (v) => {
+            this.plugin.settings.ai.suppressThinking = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
     new Setting(c).setName("Test connection").addButton((b) => {
       b.setButtonText("Test").onClick(async () => {
         try {

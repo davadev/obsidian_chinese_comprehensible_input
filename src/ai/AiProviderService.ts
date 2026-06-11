@@ -23,33 +23,35 @@ export class AiProviderService {
     const path = s.endpointMode === "responses" ? "/responses" : "/chat/completions";
     const url = joinUrl(s.baseUrl, path);
 
+    // qwen3 + similar thinking models burn the completion-token budget
+    // on a reasoning trace before they ever start emitting structured
+    // output. Append `/no_think` to the system prompt to skip it.
+    // No-op on models that don't recognise the directive.
+    const sys = s.suppressThinking ? `${systemPrompt}\n/no_think` : systemPrompt;
+
+    const responseFormat = buildResponseFormat(s.responseFormat, schemaName, schema);
+
     const body =
       s.endpointMode === "responses"
         ? {
             model: s.chatModel,
             input: [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: sys },
               { role: "user", content: userPrompt },
             ],
             temperature: s.temperature,
             max_output_tokens: s.maxOutputTokens,
-            response_format: {
-              type: "json_schema",
-              json_schema: { name: schemaName, schema, strict: true },
-            },
+            ...(responseFormat ? { response_format: responseFormat } : {}),
           }
         : {
             model: s.chatModel,
             messages: [
-              { role: "system", content: systemPrompt },
+              { role: "system", content: sys },
               { role: "user", content: userPrompt },
             ],
             temperature: s.temperature,
             max_tokens: s.maxOutputTokens,
-            response_format: {
-              type: "json_schema",
-              json_schema: { name: schemaName, schema, strict: true },
-            },
+            ...(responseFormat ? { response_format: responseFormat } : {}),
           };
 
     // eslint-disable-next-line no-console
@@ -79,7 +81,15 @@ export class AiProviderService {
     }
     const out = extractText(json);
     if (!out || out.trim() === "") {
-      throw new Error("AI provider returned an empty completion. Check `max_tokens` and the model log.");
+      const finish = extractFinishReason(json);
+      const reasoning = extractReasoning(json);
+      const hint =
+        finish === "length"
+          ? "Hit the max-tokens limit. Increase `Max output tokens` in Settings → AI provider."
+          : reasoning
+          ? `The model emitted ${reasoning.length} chars of reasoning but no answer — enable Suppress thinking in Settings → AI provider.`
+          : "Check the model log for errors.";
+      throw new Error(`AI provider returned an empty completion. ${hint}`);
     }
     return out;
   }
@@ -93,6 +103,28 @@ export class AiProviderService {
   private async tryRequest(p: RequestUrlParam) {
     return await requestUrl({ ...p, throw: false });
   }
+}
+
+function extractFinishReason(json: any): string {
+  return json?.choices?.[0]?.finish_reason ?? "";
+}
+
+function extractReasoning(json: any): string {
+  const r = json?.choices?.[0]?.message?.reasoning;
+  return typeof r === "string" ? r : "";
+}
+
+function buildResponseFormat(
+  mode: "json_object" | "json_schema" | "none",
+  schemaName: string,
+  schema: object
+): unknown | null {
+  if (mode === "none") return null;
+  if (mode === "json_object") return { type: "json_object" };
+  return {
+    type: "json_schema",
+    json_schema: { name: schemaName, schema, strict: true },
+  };
 }
 
 function joinUrl(base: string, path: string): string {
