@@ -42,31 +42,44 @@ export class AiProviderService {
 
     const responseFormat = buildResponseFormat(s.responseFormat, schemaName, schema);
 
-    const body =
-      s.endpointMode === "responses"
-        ? {
-            model: s.chatModel,
-            input: [
-              { role: "system", content: sys },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: s.temperature,
-            max_output_tokens: s.maxOutputTokens,
-            ...(responseFormat ? { response_format: responseFormat } : {}),
-          }
-        : {
-            model: s.chatModel,
-            messages: [
-              { role: "system", content: sys },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: s.temperature,
-            max_tokens: s.maxOutputTokens,
-            ...(responseFormat ? { response_format: responseFormat } : {}),
-          };
+    const baseBody = s.endpointMode === "responses"
+      ? {
+          model: s.chatModel,
+          input: [
+            { role: "system", content: sys },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: s.temperature,
+          max_output_tokens: s.maxOutputTokens,
+          ...(responseFormat ? { response_format: responseFormat } : {}),
+        }
+      : {
+          model: s.chatModel,
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: userPrompt },
+          ],
+          temperature: s.temperature,
+          max_tokens: s.maxOutputTokens,
+          ...(responseFormat ? { response_format: responseFormat } : {}),
+        };
+
+    // Streaming defeats Tailscale / corporate-VPN idle-connection
+    // kills that fire when the server takes 60+s to start sending.
+    // Each token chunk arrives as a `data: {…}\n\n` line; we
+    // concatenate `choices[0].delta.content` across chunks. Falls
+    // back to non-streaming if the user disabled it OR the runtime
+    // doesn't expose ReadableStream.body.
+    const wantStream = s.stream && typeof fetch === "function" && !Platform.isMobile;
+    const body = wantStream ? { ...baseBody, stream: true } : baseBody;
 
     // eslint-disable-next-line no-console
-    console.log("[CCI AI] POST", url, "body:", body);
+    console.log("[CCI AI] POST", url, "stream:", wantStream, "body:", body);
+
+    if (wantStream) {
+      return await this.chatJsonStream(url, body, s);
+    }
+
     const resp = await this.tryRequest({
       url,
       method: "POST",
@@ -103,6 +116,78 @@ export class AiProviderService {
       throw new Error(`AI provider returned an empty completion. ${hint}`);
     }
     return out;
+  }
+
+  /**
+   * Streaming POST. Parses Server-Sent Events from an OpenAI-compatible
+   * `stream: true` chat completion. Each `data: {…}\n\n` chunk has
+   * `choices[0].delta.content` (token-level deltas) — concatenated here.
+   * The connection stays active byte-by-byte so Tailscale / VPN idle
+   * timeouts don't kill it while the model is generating.
+   */
+  private async chatJsonStream(url: string, body: object, s: AiSettings): Promise<string> {
+    const ac = new AbortController();
+    const timer = s.timeoutMs > 0 ? setTimeout(() => ac.abort(), s.timeoutMs) : null;
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...this.headers(s) },
+        body: JSON.stringify(body),
+        signal: ac.signal,
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(`AI provider HTTP ${res.status}: ${errText.slice(0, 300) || "(empty body)"}`);
+      }
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("Streaming response has no body reader.");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let content = "";
+      let lastFinish = "";
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line || !line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]") return content;
+          try {
+            const json = JSON.parse(payload);
+            const delta = json?.choices?.[0]?.delta?.content;
+            if (typeof delta === "string") content += delta;
+            const finish = json?.choices?.[0]?.finish_reason;
+            if (finish) lastFinish = finish;
+          } catch {
+            // ignore malformed chunks; some providers emit keep-alive comments
+          }
+        }
+      }
+      // eslint-disable-next-line no-console
+      console.log("[CCI AI] stream done. finish_reason:", lastFinish, "content length:", content.length);
+      if (!content || content.trim() === "") {
+        const hint =
+          lastFinish === "length"
+            ? "Hit the max-tokens limit. Increase `Max output tokens` in Settings → AI provider."
+            : "Check the model log for errors.";
+        throw new Error(`AI provider returned an empty streamed completion. ${hint}`);
+      }
+      return content;
+    } catch (err: unknown) {
+      if ((err as { name?: string })?.name === "AbortError") {
+        throw new Error(
+          `AI request timed out after ${Math.round(s.timeoutMs / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`
+        );
+      }
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private headers(s: AiSettings): Record<string, string> {

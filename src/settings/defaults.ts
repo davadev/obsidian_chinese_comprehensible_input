@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
     maxRepairIterations: 1,
     responseFormat: "json_object",
     suppressThinking: true,
+    stream: true,
   },
   story: {
     folder: GENERATED_NOTES_FOLDER_DEFAULT,

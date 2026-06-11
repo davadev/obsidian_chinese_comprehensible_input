@@ -449,6 +449,22 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     new Setting(c)
+      .setName("Stream responses (SSE)")
+      .setDesc(
+        "Stream tokens as the model generates instead of waiting for the full reply. " +
+          "Required when the connection goes through Tailscale / a VPN / a load balancer that kills idle HTTP connections, " +
+          "because streaming keeps bytes flowing so the connection never goes idle."
+      )
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.ai.stream)
+          .onChange(async (v) => {
+            this.plugin.settings.ai.stream = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(c)
       .setName("Suppress thinking trace")
       .setDesc(
         "Append /no_think to the system prompt so qwen3-style reasoning models skip the long thought trace " +

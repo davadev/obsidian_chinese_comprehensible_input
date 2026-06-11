@@ -31,6 +31,13 @@ export interface AiSettings {
    * completion-token budget. Harmless to non-thinking models.
    */
   suppressThinking: boolean;
+  /**
+   * Use Server-Sent Events streaming. Tailscale / corporate VPNs and
+   * some load balancers close idle HTTP connections after ~30-60 s;
+   * streaming keeps bytes flowing as the model generates, defeating
+   * that idle-kill. Required for slow local LLMs reached over a VPN.
+   */
+  stream: boolean;
 }
 
 export interface ExposureSettings {
