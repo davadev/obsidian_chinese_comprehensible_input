@@ -211,12 +211,15 @@
 .cci-editor .cm-editor {
   height: 100%;
 }
+/* `overflow-y: scroll` (not `auto`) forces .cm-scroller to be an iOS-recognized
+   scroll container even when content does not overflow. Without this, iOS's
+   "scroll caret into view" walks past .cm-scroller and scrolls Obsidian's
+   .view-content, producing a white gap the size of the keyboard in edit mode.
+   `overscroll-behavior: contain` blocks any leftover scroll-chain bubble. */
 .cci-editor .cm-scroller {
-  overflow-y: auto;
+  overflow-y: scroll;
+  overscroll-behavior: contain;
   scroll-padding-bottom: 200px;
-}
-.cci-editor .cm-content {
-  min-height: calc(100% + 1px);
 }
 
 /* Word annotations */
