@@ -250,6 +250,12 @@ function parseStory(raw: string): GeneratedStory {
   // eslint-disable-next-line no-console
   console.log("[CCI Story] raw LLM response:", raw);
 
+  if (!raw || raw.trim() === "") {
+    throw new Error(
+      "AI provider returned an empty response. Open Settings → AI provider → Test connection."
+    );
+  }
+
   const stripped = raw
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
