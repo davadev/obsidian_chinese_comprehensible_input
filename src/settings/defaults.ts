@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
     responseFormat: "json_object",
     suppressThinking: true,
     stream: true,
+    debug: false,
   },
   story: {
     folder: GENERATED_NOTES_FOLDER_DEFAULT,

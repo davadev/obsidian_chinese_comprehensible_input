@@ -1,5 +1,40 @@
-import { Platform, requestUrl, RequestUrlParam } from "obsidian";
+import { Notice, Platform, requestUrl, RequestUrlParam } from "obsidian";
 import { AiSettings } from "../settings/types";
+
+class DebugSession {
+  private notice: Notice | null = null;
+  private t0 = Date.now();
+  constructor(private enabled: boolean, label: string) {
+    if (!this.enabled) return;
+    this.notice = new Notice(`[CCI AI] ${label}`, 0);
+  }
+  step(msg: string): void {
+    const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
+    // eslint-disable-next-line no-console
+    console.log(`[CCI AI ${elapsed}s] ${msg}`);
+    if (this.notice) this.notice.setMessage(`[CCI AI +${elapsed}s] ${msg}`);
+  }
+  done(msg: string): void {
+    const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
+    // eslint-disable-next-line no-console
+    console.log(`[CCI AI ${elapsed}s] DONE — ${msg}`);
+    if (this.notice) {
+      this.notice.setMessage(`[CCI AI ${elapsed}s] ${msg}`);
+      setTimeout(() => this.notice?.hide(), 4000);
+      this.notice = null;
+    }
+  }
+  fail(msg: string): void {
+    const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
+    // eslint-disable-next-line no-console
+    console.error(`[CCI AI ${elapsed}s] FAIL — ${msg}`);
+    if (this.notice) {
+      this.notice.setMessage(`[CCI AI ${elapsed}s] FAIL: ${msg}`);
+      setTimeout(() => this.notice?.hide(), 8000);
+      this.notice = null;
+    }
+  }
+}
 
 interface SimpleResponse { status: number; text: string }
 
@@ -126,29 +161,52 @@ export class AiProviderService {
    * timeouts don't kill it while the model is generating.
    */
   private async chatJsonStream(url: string, body: object, s: AiSettings): Promise<string> {
+    const dbg = new DebugSession(s.debug, `Streaming POST → ${url}`);
     const ac = new AbortController();
-    const timer = s.timeoutMs > 0 ? setTimeout(() => ac.abort(), s.timeoutMs) : null;
+    const timer = s.timeoutMs > 0 ? setTimeout(() => {
+      dbg.step(`Abort fired (${Math.round(s.timeoutMs / 1000)}s elapsed, timeoutMs reached).`);
+      ac.abort();
+    }, s.timeoutMs) : null;
     try {
+      dbg.step("Issuing fetch…");
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...this.headers(s) },
         body: JSON.stringify(body),
         signal: ac.signal,
       });
+      dbg.step(`HTTP ${res.status} ${res.statusText}. content-type=${res.headers.get("content-type") ?? "(missing)"}`);
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
-        throw new Error(`AI provider HTTP ${res.status}: ${errText.slice(0, 300) || "(empty body)"}`);
+        const msg = `AI provider HTTP ${res.status}: ${errText.slice(0, 300) || "(empty body)"}`;
+        dbg.fail(msg);
+        throw new Error(msg);
       }
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("Streaming response has no body reader.");
+      if (!reader) {
+        const msg = "Streaming response has no body reader.";
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
       const decoder = new TextDecoder();
       let buffer = "";
       let content = "";
       let lastFinish = "";
+      let chunkCount = 0;
+      let bytesIn = 0;
+      let firstByteLogged = false;
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        chunkCount++;
+        bytesIn += value?.byteLength ?? 0;
+        if (!firstByteLogged) {
+          firstByteLogged = true;
+          dbg.step(`First bytes received (${value?.byteLength ?? 0} B).`);
+        } else if (chunkCount % 10 === 0) {
+          dbg.step(`Streaming… ${chunkCount} chunks, ${bytesIn} B, ${content.length} chars of content so far.`);
+        }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
@@ -156,7 +214,10 @@ export class AiProviderService {
           const line = rawLine.trim();
           if (!line || !line.startsWith("data:")) continue;
           const payload = line.slice(5).trim();
-          if (payload === "[DONE]") return content;
+          if (payload === "[DONE]") {
+            dbg.done(`Got [DONE]. ${content.length} chars in ${chunkCount} chunks.`);
+            return content;
+          }
           try {
             const json = JSON.parse(payload);
             const delta = json?.choices?.[0]?.delta?.content;
@@ -168,22 +229,26 @@ export class AiProviderService {
           }
         }
       }
-      // eslint-disable-next-line no-console
-      console.log("[CCI AI] stream done. finish_reason:", lastFinish, "content length:", content.length);
+      dbg.step(`Stream ended (no [DONE] marker). finish_reason=${lastFinish || "(none)"}, content length=${content.length}.`);
       if (!content || content.trim() === "") {
         const hint =
           lastFinish === "length"
             ? "Hit the max-tokens limit. Increase `Max output tokens` in Settings → AI provider."
             : "Check the model log for errors.";
-        throw new Error(`AI provider returned an empty streamed completion. ${hint}`);
+        const msg = `AI provider returned an empty streamed completion. ${hint}`;
+        dbg.fail(msg);
+        throw new Error(msg);
       }
+      dbg.done(`Content ${content.length} chars · finish=${lastFinish || "stop"}.`);
       return content;
     } catch (err: unknown) {
       if ((err as { name?: string })?.name === "AbortError") {
-        throw new Error(
-          `AI request timed out after ${Math.round(s.timeoutMs / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`
-        );
+        const msg = `AI request timed out after ${Math.round(s.timeoutMs / 1000)}s. Bump 'Timeout (ms)' in Settings → AI provider for slow local models.`;
+        dbg.fail(msg);
+        throw new Error(msg);
       }
+      const m = (err as Error)?.message || String(err);
+      dbg.fail(m);
       throw err;
     } finally {
       if (timer) clearTimeout(timer);

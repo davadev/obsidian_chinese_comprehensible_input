@@ -38,6 +38,13 @@ export interface AiSettings {
    * that idle-kill. Required for slow local LLMs reached over a VPN.
    */
   stream: boolean;
+  /**
+   * When true, AiProviderService fires verbose Notices at each milestone
+   * of an HTTP request (DNS-resolve, send, first byte, each Nth chunk,
+   * finish). Plus richer console.log timing. Off by default — only flip
+   * on while diagnosing a stuck request.
+   */
+  debug: boolean;
 }
 
 export interface ExposureSettings {

@@ -479,6 +479,21 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       );
 
+    new Setting(c)
+      .setName("Verbose AI debug notifications")
+      .setDesc(
+        "When on, a persistent Notice tracks each AI request: fetch issued → HTTP status → first byte → streaming chunks → finish_reason. " +
+          "Console logs the same milestones with elapsed seconds. Use while diagnosing a stuck request; turn off in normal use."
+      )
+      .addToggle((t) =>
+        t
+          .setValue(this.plugin.settings.ai.debug)
+          .onChange(async (v) => {
+            this.plugin.settings.ai.debug = v;
+            await this.plugin.saveSettings();
+          })
+      );
+
     new Setting(c).setName("Test connection").addButton((b) => {
       b.setButtonText("Test").onClick(async () => {
         try {
