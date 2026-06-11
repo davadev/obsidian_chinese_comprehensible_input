@@ -216,7 +216,7 @@
   scroll-padding-bottom: 200px;
 }
 .cci-editor .cm-content {
-  min-height: unset;
+  min-height: calc(100% + 1px);
 }
 
 /* Word annotations */
