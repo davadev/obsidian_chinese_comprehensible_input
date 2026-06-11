@@ -66,8 +66,18 @@ export class AiProviderService {
     const s = this.getSettings();
     if (!s.enabled) throw new Error("AI is disabled in settings.");
 
-    const path = s.endpointMode === "responses" ? "/responses" : "/chat/completions";
-    const url = joinUrl(s.baseUrl, path);
+    const path =
+      s.endpointMode === "ollama" ? "/api/chat" :
+      s.endpointMode === "responses" ? "/responses" :
+      "/chat/completions";
+    // Ollama native lives at the bare host (e.g. http://host:11434),
+    // NOT under /v1. Strip a trailing /v1 if the user pasted the
+    // OpenAI-compat baseUrl while picking the "ollama" endpoint mode.
+    const baseForUrl =
+      s.endpointMode === "ollama"
+        ? s.baseUrl.replace(/\/v1\/?$/, "")
+        : s.baseUrl;
+    const url = joinUrl(baseForUrl, path);
 
     // qwen3 + similar thinking models burn the completion-token budget
     // on a reasoning trace before they ever start emitting structured
@@ -77,27 +87,48 @@ export class AiProviderService {
 
     const responseFormat = buildResponseFormat(s.responseFormat, schemaName, schema);
 
-    const baseBody = s.endpointMode === "responses"
-      ? {
-          model: s.chatModel,
-          input: [
-            { role: "system", content: sys },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: s.temperature,
-          max_output_tokens: s.maxOutputTokens,
-          ...(responseFormat ? { response_format: responseFormat } : {}),
-        }
-      : {
-          model: s.chatModel,
-          messages: [
-            { role: "system", content: sys },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: s.temperature,
-          max_tokens: s.maxOutputTokens,
-          ...(responseFormat ? { response_format: responseFormat } : {}),
-        };
+    const baseBody =
+      s.endpointMode === "ollama"
+        ? {
+            // Ollama native /api/chat shape.
+            model: s.chatModel,
+            messages: [
+              { role: "system", content: sys },
+              { role: "user", content: userPrompt },
+            ],
+            options: {
+              temperature: s.temperature,
+              num_predict: s.maxOutputTokens,
+            },
+            // Native way to suppress qwen3 thinking. /no_think in the
+            // system prompt is also still appended above as belt-and-
+            // suspenders for non-Ollama paths.
+            think: s.suppressThinking ? false : undefined,
+            // Native /api/chat ignores response_format; the prompt
+            // alone steers JSON shape. That's fine — parseStory
+            // already has the three-tier fallback for plain prose.
+          }
+        : s.endpointMode === "responses"
+        ? {
+            model: s.chatModel,
+            input: [
+              { role: "system", content: sys },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: s.temperature,
+            max_output_tokens: s.maxOutputTokens,
+            ...(responseFormat ? { response_format: responseFormat } : {}),
+          }
+        : {
+            model: s.chatModel,
+            messages: [
+              { role: "system", content: sys },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: s.temperature,
+            max_tokens: s.maxOutputTokens,
+            ...(responseFormat ? { response_format: responseFormat } : {}),
+          };
 
     // Streaming defeats Tailscale / corporate-VPN idle-connection
     // kills that fire when the server takes 60+s to start sending.
@@ -121,7 +152,9 @@ export class AiProviderService {
     );
 
     if (wantStream) {
-      return await this.chatJsonStream(url, body, s);
+      return s.endpointMode === "ollama"
+        ? await this.chatJsonStreamOllama(url, body, s)
+        : await this.chatJsonStream(url, body, s);
     }
 
     const dbg = new DebugSession(s.debug, `Buffered POST → ${url}`);
@@ -191,25 +224,117 @@ export class AiProviderService {
    * The connection stays active byte-by-byte so Tailscale / VPN idle
    * timeouts don't kill it while the model is generating.
    */
-  private async chatJsonStream(url: string, body: object, s: AiSettings): Promise<string> {
-    const dbg = new DebugSession(s.debug, `Streaming POST → ${url}`);
-    const ac = new AbortController();
-    const timer = s.timeoutMs > 0 ? setTimeout(() => {
-      dbg.step(`Abort fired (${Math.round(s.timeoutMs / 1000)}s elapsed, timeoutMs reached).`);
-      ac.abort();
-    }, s.timeoutMs) : null;
+  /**
+   * Streaming parser for Ollama's native /api/chat endpoint. Response
+   * is NDJSON (one JSON object per line, NOT SSE `data:` framed),
+   * each chunk like:
+   *   {"model":"...","message":{"role":"assistant","content":"chunk"},"done":false}
+   * and final:
+   *   {"model":"...","done":true,"total_duration":...}
+   *
+   * Path exists because the openai-compat /v1/chat/completions
+   * endpoint on user's Ollama build rejects iOS WKWebView fetch with
+   * "Load failed" in <1 s, while /api/* paths (proven by
+   * joybro/obsidian-similar-notes) work.
+   */
+  private async chatJsonStreamOllama(url: string, body: object, s: AiSettings): Promise<string> {
+    const dbg = new DebugSession(s.debug, `Ollama /api/chat → ${url}`);
     try {
-      dbg.step("Issuing fetch…");
-      // Minimal headers only — `Accept: text/event-stream` triggers a
-      // CORS preflight that Ollama doesn't answer cleanly on some
-      // builds, which surfaces as iOS WKWebView "Load failed" in <1s.
-      // Authorization is sent only when an apiKey is configured (most
-      // local Ollama users leave it blank).
+      dbg.step("Issuing fetch (Ollama native)…");
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const auth = this.headers(s);
+      if (auth.Authorization) headers.Authorization = auth.Authorization;
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...this.headers(s) },
+        headers,
         body: JSON.stringify(body),
-        signal: ac.signal,
+      });
+      dbg.step(`HTTP ${res.status} ${res.statusText}.`);
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        const msg = `Ollama HTTP ${res.status}: ${errText.slice(0, 300) || "(empty body)"}`;
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        const msg = "Ollama streaming response has no body reader.";
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let content = "";
+      let chunkCount = 0;
+      let firstByte = false;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunkCount++;
+        if (!firstByte) {
+          firstByte = true;
+          dbg.step(`First bytes received (${value?.byteLength ?? 0} B).`);
+        } else if (chunkCount % 10 === 0) {
+          dbg.step(`Streaming… ${chunkCount} chunks, ${content.length} chars so far.`);
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line) continue;
+          try {
+            const json = JSON.parse(line);
+            const piece = json?.message?.content;
+            if (typeof piece === "string") content += piece;
+            if (json?.done) {
+              dbg.done(`Ollama done. ${content.length} chars in ${chunkCount} chunks.`);
+              return content;
+            }
+          } catch {
+            // ignore malformed lines
+          }
+        }
+      }
+      dbg.done(`Stream end (no done flag). ${content.length} chars.`);
+      if (!content || content.trim() === "") {
+        const msg = "Ollama returned an empty completion. Check the model log.";
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      return content;
+    } catch (err: unknown) {
+      const m = (err as Error)?.message || String(err);
+      dbg.fail(m);
+      throw err;
+    }
+  }
+
+  private async chatJsonStream(url: string, body: object, s: AiSettings): Promise<string> {
+    const dbg = new DebugSession(s.debug, `Streaming POST → ${url}`);
+    // Two-stage timeout: only attach AbortSignal when we've received
+    // the first byte. iOS WKWebView's fetch on Tailscale URLs has been
+    // observed to reject with "Load failed" in <1 s when an
+    // AbortSignal is passed at construct time, even though
+    // similar-notes' equivalent fetch (no signal) works on the same
+    // iPhone. So we mirror similar-notes' "no signal" pattern for the
+    // initial connect, then rely on the per-chunk read loop + the
+    // user's own cancel for the long-running part.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const bodyStr = JSON.stringify(body);
+    try {
+      dbg.step(`Issuing fetch… (body ${bodyStr.length} B, headers minimal)`);
+      // Minimal headers only — matches joybro/obsidian-similar-notes
+      // pattern that works on iOS over Tailscale. Authorization only
+      // when apiKey is set.
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const auth = this.headers(s);
+      if (auth.Authorization) headers.Authorization = auth.Authorization;
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: bodyStr,
       });
       dbg.step(`HTTP ${res.status} ${res.statusText}. content-type=${res.headers.get("content-type") ?? "(missing)"}`);
       if (!res.ok) {

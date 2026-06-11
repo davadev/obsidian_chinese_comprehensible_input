@@ -381,15 +381,23 @@ export class CciSettingsTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new Setting(c).setName("Endpoint mode").addDropdown((d) => {
-      d.addOption("chat", "/v1/chat/completions");
-      d.addOption("responses", "/v1/responses (if supported)");
-      d.setValue(this.plugin.settings.ai.endpointMode);
-      d.onChange(async (v) => {
-        this.plugin.settings.ai.endpointMode = v as any;
-        await this.plugin.saveSettings();
+    new Setting(c)
+      .setName("Endpoint mode")
+      .setDesc(
+        "Pick 'Ollama native' if you reach Ollama directly (especially over Tailscale from iPhone). " +
+          "Some Ollama builds expose CORS on /api/* but not /v1/*, which makes the OpenAI-compat path fail with 'Load failed'. " +
+          "/v1/responses is OpenAI-only."
+      )
+      .addDropdown((d) => {
+        d.addOption("chat", "OpenAI-compat /v1/chat/completions");
+        d.addOption("ollama", "Ollama native /api/chat (recommended for Ollama)");
+        d.addOption("responses", "OpenAI /v1/responses");
+        d.setValue(this.plugin.settings.ai.endpointMode);
+        d.onChange(async (v) => {
+          this.plugin.settings.ai.endpointMode = v as "chat" | "responses" | "ollama";
+          await this.plugin.saveSettings();
+        });
       });
-    });
     new Setting(c).setName("Temperature").addText((t) =>
       t.setValue(String(this.plugin.settings.ai.temperature)).onChange(async (v) => {
         const n = parseFloat(v);

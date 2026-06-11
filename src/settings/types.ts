@@ -11,7 +11,7 @@ export interface AiSettings {
   apiKey: string;
   chatModel: string;
   embeddingModel: string;
-  endpointMode: "chat" | "responses";
+  endpointMode: "chat" | "responses" | "ollama";
   temperature: number;
   maxOutputTokens: number;
   timeoutMs: number;
