@@ -225,19 +225,75 @@ export class AiProviderService {
    * timeouts don't kill it while the model is generating.
    */
   /**
-   * Streaming parser for Ollama's native /api/chat endpoint. Response
-   * is NDJSON (one JSON object per line, NOT SSE `data:` framed),
-   * each chunk like:
-   *   {"model":"...","message":{"role":"assistant","content":"chunk"},"done":false}
-   * and final:
-   *   {"model":"...","done":true,"total_duration":...}
+   * Mobile-friendly Ollama path. Uses Obsidian's `requestUrl` so the
+   * request runs in the main process (CORS bypassed) — every fetch-
+   * based call from iOS WKWebView was rejecting with "Load failed"
+   * regardless of headers / endpoint path, which is a CORS preflight
+   * failure even when /api/* is supposedly allowed.
    *
-   * Path exists because the openai-compat /v1/chat/completions
-   * endpoint on user's Ollama build rejects iOS WKWebView fetch with
-   * "Load failed" in <1 s, while /api/* paths (proven by
-   * joybro/obsidian-similar-notes) work.
+   * `stream: true` is still set in the body so Ollama emits chunked
+   * transfer encoding, which keeps `timeoutIntervalForRequest` from
+   * firing inside NSURLSession (each chunk resets the "time since last
+   * data" clock). requestUrl buffers chunks internally and returns the
+   * full NDJSON when Ollama sends its final `done` line. We parse the
+   * accumulated text as line-delimited JSON.
+   */
+  private async chatJsonStreamOllamaViaRequestUrl(url: string, body: object, s: AiSettings): Promise<string> {
+    const dbg = new DebugSession(s.debug, `Ollama via requestUrl → ${url}`);
+    try {
+      dbg.step("Issuing requestUrl (stream:true keeps chunks flowing — bypasses iOS 60s idle timer).");
+      const r = await requestUrl({
+        url,
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.headers(s) },
+        body: JSON.stringify(body),
+        throw: false,
+      });
+      dbg.step(`HTTP ${r.status}. body length=${r.text?.length ?? 0}.`);
+      if (r.status < 200 || r.status >= 300) {
+        const msg = `Ollama HTTP ${r.status}: ${r.text.slice(0, 300) || "(empty body)"}`;
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      let content = "";
+      let chunkCount = 0;
+      for (const rawLine of r.text.split("\n")) {
+        const line = rawLine.trim();
+        if (!line) continue;
+        chunkCount++;
+        try {
+          const json = JSON.parse(line);
+          const piece = json?.message?.content;
+          if (typeof piece === "string") content += piece;
+          if (json?.done) break;
+        } catch {
+          // ignore — partial lines or non-JSON keep-alive
+        }
+      }
+      if (!content || content.trim() === "") {
+        const msg = "Ollama returned an empty completion from the chunked response. Check the model log.";
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      dbg.done(`Ollama OK · ${content.length} chars across ${chunkCount} NDJSON lines.`);
+      return content;
+    } catch (err: unknown) {
+      const m = (err as Error)?.message || String(err);
+      dbg.fail(m);
+      throw err;
+    }
+  }
+
+  /**
+   * Desktop Ollama path — same NDJSON streaming as the mobile version,
+   * but uses native fetch with the `ReadableStream.body` reader so the
+   * user can see progress chunk-by-chunk in the debug Notice. Desktop
+   * does not need the requestUrl CORS bypass.
    */
   private async chatJsonStreamOllama(url: string, body: object, s: AiSettings): Promise<string> {
+    if (Platform.isMobile) {
+      return await this.chatJsonStreamOllamaViaRequestUrl(url, body, s);
+    }
     const dbg = new DebugSession(s.debug, `Ollama /api/chat → ${url}`);
     try {
       dbg.step("Issuing fetch (Ollama native)…");
@@ -311,7 +367,71 @@ export class AiProviderService {
     }
   }
 
+  /**
+   * Mobile-friendly SSE path for OpenAI-compat /v1/chat/completions.
+   * Same trick as the Ollama mobile path: requestUrl runs in
+   * Obsidian's main process (no CORS), `stream: true` makes the
+   * server emit chunked transfer encoding so iOS NSURLSession's
+   * timeoutIntervalForRequest doesn't fire while the model thinks.
+   * requestUrl buffers all SSE chunks and we parse `data: …\n\n`
+   * lines from the accumulated text.
+   */
+  private async chatJsonStreamSSEViaRequestUrl(url: string, body: object, s: AiSettings): Promise<string> {
+    const dbg = new DebugSession(s.debug, `SSE via requestUrl → ${url}`);
+    try {
+      dbg.step("Issuing requestUrl with stream:true (SSE, chunked transfer keeps iOS alive).");
+      const r = await requestUrl({
+        url,
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...this.headers(s) },
+        body: JSON.stringify(body),
+        throw: false,
+      });
+      dbg.step(`HTTP ${r.status}. body length=${r.text?.length ?? 0}.`);
+      if (r.status < 200 || r.status >= 300) {
+        const msg = `AI provider HTTP ${r.status}: ${r.text.slice(0, 300) || "(empty body)"}`;
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      let content = "";
+      let lastFinish = "";
+      for (const rawLine of r.text.split("\n")) {
+        const line = rawLine.trim();
+        if (!line || !line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]") break;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json?.choices?.[0]?.delta?.content;
+          if (typeof delta === "string") content += delta;
+          const finish = json?.choices?.[0]?.finish_reason;
+          if (finish) lastFinish = finish;
+        } catch {
+          // ignore malformed lines / keep-alive comments
+        }
+      }
+      if (!content || content.trim() === "") {
+        const hint =
+          lastFinish === "length"
+            ? "Hit the max-tokens limit. Increase `Max output tokens` in Settings → AI provider."
+            : "Check the model log for errors.";
+        const msg = `AI provider returned an empty streamed completion. ${hint}`;
+        dbg.fail(msg);
+        throw new Error(msg);
+      }
+      dbg.done(`SSE OK · ${content.length} chars · finish=${lastFinish || "stop"}.`);
+      return content;
+    } catch (err: unknown) {
+      const m = (err as Error)?.message || String(err);
+      dbg.fail(m);
+      throw err;
+    }
+  }
+
   private async chatJsonStream(url: string, body: object, s: AiSettings): Promise<string> {
+    if (Platform.isMobile) {
+      return await this.chatJsonStreamSSEViaRequestUrl(url, body, s);
+    }
     const dbg = new DebugSession(s.debug, `Streaming POST → ${url}`);
     // Two-stage timeout: only attach AbortSignal when we've received
     // the first byte. iOS WKWebView's fetch on Tailscale URLs has been
