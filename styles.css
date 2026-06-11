@@ -206,7 +206,13 @@
 .cci-editor {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
+}
+.cci-editor .cm-editor {
+  height: 100%;
+}
+.cci-editor .cm-scroller {
+  overflow-y: auto;
 }
 
 /* Word annotations */
