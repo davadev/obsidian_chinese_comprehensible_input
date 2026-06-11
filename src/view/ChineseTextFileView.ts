@@ -69,7 +69,6 @@ export class ChineseTextFileView extends TextFileView {
   private editor: EditorView | null = null;
   private editableComp = new Compartment();
   private suppressNextSetData = false;
-  private focusGuardCleanup: (() => void) | null = null;
   /**
    * YAML frontmatter is stripped before reaching the editor and re-prefixed
    * on save. The editor never sees the `---` … `---` block, which keeps the
@@ -174,46 +173,6 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   /**
-   * iOS Safari scrolls the nearest scrollable ancestor of a focused
-   * contenteditable into view on focus, before Obsidian's --keyboard-height
-   * has updated. Snapshot every ancestor's scroll position on focusin and
-   * restore on the next frame — equivalent to `focus({ preventScroll: true })`
-   * for an event we don't initiate ourselves.
-   */
-  private attachIosFocusGuard(): void {
-    if (!this.editor) return;
-    const contentDom = this.editor.contentDOM;
-    const onFocusIn = () => {
-      const ancestors: Array<{ el: Element; top: number; left: number }> = [];
-      let cur: Element | null = contentDom;
-      while (cur && cur !== document.documentElement) {
-        if (
-          cur.scrollTop !== 0 ||
-          cur.scrollLeft !== 0 ||
-          getComputedStyle(cur).overflowY !== "visible"
-        ) {
-          ancestors.push({ el: cur, top: cur.scrollTop, left: cur.scrollLeft });
-        }
-        cur = cur.parentElement;
-      }
-      const wx = window.scrollX;
-      const wy = window.scrollY;
-      requestAnimationFrame(() => {
-        for (const a of ancestors) {
-          if (a.el.scrollTop !== a.top) a.el.scrollTop = a.top;
-          if (a.el.scrollLeft !== a.left) a.el.scrollLeft = a.left;
-        }
-        if (window.scrollX !== wx || window.scrollY !== wy) {
-          window.scrollTo(wx, wy);
-        }
-      });
-    };
-    contentDom.addEventListener("focusin", onFocusIn, true);
-    this.focusGuardCleanup = () =>
-      contentDom.removeEventListener("focusin", onFocusIn, true);
-  }
-
-  /**
    * Display-mode / font toggle from the toolbar. Does NOT rebuild the
    * editor — that path destroys the EditorView and races CM6's first
    * measure on rebuild, which is what kept losing the scroll position.
@@ -262,8 +221,6 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   async onClose(): Promise<void> {
-    this.focusGuardCleanup?.();
-    this.focusGuardCleanup = null;
     if (this.editor) {
       this.editor.destroy();
       this.editor = null;
@@ -364,8 +321,6 @@ export class ChineseTextFileView extends TextFileView {
   private ensureEditor(initialDoc: string): void {
     if (!this.editorContainer) return;
     if (this.editor) {
-      this.focusGuardCleanup?.();
-      this.focusGuardCleanup = null;
       this.editor.destroy();
       this.editor = null;
     }
@@ -391,7 +346,6 @@ export class ChineseTextFileView extends TextFileView {
       state,
       parent: this.editorContainer,
     });
-    this.attachIosFocusGuard();
   }
 
   reconfigureEditor(): void {

@@ -1,4 +1,4 @@
-import { setIcon } from "obsidian";
+import { Notice, Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
 import { DisplayMode, ViewMode } from "../settings/types";
 
@@ -36,7 +36,26 @@ export class ViewToolbar {
 
     const row = this.container.createDiv({ cls: "cci-toolbar-row" });
 
-    this.modeBtn(row, "pencil", "Edit", "edit");
+    // On mobile, the raw-CM6 edit Compartment toggle has an unfixable iOS
+    // soft-keyboard layout bug. Route Edit to Obsidian's built-in Markdown
+    // view instead — same destination as the separate file-text button, so
+    // merge them into one combined button there.
+    if (Platform.isMobile && this.onOpenAsMarkdown) {
+      const editMd = row.createEl("button", {
+        cls: "cci-icon-btn",
+        attr: { "aria-label": "Edit (opens Markdown view)", title: "Edit in Markdown view" },
+      });
+      setIcon(editMd, "pencil");
+      editMd.addEventListener("click", () => {
+        new Notice(
+          "Editing opens in Obsidian's Markdown view. Tap the book-open ribbon icon to return.",
+          5000
+        );
+        this.onOpenAsMarkdown?.();
+      });
+    } else {
+      this.modeBtn(row, "pencil", "Edit", "edit");
+    }
     this.modeBtn(row, "check-circle-2", "Known", "mark-known");
     this.modeBtn(row, "x-circle", "Unknown", "mark-unknown");
     this.modeBtn(row, "circle-help", "Partial", "mark-partial");
@@ -58,10 +77,9 @@ export class ViewToolbar {
       this.onChange();
     });
 
-    // "Open as standard Markdown view" — swaps the current leaf to
-    // Obsidian's built-in editor on the same file. Round-trip back is
-    // via the ribbon icon (already registered in main.ts).
-    if (this.onOpenAsMarkdown) {
+    // Desktop only — separate "Open as Markdown" button. On mobile this is
+    // merged into the Edit button above.
+    if (!Platform.isMobile && this.onOpenAsMarkdown) {
       const mdBtn = row.createEl("button", {
         cls: "cci-icon-btn",
         attr: { "aria-label": "Open as Markdown", title: "Open as Markdown" },

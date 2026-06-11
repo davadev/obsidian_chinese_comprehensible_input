@@ -5,14 +5,6 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  /* iOS keyboard fix: Obsidian writes --keyboard-height on :root via its
-     native bridge whenever the soft keyboard opens. Consume it directly —
-     box-sizing: border-box makes padding-bottom shrink the flex content area
-     so .cci-editor / .cm-scroller end at the keyboard's top. overflow:hidden
-     also blocks .view-content from being iOS's auto-scroll-to-focus target. */
-  box-sizing: border-box;
-  padding-bottom: var(--keyboard-height, 0px);
-  overflow: hidden;
   --cci-reader-font: 22px;
 }
 
@@ -214,20 +206,12 @@
 .cci-editor {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
 }
 .cci-editor .cm-editor {
   height: 100%;
 }
-/* `overflow-y: scroll` (not `auto`) forces .cm-scroller to be an iOS-recognized
-   scroll container even when content does not overflow. Without this, iOS's
-   "scroll caret into view" walks past .cm-scroller and scrolls Obsidian's
-   .view-content, producing a white gap the size of the keyboard in edit mode.
-   `overscroll-behavior: contain` blocks any leftover scroll-chain bubble. */
 .cci-editor .cm-scroller {
-  overflow-y: scroll;
-  overscroll-behavior: contain;
-  scroll-padding-bottom: 200px;
+  overflow-y: auto;
 }
 
 /* Word annotations */
