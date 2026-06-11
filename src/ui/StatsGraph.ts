@@ -83,6 +83,99 @@ function recentBucketLabels(bucket: Bucket, n: number): string[] {
 }
 
 /**
+ * Cumulative-area variant of `renderProgressGraph`. Each series is the
+ * running total of its `count`s, so the curve climbs over time — a more
+ * motivating progress view than per-period bars. Renders one filled
+ * polygon + line per series, plus the legend.
+ */
+export function renderProgressArea(
+  container: HTMLElement,
+  series: { label: string; color: string; data: { label: string; count: number }[] }[]
+): void {
+  container.empty();
+  if (series.length === 0 || series[0].data.length === 0) return;
+  const buckets = series[0].data.map((d) => d.label);
+  const n = buckets.length;
+  const cumulative = series.map((s) => {
+    let acc = 0;
+    return s.data.map((d) => (acc += d.count));
+  });
+  const maxVal = Math.max(1, ...cumulative.flatMap((arr) => arr));
+  const W = 600;
+  const H = 100;
+  const padX = 6;
+  const padY = 12;
+  const innerW = W - padX * 2;
+  const innerH = H - padY * 2;
+  const x = (i: number) => padX + (n === 1 ? innerW / 2 : (i / (n - 1)) * innerW);
+  const y = (v: number) => padY + innerH - (v / maxVal) * innerH;
+
+  const svgNs = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNs, "svg");
+  svg.setAttribute("class", "cci-progress-graph");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("preserveAspectRatio", "none");
+
+  series.forEach((s, si) => {
+    const pts = cumulative[si].map((v, i) => `${x(i)},${y(v)}`);
+    const fillPts = [`${x(0)},${y(0)}`, ...pts, `${x(n - 1)},${y(0)}`];
+    const fill = document.createElementNS(svgNs, "polygon");
+    fill.setAttribute("points", fillPts.join(" "));
+    fill.setAttribute("fill", s.color);
+    fill.setAttribute("opacity", "0.22");
+    svg.appendChild(fill);
+    const line = document.createElementNS(svgNs, "polyline");
+    line.setAttribute("points", pts.join(" "));
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", s.color);
+    line.setAttribute("stroke-width", "1.6");
+    line.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(line);
+    // End-point dot with tooltip.
+    const last = cumulative[si][n - 1];
+    const dot = document.createElementNS(svgNs, "circle");
+    dot.setAttribute("cx", String(x(n - 1)));
+    dot.setAttribute("cy", String(y(last)));
+    dot.setAttribute("r", "2.5");
+    dot.setAttribute("fill", s.color);
+    const t = document.createElementNS(svgNs, "title");
+    t.textContent = `${s.label}: ${last}`;
+    dot.appendChild(t);
+    svg.appendChild(dot);
+  });
+
+  // Sparse x-axis tick labels: first, last, midpoint.
+  const tickIdx = [0, Math.floor(n / 2), n - 1];
+  for (const i of tickIdx) {
+    const t = document.createElementNS(svgNs, "text");
+    t.setAttribute("x", String(x(i)));
+    t.setAttribute("y", String(H - 2));
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("font-size", "8");
+    t.setAttribute("fill", "currentColor");
+    t.setAttribute("opacity", "0.55");
+    t.textContent = buckets[i];
+    svg.appendChild(t);
+  }
+
+  container.appendChild(svg);
+
+  const legend = document.createElement("div");
+  legend.className = "cci-progress-legend";
+  series.forEach((s, si) => {
+    const item = document.createElement("span");
+    item.className = "cci-progress-legend-item";
+    const swatch = document.createElement("span");
+    swatch.className = "cci-progress-legend-swatch";
+    swatch.style.background = s.color;
+    item.appendChild(swatch);
+    item.appendChild(document.createTextNode(`${s.label} (${cumulative[si][n - 1]})`));
+    legend.appendChild(item);
+  });
+  container.appendChild(legend);
+}
+
+/**
  * Two-series bar chart (Tracked added, Learned). Both series share the same
  * Y axis. SVG only — no charting library.
  */

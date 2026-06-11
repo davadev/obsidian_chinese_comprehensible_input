@@ -38,6 +38,13 @@ export interface WordRecord {
    * pre-existing records can be filled in lazily.
    */
   knownAt?: string;
+  /**
+   * ISO timestamp the first time this word transitioned out of `new` to any
+   * classified status (known / unknown / partial / ignored). Drives the
+   * dashboard's daily / weekly / monthly "Classified" progress series.
+   * Optional; backfilled from `updatedAt` for pre-existing non-new records.
+   */
+  classifiedAt?: string;
   seenCount: number;
 
   recentSeenAt: string[];

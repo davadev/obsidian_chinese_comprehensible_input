@@ -3,7 +3,7 @@ import type CciPlugin from "../main";
 import { VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorOf } from "../vocabulary/axes";
-import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressGraph } from "./StatsGraph";
+import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
 
 type SortKey = "seenCount" | "lastSeenAt" | "dueAt" | "status" | "hsk";
 type Tab = "dashboard" | "words" | "triage";
@@ -20,6 +20,8 @@ export class StatsView extends ItemView {
   private progressWindow = { day: 30, week: 12, month: 12 } as const;
   private triageIndex = 0;
   private triageContextCache = new Map<string, string>();
+  private triagePartialAxes: { surface: string; chars: boolean; pinyin: boolean; meaning: boolean } | null = null;
+  private chartStyle: "bars" | "area" = "area";
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -138,12 +140,21 @@ export class StatsView extends ItemView {
     this.statCard(grid, "New", `${counts.new}`, "Seen but not classified yet.", "cci-color-new");
     this.statCard(grid, "Ignored", `${counts.ignored}`, "Excluded from review.");
 
+    // Comfort level is always computed against the GLOBAL vocabulary —
+    // it is a learner-wide metric, not a per-note one. The scope dropdown
+    // controls the cards above and the per-note table below, but not
+    // this card.
     const estimated = estimateLearnerHsk(
-      scoped,
+      this.plugin.vocab.values(),
       this.plugin.settings.story.knownCoverageThreshold,
       excludeNew
     );
-    this.statCard(grid, "Comfort level", estimated, "Highest HSK level where known-coverage ≥ threshold.");
+    this.statCard(
+      grid,
+      "Comfort level",
+      estimated,
+      "Highest HSK level where ≥ threshold of your classified vocabulary is known. Always global."
+    );
 
     if (!this.noteScope) {
       const globalPct = pct(counts.known);
@@ -204,37 +215,55 @@ export class StatsView extends ItemView {
     const wrap = root.createDiv({ cls: "cci-dash-progress" });
     const head = wrap.createDiv({ cls: "cci-dash-progress-head" });
     head.createEl("h3", { text: "Progress" });
-    const sel = head.createEl("select", { cls: "cci-dash-progress-bucket" });
-    for (const [v, l] of [["day", "Daily (30)"], ["week", "Weekly (12)"], ["month", "Monthly (12)"]] as [Bucket, string][]) {
-      const o = sel.createEl("option", { text: l });
+    const controls = head.createDiv({ cls: "cci-dash-progress-controls" });
+
+    const styleSel = controls.createEl("select", { cls: "cci-dash-progress-bucket" });
+    for (const [v, l] of [["area", "Cumulative"], ["bars", "Per period"]] as ["bars" | "area", string][]) {
+      const o = styleSel.createEl("option", { text: l });
       o.value = v;
     }
-    sel.value = this.progressBucket;
-    sel.addEventListener("change", () => {
-      this.progressBucket = sel.value as Bucket;
+    styleSel.value = this.chartStyle;
+    styleSel.addEventListener("change", () => {
+      this.chartStyle = styleSel.value as "bars" | "area";
       this.render();
     });
 
-    const trackedStamps = records.map((r) => r.firstSeenAt);
+    const bucketSel = controls.createEl("select", { cls: "cci-dash-progress-bucket" });
+    for (const [v, l] of [["day", "Daily (30)"], ["week", "Weekly (12)"], ["month", "Monthly (12)"]] as [Bucket, string][]) {
+      const o = bucketSel.createEl("option", { text: l });
+      o.value = v;
+    }
+    bucketSel.value = this.progressBucket;
+    bucketSel.addEventListener("change", () => {
+      this.progressBucket = bucketSel.value as Bucket;
+      this.render();
+    });
+
+    // "Classified" series uses `classifiedAt` (first transition out of
+    // status === "new") so today's triage activity shows up in today's
+    // bucket even when firstSeenAt is days old.
+    const classifiedStamps = records.map((r) => r.classifiedAt);
     const knownStamps = records.map((r) => r.knownAt);
     const n = this.progressWindow[this.progressBucket];
-    const trackedSeries = bucketTimestamps(trackedStamps, this.progressBucket, n);
+    const classifiedSeries = bucketTimestamps(classifiedStamps, this.progressBucket, n);
     const knownSeries = bucketTimestamps(knownStamps, this.progressBucket, n);
 
     const graphHost = wrap.createDiv({ cls: "cci-dash-progress-graph" });
-    renderProgressGraph(graphHost, [
-      { label: "Tracked added", color: "rgba(88, 166, 255, 0.85)", data: trackedSeries },
+    const seriesPayload = [
+      { label: "Classified", color: "rgba(88, 166, 255, 0.85)", data: classifiedSeries },
       { label: "Learned", color: "rgba(46, 160, 67, 0.85)", data: knownSeries },
-    ]);
+    ];
+    if (this.chartStyle === "area") renderProgressArea(graphHost, seriesPayload);
+    else renderProgressGraph(graphHost, seriesPayload);
 
-    const trackedRecent = trackedSeries.reduce((a, b) => a + b.count, 0);
+    const classifiedRecent = classifiedSeries.reduce((a, b) => a + b.count, 0);
     const knownRecent = knownSeries.reduce((a, b) => a + b.count, 0);
     const range =
       this.progressBucket === "day" ? "30 days" :
       this.progressBucket === "week" ? "12 weeks" : "12 months";
     wrap.createEl("p", {
       cls: "cci-dash-progress-summary",
-      text: `Last ${range}: ${trackedRecent} tracked, ${knownRecent} learned.`,
+      text: `Last ${range}: ${classifiedRecent} classified, ${knownRecent} learned.`,
     });
   }
 
@@ -319,9 +348,67 @@ export class StatsView extends ItemView {
       b.addEventListener("click", fn);
     };
     mkAct("✓ Known", "is-known", () => this.applyTriage(surface, "known"));
-    mkAct("? Partial", "is-partial", () => this.applyTriage(surface, "pinyinKnownMeaningUnknown"));
+    mkAct("? Partial…", "is-partial", () => this.openTriagePartial(surface, rec));
     mkAct("✗ Unknown", "is-unknown", () => this.applyTriage(surface, "unknown"));
     mkAct("Ignore", "is-ignored", () => this.applyTriage(surface, "ignored"));
+
+    // If the user clicked "Partial…" the inline axes editor stays open
+    // for this surface until Save / Cancel.
+    if (this.triagePartialAxes && this.triagePartialAxes.surface === surface) {
+      this.renderTriagePartialEditor(card, surface);
+    }
+  }
+
+  private openTriagePartial(surface: string, rec: WordRecord) {
+    const cur = rec.axes ?? { chars: false, pinyin: false, meaning: false };
+    this.triagePartialAxes = {
+      surface,
+      chars: cur.chars,
+      pinyin: cur.pinyin,
+      meaning: cur.meaning,
+    };
+    this.render();
+  }
+
+  private renderTriagePartialEditor(parent: HTMLElement, surface: string) {
+    const axes = this.triagePartialAxes!;
+    const editor = parent.createDiv({ cls: "cci-triage-partial" });
+    editor.createEl("p", {
+      cls: "cci-triage-partial-hint",
+      text: "Tick what you already know about this word. Status follows automatically.",
+    });
+    const row = editor.createDiv({ cls: "cci-triage-partial-row" });
+    const mkBox = (label: string, key: "chars" | "pinyin" | "meaning") => {
+      const wrap = row.createEl("label", { cls: "cci-triage-partial-box" });
+      const cb = wrap.createEl("input", { type: "checkbox" });
+      cb.checked = axes[key];
+      cb.addEventListener("change", () => {
+        axes[key] = cb.checked;
+      });
+      wrap.createSpan({ text: ` ${label}` });
+    };
+    mkBox("Characters", "chars");
+    mkBox("Pinyin", "pinyin");
+    mkBox("Meaning", "meaning");
+
+    const btnRow = editor.createDiv({ cls: "cci-triage-partial-buttons" });
+    const save = btnRow.createEl("button", { cls: "cci-triage-act is-partial", text: "Save" });
+    save.addEventListener("click", () => {
+      this.plugin.vocab.setAxes(surface, {
+        chars: axes.chars,
+        pinyin: axes.pinyin,
+        meaning: axes.meaning,
+      });
+      this.triagePartialAxes = null;
+      this.triageContextCache.delete(surface);
+      this.plugin.refreshChineseViews();
+      this.render();
+    });
+    const cancel = btnRow.createEl("button", { cls: "cci-triage-act is-ignored", text: "Cancel" });
+    cancel.addEventListener("click", () => {
+      this.triagePartialAxes = null;
+      this.render();
+    });
   }
 
   private applyTriage(surface: string, status: WordStatus) {

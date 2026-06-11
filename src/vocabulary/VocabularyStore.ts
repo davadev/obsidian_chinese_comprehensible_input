@@ -48,6 +48,12 @@ export class VocabularyStore {
         r.knownAt = r.updatedAt;
         mutated = true;
       }
+      // Backfill classifiedAt for records already out of "new". Same
+      // proxy (updatedAt) since we don't have the real transition time.
+      if (r.status !== "new" && !r.classifiedAt) {
+        r.classifiedAt = r.updatedAt;
+        mutated = true;
+      }
       // Backfill HSK level metadata from the imported map. Records with an
       // existing `hsk` keep theirs unchanged (existing HSK 1-3 data wins).
       if (!r.hsk) {
@@ -145,14 +151,14 @@ export class VocabularyStore {
 
   setStatus(surface: string, status: WordStatus, reason?: string): WordRecord {
     const r = this.ensure(surface);
+    const wasNew = r.status === "new";
     r.status = status;
-    // Keep axes in sync with the legacy status when possible so renderers
-    // that read axes stay correct after a coarse mark-known/unknown.
     const derived = axesFromStatus(status);
     if (derived) r.axes = derived;
     if (status === "ignored" && reason) r.ignoredReason = reason;
     const now = new Date().toISOString();
     if (status === "known" && !r.knownAt) r.knownAt = now;
+    if (wasNew && status !== "new" && !r.classifiedAt) r.classifiedAt = now;
     r.updatedAt = now;
     this.scheduleSave();
     return r;
@@ -160,10 +166,12 @@ export class VocabularyStore {
 
   setAxes(surface: string, axes: KnownAxes): WordRecord {
     const r = this.ensure(surface);
+    const wasNew = r.status === "new";
     r.axes = axes;
     r.status = statusFromAxes(axes);
     const now = new Date().toISOString();
     if (r.status === "known" && !r.knownAt) r.knownAt = now;
+    if (wasNew && r.status !== "new" && !r.classifiedAt) r.classifiedAt = now;
     r.updatedAt = now;
     this.scheduleSave();
     return r;
@@ -299,6 +307,7 @@ export class VocabularyStore {
       r.status = status;
       if (derived) r.axes = derived;
       if (status === "known" && !r.knownAt) r.knownAt = now;
+      if (!r.classifiedAt) r.classifiedAt = now;
       r.updatedAt = now;
       n++;
     }
@@ -335,6 +344,7 @@ function csv(s: string): string {
 function mergeRecords(a: WordRecord, b: WordRecord): WordRecord {
   const firstSeenAt = pickEarlier(a.firstSeenAt, b.firstSeenAt);
   const knownAt = pickEarlier(a.knownAt, b.knownAt);
+  const classifiedAt = pickEarlier(a.classifiedAt, b.classifiedAt);
   return {
     ...a,
     ...b,
@@ -345,6 +355,7 @@ function mergeRecords(a: WordRecord, b: WordRecord): WordRecord {
     status: pickWinningStatus(a.status, b.status),
     firstSeenAt,
     knownAt,
+    classifiedAt,
     updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt,
   };
 }

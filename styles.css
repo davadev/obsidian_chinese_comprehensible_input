@@ -720,6 +720,42 @@
 .cci-triage-act.is-ignored  { background: var(--background-secondary); color: var(--text-muted); }
 .cci-triage-act:hover { filter: brightness(1.1); }
 
+.cci-triage-partial {
+  margin-top: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  background: rgba(220, 180, 30, 0.10);
+  border: 1px solid rgba(220, 180, 30, 0.45);
+  border-radius: 8px;
+}
+.cci-triage-partial-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem;
+}
+.cci-triage-partial-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.cci-triage-partial-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+.cci-triage-partial-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.cci-dash-progress-controls {
+  display: flex;
+  gap: 0.3rem;
+}
+
 .cci-dash-progress {
   margin-top: 0.6rem;
   padding: 0.5rem 0.6rem;
