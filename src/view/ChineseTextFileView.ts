@@ -170,6 +170,11 @@ export class ChineseTextFileView extends TextFileView {
     }
     this.ensureEditor(split.body);
     this.refreshPreviewActions();
+
+    // Header action next to the standard view controls — single-tap path to
+    // Obsidian's Markdown view in edit mode. Matches the affordance position
+    // of Obsidian's own read/edit toggle on MarkdownView.
+    this.addAction("pencil", "Edit in Markdown", () => void this.openAsRegularMarkdown(true));
   }
 
   /**
@@ -233,12 +238,12 @@ export class ChineseTextFileView extends TextFileView {
    * same file. To come back, the user hits the "Open in Chinese
    * Learning View" ribbon icon (registered in main.ts onload).
    */
-  private async openAsRegularMarkdown(): Promise<void> {
+  private async openAsRegularMarkdown(editMode = false): Promise<void> {
     const file = this.file;
     if (!file) return;
     await this.leaf.setViewState({
       type: "markdown",
-      state: { file: file.path },
+      state: editMode ? { file: file.path, mode: "source" } : { file: file.path },
     });
   }
 
