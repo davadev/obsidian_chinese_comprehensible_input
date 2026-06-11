@@ -25,7 +25,7 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 ## Critical Constraints
 
 - **Token cache pre-warm MUST happen before editor creation.** `onOpen()` must `await tokenizer.tokenize(body)` before `ensureEditor(body)` — otherwise decorations miss the first paint and annotations fail to render. (Fixed in 0.1.44; do not regress.)
-- **Edit boundary crossing requires `reconfigureEditor()`, not `redecorate()`.** When toggling between "edit" and any other mode, the entire `EditorView` must be rebuilt because `Decoration.replace` (widgets) breaks cursor placement. Non-edit mode switches use `redecorate()` (dispatches `cciRedecorateEffect`).
+- **Edit boundary crossing uses compartment + `redecorate()`, not a full editor rebuild.** `reconfigureEditor()` toggles the `editable` `Compartment` and dispatches `cciRedecorateEffect` in one transaction — no `EditorView` destroy/recreate. This avoids white flash and scroll loss. Works for all display modes because `emitDecoration()` already produces `Decoration.mark` (not widgets) when `activeViewMode() === "edit"`.
 - **Frontmatter is stripped at the view boundary.** The editor never sees `---` blocks — handled in `splitFrontmatter()` in `ChineseTextFileView.ts`.
 - **Display mode** is read from `plugin.settings.defaultDisplayMode` at decoration build time — switching mode calls `onChange()` → `handleToolbarChange()` → `redecorate()`, no editor rebuild.
 - **Color visibility** is gated by `showKnownColor` (default off), `showPartialColor` (default on), `showUnknownColor` (default on) — check these if colors seem missing.

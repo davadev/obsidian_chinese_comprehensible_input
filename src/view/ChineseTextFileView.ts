@@ -1,5 +1,5 @@
 import { Notice, TextFileView, WorkspaceLeaf } from "obsidian";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -67,6 +67,7 @@ export class ChineseTextFileView extends TextFileView {
   private previewActionsEl: HTMLElement | null = null;
   private editorContainer: HTMLElement | null = null;
   private editor: EditorView | null = null;
+  private editableComp = new Compartment();
   private suppressNextSetData = false;
   /**
    * YAML frontmatter is stripped before reaching the editor and re-prefixed
@@ -338,7 +339,7 @@ export class ChineseTextFileView extends TextFileView {
             this.toolbar?.refresh();
           }
         }),
-        EditorView.editable.of(this.plugin.activeViewMode() === "edit"),
+        this.editableComp.of(EditorView.editable.of(this.plugin.activeViewMode() === "edit")),
       ],
     });
     this.editor = new EditorView({
@@ -348,44 +349,32 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   reconfigureEditor(): void {
-    if (!this.editor || !this.editorContainer) return;
-    const data = this.editor.state.doc.toString();
-    const selection = this.editor.state.selection.main;
-    // Capture the document offset of the line at the top of the viewport.
-    // Restoring by pixel scrollTop fails on display-mode change because the
-    // new mode has a different line-height: the same scrollTop maps to a
-    // different logical line. Restoring by document offset lands the user
-    // on approximately the same line.
+    if (!this.editor) return;
     let topOffset = 0;
     try {
-      const block = this.editor.lineBlockAtHeight(
+      topOffset = this.editor.lineBlockAtHeight(
         this.editor.scrollDOM.scrollTop + 1
-      );
-      topOffset = block.from;
+      ).from;
     } catch {
       topOffset = 0;
     }
-    this.ensureEditor(data);
-    if (this.editor) {
+    const editable = this.plugin.activeViewMode() === "edit";
+    this.editor.dispatch({
+      effects: [
+        this.editableComp.reconfigure(EditorView.editable.of(editable)),
+        cciRedecorateEffect.of(null),
+      ],
+    });
+    const target = Math.min(topOffset, this.editor.state.doc.length);
+    requestAnimationFrame(() => {
       try {
-        const len = this.editor.state.doc.length;
-        const anchor = Math.min(selection.anchor, len);
-        const head = Math.min(selection.head, len);
-        this.editor.dispatch({ selection: { anchor, head } });
+        this.editor?.dispatch({
+          effects: EditorView.scrollIntoView(target, { y: "start" }),
+        });
       } catch {
-        // selection restore is best-effort
+        // scroll restore is best-effort
       }
-      const target = Math.min(topOffset, this.editor.state.doc.length);
-      requestAnimationFrame(() => {
-        try {
-          this.editor?.dispatch({
-            effects: EditorView.scrollIntoView(target, { y: "start" }),
-          });
-        } catch {
-          // scroll restore is best-effort
-        }
-      });
-    }
+    });
   }
 
   /**
