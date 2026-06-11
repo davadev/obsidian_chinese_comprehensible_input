@@ -69,7 +69,7 @@ export class ChineseTextFileView extends TextFileView {
   private editor: EditorView | null = null;
   private editableComp = new Compartment();
   private suppressNextSetData = false;
-  private vvCleanup: (() => void) | null = null;
+  private focusGuardCleanup: (() => void) | null = null;
   /**
    * YAML frontmatter is stripped before reaching the editor and re-prefixed
    * on save. The editor never sees the `---` … `---` block, which keeps the
@@ -171,47 +171,46 @@ export class ChineseTextFileView extends TextFileView {
     }
     this.ensureEditor(split.body);
     this.refreshPreviewActions();
-    this.attachVisualViewportSync();
   }
 
   /**
-   * iOS Safari keeps the layout viewport at full size when the soft keyboard
-   * opens — only `visualViewport.height` shrinks — so flex/`height: 100%`
-   * chains leave `.cm-scroller` extending behind the keyboard. Cap the
-   * editor's height directly via inline `max-height = vv.height - rect.top`
-   * (both in visual-viewport coords on iOS) so the editor ends at the visible
-   * region's bottom.
+   * iOS Safari scrolls the nearest scrollable ancestor of a focused
+   * contenteditable into view on focus, before Obsidian's --keyboard-height
+   * has updated. Snapshot every ancestor's scroll position on focusin and
+   * restore on the next frame — equivalent to `focus({ preventScroll: true })`
+   * for an event we don't initiate ourselves.
    */
-  private attachVisualViewportSync(): void {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const update = () => {
-      if (!this.editorContainer) return;
-      const rect = this.editorContainer.getBoundingClientRect();
-      const maxH = Math.max(0, vv.height - rect.top);
-      this.editorContainer.style.maxHeight = `${maxH}px`;
-      // eslint-disable-next-line no-console
-      console.log("[cci-kb]", {
-        innerH: window.innerHeight,
-        vvH: vv.height,
-        vvOT: vv.offsetTop,
-        editorTop: rect.top,
-        maxH,
+  private attachIosFocusGuard(): void {
+    if (!this.editor) return;
+    const contentDom = this.editor.contentDOM;
+    const onFocusIn = () => {
+      const ancestors: Array<{ el: Element; top: number; left: number }> = [];
+      let cur: Element | null = contentDom;
+      while (cur && cur !== document.documentElement) {
+        if (
+          cur.scrollTop !== 0 ||
+          cur.scrollLeft !== 0 ||
+          getComputedStyle(cur).overflowY !== "visible"
+        ) {
+          ancestors.push({ el: cur, top: cur.scrollTop, left: cur.scrollLeft });
+        }
+        cur = cur.parentElement;
+      }
+      const wx = window.scrollX;
+      const wy = window.scrollY;
+      requestAnimationFrame(() => {
+        for (const a of ancestors) {
+          if (a.el.scrollTop !== a.top) a.el.scrollTop = a.top;
+          if (a.el.scrollLeft !== a.left) a.el.scrollLeft = a.left;
+        }
+        if (window.scrollX !== wx || window.scrollY !== wy) {
+          window.scrollTo(wx, wy);
+        }
       });
     };
-
-    requestAnimationFrame(update);
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    window.addEventListener("resize", update);
-
-    this.vvCleanup = () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
-      this.editorContainer?.style.removeProperty("max-height");
-    };
+    contentDom.addEventListener("focusin", onFocusIn, true);
+    this.focusGuardCleanup = () =>
+      contentDom.removeEventListener("focusin", onFocusIn, true);
   }
 
   /**
@@ -263,8 +262,8 @@ export class ChineseTextFileView extends TextFileView {
   }
 
   async onClose(): Promise<void> {
-    this.vvCleanup?.();
-    this.vvCleanup = null;
+    this.focusGuardCleanup?.();
+    this.focusGuardCleanup = null;
     if (this.editor) {
       this.editor.destroy();
       this.editor = null;
@@ -365,6 +364,8 @@ export class ChineseTextFileView extends TextFileView {
   private ensureEditor(initialDoc: string): void {
     if (!this.editorContainer) return;
     if (this.editor) {
+      this.focusGuardCleanup?.();
+      this.focusGuardCleanup = null;
       this.editor.destroy();
       this.editor = null;
     }
@@ -390,6 +391,7 @@ export class ChineseTextFileView extends TextFileView {
       state,
       parent: this.editorContainer,
     });
+    this.attachIosFocusGuard();
   }
 
   reconfigureEditor(): void {

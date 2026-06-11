@@ -5,9 +5,13 @@
   flex-direction: column;
   height: 100%;
   width: 100%;
-  /* iOS keyboard fix: block .view-content from being the auto-scroll-to-focus
-     target. The editor's height is capped directly via inline max-height from
-     a visualViewport listener in ChineseTextFileView. */
+  /* iOS keyboard fix: Obsidian writes --keyboard-height on :root via its
+     native bridge whenever the soft keyboard opens. Consume it directly —
+     box-sizing: border-box makes padding-bottom shrink the flex content area
+     so .cci-editor / .cm-scroller end at the keyboard's top. overflow:hidden
+     also blocks .view-content from being iOS's auto-scroll-to-focus target. */
+  box-sizing: border-box;
+  padding-bottom: var(--keyboard-height, 0px);
   overflow: hidden;
   --cci-reader-font: 22px;
 }
