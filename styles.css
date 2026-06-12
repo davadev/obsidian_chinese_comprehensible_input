@@ -85,27 +85,35 @@
   border-color: var(--interactive-accent);
 }
 
-/* Segmented color-mode switch: two pills, the active one tinted with the
-   Obsidian accent. Keeps both labels visible so the toggle is self-
-   describing. */
+/* Compact segmented color-mode switch. Sits flush next to the icon
+   buttons (same 32px height) and keeps tight padding so it does not
+   eat toolbar width on mobile. */
 .cci-toolbar .cci-color-mode-switch {
   display: inline-flex;
   border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
+  border-radius: 4px;
   overflow: hidden;
   height: 32px;
+  align-self: center;
   margin: 0 0.15rem;
+  flex: 0 0 auto;
 }
 .cci-toolbar .cci-color-mode-pill {
+  -webkit-appearance: none;
+  appearance: none;
   border: none;
+  border-radius: 0;
   background: var(--interactive-normal);
   color: var(--text-normal);
-  padding: 0 0.7rem;
-  font-size: 0.78rem;
+  padding: 0 0.45rem;
+  height: 100%;
+  font-size: 0.72rem;
   font-weight: 500;
+  letter-spacing: 0.01em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
+  line-height: 1;
 }
 .cci-toolbar .cci-color-mode-pill + .cci-color-mode-pill {
   border-left: 1px solid var(--background-modifier-border);
