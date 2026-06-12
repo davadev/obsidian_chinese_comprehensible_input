@@ -110,21 +110,40 @@ export class ChineseTextFileView extends TextFileView {
     }
     const split = splitFrontmatter(data);
     this.frontmatterText = split.frontmatter;
-    const visible = split.body;
-    // Best-effort: pre-warm the shared token cache for the new doc so the
-    // decoration plugin's next build hits the cache instead of racing the
-    // async tokenize. Fire-and-forget — the existing async path still
-    // dispatchRedecorates when it lands.
-    void this.plugin.tokenizer.tokenize(visible).catch(() => {});
-    if (this.editor) {
-      const current = this.editor.state.doc.toString();
-      if (current !== visible) {
-        this.editor.dispatch({
-          changes: { from: 0, to: current.length, insert: visible },
-        });
-      }
-    } else {
+    void this.swapDocContent(split.body);
+  }
+
+  /**
+   * Replace the editor's document with the new file's body. We must
+   * pre-warm the tokenizer BEFORE dispatching so the Chinese decoration
+   * plugin's synchronous build path hits a populated cache for the new
+   * content. Then dispatch the doc change together with
+   * `cciRedecorateEffect` so both decoration plugins rebuild against the
+   * new content immediately — otherwise an in-flight tokenize from the
+   * previous file can leave `this.tokenPromise` non-null and the new
+   * doc's scheduleTokenize is skipped. This was the bug where clicking
+   * a wikilink loaded the target text but left it unannotated.
+   */
+  private async swapDocContent(visible: string): Promise<void> {
+    if (!this.editor) {
       this.ensureEditor(visible);
+      return;
+    }
+    try {
+      await this.plugin.tokenizer.tokenize(visible);
+    } catch {
+      // dictionary not ready — the existing async path will still
+      // dispatchRedecorate when tokens land.
+    }
+    if (!this.editor) return;
+    const current = this.editor.state.doc.toString();
+    if (current !== visible) {
+      this.editor.dispatch({
+        changes: { from: 0, to: current.length, insert: visible },
+        effects: cciRedecorateEffect.of(null),
+      });
+    } else {
+      this.editor.dispatch({ effects: cciRedecorateEffect.of(null) });
     }
   }
 

@@ -368,6 +368,10 @@
 }
 .cci-editor .cm-scroller {
   overflow-y: auto;
+  /* Allow the last lines to scroll above iOS's home indicator and
+     Obsidian's mobile bottom toolbar. Desktop env() inset is 0; the
+     extra 80px is a deliberate visual buffer matching the mobile bar. */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
 }
 
 /* Word annotations */
