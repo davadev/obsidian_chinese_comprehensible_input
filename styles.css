@@ -133,6 +133,37 @@
   font-style: italic;
 }
 
+/* Edit-dictionary modal — small form layout. */
+.cci-edit-dict-modal h3 { margin-top: 0; }
+.cci-edit-dict-modal .cci-edit-dict-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+.cci-edit-dict-modal .cci-edit-dict-row label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.cci-edit-dict-modal input[type="text"],
+.cci-edit-dict-modal textarea,
+.cci-edit-dict-modal select {
+  width: 100%;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-normal);
+}
+.cci-edit-dict-modal textarea { resize: vertical; min-height: 4em; }
+.cci-edit-dict-modal .cci-edit-dict-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
 /* Hide-syntax markdown rendering inside the Chinese view. Mirrors
    Obsidian Live Preview look without forking the markdown parser. */
 .cci-view .cm-line.cci-md-quote-line {

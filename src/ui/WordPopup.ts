@@ -111,6 +111,59 @@ export class WordPopup {
       this.refresh();
     });
     this.action(actions, "Mnemonic…", () => this.openMnemonicPrompt(rec));
+    this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
+  }
+
+  private openDictionaryEditor(rec: WordRecord): void {
+    const surface = rec.surfaces[0];
+    const entries = this.plugin.dictionary.lookup(surface);
+    const custom = this.plugin.dictionaryCustomWords[surface];
+    if (custom) {
+      // The popup target is a user-added custom word — open the modal in
+      // custom mode so the user can edit/delete it.
+      void import("./EditDictionaryModal").then(({ EditDictionaryModal }) => {
+        new EditDictionaryModal(this.plugin.app, this.plugin, {
+          mode: "custom",
+          surface,
+          isExistingCustom: true,
+          initial: {
+            traditional: custom.traditional,
+            pinyin: custom.pinyin,
+            definitions: custom.definitions,
+            hskLevel: custom.hsk?.levels?.[0],
+          },
+        }).open();
+        this.close();
+      });
+      return;
+    }
+    const top = entries[0];
+    if (!top) {
+      // Word is not in the dictionary — treat as custom-word creation.
+      void import("./EditDictionaryModal").then(({ EditDictionaryModal }) => {
+        new EditDictionaryModal(this.plugin.app, this.plugin, {
+          mode: "custom",
+          surface,
+          initial: { pinyin: rec.pinyin },
+        }).open();
+        this.close();
+      });
+      return;
+    }
+    void import("./EditDictionaryModal").then(({ EditDictionaryModal }) => {
+      new EditDictionaryModal(this.plugin.app, this.plugin, {
+        mode: "override",
+        surface,
+        originalEntry: top,
+        initial: {
+          traditional: top.traditional,
+          pinyin: top.pinyin,
+          definitions: top.definitions,
+          hskLevel: top.hsk?.levels?.[0],
+        },
+      }).open();
+      this.close();
+    });
   }
 
   private renderAxesCheckboxes(parent: HTMLElement, rec: WordRecord): void {

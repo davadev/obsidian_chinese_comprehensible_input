@@ -1,7 +1,8 @@
 import { App, normalizePath } from "obsidian";
-import { DictionaryEntry } from "./DictionaryTypes";
+import { DictionaryCustomWords, DictionaryEntry, DictionaryOverrides } from "./DictionaryTypes";
 import { SEED_ENTRIES } from "./seedDictionary";
 import { HSK_MAP, HSK_SOURCE } from "./hskMap.generated";
+import { makeKey } from "./normalizeChinese";
 
 /**
  * Lazy dictionary store.
@@ -16,8 +17,28 @@ export class DictionaryService {
   private byTraditional = new Map<string, DictionaryEntry[]>();
   private loaded = false;
   private loadingPromise: Promise<void> | null = null;
+  /**
+   * Optional overlay sources injected by the plugin. Looked up on every
+   * `lookup()` call so changes to overrides / custom words take effect
+   * without rebuilding the underlying maps.
+   */
+  private getOverrides: () => DictionaryOverrides = () => ({});
+  private getCustomWords: () => DictionaryCustomWords = () => ({});
 
   constructor(private app: App) {}
+
+  /**
+   * Plugin hands in getters for the user's override + custom-word maps
+   * so the overlay sees live data without holding a reference to the
+   * mutable objects.
+   */
+  setOverlay(
+    overrides: () => DictionaryOverrides,
+    customWords: () => DictionaryCustomWords
+  ): void {
+    this.getOverrides = overrides;
+    this.getCustomWords = customWords;
+  }
 
   async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
@@ -97,20 +118,53 @@ export class DictionaryService {
 
   /** True if any entry exists for surface (simplified or traditional). */
   has(surface: string): boolean {
+    if (this.getCustomWords()[surface]) return true;
     return this.bySimplified.has(surface) || this.byTraditional.has(surface);
   }
 
   lookup(surface: string): DictionaryEntry[] {
-    const s = this.bySimplified.get(surface);
-    if (s) return s;
-    const t = this.byTraditional.get(surface);
-    if (t) return t;
-    return [];
+    const out: DictionaryEntry[] = [];
+    const custom = this.getCustomWords()[surface];
+    if (custom) {
+      out.push({
+        simplified: custom.simplified,
+        traditional: custom.traditional ?? custom.simplified,
+        pinyin: custom.pinyin,
+        definitions: custom.definitions,
+        hsk: custom.hsk,
+      });
+    }
+    const native = this.bySimplified.get(surface) ?? this.byTraditional.get(surface) ?? [];
+    const overrides = this.getOverrides();
+    for (const e of native) {
+      const key = makeKey(e.simplified, e.pinyin);
+      const ov = overrides[key];
+      if (!ov) {
+        out.push(e);
+        continue;
+      }
+      out.push({
+        ...e,
+        pinyin: ov.pinyin ?? e.pinyin,
+        traditional: ov.traditional ?? e.traditional,
+        definitions: ov.definitions ?? e.definitions,
+        hsk: ov.hsk ?? e.hsk,
+      });
+    }
+    return out;
   }
 
-  /** Iterate all simplified surfaces for prefix-based trie building. */
-  surfaces(): IterableIterator<string> {
-    return this.bySimplified.keys();
+  /** Iterate all simplified surfaces — native + user-added custom words.
+   * Used by the tokenizer to build its trie. */
+  *surfaces(): IterableIterator<string> {
+    const seen = new Set<string>();
+    for (const s of this.bySimplified.keys()) {
+      seen.add(s);
+      yield s;
+    }
+    for (const s of Object.keys(this.getCustomWords())) {
+      if (!seen.has(s)) yield s;
+    }
   }
 
   /** All entries combined (simplified + traditional-only). */

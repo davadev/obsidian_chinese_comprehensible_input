@@ -170,7 +170,9 @@ export class ChineseTextFileView extends TextFileView {
       top,
       () => this.handleToolbarChange(),
       () => this.editor?.state.doc.toString() ?? this.data ?? "",
-      () => void this.openAsRegularMarkdown(true)
+      () => void this.openAsRegularMarkdown(true),
+      () => this.currentSelectionText(),
+      (surface) => this.openAddCustomWord(surface)
     );
     this.previewActionsEl = this.containerEl.children[1].createDiv({ cls: "cci-preview-actions" });
     this.refreshPreviewActions();
@@ -251,6 +253,38 @@ export class ChineseTextFileView extends TextFileView {
       this.editor = null;
     }
     this.plugin.exposure.resetSession();
+  }
+
+  /** Trimmed text of the editor's current selection (or empty). */
+  private currentSelectionText(): string {
+    if (!this.editor) return "";
+    const sel = this.editor.state.selection.main;
+    if (sel.empty) return "";
+    return this.editor.state.sliceDoc(sel.from, sel.to);
+  }
+
+  /** Toolbar callback — opens the EditDictionaryModal in custom-word mode. */
+  private async openAddCustomWord(surface: string): Promise<void> {
+    const cleaned = surface.replace(/\s+/g, "");
+    if (!cleaned) {
+      new Notice("Select one or more Chinese characters first.");
+      return;
+    }
+    const { EditDictionaryModal } = await import("../ui/EditDictionaryModal");
+    const existing = this.plugin.dictionaryCustomWords[cleaned];
+    new EditDictionaryModal(this.plugin.app, this.plugin, {
+      mode: "custom",
+      surface: cleaned,
+      isExistingCustom: !!existing,
+      initial: existing
+        ? {
+            traditional: existing.traditional,
+            pinyin: existing.pinyin,
+            definitions: existing.definitions,
+            hskLevel: existing.hsk?.levels?.[0],
+          }
+        : {},
+    }).open();
   }
 
   /**

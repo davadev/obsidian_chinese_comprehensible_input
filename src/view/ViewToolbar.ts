@@ -18,7 +18,9 @@ export class ViewToolbar {
     private container: HTMLElement,
     private onChange: () => void,
     getDocText?: () => string,
-    private onOpenAsMarkdown?: () => void
+    private onOpenAsMarkdown?: () => void,
+    private getSelection?: () => string,
+    private onAddCustomWord?: (surface: string) => void
   ) {
     this.getDocText = getDocText ?? (() => "");
     this.render();
@@ -59,23 +61,19 @@ export class ViewToolbar {
     this.modeBtn(row, "x-circle", "Unknown", "mark-unknown");
     this.modeBtn(row, "circle-help", "Partial", "mark-partial");
 
-    this.colorModeSwitch(row);
+    if (this.onAddCustomWord && this.getSelection) {
+      const add = row.createEl("button", {
+        cls: "clickable-icon cci-icon-btn",
+        attr: { "aria-label": "Add custom word from selection", title: "Add custom word from selection" },
+      });
+      setIcon(add, "square-plus");
+      add.addEventListener("click", () => {
+        const text = (this.getSelection?.() ?? "").trim();
+        this.onAddCustomWord?.(text);
+      });
+    }
 
-    const sel = row.createEl("select", { cls: "cci-display-sel" });
-    [
-      ["two-line", "2-line"],
-      ["three-line", "3-line"],
-      ["none", "None"],
-    ].forEach(([v, l]) => {
-      const o = sel.createEl("option", { text: l });
-      o.value = v;
-    });
-    sel.value = this.plugin.settings.defaultDisplayMode;
-    sel.addEventListener("change", async () => {
-      this.plugin.settings.defaultDisplayMode = sel.value as DisplayMode;
-      await this.plugin.saveSettings();
-      this.onChange();
-    });
+    this.colorModeSwitch(row);
 
     const overflow = row.createEl("button", {
       cls: "clickable-icon cci-icon-btn cci-overflow-btn-trigger",
@@ -292,6 +290,31 @@ export class ViewToolbar {
 
     const sep0 = menu.createDiv({ cls: "cci-overflow-sep" });
     sep0.setAttr("role", "separator");
+
+    const displayHint = menu.createDiv({ cls: "cci-overflow-hint" });
+    displayHint.setText("Display mode");
+    const radioRow = (label: string, value: DisplayMode) => {
+      const item = menu.createDiv({ cls: "cci-overflow-item" });
+      const cb = item.createEl("input", { type: "radio" });
+      cb.name = "cci-display-mode";
+      cb.checked = this.plugin.settings.defaultDisplayMode === value;
+      item.createSpan({ text: label });
+      cb.addEventListener("change", async () => {
+        if (!cb.checked) return;
+        this.plugin.settings.defaultDisplayMode = value;
+        await this.plugin.saveSettings();
+        this.onChange();
+      });
+      item.addEventListener("click", (ev) => {
+        if (ev.target !== cb) cb.click();
+      });
+    };
+    radioRow("2-line (pinyin)", "two-line");
+    radioRow("3-line (pinyin + gloss)", "three-line");
+    radioRow("None (no inline annotation)", "none");
+
+    const sepDisplay = menu.createDiv({ cls: "cci-overflow-sep" });
+    sepDisplay.setAttr("role", "separator");
 
     checkRow("Known-word popups", () => this.plugin.settings.knownWordPopups, async (v) => {
       this.plugin.settings.knownWordPopups = v;

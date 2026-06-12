@@ -1,6 +1,13 @@
 import { addIcon, MarkdownView, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { applyCustomColors, deriveHskColorsFromAccent } from "./ui/colorTheme";
+import {
+  DictionaryCustomWord,
+  DictionaryCustomWords,
+  DictionaryOverride,
+  DictionaryOverrides,
+} from "./dictionary/DictionaryTypes";
+import { clearTokenCache } from "./tokenizer/tokenCache";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { DictionaryService } from "./dictionary/DictionaryService";
@@ -30,6 +37,13 @@ export default class CciPlugin extends Plugin {
   ai!: AiProviderService;
   story!: StoryGenerator;
   popup!: WordPopup;
+  /**
+   * Per-entry dictionary overrides + user-added custom words. Live at
+   * top-level in the plugin data blob so they survive a dictionary
+   * redownload (which only rewrites .cci-dictionary.json).
+   */
+  dictionaryOverrides: DictionaryOverrides = {};
+  dictionaryCustomWords: DictionaryCustomWords = {};
 
   private viewMode: ViewMode = "read";
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
@@ -73,7 +87,14 @@ export default class CciPlugin extends Plugin {
     }
     applyCustomColors(this.settings);
 
+    this.dictionaryOverrides = (blob.dictionaryOverrides as DictionaryOverrides) ?? {};
+    this.dictionaryCustomWords = (blob.dictionaryCustomWords as DictionaryCustomWords) ?? {};
+
     this.dictionary = new DictionaryService(this.app);
+    this.dictionary.setOverlay(
+      () => this.dictionaryOverrides,
+      () => this.dictionaryCustomWords
+    );
     this.dictDownloader = new DictionaryDownloader(this.app);
     this.vocab = new VocabularyStore(this, this.dictionary, () => this.settings);
     await this.vocab.load(blob);
@@ -171,6 +192,71 @@ export default class CciPlugin extends Plugin {
     blob.settings = this.settings;
     await this.saveData(blob);
     applyCustomColors(this.settings);
+  }
+
+  /** Persist dictionary overrides + custom words atomically. */
+  private async saveDictionaryUserData(): Promise<void> {
+    const blob = (await this.loadData()) ?? {};
+    blob.dictionaryOverrides = this.dictionaryOverrides;
+    blob.dictionaryCustomWords = this.dictionaryCustomWords;
+    await this.saveData(blob);
+  }
+
+  async setDictionaryOverride(key: string, ov: DictionaryOverride): Promise<void> {
+    this.dictionaryOverrides[key] = { ...ov, updatedAt: new Date().toISOString() };
+    await this.saveDictionaryUserData();
+    await this.dictionary.reload();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
+  }
+
+  async deleteDictionaryOverride(key: string): Promise<void> {
+    delete this.dictionaryOverrides[key];
+    await this.saveDictionaryUserData();
+    await this.dictionary.reload();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
+  }
+
+  async setCustomWord(surface: string, entry: Omit<DictionaryCustomWord, "createdAt" | "updatedAt">): Promise<void> {
+    const now = new Date().toISOString();
+    const existing = this.dictionaryCustomWords[surface];
+    this.dictionaryCustomWords[surface] = {
+      ...entry,
+      simplified: surface,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    await this.saveDictionaryUserData();
+    await this.dictionary.reload();
+    this.refreshTokenizerCustomWords();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
+  }
+
+  async deleteCustomWord(surface: string): Promise<void> {
+    delete this.dictionaryCustomWords[surface];
+    await this.saveDictionaryUserData();
+    await this.dictionary.reload();
+    this.refreshTokenizerCustomWords();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
+  }
+
+  /**
+   * Sync the tokenizer with the current custom-word list. Each custom
+   * word becomes a `mergeAs` override so the lattice/trie treats it as a
+   * single token. Clears the token cache so the next decoration build
+   * re-tokenizes against the new overrides.
+   */
+  refreshTokenizerCustomWords(): void {
+    const overrides = Object.values(this.dictionaryCustomWords).map((w) => ({
+      surface: w.simplified,
+      mergeAs: w.simplified,
+    }));
+    this.tokenizer.setOverrides(overrides);
+    this.tokenizer.invalidate();
+    clearTokenCache();
   }
 
   /**
