@@ -184,7 +184,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
                 mode,
                 settings,
                 headingLevel,
-                colorKey
+                showColor ? colorKey : undefined
               ),
               inclusive: false,
             })
@@ -224,7 +224,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
  */
 class RubyWidget extends WidgetType {
   private readonly color: ColorState;
-  private readonly colorKey: ColorClassKey;
+  /** Empty string when the user has hidden this bucket's color. */
+  private readonly colorKey: ColorClassKey | "";
   private readonly axes: KnownAxes;
   private readonly pinyin: string;
   private readonly def: string;
@@ -242,7 +243,7 @@ class RubyWidget extends WidgetType {
   ) {
     super();
     this.color = colorOf(rec);
-    this.colorKey = colorKey ?? this.color;
+    this.colorKey = colorKey ?? "";
     this.axes = rec?.axes ?? axesFromStatus(rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
     const isNew = !rec || rec.status === "new";
     this.pinyin = tok.selected?.pinyin ?? rec?.pinyin ?? "";
@@ -292,9 +293,10 @@ class RubyWidget extends WidgetType {
      */
     const stack = document.createElement("span");
     const headingCls = this.headingLevel > 0 ? ` cci-stack-h${this.headingLevel}` : "";
-    stack.className = `cci-stack cci-word cci-color-${this.colorKey}${headingCls}`;
+    const colorCls = this.colorKey ? ` cci-color-${this.colorKey}` : "";
+    stack.className = `cci-stack cci-word${colorCls}${headingCls}`;
     stack.setAttribute("data-cci-surface", this.surface);
-    stack.setAttribute("data-cci-color", this.colorKey);
+    if (this.colorKey) stack.setAttribute("data-cci-color", this.colorKey);
 
     if (this.showGloss && this.def) {
       const g = stack.createSpan({ cls: "cci-stack-gloss" });
