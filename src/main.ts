@@ -508,8 +508,7 @@ export default class CciPlugin extends Plugin {
       this.app.workspace.revealLeaf(existing[0]);
       this.app.workspace.setActiveLeaf(existing[0], { focus: true });
       const view = existing[0].view as StatsView;
-      view.setScope(useScope);
-      view.render();
+      await view.setScope(useScope);
       return;
     }
     const leaf = this.app.workspace.getLeaf("tab");
@@ -517,8 +516,7 @@ export default class CciPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
     this.app.workspace.setActiveLeaf(leaf, { focus: true });
     const view = leaf.view as StatsView;
-    view.setScope(useScope);
-    view.render();
+    await view.setScope(useScope);
   }
 
   refreshStatsViews(): void {

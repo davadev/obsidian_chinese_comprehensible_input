@@ -20,6 +20,8 @@ export class StatsView extends ItemView {
   private sortKey: SortKey = "seenCount";
   private sortDesc = true;
   private noteScope = "";
+  /** Surfaces found by tokenizing the scoped note's text. Empty when global. */
+  private noteSurfaces: Set<string> = new Set();
   private tab: Tab = "dashboard";
   private progressBucket: Bucket = "day";
   private progressWindow = { day: 30, week: 12, month: 12 } as const;
@@ -64,8 +66,23 @@ export class StatsView extends ItemView {
     return "bar-chart-3";
   }
 
-  setScope(notePath: string): void {
+  async setScope(notePath: string): Promise<void> {
     this.noteScope = notePath;
+    this.noteSurfaces.clear();
+    if (notePath) {
+      const f = this.app.vault.getAbstractFileByPath(notePath);
+      if (f instanceof TFile) {
+        try {
+          const text = await this.app.vault.cachedRead(f);
+          const tokens = await this.plugin.tokenizer.tokenize(text);
+          for (const t of tokens) {
+            if (t.isWord) this.noteSurfaces.add(t.surface);
+          }
+        } catch {
+          // Graceful: if the file is gone or unreadable, noteSurfaces stays empty.
+        }
+      }
+    }
     if (this.containerEl.children[1]) this.render();
   }
 
@@ -108,9 +125,8 @@ export class StatsView extends ItemView {
       o.value = v;
     }
     scopeSel.value = this.noteScope;
-    scopeSel.addEventListener("change", () => {
-      this.noteScope = scopeSel.value;
-      this.render();
+    scopeSel.addEventListener("change", async () => {
+      await this.setScope(scopeSel.value);
     });
   }
 
@@ -229,9 +245,8 @@ export class StatsView extends ItemView {
         const tr = body.createEl("tr");
         const noteTd = tr.createEl("td", { text: p });
         noteTd.addClass("cci-clickable");
-        noteTd.addEventListener("click", () => {
-          this.noteScope = p;
-          this.render();
+        noteTd.addEventListener("click", async () => {
+          await this.setScope(p);
         });
         tr.createEl("td", { text: String(recs.length) });
         tr.createEl("td", { text: String(c.known) });
@@ -1045,8 +1060,8 @@ export class StatsView extends ItemView {
 
   private scopedRecords(): WordRecord[] {
     let rows = this.plugin.vocab.values();
-    if (this.noteScope) {
-      rows = rows.filter((r) => (r.notesSeenCounts ?? {})[this.noteScope] > 0);
+    if (this.noteScope && this.noteSurfaces.size > 0) {
+      rows = rows.filter((r) => this.noteSurfaces.has(r.simplified ?? r.surfaces[0]));
     }
     return rows;
   }
