@@ -192,6 +192,31 @@
   padding: 0 0.1em;
 }
 
+/* Things-theme style task checkboxes. The widget is a span containing a
+   lucide SVG via Obsidian's setIcon(); we size and color it inline. */
+.cci-view .cci-md-task {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0 0.3em 0 0;
+  color: var(--text-muted);
+  vertical-align: -0.2em;
+  flex: 0 0 auto;
+}
+.cci-view .cci-md-task svg {
+  width: 100%;
+  height: 100%;
+}
+.cci-view .cci-md-task.is-done { color: var(--text-success, var(--color-green, var(--text-accent))); }
+.cci-view .cci-md-task.is-cancel { color: var(--text-error, var(--color-red, var(--text-muted))); }
+.cci-view .cci-md-task-x,
+.cci-view .cci-md-task-X { color: var(--text-success, var(--color-green, var(--text-accent))); }
+.cci-view .cci-md-task-c33 { color: var(--text-error, var(--color-red, var(--text-muted))); } /* `!` important */
+.cci-view .cci-md-task-c42 { color: var(--color-yellow, var(--text-accent)); }                /* `*` star */
+.cci-view .cci-md-task-c63 { color: var(--text-accent); }                                      /* `?` question */
+
 .cci-known-badge {
   margin-left: 0.3rem;
   min-width: 44px;

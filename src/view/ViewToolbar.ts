@@ -36,6 +36,19 @@ export class ViewToolbar {
 
     const row = this.container.createDiv({ cls: "cci-toolbar-row" });
 
+    // Always-visible exit hatch back to Obsidian's Markdown view. On iOS
+    // the standard header action requires two taps (first reveals the
+    // platform header bar, then triggers); this in-toolbar button is
+    // single-tap on every platform.
+    if (this.onOpenAsMarkdown) {
+      const md = row.createEl("button", {
+        cls: "clickable-icon cci-icon-btn",
+        attr: { "aria-label": "Open as Markdown", title: "Open as Markdown" },
+      });
+      setIcon(md, "file-text");
+      md.addEventListener("click", () => this.onOpenAsMarkdown?.());
+    }
+
     // Desktop keeps the in-place edit toggle. On mobile the header action
     // (added in ChineseTextFileView via addAction) is the entry point — no
     // toolbar Edit button on mobile.

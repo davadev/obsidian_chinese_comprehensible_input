@@ -9,7 +9,7 @@ import {
 import { RangeSetBuilder } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNodeRef } from "@lezer/common";
-import { TFile } from "obsidian";
+import { setIcon, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { cciRedecorateEffect } from "./chineseDecorations";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
@@ -78,6 +78,11 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // Obsidian/extended-markdown `==highlight==` is not parsed by
           // lang-markdown — handle it with a regex pass like wikilinks.
           this.scanHighlights(slice, from, excluded, items);
+
+          // Things-theme style task checkboxes (`- [c]`). lang-markdown
+          // only parses standard GFM `[ ]` / `[x]` so we scan for the
+          // full alphabet of characters the user supports.
+          this.scanTasks(slice, from, excluded, items);
         }
 
         items.sort((a, b) => (a.from - b.from) || (a.to - b.to));
@@ -284,6 +289,40 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         }
       }
 
+      scanTasks(
+        slice: string,
+        offset: number,
+        excluded: ReturnType<typeof computeExcludedRanges>,
+        items: Array<{ from: number; to: number; deco: Decoration }>
+      ): void {
+        // Match `- [c]` / `* [c]` / `+ [c]` at line start. Capture the
+        // leading whitespace + bullet so we can leave that alone (it
+        // is already handled by the ListMark/BulletWidget pass).
+        const re = /(^|\n)(\s{0,3})([-*+])([ \t]+)\[(.)\][ \t]/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(slice))) {
+          const matchStart = offset + m.index;
+          if (isRangeExcluded(excluded, matchStart, matchStart + m[0].length)) {
+            continue;
+          }
+          // `[c]` lives at: matchStart + leadLen + bulletLen + spaceLen
+          const leadLen = m[1].length + m[2].length;
+          const bulletLen = m[3].length;
+          const spaceLen = m[4].length;
+          const bracketFrom = matchStart + leadLen + bulletLen + spaceLen;
+          const bracketTo = bracketFrom + 3; // `[c]`
+          // Hide the single trailing space too so the icon sits right
+          // next to the task text.
+          const trailEnd = bracketTo + 1;
+          const char = m[5];
+          items.push({
+            from: bracketFrom,
+            to: trailEnd,
+            deco: Decoration.replace({ widget: new CheckboxWidget(char) }),
+          });
+        }
+      }
+
       scanHighlights(
         slice: string,
         offset: number,
@@ -344,6 +383,66 @@ function lineStartAt(text: string, pos: number): number {
   let i = pos;
   while (i > 0 && text[i - 1] !== "\n") i--;
   return i;
+}
+
+const TASK_ICON_MAP: Record<string, string> = {
+  " ": "square",
+  "/": "square-dashed",
+  x: "check-square-2",
+  X: "check-square-2",
+  "-": "square-x",
+  ">": "arrow-right-circle",
+  "<": "calendar-clock",
+  "?": "help-circle",
+  "!": "alert-circle",
+  "*": "star",
+  '"': "quote",
+  l: "map-pin",
+  b: "bookmark",
+  i: "info",
+  S: "piggy-bank",
+  I: "lightbulb",
+  p: "thumbs-up",
+  c: "thumbs-down",
+  f: "flame",
+  k: "key",
+  w: "trophy",
+  u: "trending-up",
+  d: "trending-down",
+  D: "git-pull-request-draft",
+  P: "git-pull-request-arrow",
+  M: "git-merge",
+};
+
+class CheckboxWidget extends WidgetType {
+  constructor(private char: string) {
+    super();
+  }
+  toDOM(): HTMLElement {
+    const el = document.createElement("span");
+    const icon = TASK_ICON_MAP[this.char] ?? "square";
+    el.className = `cci-md-task cci-md-task-${safeClassChar(this.char)}`;
+    if (this.char === "x" || this.char === "X") el.classList.add("is-done");
+    if (this.char === "-") el.classList.add("is-cancel");
+    el.setAttribute("data-cci-task", this.char);
+    el.setAttribute("title", `Task: [${this.char}]`);
+    try {
+      setIcon(el, icon);
+    } catch {
+      el.textContent = `[${this.char}]`;
+    }
+    return el;
+  }
+  eq(other: CheckboxWidget): boolean {
+    return other.char === this.char;
+  }
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+function safeClassChar(c: string): string {
+  return /^[A-Za-z]$/.test(c) ? c : `c${c.charCodeAt(0)}`;
 }
 
 class BulletWidget extends WidgetType {
