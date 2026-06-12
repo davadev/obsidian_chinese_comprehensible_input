@@ -1,6 +1,6 @@
 import { addIcon, MarkdownView, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
-import { applyCustomColors } from "./ui/colorTheme";
+import { applyCustomColors, deriveHskColorsFromAccent } from "./ui/colorTheme";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { DictionaryService } from "./dictionary/DictionaryService";
@@ -63,6 +63,14 @@ export default class CciPlugin extends Plugin {
         ...((this.settings.customColors?.hsk as Partial<CciSettings["customColors"]["hsk"]>) ?? {}),
       },
     };
+    // First install: derive the HSK palette from the active Obsidian
+    // accent color so the default looks intentional rather than rainbow.
+    // Subsequent loads honor whatever the user has saved.
+    if (!this.settings.hskColorsDerivedFromAccent) {
+      this.settings.customColors.hsk = deriveHskColorsFromAccent();
+      this.settings.hskColorsDerivedFromAccent = true;
+      void this.saveSettings();
+    }
     applyCustomColors(this.settings);
 
     this.dictionary = new DictionaryService(this.app);

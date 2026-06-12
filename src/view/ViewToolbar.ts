@@ -46,7 +46,7 @@ export class ViewToolbar {
     this.modeBtn(row, "x-circle", "Unknown", "mark-unknown");
     this.modeBtn(row, "circle-help", "Partial", "mark-partial");
 
-    this.colorModeBtn(row);
+    this.colorModeSwitch(row);
 
     const sel = row.createEl("select", { cls: "cci-display-sel" });
     [
@@ -100,31 +100,45 @@ export class ViewToolbar {
     });
   }
 
-  private colorModeBtn(parent: HTMLElement): void {
-    const labelFor = (m: ColorMode) =>
-      m === "hsk"
-        ? "Color mode: by HSK level (tap for status)"
-        : "Color mode: by status (tap for HSK)";
-    const b = parent.createEl("button", {
-      cls: "clickable-icon cci-icon-btn",
-      attr: {
-        "aria-label": labelFor(this.plugin.settings.colorMode),
-        title: labelFor(this.plugin.settings.colorMode),
-        "data-color-mode": this.plugin.settings.colorMode,
-      },
+  /**
+   * Two-pill segmented switch. Both labels visible so the user always
+   * sees the alternative. Active pill highlighted with the Obsidian
+   * accent treatment used by marking buttons.
+   */
+  private colorModeSwitch(parent: HTMLElement): void {
+    const wrap = parent.createDiv({
+      cls: "cci-color-mode-switch",
+      attr: { role: "tablist", "aria-label": "Color mode" },
     });
-    setIcon(b, "palette");
-    if (this.plugin.settings.colorMode === "hsk") b.addClass("is-active");
-    b.addEventListener("click", async () => {
-      const next: ColorMode = this.plugin.settings.colorMode === "hsk" ? "status" : "hsk";
-      this.plugin.settings.colorMode = next;
-      await this.plugin.saveSettings();
-      b.setAttribute("data-color-mode", next);
-      b.setAttribute("aria-label", labelFor(next));
-      b.setAttribute("title", labelFor(next));
-      b.toggleClass("is-active", next === "hsk");
-      this.onChange();
-    });
+
+    const pills: Array<{ value: ColorMode; label: string; el: HTMLButtonElement }> = [];
+    const make = (value: ColorMode, label: string) => {
+      const el = wrap.createEl("button", {
+        cls: "cci-color-mode-pill",
+        text: label,
+        attr: {
+          role: "tab",
+          "aria-pressed": String(this.plugin.settings.colorMode === value),
+          "data-color-mode": value,
+          title: `Color by ${label}`,
+        },
+      });
+      if (this.plugin.settings.colorMode === value) el.addClass("is-active");
+      el.addEventListener("click", async () => {
+        if (this.plugin.settings.colorMode === value) return;
+        this.plugin.settings.colorMode = value;
+        await this.plugin.saveSettings();
+        for (const p of pills) {
+          const active = p.value === value;
+          p.el.toggleClass("is-active", active);
+          p.el.setAttribute("aria-pressed", String(active));
+        }
+        this.onChange();
+      });
+      pills.push({ value, label, el });
+    };
+    make("status", "Status");
+    make("hsk", "HSK");
   }
 
   private updateActiveStates() {
@@ -224,20 +238,48 @@ export class ViewToolbar {
       });
     };
 
-    const statusHint = menu.createDiv({ cls: "cci-overflow-hint" });
-    statusHint.setText("Applies in Status color mode");
-    checkRow("Color known", () => this.plugin.settings.showKnownColor, async (v) => {
-      this.plugin.settings.showKnownColor = v;
-      await this.plugin.saveSettings();
-    });
-    checkRow("Color partial", () => this.plugin.settings.showPartialColor, async (v) => {
-      this.plugin.settings.showPartialColor = v;
-      await this.plugin.saveSettings();
-    });
-    checkRow("Color unknown", () => this.plugin.settings.showUnknownColor, async (v) => {
-      this.plugin.settings.showUnknownColor = v;
-      await this.plugin.saveSettings();
-    });
+    const hint = menu.createDiv({ cls: "cci-overflow-hint" });
+    hint.setText(
+      this.plugin.settings.colorMode === "hsk"
+        ? "Show / hide HSK levels"
+        : "Show / hide status colors"
+    );
+    if (this.plugin.settings.colorMode === "hsk") {
+      const levels: Array<keyof typeof this.plugin.settings.showHskColors> = [
+        "1", "2", "3", "4", "5", "6", "7",
+      ];
+      for (const lvl of levels) {
+        checkRow(
+          `HSK ${lvl}`,
+          () => this.plugin.settings.showHskColors[lvl],
+          async (v) => {
+            this.plugin.settings.showHskColors[lvl] = v;
+            await this.plugin.saveSettings();
+          }
+        );
+      }
+    } else {
+      checkRow("Color known", () => this.plugin.settings.showKnownColor, async (v) => {
+        this.plugin.settings.showKnownColor = v;
+        await this.plugin.saveSettings();
+      });
+      checkRow("Color partial", () => this.plugin.settings.showPartialColor, async (v) => {
+        this.plugin.settings.showPartialColor = v;
+        await this.plugin.saveSettings();
+      });
+      checkRow("Color unknown", () => this.plugin.settings.showUnknownColor, async (v) => {
+        this.plugin.settings.showUnknownColor = v;
+        await this.plugin.saveSettings();
+      });
+      checkRow("Color new (untracked)", () => this.plugin.settings.showNewColor, async (v) => {
+        this.plugin.settings.showNewColor = v;
+        await this.plugin.saveSettings();
+      });
+    }
+
+    const sep0 = menu.createDiv({ cls: "cci-overflow-sep" });
+    sep0.setAttr("role", "separator");
+
     checkRow("Known-word popups", () => this.plugin.settings.knownWordPopups, async (v) => {
       this.plugin.settings.knownWordPopups = v;
       await this.plugin.saveSettings();

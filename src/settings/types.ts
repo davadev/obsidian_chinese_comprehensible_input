@@ -129,10 +129,28 @@ export interface CciSettings {
   showKnownColor: boolean;
   showPartialColor: boolean;
   showUnknownColor: boolean;
+  /** Show the "new" (untracked) word tint in status mode. */
+  showNewColor: boolean;
+  /** Per-HSK-level visibility. Honoured only when colorMode === "hsk". */
+  showHskColors: {
+    "1": boolean;
+    "2": boolean;
+    "3": boolean;
+    "4": boolean;
+    "5": boolean;
+    "6": boolean;
+    "7": boolean;
+  };
   /** Pick which color scheme the reader and stats use. */
   colorMode: ColorMode;
   /** User-customizable colors per status bucket and HSK level. */
   customColors: CustomColors;
+  /**
+   * Marker bumped whenever the user explicitly resets HSK colors or on
+   * very first install. When unset, the plugin populates the HSK palette
+   * from the active Obsidian accent color on next load.
+   */
+  hskColorsDerivedFromAccent?: boolean;
   pinyinStyle: PinyinStyle;
   hskSource: HskSource;
   tokenizerEngine: TokenizerEngine;

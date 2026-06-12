@@ -85,10 +85,37 @@
   border-color: var(--interactive-accent);
 }
 
-/* Color-mode toggle in active (HSK) state uses a softer accent so it's
-   distinguishable from the marking-mode active buttons. */
-.cci-toolbar .cci-icon-btn[data-color-mode="hsk"].is-active {
-  background: color-mix(in srgb, var(--interactive-accent) 70%, transparent);
+/* Segmented color-mode switch: two pills, the active one tinted with the
+   Obsidian accent. Keeps both labels visible so the toggle is self-
+   describing. */
+.cci-toolbar .cci-color-mode-switch {
+  display: inline-flex;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  overflow: hidden;
+  height: 32px;
+  margin: 0 0.15rem;
+}
+.cci-toolbar .cci-color-mode-pill {
+  border: none;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  padding: 0 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+.cci-toolbar .cci-color-mode-pill + .cci-color-mode-pill {
+  border-left: 1px solid var(--background-modifier-border);
+}
+.cci-toolbar .cci-color-mode-pill:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-toolbar .cci-color-mode-pill.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
 .cci-overflow-hint {

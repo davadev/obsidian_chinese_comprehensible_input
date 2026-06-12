@@ -3,6 +3,7 @@ import type CciPlugin from "../main";
 import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 import { renderStatusPriorityList } from "./StatusPriorityList";
 import { DEFAULT_CUSTOM_COLORS, DEFAULT_STATUS_PRIORITY } from "./defaults";
+import { deriveHskColorsFromAccent } from "../ui/colorTheme";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
 
@@ -222,18 +223,28 @@ export class CciSettingsTab extends PluginSettingTab {
       t.setValue(this.plugin.settings.showKnownColor).onChange(async (v) => {
         this.plugin.settings.showKnownColor = v;
         await this.plugin.saveSettings();
+        this.plugin.refreshChineseViews();
       })
     );
     new Setting(c).setName("Color partial words").addToggle((t) =>
       t.setValue(this.plugin.settings.showPartialColor).onChange(async (v) => {
         this.plugin.settings.showPartialColor = v;
         await this.plugin.saveSettings();
+        this.plugin.refreshChineseViews();
       })
     );
     new Setting(c).setName("Color unknown words").addToggle((t) =>
       t.setValue(this.plugin.settings.showUnknownColor).onChange(async (v) => {
         this.plugin.settings.showUnknownColor = v;
         await this.plugin.saveSettings();
+        this.plugin.refreshChineseViews();
+      })
+    );
+    new Setting(c).setName("Color new (untracked) words").addToggle((t) =>
+      t.setValue(this.plugin.settings.showNewColor).onChange(async (v) => {
+        this.plugin.settings.showNewColor = v;
+        await this.plugin.saveSettings();
+        this.plugin.refreshChineseViews();
       })
     );
   }
@@ -263,11 +274,23 @@ export class CciSettingsTab extends PluginSettingTab {
     c.createEl("h4", { text: "HSK level colors" });
     c.createEl("p", {
       cls: "cci-settings-section-desc",
-      text: "Used when Color mode is set to HSK. Words without an HSK level stay uncolored.",
+      text:
+        "Used when Color mode is set to HSK. Defaults are derived from your Obsidian accent color (HSK 1 lightest, HSK 7 darkest). " +
+        "Each level has a color picker AND a visibility toggle.",
     });
     for (const level of ["1", "2", "3", "4", "5", "6", "7"] as const) {
       new Setting(c)
         .setName(`HSK ${level}`)
+        .addToggle((t) =>
+          t
+            .setValue(this.plugin.settings.showHskColors[level])
+            .onChange(async (v) => {
+              this.plugin.settings.showHskColors[level] = v;
+              await this.plugin.saveSettings();
+              this.plugin.refreshChineseViews();
+              this.plugin.refreshStatsViews();
+            })
+        )
         .addColorPicker((p) =>
           p
             .setValue(this.plugin.settings.customColors.hsk[level])
@@ -281,10 +304,31 @@ export class CciSettingsTab extends PluginSettingTab {
     }
 
     new Setting(c)
-      .setName("Reset all colors to defaults")
+      .setName("Reset HSK colors to accent gradient")
+      .setDesc(
+        "Re-derive HSK 1–7 from your current Obsidian accent color (light → dark)."
+      )
       .addButton((b) =>
-        b.setButtonText("Reset").onClick(async () => {
-          this.plugin.settings.customColors = { ...DEFAULT_CUSTOM_COLORS, hsk: { ...DEFAULT_CUSTOM_COLORS.hsk } };
+        b.setButtonText("Reset HSK").onClick(async () => {
+          this.plugin.settings.customColors.hsk = deriveHskColorsFromAccent();
+          this.plugin.settings.hskColorsDerivedFromAccent = true;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+          this.plugin.refreshStatsViews();
+          this.display();
+        })
+      );
+
+    new Setting(c)
+      .setName("Reset all colors to defaults")
+      .setDesc("Reset status colors AND HSK colors. HSK re-derives from the accent.")
+      .addButton((b) =>
+        b.setButtonText("Reset all").onClick(async () => {
+          this.plugin.settings.customColors = {
+            ...DEFAULT_CUSTOM_COLORS,
+            hsk: deriveHskColorsFromAccent(),
+          };
+          this.plugin.settings.hskColorsDerivedFromAccent = true;
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
           this.plugin.refreshStatsViews();

@@ -167,7 +167,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // is applied — characters stay editable.
         const mode = editMode ? "none" : settings.defaultDisplayMode;
 
-        const showColor = colorShouldShow(statusColor, settings, settings.colorMode);
+        const showColor = colorShouldShow(colorKey, settings);
 
         const wantsRuby =
           (mode === "two-line" || mode === "three-line") && statusColor !== "known";
@@ -192,7 +192,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           return;
         }
 
-        if (showColor || mode === "none") {
+        if (showColor) {
           builder.add(
             tok.start,
             tok.end,
@@ -338,19 +338,31 @@ class RubyWidget extends WidgetType {
   }
 }
 
-function colorShouldShow(
-  color: ColorState,
-  settings: CciSettings,
-  mode: CciSettings["colorMode"]
-): boolean {
-  // In HSK mode the per-bucket show toggles are irrelevant — coloring is
-  // driven by HSK level, and `hsk-none` already renders transparent.
-  if (mode === "hsk") return true;
-  if (color === "known") return settings.showKnownColor;
-  if (color === "partial") return settings.showPartialColor;
-  if (color === "unknown") return settings.showUnknownColor;
-  if (color === "new") return true;
-  return false;
+function colorShouldShow(key: ColorClassKey, settings: CciSettings): boolean {
+  switch (key) {
+    case "known":
+      return settings.showKnownColor;
+    case "partial":
+      return settings.showPartialColor;
+    case "unknown":
+      return settings.showUnknownColor;
+    case "new":
+      return settings.showNewColor;
+    case "ignored":
+      return false;
+    case "hsk-none":
+      return false;
+    case "hsk-1":
+    case "hsk-2":
+    case "hsk-3":
+    case "hsk-4":
+    case "hsk-5":
+    case "hsk-6":
+    case "hsk-7": {
+      const level = key.slice(4) as keyof CciSettings["showHskColors"];
+      return settings.showHskColors[level];
+    }
+  }
 }
 
 function formatPinyin(p: string, style: CciSettings["pinyinStyle"]): string {

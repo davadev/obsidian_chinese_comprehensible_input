@@ -50,6 +50,8 @@ export const DEFAULT_SETTINGS: CciSettings = {
   showKnownColor: false,
   showPartialColor: true,
   showUnknownColor: true,
+  showNewColor: true,
+  showHskColors: { "1": true, "2": true, "3": true, "4": true, "5": true, "6": true, "7": true },
   colorMode: "status",
   customColors: DEFAULT_CUSTOM_COLORS,
   pinyinStyle: "marks",
