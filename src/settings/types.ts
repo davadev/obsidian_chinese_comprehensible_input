@@ -1,8 +1,30 @@
+import { WordStatus } from "../vocabulary/VocabularyTypes";
+
 export type DisplayMode = "two-line" | "three-line" | "popup-only" | "color-only";
 export type ViewMode = "read" | "edit" | "mark-known" | "mark-unknown" | "mark-partial";
 export type PinyinStyle = "marks" | "numbers" | "none";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
 export type HskSource = "2.0" | "3.0" | "both";
+
+export interface SyncSettings {
+  /**
+   * When on, the plugin keeps a vault-side JSON mirror of the vocabulary
+   * store at `mirrorPath`. The mirror lives outside `.obsidian/` so the
+   * remotely-save plugin syncs it without "sync config dir" enabled. On
+   * load and on external `modify` events the mirror is merged back into
+   * the in-memory store using `mergeForSync` (idempotent).
+   */
+  mirrorEnabled: boolean;
+  mirrorPath: string;
+  /**
+   * User-ordered priority list used by `resolveStatus` when two devices
+   * have set different statuses on the same word. Earlier in the list =
+   * wins. The hardcoded "new always loses" rule runs first, so `new`'s
+   * position here only matters in the (never-actually-reached) case where
+   * both sides are `new`.
+   */
+  statusPriority: WordStatus[];
+}
 
 export interface AiSettings {
   enabled: boolean;
@@ -98,6 +120,7 @@ export interface CciSettings {
   srs: SrsSettings;
   ai: AiSettings;
   story: StorySettings;
+  sync: SyncSettings;
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
   densityCapPercent: number;

@@ -1,6 +1,10 @@
 import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type CciPlugin from "../main";
 import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
+import { renderStatusPriorityList } from "./StatusPriorityList";
+import { DEFAULT_STATUS_PRIORITY } from "./defaults";
+import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
+import { WordStatus } from "../vocabulary/VocabularyTypes";
 
 export class CciSettingsTab extends PluginSettingTab {
   constructor(app: App, private plugin: CciPlugin) {
@@ -13,15 +17,15 @@ export class CciSettingsTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: "Chinese Comprehensible Input" });
 
     this.renderDataManagement(containerEl);
-    this.renderDictionary(containerEl);
     this.renderDisplay(containerEl);
-    this.renderColors(containerEl);
     this.renderTokenizer(containerEl);
     this.renderExposure(containerEl);
     this.renderSrs(containerEl);
     this.renderAi(containerEl);
     this.renderStory(containerEl);
+    this.renderDictionary(containerEl);
     this.renderData(containerEl);
+    this.renderSync(containerEl);
     this.renderAbout(containerEl);
   }
 
@@ -193,10 +197,7 @@ export class CciSettingsTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         })
       );
-  }
 
-  private renderColors(c: HTMLElement) {
-    c.createEl("h3", { text: "Colors" });
     new Setting(c).setName("Color known words").addToggle((t) =>
       t.setValue(this.plugin.settings.showKnownColor).onChange(async (v) => {
         this.plugin.settings.showKnownColor = v;
@@ -693,6 +694,101 @@ export class CciSettingsTab extends PluginSettingTab {
             await this.plugin.vocab.resetAll();
             new Notice("Plugin data reset.");
           }
+        })
+      );
+  }
+
+  private renderSync(c: HTMLElement) {
+    c.createEl("h3", { text: "Sync (remotely-save)" });
+    c.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text:
+        "Write a vault-side JSON mirror of your vocabulary so the remotely-save " +
+        "plugin syncs it between devices without enabling its \"sync config dir\" " +
+        "toggle. Each device merges incoming changes idempotently — no double-counted " +
+        "exposures, and \"new\" never overrides a classified status.",
+    });
+
+    new Setting(c)
+      .setName("Mirror vocabulary to a vault file")
+      .setDesc(
+        "When on, the plugin writes a copy of your vocabulary to the path below on every save and merges the file back in when remotely-save pulls a remote update."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.sync.mirrorEnabled).onChange(async (v) => {
+          this.plugin.settings.sync.mirrorEnabled = v;
+          await this.plugin.saveSettings();
+          if (v) await this.plugin.refreshSyncMirror();
+        })
+      );
+
+    new Setting(c)
+      .setName("Mirror file path")
+      .setDesc(
+        `Default: ${VOCAB_MIRROR_PATH_DEFAULT}. Must be a regular vault path (not under .obsidian/) so remotely-save picks it up.`
+      )
+      .addText((t) =>
+        t
+          .setPlaceholder(VOCAB_MIRROR_PATH_DEFAULT)
+          .setValue(this.plugin.settings.sync.mirrorPath)
+          .onChange(async (v) => {
+            const trimmed = v.trim();
+            this.plugin.settings.sync.mirrorPath = trimmed || VOCAB_MIRROR_PATH_DEFAULT;
+            await this.plugin.saveSettings();
+            if (this.plugin.settings.sync.mirrorEnabled) {
+              await this.plugin.refreshSyncMirror();
+            }
+          })
+      );
+
+    c.createEl("h4", { text: "Conflict resolution priority" });
+    c.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text:
+        "When two devices set different statuses on the same word, the status higher in this list wins — overriding the timestamp. " +
+        "\"New\" always loses to any classified status (hardcoded). Drag rows or use the arrow buttons to reorder.",
+    });
+
+    const listHost = c.createDiv();
+    renderStatusPriorityList(listHost, {
+      values: this.plugin.settings.sync.statusPriority,
+      onChange: async (next) => {
+        this.plugin.settings.sync.statusPriority = next;
+        await this.plugin.saveSettings();
+      },
+    });
+
+    new Setting(c)
+      .setName("Reset priority list to default")
+      .addButton((b) =>
+        b.setButtonText("Reset").onClick(async () => {
+          this.plugin.settings.sync.statusPriority = [...DEFAULT_STATUS_PRIORITY];
+          await this.plugin.saveSettings();
+          renderStatusPriorityList(listHost, {
+            values: this.plugin.settings.sync.statusPriority,
+            onChange: async (next: WordStatus[]) => {
+              this.plugin.settings.sync.statusPriority = next;
+              await this.plugin.saveSettings();
+            },
+          });
+        })
+      );
+
+    new Setting(c)
+      .setName("Force re-sync now")
+      .setDesc(
+        "Re-read the mirror file, merge any pending changes (including remotely-save conflict files), and write the result back."
+      )
+      .addButton((b) =>
+        b.setButtonText("Re-sync").onClick(async () => {
+          if (!this.plugin.settings.sync.mirrorEnabled) {
+            new Notice("Mirror is off — enable it first.");
+            return;
+          }
+          await this.plugin.vocab.reloadMirror();
+          this.plugin.refreshChineseViews();
+          this.plugin.refreshStatsViews();
+          new Notice("Vocabulary mirror re-synced.");
         })
       );
   }

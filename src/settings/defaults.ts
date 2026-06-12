@@ -1,5 +1,25 @@
 import { CciSettings } from "./types";
-import { DATA_SCHEMA_VERSION, GENERATED_NOTES_FOLDER_DEFAULT } from "../constants";
+import {
+  DATA_SCHEMA_VERSION,
+  GENERATED_NOTES_FOLDER_DEFAULT,
+  VOCAB_MIRROR_PATH_DEFAULT,
+} from "../constants";
+import { WordStatus } from "../vocabulary/VocabularyTypes";
+
+/**
+ * Default conflict-resolution priority for two-device sync. Mirrors the
+ * existing `pickWinningStatus` rank in VocabularyStore so behaviour stays
+ * consistent with `importJson` until the user reorders it.
+ */
+export const DEFAULT_STATUS_PRIORITY: WordStatus[] = [
+  "ignored",
+  "known",
+  "meaningKnownPinyinUnknown",
+  "pinyinKnownMeaningUnknown",
+  "charactersUnknown",
+  "unknown",
+  "new",
+];
 
 export const DEFAULT_SETTINGS: CciSettings = {
   schemaVersion: DATA_SCHEMA_VERSION,
@@ -52,6 +72,11 @@ export const DEFAULT_SETTINGS: CciSettings = {
     includeGlossary: true,
     sendKnownWords: false,
     knownWordsSamplePercent: 30,
+  },
+  sync: {
+    mirrorEnabled: false,
+    mirrorPath: VOCAB_MIRROR_PATH_DEFAULT,
+    statusPriority: DEFAULT_STATUS_PRIORITY,
   },
   exactTimestampRetentionLimit: 500,
   storeAllExactTimestamps: false,

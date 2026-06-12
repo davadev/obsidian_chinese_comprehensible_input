@@ -6,28 +6,152 @@ import { HSK_MAP, HSK_SOURCE } from "../dictionary/hskMap.generated";
 import { migrateVocab } from "./migrations";
 import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
 import { axesFromStatus, statusFromAxes } from "./axes";
+import { mergeStoresForSync } from "./syncMerge";
+import { CciSettings } from "../settings/types";
 
 /**
  * Vocabulary store backed by Obsidian plugin data via loadData/saveData.
  * Writes are debounced. Schema migrations run on load.
+ *
+ * When `settings.sync.mirrorEnabled` is on, the same blob is additionally
+ * written to a vault-side JSON file at `settings.sync.mirrorPath`. That
+ * file lives outside `.obsidian/` so the remotely-save plugin syncs it
+ * without "sync config dir" enabled. External changes to the mirror (sync
+ * pulls in remote work) are merged back in via `mergeMirrorContent`, called
+ * from main.ts' vault `'modify'` watcher.
  */
 export class VocabularyStore {
   private data: PersistedVocabData = { schemaVersion: DATA_SCHEMA_VERSION, words: {} };
   private loaded = false;
   private saveTimer: number | null = null;
+  /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
+  private lastMirrorHash: string | null = null;
 
   constructor(
     private plugin: Plugin,
     private dict: DictionaryService,
+    private getSettings: () => CciSettings,
     /** Key used inside the combined plugin data blob to namespace vocabulary data. */
     private namespace = "vocab"
   ) {}
+
+  /** Path the mirror should live at, or null if mirroring is off. */
+  mirrorPath(): string | null {
+    const sync = this.getSettings().sync;
+    if (!sync?.mirrorEnabled) return null;
+    return sync.mirrorPath || null;
+  }
 
   async load(initialBlob: any): Promise<void> {
     const raw = initialBlob?.[this.namespace];
     this.data = migrateVocab(raw);
     this.loaded = true;
     this.dedupeOnLoad();
+    await this.mergeMirrorOnLoad();
+  }
+
+  /**
+   * If the vault mirror is enabled and present on disk, merge it into the
+   * in-memory store using `mergeForSync` and persist the result. Also
+   * scans the mirror's folder for `*.conflict-*.json` siblings written by
+   * remotely-save, merges and removes each.
+   */
+  /** Public entry point for re-running the load-time mirror sweep. */
+  async reloadMirror(): Promise<void> {
+    return this.mergeMirrorOnLoad();
+  }
+
+  private async mergeMirrorOnLoad(): Promise<void> {
+    const path = this.mirrorPath();
+    if (!path) return;
+    const adapter = this.plugin.app.vault.adapter;
+    try {
+      if (await adapter.exists(path)) {
+        const content = await adapter.read(path);
+        this.mergeMirrorContent(content);
+        this.lastMirrorHash = await hashString(content);
+      }
+      await this.sweepConflictFiles(path);
+    } catch (e) {
+      console.error("CCI sync: mirror load failed", e);
+    }
+    if (this.loaded) await this.flushSave();
+  }
+
+  private async sweepConflictFiles(mirrorPath: string): Promise<void> {
+    const adapter = this.plugin.app.vault.adapter;
+    const slash = mirrorPath.lastIndexOf("/");
+    const folder = slash >= 0 ? mirrorPath.slice(0, slash) : "";
+    const baseFull = slash >= 0 ? mirrorPath.slice(slash + 1) : mirrorPath;
+    const base = baseFull.replace(/\.json$/i, "");
+    let listing;
+    try {
+      listing = await adapter.list(folder || "/");
+    } catch {
+      return;
+    }
+    for (const filePath of listing.files ?? []) {
+      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      if (filePath === mirrorPath) continue;
+      // remotely-save names conflicts like "vocabulary.conflict-2026-06-12.json"
+      // or "vocabulary.<host>.conflict.json"; match anything that starts with
+      // the base name and contains "conflict".
+      if (!name.startsWith(base) || !/conflict/i.test(name)) continue;
+      if (!name.toLowerCase().endsWith(".json")) continue;
+      try {
+        const c = await adapter.read(filePath);
+        this.mergeMirrorContent(c);
+        await adapter.remove(filePath);
+      } catch (e) {
+        console.warn("CCI sync: failed to absorb conflict file", filePath, e);
+      }
+    }
+  }
+
+  /**
+   * Apply a mirror JSON blob (as raw string) to the in-memory store. Used by
+   * load-time merge and by main.ts' vault `'modify'` watcher when remotely-
+   * save pulls in a newer remote version. Idempotent: harmless to re-apply
+   * the same content.
+   */
+  mergeMirrorContent(content: string): boolean {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      console.warn("CCI sync: mirror file is not valid JSON", e);
+      return false;
+    }
+    const remote = migrateVocab(parsed);
+    const settings = this.getSettings();
+    const merged = mergeStoresForSync(this.data, remote, {
+      statusPriority: settings.sync.statusPriority,
+      recentSeenAtCap: settings.storeAllExactTimestamps
+        ? undefined
+        : settings.exactTimestampRetentionLimit,
+    });
+    this.data = merged;
+    return true;
+  }
+
+  /**
+   * Called by main.ts after the vault watcher fires for the mirror path.
+   * Returns true iff the file content differs from what we last wrote
+   * (i.e. this is a genuine external change, not our own echoing write).
+   */
+  async absorbExternalMirrorChange(): Promise<boolean> {
+    const path = this.mirrorPath();
+    if (!path) return false;
+    const adapter = this.plugin.app.vault.adapter;
+    if (!(await adapter.exists(path))) return false;
+    const content = await adapter.read(path);
+    const hash = await hashString(content);
+    if (hash === this.lastMirrorHash) return false;
+    const ok = this.mergeMirrorContent(content);
+    if (!ok) return false;
+    this.lastMirrorHash = hash;
+    await this.flushSave();
+    return true;
   }
 
   /**
@@ -331,6 +455,43 @@ export class VocabularyStore {
     const blob = (await this.plugin.loadData()) ?? {};
     blob[this.namespace] = this.data;
     await this.plugin.saveData(blob);
+    await this.writeMirror();
+  }
+
+  private async writeMirror(): Promise<void> {
+    const path = this.mirrorPath();
+    if (!path) return;
+    try {
+      await ensureFolderForFile(this.plugin, path);
+      const content = JSON.stringify(this.data, null, 2);
+      await this.plugin.app.vault.adapter.write(path, content);
+      this.lastMirrorHash = await hashString(content);
+    } catch (e) {
+      console.error("CCI sync: mirror write failed", e);
+    }
+  }
+}
+
+/**
+ * Stable-but-fast hash for change-detection on the mirror file. Not
+ * cryptographic — just used to ignore our own write events. Uses SubtleCrypto
+ * (always present in Obsidian's Electron runtime).
+ */
+async function hashString(s: string): Promise<string> {
+  const buf = new TextEncoder().encode(s);
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function ensureFolderForFile(plugin: Plugin, filePath: string): Promise<void> {
+  const slash = filePath.lastIndexOf("/");
+  if (slash <= 0) return;
+  const folder = filePath.slice(0, slash);
+  const adapter = plugin.app.vault.adapter;
+  if (!(await adapter.exists(folder))) {
+    await adapter.mkdir(folder);
   }
 }
 

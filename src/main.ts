@@ -1,4 +1,4 @@
-import { addIcon, MarkdownView, Notice, Plugin, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, MarkdownView, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
@@ -48,8 +48,9 @@ export default class CciPlugin extends Plugin {
 
     this.dictionary = new DictionaryService(this.app);
     this.dictDownloader = new DictionaryDownloader(this.app);
-    this.vocab = new VocabularyStore(this, this.dictionary);
+    this.vocab = new VocabularyStore(this, this.dictionary, () => this.settings);
     await this.vocab.load(blob);
+    this.registerSyncMirrorWatchers();
 
     this.tokenizer = new TokenizerService(this.dictionary, {
       hasRecord: (s) => !!this.vocab.bySurface(s),
@@ -142,6 +143,68 @@ export default class CciPlugin extends Plugin {
     const blob = (await this.loadData()) ?? {};
     blob.settings = this.settings;
     await this.saveData(blob);
+  }
+
+  /**
+   * Called by the Settings tab after the user flips the vocabulary mirror
+   * toggle on (or changes the path). Forces a save so the mirror file
+   * appears immediately, then absorbs any existing mirror at the new path.
+   */
+  async refreshSyncMirror(): Promise<void> {
+    await this.vocab.flushSave();
+    await this.vocab.absorbExternalMirrorChange();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
+  }
+
+  /**
+   * Watch the vault for external changes to the mirror file (remotely-save
+   * pulled a newer remote version) and for conflict files written by
+   * remotely-save. Our own writes are filtered out via the content hash
+   * cached inside VocabularyStore.
+   */
+  private registerSyncMirrorWatchers(): void {
+    const isMirrorPath = (path: string): boolean => {
+      const mirror = this.settings.sync?.mirrorPath;
+      return !!mirror && path === mirror;
+    };
+    const isMirrorConflict = (path: string): boolean => {
+      const mirror = this.settings.sync?.mirrorPath;
+      if (!mirror) return false;
+      const slash = mirror.lastIndexOf("/");
+      const folder = slash >= 0 ? mirror.slice(0, slash) : "";
+      const baseFull = slash >= 0 ? mirror.slice(slash + 1) : mirror;
+      const base = baseFull.replace(/\.json$/i, "");
+      const fileFolderSlash = path.lastIndexOf("/");
+      const fileFolder = fileFolderSlash >= 0 ? path.slice(0, fileFolderSlash) : "";
+      const name = fileFolderSlash >= 0 ? path.slice(fileFolderSlash + 1) : path;
+      return (
+        fileFolder === folder &&
+        name.startsWith(base) &&
+        /conflict/i.test(name) &&
+        name.toLowerCase().endsWith(".json")
+      );
+    };
+    this.registerEvent(
+      this.app.vault.on("modify", async (file: TAbstractFile) => {
+        if (!this.settings.sync?.mirrorEnabled) return;
+        if (!isMirrorPath(file.path)) return;
+        const changed = await this.vocab.absorbExternalMirrorChange();
+        if (changed) {
+          this.refreshChineseViews();
+          this.refreshStatsViews();
+        }
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("create", async (file: TAbstractFile) => {
+        if (!this.settings.sync?.mirrorEnabled) return;
+        if (!isMirrorConflict(file.path)) return;
+        await this.vocab.reloadMirror();
+        this.refreshChineseViews();
+        this.refreshStatsViews();
+      })
+    );
   }
 
   // Commands -----------------------------------------------------------
