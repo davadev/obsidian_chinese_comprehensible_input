@@ -74,6 +74,10 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // `HorizontalRule`, so detect `---` / `***` / `___` lines
           // directly.
           this.scanHr(slice, from, items);
+
+          // Obsidian/extended-markdown `==highlight==` is not parsed by
+          // lang-markdown — handle it with a regex pass like wikilinks.
+          this.scanHighlights(slice, from, excluded, items);
         }
 
         items.sort((a, b) => (a.from - b.from) || (a.to - b.to));
@@ -277,6 +281,32 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
               widget: new EmbedWidget(plugin, target),
             }),
           });
+        }
+      }
+
+      scanHighlights(
+        slice: string,
+        offset: number,
+        excluded: ReturnType<typeof computeExcludedRanges>,
+        items: Array<{ from: number; to: number; deco: Decoration }>
+      ): void {
+        // Match `==text==` with at least one non-whitespace character
+        // inside. Greedy across spaces but stops at newlines and `=`.
+        const re = /==([^=\n]+?)==/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(slice))) {
+          const start = offset + m.index;
+          const end = start + m[0].length;
+          if (isRangeExcluded(excluded, start, end)) continue;
+          const innerStart = start + 2;
+          const innerEnd = end - 2;
+          items.push({ from: start, to: innerStart, deco: HIDE });
+          items.push({
+            from: innerStart,
+            to: innerEnd,
+            deco: Decoration.mark({ class: "cci-md-highlight" }),
+          });
+          items.push({ from: innerEnd, to: end, deco: HIDE });
         }
       }
 
