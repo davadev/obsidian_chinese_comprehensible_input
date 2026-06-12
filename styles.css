@@ -1,5 +1,25 @@
 /* Chinese Comprehensible Input — view styles. Theme-friendly via Obsidian CSS variables. */
 
+/*
+ * Word-color custom properties. JS overrides these on document.body when the
+ * user picks new colors in Settings. Defaults match the historical hardcoded
+ * values so untouched installs look identical.
+ */
+:root {
+  --cci-color-known: #2ea043;
+  --cci-color-partial: #dcb41e;
+  --cci-color-unknown: #dc3c3c;
+  --cci-color-new: #58a6ff;
+  --cci-color-hsk-1: #dc3c3c;
+  --cci-color-hsk-2: #e08c2a;
+  --cci-color-hsk-3: #dcb41e;
+  --cci-color-hsk-4: #2ea043;
+  --cci-color-hsk-5: #3aa0c0;
+  --cci-color-hsk-6: #586bdc;
+  --cci-color-hsk-7: #9c4dc6;
+}
+
+
 .cci-view {
   display: flex;
   flex-direction: column;
@@ -55,10 +75,27 @@
   cursor: pointer;
 }
 
+.cci-toolbar .cci-icon-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
 .cci-toolbar .cci-icon-btn.is-active {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
   border-color: var(--interactive-accent);
+}
+
+/* Color-mode toggle in active (HSK) state uses a softer accent so it's
+   distinguishable from the marking-mode active buttons. */
+.cci-toolbar .cci-icon-btn[data-color-mode="hsk"].is-active {
+  background: color-mix(in srgb, var(--interactive-accent) 70%, transparent);
+}
+
+.cci-overflow-hint {
+  padding: 0.25rem 0.7rem 0.1rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .cci-known-badge {
@@ -223,20 +260,54 @@
 
 /* Three-state color coding: green = known, red = unknown, yellow = partial. */
 .cci-word.cci-color-known {
-  background: rgba(46, 160, 67, 0.16);
-  border-bottom: 1px solid rgba(46, 160, 67, 0.55);
+  background: color-mix(in srgb, var(--cci-color-known) 16%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-known) 55%, transparent);
 }
 .cci-word.cci-color-unknown {
-  background: rgba(220, 60, 60, 0.18);
-  border-bottom: 1px solid rgba(220, 60, 60, 0.65);
+  background: color-mix(in srgb, var(--cci-color-unknown) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-unknown) 65%, transparent);
 }
 .cci-word.cci-color-partial {
-  background: rgba(220, 180, 30, 0.20);
-  border-bottom: 1px solid rgba(220, 180, 30, 0.75);
+  background: color-mix(in srgb, var(--cci-color-partial) 20%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-partial) 75%, transparent);
 }
 .cci-word.cci-color-new {
-  background: rgba(88, 166, 255, 0.10);
-  border-bottom: 1px dotted rgba(88, 166, 255, 0.45);
+  background: color-mix(in srgb, var(--cci-color-new) 10%, transparent);
+  border-bottom: 1px dotted color-mix(in srgb, var(--cci-color-new) 45%, transparent);
+}
+
+/* HSK color mode — one rule per level. `hsk-none` left transparent so
+   unknown-HSK words fade away in HSK mode without a noisy tint. */
+.cci-word.cci-color-hsk-1 {
+  background: color-mix(in srgb, var(--cci-color-hsk-1) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-1) 65%, transparent);
+}
+.cci-word.cci-color-hsk-2 {
+  background: color-mix(in srgb, var(--cci-color-hsk-2) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-2) 65%, transparent);
+}
+.cci-word.cci-color-hsk-3 {
+  background: color-mix(in srgb, var(--cci-color-hsk-3) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-3) 65%, transparent);
+}
+.cci-word.cci-color-hsk-4 {
+  background: color-mix(in srgb, var(--cci-color-hsk-4) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-4) 65%, transparent);
+}
+.cci-word.cci-color-hsk-5 {
+  background: color-mix(in srgb, var(--cci-color-hsk-5) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-5) 65%, transparent);
+}
+.cci-word.cci-color-hsk-6 {
+  background: color-mix(in srgb, var(--cci-color-hsk-6) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-6) 65%, transparent);
+}
+.cci-word.cci-color-hsk-7 {
+  background: color-mix(in srgb, var(--cci-color-hsk-7) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-7) 65%, transparent);
+}
+.cci-word.cci-color-hsk-none {
+  /* no tint — intentional, lets unknown-HSK words recede in HSK mode. */
 }
 .cci-word.cci-color-ignored {
   opacity: 0.7;
@@ -592,10 +663,10 @@
   flex-direction: column;
   gap: 0.2rem;
 }
-.cci-dash-card.cci-color-known   { border-left: 3px solid rgba(46, 160, 67, 0.85); }
-.cci-dash-card.cci-color-partial { border-left: 3px solid rgba(220, 180, 30, 0.85); }
-.cci-dash-card.cci-color-unknown { border-left: 3px solid rgba(220, 60, 60, 0.85); }
-.cci-dash-card.cci-color-new     { border-left: 3px solid rgba(88, 166, 255, 0.55); }
+.cci-dash-card.cci-color-known   { border-left: 3px solid color-mix(in srgb, var(--cci-color-known) 85%, transparent); }
+.cci-dash-card.cci-color-partial { border-left: 3px solid color-mix(in srgb, var(--cci-color-partial) 85%, transparent); }
+.cci-dash-card.cci-color-unknown { border-left: 3px solid color-mix(in srgb, var(--cci-color-unknown) 85%, transparent); }
+.cci-dash-card.cci-color-new     { border-left: 3px solid color-mix(in srgb, var(--cci-color-new) 55%, transparent); }
 .cci-dash-card-label {
   font-size: 0.72rem;
   color: var(--text-muted);
@@ -1042,13 +1113,28 @@
 }
 
 /* Status cell + row tint in Words table */
-.cci-status-cell.cci-color-known   { color: rgba(46, 160, 67, 1); font-weight: 600; }
-.cci-status-cell.cci-color-partial { color: rgba(190, 140, 0, 1);  font-weight: 600; }
-.cci-status-cell.cci-color-unknown { color: rgba(200, 50, 50, 1);  font-weight: 600; }
-.cci-status-cell.cci-color-new     { color: rgba(60, 130, 220, 1); font-weight: 600; }
-.cci-row-color-known   td { background: rgba(46, 160, 67, 0.05); }
-.cci-row-color-partial td { background: rgba(220, 180, 30, 0.06); }
-.cci-row-color-unknown td { background: rgba(220, 60, 60, 0.06); }
+.cci-status-cell.cci-color-known   { color: var(--cci-color-known); font-weight: 600; }
+.cci-status-cell.cci-color-partial { color: var(--cci-color-partial); font-weight: 600; }
+.cci-status-cell.cci-color-unknown { color: var(--cci-color-unknown); font-weight: 600; }
+.cci-status-cell.cci-color-new     { color: var(--cci-color-new); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-1   { color: var(--cci-color-hsk-1); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-2   { color: var(--cci-color-hsk-2); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-3   { color: var(--cci-color-hsk-3); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-4   { color: var(--cci-color-hsk-4); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-5   { color: var(--cci-color-hsk-5); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-6   { color: var(--cci-color-hsk-6); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-7   { color: var(--cci-color-hsk-7); font-weight: 600; }
+
+.cci-row-color-known   td { background: color-mix(in srgb, var(--cci-color-known) 5%, transparent); }
+.cci-row-color-partial td { background: color-mix(in srgb, var(--cci-color-partial) 6%, transparent); }
+.cci-row-color-unknown td { background: color-mix(in srgb, var(--cci-color-unknown) 6%, transparent); }
+.cci-row-color-hsk-1 td { background: color-mix(in srgb, var(--cci-color-hsk-1) 7%, transparent); }
+.cci-row-color-hsk-2 td { background: color-mix(in srgb, var(--cci-color-hsk-2) 7%, transparent); }
+.cci-row-color-hsk-3 td { background: color-mix(in srgb, var(--cci-color-hsk-3) 7%, transparent); }
+.cci-row-color-hsk-4 td { background: color-mix(in srgb, var(--cci-color-hsk-4) 7%, transparent); }
+.cci-row-color-hsk-5 td { background: color-mix(in srgb, var(--cci-color-hsk-5) 7%, transparent); }
+.cci-row-color-hsk-6 td { background: color-mix(in srgb, var(--cci-color-hsk-6) 7%, transparent); }
+.cci-row-color-hsk-7 td { background: color-mix(in srgb, var(--cci-color-hsk-7) 7%, transparent); }
 
 /* Sync — status priority drag-sort list */
 .cci-status-priority-list {

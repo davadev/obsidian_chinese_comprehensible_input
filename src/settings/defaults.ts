@@ -1,10 +1,32 @@
-import { CciSettings } from "./types";
+import { CciSettings, CustomColors } from "./types";
 import {
   DATA_SCHEMA_VERSION,
   GENERATED_NOTES_FOLDER_DEFAULT,
   VOCAB_MIRROR_PATH_DEFAULT,
 } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
+
+/**
+ * Hex defaults match the RGBA values that used to live in styles.css so the
+ * out-of-the-box appearance is unchanged after the var refactor. HSK
+ * defaults follow a rainbow gradient so adjacent levels are easy to tell
+ * apart at a glance.
+ */
+export const DEFAULT_CUSTOM_COLORS: CustomColors = {
+  known: "#2ea043",
+  partial: "#dcb41e",
+  unknown: "#dc3c3c",
+  new: "#58a6ff",
+  hsk: {
+    "1": "#dc3c3c",
+    "2": "#e08c2a",
+    "3": "#dcb41e",
+    "4": "#2ea043",
+    "5": "#3aa0c0",
+    "6": "#586bdc",
+    "7": "#9c4dc6",
+  },
+};
 
 /**
  * Default conflict-resolution priority for two-device sync. Mirrors the
@@ -23,11 +45,13 @@ export const DEFAULT_STATUS_PRIORITY: WordStatus[] = [
 
 export const DEFAULT_SETTINGS: CciSettings = {
   schemaVersion: DATA_SCHEMA_VERSION,
-  defaultDisplayMode: "popup-only",
+  defaultDisplayMode: "none",
   knownWordPopups: false,
   showKnownColor: false,
   showPartialColor: true,
   showUnknownColor: true,
+  colorMode: "status",
+  customColors: DEFAULT_CUSTOM_COLORS,
   pinyinStyle: "marks",
   hskSource: "both",
   tokenizerEngine: "lattice",

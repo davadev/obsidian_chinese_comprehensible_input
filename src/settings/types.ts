@@ -1,6 +1,24 @@
 import { WordStatus } from "../vocabulary/VocabularyTypes";
 
-export type DisplayMode = "two-line" | "three-line" | "popup-only" | "color-only";
+export type DisplayMode = "two-line" | "three-line" | "none";
+export type ColorMode = "status" | "hsk";
+
+export interface CustomColors {
+  /** Hex (e.g. "#2ea043"). Used as the source for color-mix() in styles.css. */
+  known: string;
+  partial: string;
+  unknown: string;
+  new: string;
+  hsk: {
+    "1": string;
+    "2": string;
+    "3": string;
+    "4": string;
+    "5": string;
+    "6": string;
+    "7": string;
+  };
+}
 export type ViewMode = "read" | "edit" | "mark-known" | "mark-unknown" | "mark-partial";
 export type PinyinStyle = "marks" | "numbers" | "none";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
@@ -111,6 +129,10 @@ export interface CciSettings {
   showKnownColor: boolean;
   showPartialColor: boolean;
   showUnknownColor: boolean;
+  /** Pick which color scheme the reader and stats use. */
+  colorMode: ColorMode;
+  /** User-customizable colors per status bucket and HSK level. */
+  customColors: CustomColors;
   pinyinStyle: PinyinStyle;
   hskSource: HskSource;
   tokenizerEngine: TokenizerEngine;

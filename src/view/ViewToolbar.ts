@@ -1,6 +1,6 @@
 import { Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
-import { DisplayMode, ViewMode } from "../settings/types";
+import { ColorMode, DisplayMode, ViewMode } from "../settings/types";
 
 /**
  * Compact toolbar.
@@ -46,12 +46,13 @@ export class ViewToolbar {
     this.modeBtn(row, "x-circle", "Unknown", "mark-unknown");
     this.modeBtn(row, "circle-help", "Partial", "mark-partial");
 
+    this.colorModeBtn(row);
+
     const sel = row.createEl("select", { cls: "cci-display-sel" });
     [
       ["two-line", "2-line"],
       ["three-line", "3-line"],
-      ["popup-only", "Popup"],
-      ["color-only", "Color"],
+      ["none", "None"],
     ].forEach(([v, l]) => {
       const o = sel.createEl("option", { text: l });
       o.value = v;
@@ -64,8 +65,8 @@ export class ViewToolbar {
     });
 
     const overflow = row.createEl("button", {
-      cls: "cci-icon-btn cci-overflow-btn-trigger",
-      attr: { "aria-label": "More" },
+      cls: "clickable-icon cci-icon-btn cci-overflow-btn-trigger",
+      attr: { "aria-label": "More", title: "More" },
     });
     setIcon(overflow, "more-horizontal");
 
@@ -87,7 +88,7 @@ export class ViewToolbar {
 
   private modeBtn(parent: HTMLElement, icon: string, label: string, mode: ViewMode) {
     const b = parent.createEl("button", {
-      cls: "cci-icon-btn",
+      cls: "clickable-icon cci-icon-btn",
       attr: { "aria-label": label, title: label, "data-mode": mode },
     });
     setIcon(b, icon);
@@ -96,6 +97,33 @@ export class ViewToolbar {
       const cur = this.plugin.activeViewMode();
       this.plugin.setActiveViewMode(cur === mode ? "read" : mode);
       this.refresh();
+    });
+  }
+
+  private colorModeBtn(parent: HTMLElement): void {
+    const labelFor = (m: ColorMode) =>
+      m === "hsk"
+        ? "Color mode: by HSK level (tap for status)"
+        : "Color mode: by status (tap for HSK)";
+    const b = parent.createEl("button", {
+      cls: "clickable-icon cci-icon-btn",
+      attr: {
+        "aria-label": labelFor(this.plugin.settings.colorMode),
+        title: labelFor(this.plugin.settings.colorMode),
+        "data-color-mode": this.plugin.settings.colorMode,
+      },
+    });
+    setIcon(b, "palette");
+    if (this.plugin.settings.colorMode === "hsk") b.addClass("is-active");
+    b.addEventListener("click", async () => {
+      const next: ColorMode = this.plugin.settings.colorMode === "hsk" ? "status" : "hsk";
+      this.plugin.settings.colorMode = next;
+      await this.plugin.saveSettings();
+      b.setAttribute("data-color-mode", next);
+      b.setAttribute("aria-label", labelFor(next));
+      b.setAttribute("title", labelFor(next));
+      b.toggleClass("is-active", next === "hsk");
+      this.onChange();
     });
   }
 
@@ -196,6 +224,8 @@ export class ViewToolbar {
       });
     };
 
+    const statusHint = menu.createDiv({ cls: "cci-overflow-hint" });
+    statusHint.setText("Applies in Status color mode");
     checkRow("Color known", () => this.plugin.settings.showKnownColor, async (v) => {
       this.plugin.settings.showKnownColor = v;
       await this.plugin.saveSettings();

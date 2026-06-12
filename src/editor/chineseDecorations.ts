@@ -10,7 +10,7 @@ import { getCachedTokens, hashText } from "../tokenizer/tokenCache";
 import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { CciSettings, DisplayMode } from "../settings/types";
 import { hasCjk, shortenDefinition } from "../dictionary/normalizeChinese";
-import { axesFromStatus, colorOf } from "../vocabulary/axes";
+import { axesFromStatus, colorClassKey, ColorClassKey, colorOf } from "../vocabulary/axes";
 
 /**
  * Symbol passed via ViewPlugin's compartment-side facet to share the plugin instance.
@@ -156,41 +156,51 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         headingLevel: number
       ) {
         const rec = plugin.vocab.bySurface(tok.surface);
-        const color: ColorState = colorOf(rec);
-        if (color === "ignored") return;
+        const statusColor: ColorState = colorOf(rec);
+        if (statusColor === "ignored") return;
+
+        const colorKey = colorClassKey(rec, settings.colorMode, settings.hskSource);
 
         const editMode = plugin.activeViewMode() === "edit";
         // In edit mode we must NOT replace text with widgets; otherwise typing
-        // and cursor placement break. Apply only a plain mark decoration so
-        // the colour highlight remains but characters stay editable.
-        const mode = editMode ? "popup-only" : settings.defaultDisplayMode;
+        // and cursor placement break. Force "none" so only a mark decoration
+        // is applied — characters stay editable.
+        const mode = editMode ? "none" : settings.defaultDisplayMode;
 
-        const showColor = colorShouldShow(color, settings);
+        const showColor = colorShouldShow(statusColor, settings, settings.colorMode);
 
         const wantsRuby =
-          (mode === "two-line" || mode === "three-line") && color !== "known";
+          (mode === "two-line" || mode === "three-line") && statusColor !== "known";
 
         if (wantsRuby) {
           builder.add(
             tok.start,
             tok.end,
             Decoration.replace({
-              widget: new RubyWidget(tok.surface, tok, rec, mode, settings, headingLevel),
+              widget: new RubyWidget(
+                tok.surface,
+                tok,
+                rec,
+                mode,
+                settings,
+                headingLevel,
+                colorKey
+              ),
               inclusive: false,
             })
           );
           return;
         }
 
-        if (showColor || mode === "popup-only" || mode === "color-only") {
+        if (showColor || mode === "none") {
           builder.add(
             tok.start,
             tok.end,
             Decoration.mark({
-              class: `cci-word cci-color-${color}`,
+              class: `cci-word cci-color-${colorKey}`,
               attributes: {
                 "data-cci-surface": tok.surface,
-                "data-cci-color": color,
+                "data-cci-color": colorKey,
               },
             })
           );
@@ -214,6 +224,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
  */
 class RubyWidget extends WidgetType {
   private readonly color: ColorState;
+  private readonly colorKey: ColorClassKey;
   private readonly axes: KnownAxes;
   private readonly pinyin: string;
   private readonly def: string;
@@ -226,10 +237,12 @@ class RubyWidget extends WidgetType {
     rec: WordRecord | undefined,
     private mode: DisplayMode,
     private settings: CciSettings,
-    private headingLevel: number = 0
+    private headingLevel: number = 0,
+    colorKey?: ColorClassKey
   ) {
     super();
     this.color = colorOf(rec);
+    this.colorKey = colorKey ?? this.color;
     this.axes = rec?.axes ?? axesFromStatus(rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
     const isNew = !rec || rec.status === "new";
     this.pinyin = tok.selected?.pinyin ?? rec?.pinyin ?? "";
@@ -245,6 +258,7 @@ class RubyWidget extends WidgetType {
       other.surface === this.surface &&
       other.mode === this.mode &&
       other.color === this.color &&
+      other.colorKey === this.colorKey &&
       other.axes.chars === this.axes.chars &&
       other.axes.pinyin === this.axes.pinyin &&
       other.axes.meaning === this.axes.meaning &&
@@ -278,9 +292,9 @@ class RubyWidget extends WidgetType {
      */
     const stack = document.createElement("span");
     const headingCls = this.headingLevel > 0 ? ` cci-stack-h${this.headingLevel}` : "";
-    stack.className = `cci-stack cci-word cci-color-${this.color}${headingCls}`;
+    stack.className = `cci-stack cci-word cci-color-${this.colorKey}${headingCls}`;
     stack.setAttribute("data-cci-surface", this.surface);
-    stack.setAttribute("data-cci-color", this.color);
+    stack.setAttribute("data-cci-color", this.colorKey);
 
     if (this.showGloss && this.def) {
       const g = stack.createSpan({ cls: "cci-stack-gloss" });
@@ -324,7 +338,14 @@ class RubyWidget extends WidgetType {
   }
 }
 
-function colorShouldShow(color: ColorState, settings: CciSettings): boolean {
+function colorShouldShow(
+  color: ColorState,
+  settings: CciSettings,
+  mode: CciSettings["colorMode"]
+): boolean {
+  // In HSK mode the per-bucket show toggles are irrelevant — coloring is
+  // driven by HSK level, and `hsk-none` already renders transparent.
+  if (mode === "hsk") return true;
   if (color === "known") return settings.showKnownColor;
   if (color === "partial") return settings.showPartialColor;
   if (color === "unknown") return settings.showUnknownColor;

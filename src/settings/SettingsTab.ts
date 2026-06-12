@@ -2,7 +2,7 @@ import { App, PluginSettingTab, Setting, Notice } from "obsidian";
 import type CciPlugin from "../main";
 import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 import { renderStatusPriorityList } from "./StatusPriorityList";
-import { DEFAULT_STATUS_PRIORITY } from "./defaults";
+import { DEFAULT_CUSTOM_COLORS, DEFAULT_STATUS_PRIORITY } from "./defaults";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
 
@@ -126,16 +126,34 @@ export class CciSettingsTab extends PluginSettingTab {
     c.createEl("h3", { text: "Display" });
     new Setting(c)
       .setName("Default display mode")
-      .setDesc("How annotations are shown by default in Read mode.")
+      .setDesc(
+        "Controls the inline annotation layout. Color and popup behavior are independent — see the color-mode toggle below."
+      )
       .addDropdown((d) => {
         d.addOption("two-line", "Two-line (pinyin)");
         d.addOption("three-line", "Three-line (pinyin + gloss)");
-        d.addOption("popup-only", "Popup only");
-        d.addOption("color-only", "Color only");
+        d.addOption("none", "None (no inline annotation)");
         d.setValue(this.plugin.settings.defaultDisplayMode);
         d.onChange(async (v) => {
           this.plugin.settings.defaultDisplayMode = v as any;
           await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(c)
+      .setName("Color mode")
+      .setDesc(
+        "Status colors highlight your known / partial / unknown words. HSK level colors highlight words by HSK 1–7."
+      )
+      .addDropdown((d) => {
+        d.addOption("status", "By status (known/partial/unknown)");
+        d.addOption("hsk", "By HSK level (1–7)");
+        d.setValue(this.plugin.settings.colorMode);
+        d.onChange(async (v) => {
+          this.plugin.settings.colorMode = v as any;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+          this.plugin.refreshStatsViews();
         });
       });
 
@@ -198,6 +216,8 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
+    this.renderColorPickers(c);
+
     new Setting(c).setName("Color known words").addToggle((t) =>
       t.setValue(this.plugin.settings.showKnownColor).onChange(async (v) => {
         this.plugin.settings.showKnownColor = v;
@@ -216,6 +236,61 @@ export class CciSettingsTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+  }
+
+  private renderColorPickers(c: HTMLElement) {
+    const bucketLabels: Array<["known" | "partial" | "unknown" | "new", string]> = [
+      ["known", "Known color"],
+      ["partial", "Partial color"],
+      ["unknown", "Unknown color"],
+      ["new", "New (untracked) color"],
+    ];
+    for (const [key, label] of bucketLabels) {
+      new Setting(c)
+        .setName(label)
+        .addColorPicker((p) =>
+          p
+            .setValue(this.plugin.settings.customColors[key])
+            .onChange(async (hex) => {
+              this.plugin.settings.customColors[key] = hex;
+              await this.plugin.saveSettings();
+              this.plugin.refreshChineseViews();
+              this.plugin.refreshStatsViews();
+            })
+        );
+    }
+
+    c.createEl("h4", { text: "HSK level colors" });
+    c.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text: "Used when Color mode is set to HSK. Words without an HSK level stay uncolored.",
+    });
+    for (const level of ["1", "2", "3", "4", "5", "6", "7"] as const) {
+      new Setting(c)
+        .setName(`HSK ${level}`)
+        .addColorPicker((p) =>
+          p
+            .setValue(this.plugin.settings.customColors.hsk[level])
+            .onChange(async (hex) => {
+              this.plugin.settings.customColors.hsk[level] = hex;
+              await this.plugin.saveSettings();
+              this.plugin.refreshChineseViews();
+              this.plugin.refreshStatsViews();
+            })
+        );
+    }
+
+    new Setting(c)
+      .setName("Reset all colors to defaults")
+      .addButton((b) =>
+        b.setButtonText("Reset").onClick(async () => {
+          this.plugin.settings.customColors = { ...DEFAULT_CUSTOM_COLORS, hsk: { ...DEFAULT_CUSTOM_COLORS.hsk } };
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+          this.plugin.refreshStatsViews();
+          this.display();
+        })
+      );
   }
 
   private renderTokenizer(c: HTMLElement) {

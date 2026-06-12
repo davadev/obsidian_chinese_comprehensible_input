@@ -1,4 +1,57 @@
 import { ColorState, KnownAxes, WordRecord, WordStatus } from "./VocabularyTypes";
+import { ColorMode } from "../settings/types";
+
+/**
+ * Class-key suffix used by `cci-color-${key}`. Status keys mirror ColorState;
+ * HSK keys cover levels 1..7 and a `hsk-none` fallback for words missing an
+ * HSK entry (or filtered out by the user's HSK source selection).
+ */
+export type ColorClassKey =
+  | "known"
+  | "partial"
+  | "unknown"
+  | "new"
+  | "ignored"
+  | "hsk-1"
+  | "hsk-2"
+  | "hsk-3"
+  | "hsk-4"
+  | "hsk-5"
+  | "hsk-6"
+  | "hsk-7"
+  | "hsk-none";
+
+type HskSourceFilter = "2.0" | "3.0" | "both";
+
+/**
+ * Mode-aware color resolution. Status mode delegates to `colorOf` (and
+ * therefore preserves the existing show/hide gating elsewhere). HSK mode
+ * walks `rec.hsk.levels` and picks the lowest numeric level (lower HSK =
+ * more common word). Levels above 7 collapse into level 7; missing or
+ * source-mismatched HSK data falls through to `hsk-none`.
+ */
+export function colorClassKey(
+  rec: WordRecord | undefined,
+  mode: ColorMode,
+  hskSource: HskSourceFilter
+): ColorClassKey {
+  if (mode === "status") return colorOf(rec);
+  if (!rec) return "hsk-none";
+  const hsk = rec.hsk;
+  if (!hsk || !hsk.levels || hsk.levels.length === 0) return "hsk-none";
+  if (hskSource !== "both" && hsk.source && hsk.source !== hskSource) {
+    return "hsk-none";
+  }
+  let lowest = Infinity;
+  for (const raw of hsk.levels) {
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    if (n < lowest) lowest = n;
+  }
+  if (!Number.isFinite(lowest)) return "hsk-none";
+  const clamped = Math.min(7, Math.max(1, lowest));
+  return (`hsk-${clamped}` as ColorClassKey);
+}
 
 /** Compute a stable derived status from explicit axes. */
 export function statusFromAxes(axes: KnownAxes): WordStatus {

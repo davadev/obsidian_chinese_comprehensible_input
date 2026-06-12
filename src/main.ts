@@ -1,5 +1,6 @@
 import { addIcon, MarkdownView, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
+import { applyCustomColors } from "./ui/colorTheme";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { DictionaryService } from "./dictionary/DictionaryService";
@@ -45,6 +46,24 @@ export default class CciPlugin extends Plugin {
     // Keep onload light. Load just settings + small services.
     const blob = (await this.loadData()) ?? {};
     this.settings = { ...DEFAULT_SETTINGS, ...((blob.settings as Partial<CciSettings>) ?? {}) };
+    // One-time display-mode migration: popup-only and color-only used to be
+    // separate options but rendered identically (no inline annotation, with
+    // a color tint). Collapse both into "none". Run before applyCustomColors
+    // and before any view picks up the value.
+    const dm = this.settings.defaultDisplayMode as string;
+    if (dm === "popup-only" || dm === "color-only") {
+      this.settings.defaultDisplayMode = "none";
+    }
+    // Merge customColors deeply so older blobs missing hsk subkeys get the defaults.
+    this.settings.customColors = {
+      ...DEFAULT_SETTINGS.customColors,
+      ...(this.settings.customColors ?? {}),
+      hsk: {
+        ...DEFAULT_SETTINGS.customColors.hsk,
+        ...((this.settings.customColors?.hsk as Partial<CciSettings["customColors"]["hsk"]>) ?? {}),
+      },
+    };
+    applyCustomColors(this.settings);
 
     this.dictionary = new DictionaryService(this.app);
     this.dictDownloader = new DictionaryDownloader(this.app);
@@ -143,6 +162,7 @@ export default class CciPlugin extends Plugin {
     const blob = (await this.loadData()) ?? {};
     blob.settings = this.settings;
     await this.saveData(blob);
+    applyCustomColors(this.settings);
   }
 
   /**

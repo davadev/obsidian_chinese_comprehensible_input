@@ -2,7 +2,7 @@ import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
-import { colorOf } from "../vocabulary/axes";
+import { colorClassKey, colorOf } from "../vocabulary/axes";
 import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
 import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
 import { StoryPreview } from "../ai/StoryGenerator";
@@ -990,9 +990,10 @@ export class StatsView extends ItemView {
       head.createEl("th", { text: h })
     );
     const body = table.createEl("tbody");
+    const settings = this.plugin.settings;
     for (const r of records.slice(0, 500)) {
       const tr = body.createEl("tr");
-      const c = colorOf(r);
+      const c = colorClassKey(r, settings.colorMode, settings.hskSource);
       tr.addClass(`cci-row-color-${c}`);
       tr.createEl("td", { text: r.simplified ?? r.surfaces[0] });
       tr.createEl("td", { text: r.pinyin ?? "" });
