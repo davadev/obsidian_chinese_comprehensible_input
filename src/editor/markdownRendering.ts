@@ -148,15 +148,18 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         if (name === "ListMark") {
           // Unordered if the marker is one char of -, *, +. Ordered if
           // it contains a digit. Hide unordered + replace with bullet;
-          // leave ordered numbers alone.
+          // leave ordered numbers alone. Skip the bullet entirely when
+          // the line is a task (`- [c] …`) — the checkbox widget
+          // emitted by scanTasks() will replace the bullet too, so the
+          // checkbox sits flush like in the Things theme.
           const raw = text.slice(node.from, node.to);
-          if (/^[-*+]$/.test(raw)) {
-            items.push({
-              from: node.from,
-              to: node.to,
-              deco: Decoration.replace({ widget: new BulletWidget() }),
-            });
-          }
+          if (!/^[-*+]$/.test(raw)) return;
+          if (isTaskLineAt(text, node.to)) return;
+          items.push({
+            from: node.from,
+            to: node.to,
+            deco: Decoration.replace({ widget: new BulletWidget() }),
+          });
           return;
         }
 
@@ -295,9 +298,11 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         excluded: ReturnType<typeof computeExcludedRanges>,
         items: Array<{ from: number; to: number; deco: Decoration }>
       ): void {
-        // Match `- [c]` / `* [c]` / `+ [c]` at line start. Capture the
-        // leading whitespace + bullet so we can leave that alone (it
-        // is already handled by the ListMark/BulletWidget pass).
+        // Match `- [c]` / `* [c]` / `+ [c]` at line start. Replace the
+        // whole `bullet + space + [c] + space` chunk with just the
+        // checkbox widget so the line looks like the Things theme:
+        // icon flush at the indent, no leading bullet. The leading
+        // whitespace (`(\s{0,3})`) is preserved to keep nested indent.
         const re = /(^|\n)(\s{0,3})([-*+])([ \t]+)\[(.)\][ \t]/g;
         let m: RegExpExecArray | null;
         while ((m = re.exec(slice))) {
@@ -305,19 +310,14 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           if (isRangeExcluded(excluded, matchStart, matchStart + m[0].length)) {
             continue;
           }
-          // `[c]` lives at: matchStart + leadLen + bulletLen + spaceLen
-          const leadLen = m[1].length + m[2].length;
-          const bulletLen = m[3].length;
-          const spaceLen = m[4].length;
-          const bracketFrom = matchStart + leadLen + bulletLen + spaceLen;
-          const bracketTo = bracketFrom + 3; // `[c]`
-          // Hide the single trailing space too so the icon sits right
-          // next to the task text.
-          const trailEnd = bracketTo + 1;
+          const leadLen = m[1].length + m[2].length; // newline + indent
+          const restLen = m[3].length + m[4].length + 3 /* [c] */ + 1 /* trailing space */;
+          const from = matchStart + leadLen;
+          const to = from + restLen;
           const char = m[5];
           items.push({
-            from: bracketFrom,
-            to: trailEnd,
+            from,
+            to,
             deco: Decoration.replace({ widget: new CheckboxWidget(char) }),
           });
         }
@@ -383,6 +383,22 @@ function lineStartAt(text: string, pos: number): number {
   let i = pos;
   while (i > 0 && text[i - 1] !== "\n") i--;
   return i;
+}
+
+/**
+ * After a ListMark `-`, return true if the rest of the line opens with
+ * a task marker `[c] `. Used so the bullet pass can defer to the task
+ * pass and avoid emitting overlapping decorations on the same range.
+ */
+function isTaskLineAt(text: string, posAfterBullet: number): boolean {
+  let i = posAfterBullet;
+  while (i < text.length && (text[i] === " " || text[i] === "\t")) i++;
+  return (
+    text[i] === "[" &&
+    i + 2 < text.length &&
+    text[i + 2] === "]" &&
+    (text[i + 3] === " " || text[i + 3] === "\t")
+  );
 }
 
 const TASK_ICON_MAP: Record<string, string> = {
@@ -494,7 +510,8 @@ class WikilinkWidget extends WidgetType {
     return other.target === this.target && other.alias === this.alias;
   }
   ignoreEvent(): boolean {
-    return false;
+    // True = editor stays out, widget's own listeners handle the click.
+    return true;
   }
 }
 
@@ -524,7 +541,7 @@ class EmbedWidget extends WidgetType {
     return other.target === this.target;
   }
   ignoreEvent(): boolean {
-    return false;
+    return true;
   }
 }
 

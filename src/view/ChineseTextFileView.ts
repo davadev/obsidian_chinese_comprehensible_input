@@ -1,5 +1,5 @@
 import { Notice, TextFileView, WorkspaceLeaf } from "obsidian";
-import { Compartment, EditorState } from "@codemirror/state";
+import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
@@ -341,11 +341,25 @@ export class ChineseTextFileView extends TextFileView {
         markdownLinkClickHandler(this.plugin),
         wordInteractionPlugin(this.plugin),
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) {
-            this.suppressNextSetData = true;
-            this.requestSave();
+          if (!u.docChanged) return;
+          // Only treat USER-originated edits as save triggers. Programmatic
+          // dispatches (clear() before a file load, setViewData applying
+          // new file contents, our own redecorate effects) carry no
+          // userEvent annotation and must not write to disk — otherwise
+          // a file load will save empty content over the new file before
+          // setViewData has had a chance to inject it. That bug surfaced
+          // when wikilink clicks started routing through
+          // openFileInChineseView and overwrote the target file.
+          const userEdit = u.transactions.some(
+            (tr) => typeof tr.annotation === "function" && tr.annotation(Transaction.userEvent)
+          );
+          if (!userEdit) {
             this.toolbar?.refresh();
+            return;
           }
+          this.suppressNextSetData = true;
+          this.requestSave();
+          this.toolbar?.refresh();
         }),
         this.editableComp.of(EditorView.editable.of(this.plugin.activeViewMode() === "edit")),
       ],
