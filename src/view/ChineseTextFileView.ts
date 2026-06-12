@@ -273,8 +273,26 @@ export class ChineseTextFileView extends TextFileView {
             definitions: existing.definitions,
             hskLevel: existing.hsk?.levels?.[0],
           }
-        : {},
+        : { pinyin: this.guessPinyinForSurface(cleaned) },
     }).open();
+  }
+
+  /**
+   * Build a best-effort pinyin pre-fill by looking up each character in
+   * the dictionary and concatenating the top entry's pinyin. The user can
+   * still overwrite the field; this only saves typing for the common case
+   * (proper names whose characters are individually in the dictionary).
+   */
+  private guessPinyinForSurface(surface: string): string {
+    // If the whole surface already resolves to a dictionary entry, use it.
+    const whole = this.plugin.dictionary.lookup(surface)[0];
+    if (whole?.pinyin) return whole.pinyin;
+    const parts: string[] = [];
+    for (const ch of Array.from(surface)) {
+      const entry = this.plugin.dictionary.lookup(ch)[0];
+      if (entry?.pinyin) parts.push(entry.pinyin);
+    }
+    return parts.join(" ");
   }
 
   /**

@@ -133,7 +133,14 @@
   font-style: italic;
 }
 
-/* Edit-dictionary modal — small form layout. */
+/* Edit-dictionary modal — small form layout. Constrain height + scroll
+   so iOS's on-screen keyboard never hides the Save button. dvh tracks
+   the dynamic viewport, shrinking when the keyboard slides in. */
+.cci-edit-dict-modal {
+  max-height: 70dvh;
+  overflow-y: auto;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
 .cci-edit-dict-modal h3 { margin-top: 0; }
 .cci-edit-dict-modal .cci-edit-dict-row {
   display: flex;
