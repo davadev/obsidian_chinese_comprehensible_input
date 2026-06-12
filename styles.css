@@ -133,6 +133,59 @@
   font-style: italic;
 }
 
+/* Hide-syntax markdown rendering inside the Chinese view. Mirrors
+   Obsidian Live Preview look without forking the markdown parser. */
+.cci-view .cm-line.cci-md-quote-line {
+  border-left: 3px solid var(--background-modifier-border-focus, var(--background-modifier-border));
+  padding-left: 0.8em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.cci-view .cci-md-bullet {
+  display: inline-block;
+  min-width: 1em;
+  text-align: center;
+  color: var(--text-muted);
+}
+.cci-view .cci-md-hr {
+  border: 0;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 0.6em 0;
+  height: 0;
+  display: block;
+}
+.cci-view .cci-md-link,
+.cci-view .cci-md-wikilink {
+  color: var(--text-accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+}
+.cci-view .cci-md-link:hover,
+.cci-view .cci-md-wikilink:hover {
+  background: var(--background-modifier-hover);
+  border-radius: 3px;
+}
+.cci-view .cci-md-embed-card {
+  display: inline-block;
+  padding: 1px 0.5em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-secondary);
+  color: var(--text-accent);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.cci-view .cci-md-embed-card:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-view .cci-md-embed-img {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  border-radius: 4px;
+}
+
 .cci-known-badge {
   margin-left: 0.3rem;
   min-width: 44px;

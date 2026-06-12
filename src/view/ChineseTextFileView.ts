@@ -9,6 +9,7 @@ import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
+import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
 
 /**
  * Markdown syntax highlighting tuned for the Chinese reader.
@@ -336,6 +337,8 @@ export class ChineseTextFileView extends TextFileView {
         markdown(),
         syntaxHighlighting(cciMarkdownHighlight),
         buildChineseDecorations(this.plugin),
+        buildMarkdownRendering(this.plugin),
+        markdownLinkClickHandler(this.plugin),
         wordInteractionPlugin(this.plugin),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) {
