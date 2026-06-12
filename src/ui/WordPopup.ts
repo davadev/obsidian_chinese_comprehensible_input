@@ -66,25 +66,30 @@ export class WordPopup {
   private renderInto(el: HTMLElement, rec: WordRecord): void {
     el.empty();
 
+    const dictTop = this.plugin.dictionary.lookup(rec.surfaces[0])[0];
+
     const head = el.createDiv({ cls: "cci-popup-head" });
     head.textContent = rec.simplified ?? rec.surfaces[0];
 
-    if (rec.pinyin) {
+    const displayPinyin = dictTop?.pinyin ?? rec.pinyin;
+    const displayTraditional = dictTop?.traditional ?? rec.traditional;
+
+    if (displayPinyin) {
       const py = el.createDiv({ cls: "cci-popup-pinyin" });
-      py.textContent = rec.pinyin;
+      py.textContent = displayPinyin;
     }
 
-    if (rec.traditional && rec.traditional !== rec.simplified) {
+    if (displayTraditional && displayTraditional !== (rec.simplified ?? rec.surfaces[0])) {
       const tr = el.createDiv({ cls: "cci-popup-meta" });
       tr.createSpan({ text: "Traditional:" });
-      tr.createSpan({ text: rec.traditional });
+      tr.createSpan({ text: displayTraditional });
     }
 
     const defs = el.createDiv({ cls: "cci-popup-defs" });
     if (this.plugin.settings.mnemonicsFirst && rec.mnemonic?.text) {
       defs.createEl("div", { text: `🧠 ${rec.mnemonic.text}` });
     }
-    for (const d of rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
+    for (const d of dictTop?.definitions ?? rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
 
     // Knowledge checkboxes — the primary marking control.
     this.renderAxesCheckboxes(el, rec);
@@ -117,10 +122,9 @@ export class WordPopup {
   private openDictionaryEditor(rec: WordRecord): void {
     const surface = rec.surfaces[0];
     const entries = this.plugin.dictionary.lookup(surface);
+    const raw = this.plugin.dictionary.lookupRaw(surface);
     const custom = this.plugin.dictionaryCustomWords[surface];
     if (custom) {
-      // The popup target is a user-added custom word — open the modal in
-      // custom mode so the user can edit/delete it.
       void import("./EditDictionaryModal").then(({ EditDictionaryModal }) => {
         new EditDictionaryModal(this.plugin.app, this.plugin, {
           mode: "custom",
@@ -139,7 +143,6 @@ export class WordPopup {
     }
     const top = entries[0];
     if (!top) {
-      // Word is not in the dictionary — treat as custom-word creation.
       void import("./EditDictionaryModal").then(({ EditDictionaryModal }) => {
         new EditDictionaryModal(this.plugin.app, this.plugin, {
           mode: "custom",
@@ -150,11 +153,12 @@ export class WordPopup {
       });
       return;
     }
+    const rawTop = raw[0];
     void import("./EditDictionaryModal").then(({ EditDictionaryModal }) => {
       new EditDictionaryModal(this.plugin.app, this.plugin, {
         mode: "override",
         surface,
-        originalEntry: top,
+        originalEntry: rawTop ?? top,
         initial: {
           traditional: top.traditional,
           pinyin: top.pinyin,

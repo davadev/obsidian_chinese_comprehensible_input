@@ -122,6 +122,11 @@ export class DictionaryService {
     return this.bySimplified.has(surface) || this.byTraditional.has(surface);
   }
 
+  /** Returns native dictionary entries WITHOUT user overrides or custom words applied. */
+  lookupRaw(surface: string): DictionaryEntry[] {
+    return this.bySimplified.get(surface) ?? this.byTraditional.get(surface) ?? [];
+  }
+
   lookup(surface: string): DictionaryEntry[] {
     const out: DictionaryEntry[] = [];
     const custom = this.getCustomWords()[surface];
