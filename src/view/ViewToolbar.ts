@@ -43,7 +43,7 @@ export class ViewToolbar {
     if (this.onOpenAsMarkdown) {
       const md = row.createEl("button", {
         cls: "clickable-icon cci-icon-btn",
-        attr: { "aria-label": "Open as Markdown", title: "Open as Markdown" },
+        attr: { "aria-label": "Edit in Markdown", title: "Edit in Markdown" },
       });
       setIcon(md, "file-text");
       md.addEventListener("click", () => this.onOpenAsMarkdown?.());

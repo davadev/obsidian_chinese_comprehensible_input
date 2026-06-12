@@ -46,6 +46,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
       lastTokens: Token[] = [];
       lastSourceVersion = -1;
       tokenPromise: Promise<void> | null = null;
+      /** Version (FNV hash) of the doc the in-flight tokenize was started for. */
+      inFlightVersion: number | null = null;
 
       constructor(view: EditorView) {
         this.decorations = Decoration.none;
@@ -88,10 +90,31 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           this.decorations = this.build(view, text, this.lastTokens);
           return;
         }
+        // Synchronous cache peek — same fast path the constructor uses.
+        // Catches the wikilink-navigation case where swapDocContent has
+        // already warmed the shared cache via `await tokenizer.tokenize`
+        // before dispatching the doc change. Without this peek the
+        // post-switch update is stranded behind a stale in-flight
+        // tokenize from the previous file.
+        const cached = getCachedTokens(text);
+        if (cached) {
+          this.lastTokens = cached;
+          this.lastSourceVersion = version;
+          this.decorations = this.build(view, text, cached);
+          return;
+        }
+        // If an in-flight tokenize is for a different document, drop the
+        // reference so we can start a fresh one. The orphan still runs
+        // but its stale-result guard below will discard its output.
+        if (this.tokenPromise && this.inFlightVersion !== version) {
+          this.tokenPromise = null;
+        }
         if (this.tokenPromise) return;
+        this.inFlightVersion = version;
         this.tokenPromise = (async () => {
           try {
             if (!hasCjk(text)) {
+              if (this.inFlightVersion !== version) return;
               this.lastTokens = [];
               this.lastSourceVersion = version;
               this.decorations = Decoration.none;
@@ -99,6 +122,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               return;
             }
             const tokens = await plugin.tokenizer.tokenize(text);
+            // Stale-result guard: a newer navigation has taken over.
+            if (this.inFlightVersion !== version) return;
             this.lastTokens = tokens;
             this.lastSourceVersion = version;
             this.decorations = this.build(view, text, tokens);
@@ -109,7 +134,10 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             // the view — that was the "switch the mode to render" bug.
             dispatchRedecorate(view);
           } finally {
-            this.tokenPromise = null;
+            // Only clear if we are still the latest in-flight tokenize.
+            if (this.inFlightVersion === version) {
+              this.tokenPromise = null;
+            }
           }
         })();
       }

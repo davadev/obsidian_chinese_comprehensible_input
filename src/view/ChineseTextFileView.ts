@@ -170,7 +170,7 @@ export class ChineseTextFileView extends TextFileView {
       top,
       () => this.handleToolbarChange(),
       () => this.editor?.state.doc.toString() ?? this.data ?? "",
-      () => void this.openAsRegularMarkdown()
+      () => void this.openAsRegularMarkdown(true)
     );
     this.previewActionsEl = this.containerEl.children[1].createDiv({ cls: "cci-preview-actions" });
     this.refreshPreviewActions();
