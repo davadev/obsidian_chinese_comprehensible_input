@@ -3,6 +3,13 @@ import { RangeSetBuilder, StateEffect } from "@codemirror/state";
 
 /** Dispatch this effect to make the decoration plugin recompute without rebuilding the editor. */
 export const cciRedecorateEffect = StateEffect.define<null>();
+/**
+ * Drop the cached token list and re-tokenize from scratch. Used after a
+ * custom-word add/edit/delete so the lattice's new trie produces a fresh
+ * tokenization — a plain redecorate would otherwise reuse the stale
+ * cached tokens and never pick up the new word.
+ */
+export const cciReTokenizeEffect = StateEffect.define<null>();
 import type CciPlugin from "../main";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
 import { Token } from "../tokenizer/tokenizerTypes";
@@ -71,6 +78,15 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const redecorate = update.transactions.some((tr) =>
           tr.effects.some((e) => e.is(cciRedecorateEffect))
         );
+        const retokenize = update.transactions.some((tr) =>
+          tr.effects.some((e) => e.is(cciReTokenizeEffect))
+        );
+        if (retokenize) {
+          this.lastTokens = [];
+          this.lastSourceVersion = -1;
+          this.scheduleTokenize(update.view);
+          return;
+        }
         if (!update.docChanged && !update.viewportChanged && !redecorate) return;
         // Fast path: doc unchanged AND tokens already cached → rebuild
         // decorations directly against the (possibly new) viewport without

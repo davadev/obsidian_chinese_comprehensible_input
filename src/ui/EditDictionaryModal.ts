@@ -34,6 +34,8 @@ export interface EditDictionaryProps {
 }
 
 export class EditDictionaryModal extends Modal {
+  private vvHandler: (() => void) | null = null;
+
   constructor(app: App, private plugin: CciPlugin, private props: EditDictionaryProps) {
     super(app);
   }
@@ -42,6 +44,16 @@ export class EditDictionaryModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("cci-edit-dict-modal");
+
+    // iOS: track visualViewport so the modal stays above the keyboard.
+    const adjust = () => {
+      const vv = window.visualViewport;
+      if (!vv) return;
+      contentEl.style.maxHeight = `${vv.height - 60}px`;
+    };
+    window.visualViewport?.addEventListener("resize", adjust);
+    this.vvHandler = adjust;
+    adjust();
 
     contentEl.createEl("h3", {
       text: this.props.mode === "override" ? "Edit dictionary entry" : "Add custom word",
@@ -94,6 +106,10 @@ export class EditDictionaryModal extends Modal {
   }
 
   onClose(): void {
+    if (this.vvHandler) {
+      window.visualViewport?.removeEventListener("resize", this.vvHandler);
+      this.vvHandler = null;
+    }
     this.contentEl.empty();
   }
 

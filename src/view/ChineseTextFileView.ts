@@ -7,7 +7,7 @@ import { tags as t } from "@lezer/highlight";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
-import { buildChineseDecorations, cciRedecorateEffect } from "../editor/chineseDecorations";
+import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
 
@@ -469,5 +469,11 @@ export class ChineseTextFileView extends TextFileView {
   redecorate(): void {
     if (!this.editor) return;
     this.editor.dispatch({ effects: cciRedecorateEffect.of(null) });
+  }
+
+  /** Drop cached tokens and force a fresh tokenization on next decoration build. */
+  forceRetokenize(): void {
+    if (!this.editor) return;
+    this.editor.dispatch({ effects: cciReTokenizeEffect.of(null) });
   }
 }

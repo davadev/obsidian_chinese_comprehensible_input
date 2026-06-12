@@ -99,6 +99,11 @@ export default class CciPlugin extends Plugin {
     );
     this.dictDownloader = new DictionaryDownloader(this.app);
     this.vocab = new VocabularyStore(this, this.dictionary, () => this.settings);
+    this.vocab.setDictionaryMirrorBridge({
+      getOverrides: () => this.dictionaryOverrides,
+      getCustomWords: () => this.dictionaryCustomWords,
+      mergeRemote: (o, c) => this.mergeMirroredDictionaryData(o, c),
+    });
     await this.vocab.load(blob);
     this.registerSyncMirrorWatchers();
 
@@ -196,12 +201,57 @@ export default class CciPlugin extends Plugin {
     applyCustomColors(this.settings);
   }
 
-  /** Persist dictionary overrides + custom words atomically. */
+  /** Persist dictionary overrides + custom words atomically. Also rewrites
+   *  the vault mirror (if enabled) so other devices see the change. */
   private async saveDictionaryUserData(): Promise<void> {
     const blob = (await this.loadData()) ?? {};
     blob.dictionaryOverrides = this.dictionaryOverrides;
     blob.dictionaryCustomWords = this.dictionaryCustomWords;
     await this.saveData(blob);
+    // Force a mirror write so the envelope picks up the new dictionary
+    // data even when no vocab change is pending.
+    await this.vocab.flushSave();
+  }
+
+  /**
+   * Apply a remote mirror's dictionary user data on top of ours. Per-entry
+   * last-write-wins by updatedAt (additive only — no tombstones in v1).
+   */
+  async mergeMirroredDictionaryData(
+    overrides: DictionaryOverrides,
+    customWords: DictionaryCustomWords
+  ): Promise<void> {
+    let mutated = false;
+    for (const [k, v] of Object.entries(overrides)) {
+      const local = this.dictionaryOverrides[k];
+      const localTs = local?.updatedAt ?? "";
+      const remoteTs = v?.updatedAt ?? "";
+      if (!local || remoteTs > localTs) {
+        this.dictionaryOverrides[k] = v;
+        mutated = true;
+      }
+    }
+    for (const [k, v] of Object.entries(customWords)) {
+      const local = this.dictionaryCustomWords[k];
+      const localTs = local?.updatedAt ?? "";
+      const remoteTs = v?.updatedAt ?? "";
+      if (!local || remoteTs > localTs) {
+        this.dictionaryCustomWords[k] = v;
+        mutated = true;
+      }
+    }
+    if (!mutated) return;
+    // Persist WITHOUT triggering another mirror write loop — the mirror
+    // hash will match what was just absorbed, so the watcher would no-op
+    // anyway, but skip the redundant work.
+    const blob = (await this.loadData()) ?? {};
+    blob.dictionaryOverrides = this.dictionaryOverrides;
+    blob.dictionaryCustomWords = this.dictionaryCustomWords;
+    await this.saveData(blob);
+    await this.dictionary.reload();
+    this.refreshTokenizerCustomWords();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
   }
 
   async setDictionaryOverride(key: string, ov: DictionaryOverride): Promise<void> {
@@ -233,6 +283,7 @@ export default class CciPlugin extends Plugin {
     await this.dictionary.reload();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
+    this.forceRetokenizeViews();
     this.refreshStatsViews();
   }
 
@@ -242,6 +293,7 @@ export default class CciPlugin extends Plugin {
     await this.dictionary.reload();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
+    this.forceRetokenizeViews();
     this.refreshStatsViews();
   }
 
@@ -506,6 +558,15 @@ export default class CciPlugin extends Plugin {
       const v = leaf.view as ChineseTextFileView;
       v.redecorate();
       v.refreshToolbar();
+    }
+  }
+
+  /** Force a full re-tokenization on all Chinese views. Needed after custom-word
+   *  changes because the cached token list inside the ViewPlugin is stale. */
+  forceRetokenizeViews(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
+      const v = leaf.view as ChineseTextFileView;
+      v.forceRetokenize();
     }
   }
 

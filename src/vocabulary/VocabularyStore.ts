@@ -8,6 +8,30 @@ import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./Vocabul
 import { axesFromStatus, statusFromAxes } from "./axes";
 import { mergeStoresForSync } from "./syncMerge";
 import { CciSettings } from "../settings/types";
+import { DictionaryCustomWords, DictionaryOverrides } from "../dictionary/DictionaryTypes";
+
+/**
+ * Bridge from main.ts so the mirror payload also carries dictionary
+ * overrides + custom words. Read-side merges are forwarded back to the
+ * plugin for persistence and tokenizer refresh.
+ */
+export interface DictionaryMirrorBridge {
+  getOverrides: () => DictionaryOverrides;
+  getCustomWords: () => DictionaryCustomWords;
+  mergeRemote: (
+    overrides: DictionaryOverrides,
+    customWords: DictionaryCustomWords
+  ) => Promise<void>;
+}
+
+/** Envelope wrapping vocab + dictionary user data into a single mirror file. */
+const MIRROR_ENVELOPE_VERSION = 2;
+interface MirrorEnvelope {
+  schemaVersion: number;
+  vocab: unknown;
+  dictionaryOverrides?: DictionaryOverrides;
+  dictionaryCustomWords?: DictionaryCustomWords;
+}
 
 /**
  * Vocabulary store backed by Obsidian plugin data via loadData/saveData.
@@ -26,6 +50,12 @@ export class VocabularyStore {
   private saveTimer: number | null = null;
   /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
   private lastMirrorHash: string | null = null;
+  private dictBridge: DictionaryMirrorBridge | null = null;
+
+  /** Wire up the bridge after construction (avoids circular deps with CciPlugin). */
+  setDictionaryMirrorBridge(bridge: DictionaryMirrorBridge): void {
+    this.dictBridge = bridge;
+  }
 
   constructor(
     private plugin: Plugin,
@@ -122,7 +152,15 @@ export class VocabularyStore {
       console.warn("CCI sync: mirror file is not valid JSON", e);
       return false;
     }
-    const remote = migrateVocab(parsed);
+    // Two formats: legacy = raw PersistedVocabData; v2 = envelope wrapping
+    // vocab + dictionary user data.
+    const isEnvelope =
+      parsed && typeof parsed === "object" && "vocab" in (parsed as Record<string, unknown>);
+    const envelope: MirrorEnvelope = isEnvelope
+      ? (parsed as MirrorEnvelope)
+      : { schemaVersion: 1, vocab: parsed };
+
+    const remote = migrateVocab(envelope.vocab);
     const settings = this.getSettings();
     const merged = mergeStoresForSync(this.data, remote, {
       statusPriority: settings.sync.statusPriority,
@@ -131,6 +169,14 @@ export class VocabularyStore {
         : settings.exactTimestampRetentionLimit,
     });
     this.data = merged;
+
+    if (this.dictBridge) {
+      const remoteOv = envelope.dictionaryOverrides ?? {};
+      const remoteCw = envelope.dictionaryCustomWords ?? {};
+      if (Object.keys(remoteOv).length || Object.keys(remoteCw).length) {
+        void this.dictBridge.mergeRemote(remoteOv, remoteCw);
+      }
+    }
     return true;
   }
 
@@ -463,7 +509,13 @@ export class VocabularyStore {
     if (!path) return;
     try {
       await ensureFolderForFile(this.plugin, path);
-      const content = JSON.stringify(this.data, null, 2);
+      const envelope: MirrorEnvelope = {
+        schemaVersion: MIRROR_ENVELOPE_VERSION,
+        vocab: this.data,
+        dictionaryOverrides: this.dictBridge?.getOverrides() ?? {},
+        dictionaryCustomWords: this.dictBridge?.getCustomWords() ?? {},
+      };
+      const content = JSON.stringify(envelope, null, 2);
       await this.plugin.app.vault.adapter.write(path, content);
       this.lastMirrorHash = await hashString(content);
     } catch (e) {
