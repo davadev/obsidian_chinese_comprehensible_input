@@ -46,6 +46,8 @@ export default class CciPlugin extends Plugin {
   dictionaryCustomWords: DictionaryCustomWords = {};
 
   private viewMode: ViewMode = "read";
+  /** Surface being assembled while viewMode === "select-word". */
+  pendingCustomSurface = "";
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
   async onload(): Promise<void> {
@@ -362,9 +364,25 @@ export default class CciPlugin extends Plugin {
     return this.viewMode;
   }
 
+  appendToCustomWordSelection(surface: string): void {
+    this.pendingCustomSurface += surface;
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
+      (leaf.view as ChineseTextFileView).refreshToolbar();
+    }
+  }
+
+  clearCustomWordSelection(): void {
+    this.pendingCustomSurface = "";
+  }
+
   setActiveViewMode(m: ViewMode): void {
     const prev = this.viewMode;
     this.viewMode = m;
+    // Whenever we leave OR enter select-word mode, clear the running
+    // surface so the next pass starts fresh.
+    if (prev !== m && (prev === "select-word" || m === "select-word")) {
+      this.pendingCustomSurface = "";
+    }
     const editBoundaryCrossed = (prev === "edit") !== (m === "edit");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
       const v = leaf.view as ChineseTextFileView;

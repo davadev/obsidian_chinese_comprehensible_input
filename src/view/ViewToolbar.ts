@@ -18,9 +18,7 @@ export class ViewToolbar {
     private container: HTMLElement,
     private onChange: () => void,
     getDocText?: () => string,
-    private onOpenAsMarkdown?: () => void,
-    private getSelection?: () => string,
-    private onAddCustomWord?: (surface: string) => void
+    private onCommitCustomWord?: (surface: string) => void
   ) {
     this.getDocText = getDocText ?? (() => "");
     this.render();
@@ -38,19 +36,6 @@ export class ViewToolbar {
 
     const row = this.container.createDiv({ cls: "cci-toolbar-row" });
 
-    // Always-visible exit hatch back to Obsidian's Markdown view. On iOS
-    // the standard header action requires two taps (first reveals the
-    // platform header bar, then triggers); this in-toolbar button is
-    // single-tap on every platform.
-    if (this.onOpenAsMarkdown) {
-      const md = row.createEl("button", {
-        cls: "clickable-icon cci-icon-btn",
-        attr: { "aria-label": "Edit in Markdown", title: "Edit in Markdown" },
-      });
-      setIcon(md, "file-text");
-      md.addEventListener("click", () => this.onOpenAsMarkdown?.());
-    }
-
     // Desktop keeps the in-place edit toggle. On mobile the header action
     // (added in ChineseTextFileView via addAction) is the entry point — no
     // toolbar Edit button on mobile.
@@ -61,16 +46,8 @@ export class ViewToolbar {
     this.modeBtn(row, "x-circle", "Unknown", "mark-unknown");
     this.modeBtn(row, "circle-help", "Partial", "mark-partial");
 
-    if (this.onAddCustomWord && this.getSelection) {
-      const add = row.createEl("button", {
-        cls: "clickable-icon cci-icon-btn",
-        attr: { "aria-label": "Add custom word from selection", title: "Add custom word from selection" },
-      });
-      setIcon(add, "square-plus");
-      add.addEventListener("click", () => {
-        const text = (this.getSelection?.() ?? "").trim();
-        this.onAddCustomWord?.(text);
-      });
+    if (this.onCommitCustomWord) {
+      this.modeBtn(row, "square-plus", "Add custom word (tap chars)", "select-word");
     }
 
     this.colorModeSwitch(row);
@@ -208,6 +185,29 @@ export class ViewToolbar {
         this.plugin.openStatsForNote(this.plugin.currentNoteKey())
       );
       void this.updateBadge();
+      return;
+    }
+    if (mode === "select-word") {
+      const banner = this.bannerEl.createDiv({ cls: "cci-banner is-select-word" });
+      const surface = this.plugin.pendingCustomSurface;
+      const label = surface
+        ? `Selected: ${surface}`
+        : "Tap one or more characters to build a custom word";
+      banner.createSpan({ text: label });
+      const create = banner.createEl("button", { text: "Create entry" });
+      create.disabled = !surface;
+      create.addEventListener("click", () => {
+        const s = this.plugin.pendingCustomSurface;
+        if (!s) return;
+        this.onCommitCustomWord?.(s);
+        this.plugin.setActiveViewMode("read");
+        this.refresh();
+      });
+      const exit = banner.createEl("button", { text: "Cancel" });
+      exit.addEventListener("click", () => {
+        this.plugin.setActiveViewMode("read");
+        this.refresh();
+      });
       return;
     }
     const cls =

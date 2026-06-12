@@ -135,6 +135,12 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           plugin.openWordPopup(surface, target, ev);
           return;
         }
+        if (mode === "select-word") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          plugin.appendToCustomWordSelection(surface);
+          return;
+        }
         if (mode === "edit") {
           // Let CM6 handle the click normally — do not open popup, do not
           // intercept caret placement.

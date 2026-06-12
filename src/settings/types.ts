@@ -19,7 +19,14 @@ export interface CustomColors {
     "7": string;
   };
 }
-export type ViewMode = "read" | "edit" | "mark-known" | "mark-unknown" | "mark-partial";
+export type ViewMode =
+  | "read"
+  | "edit"
+  | "mark-known"
+  | "mark-unknown"
+  | "mark-partial"
+  /** Tap-to-collect chars/words into a single new custom-word surface. */
+  | "select-word";
 export type PinyinStyle = "marks" | "numbers" | "none";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
 export type HskSource = "2.0" | "3.0" | "both";

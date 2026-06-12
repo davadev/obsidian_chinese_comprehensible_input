@@ -170,8 +170,6 @@ export class ChineseTextFileView extends TextFileView {
       top,
       () => this.handleToolbarChange(),
       () => this.editor?.state.doc.toString() ?? this.data ?? "",
-      () => void this.openAsRegularMarkdown(true),
-      () => this.currentSelectionText(),
       (surface) => this.openAddCustomWord(surface)
     );
     this.previewActionsEl = this.containerEl.children[1].createDiv({ cls: "cci-preview-actions" });
@@ -253,14 +251,6 @@ export class ChineseTextFileView extends TextFileView {
       this.editor = null;
     }
     this.plugin.exposure.resetSession();
-  }
-
-  /** Trimmed text of the editor's current selection (or empty). */
-  private currentSelectionText(): string {
-    if (!this.editor) return "";
-    const sel = this.editor.state.selection.main;
-    if (sel.empty) return "";
-    return this.editor.state.sliceDoc(sel.from, sel.to);
   }
 
   /** Toolbar callback — opens the EditDictionaryModal in custom-word mode. */
