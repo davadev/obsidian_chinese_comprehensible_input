@@ -59,6 +59,9 @@ export class VocabularyStore {
   private mirrorWriteTimer: number | null = null;
   /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
   private lastMirrorHash: string | null = null;
+  /** Last seen mtime of the mirror file. Used by the fast poll to short-
+   *  circuit the 2.9 MB read when the file hasn't moved on disk. */
+  private lastMirrorMtime: number | null = null;
   private dictBridge: DictionaryMirrorBridge | null = null;
 
   /** Wire up the bridge after construction (avoids circular deps with CciPlugin). */
@@ -121,6 +124,10 @@ export class VocabularyStore {
         const content = await adapter.read(path);
         this.mergeMirrorContent(content);
         this.lastMirrorHash = await hashString(content);
+        try {
+          const st = await adapter.stat(path);
+          if (st) this.lastMirrorMtime = st.mtime;
+        } catch { /* ignore */ }
       }
       await this.sweepConflictFiles(path);
     } catch (e) {
@@ -225,12 +232,34 @@ export class VocabularyStore {
     if (!path) return false;
     const adapter = this.plugin.app.vault.adapter;
     if (!(await adapter.exists(path))) return false;
+    // Cheap mtime gate: skip the 2.9 MB read entirely when the file hasn't
+    // moved on disk. Falls through to the full read if stat is unsupported
+    // by the adapter or returns null.
+    try {
+      const st = await adapter.stat(path);
+      if (st && this.lastMirrorMtime != null && st.mtime <= this.lastMirrorMtime) {
+        return false;
+      }
+    } catch {
+      /* stat unsupported on this platform; fall through */
+    }
     const content = await adapter.read(path);
     const hash = await hashString(content);
-    if (hash === this.lastMirrorHash) return false;
+    if (hash === this.lastMirrorHash) {
+      // Same content; remember mtime so future polls short-circuit on stat.
+      try {
+        const st = await adapter.stat(path);
+        if (st) this.lastMirrorMtime = st.mtime;
+      } catch { /* ignore */ }
+      return false;
+    }
     const ok = this.mergeMirrorContent(content);
     if (!ok) return false;
     this.lastMirrorHash = hash;
+    try {
+      const st = await adapter.stat(path);
+      if (st) this.lastMirrorMtime = st.mtime;
+    } catch { /* ignore */ }
     await this.flushSave();
     return true;
   }
@@ -600,6 +629,10 @@ export class VocabularyStore {
       }
       void wroteAtomic;
       this.lastMirrorHash = await hashString(content);
+      try {
+        const st = await adapter.stat(path);
+        if (st) this.lastMirrorMtime = st.mtime;
+      } catch { /* ignore */ }
     } catch (e) {
       console.error("CCI sync: mirror write failed", e);
     }

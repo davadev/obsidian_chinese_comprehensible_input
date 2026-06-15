@@ -164,7 +164,21 @@ export default class CciPlugin extends Plugin {
       this.app.workspace.on("file-open", () => this.injectMarkdownHeaderActions())
     );
     this.registerEvent(
-      this.app.workspace.on("layout-change", () => this.injectMarkdownHeaderActions())
+      this.app.workspace.on("layout-change", () => {
+        this.injectMarkdownHeaderActions();
+        this.restartSyncPollerIfModeChanged();
+      })
+    );
+    // When a Chinese view becomes active, immediately check the mirror so
+    // the user sees changes from other devices without waiting for the
+    // next poll tick. Also re-evaluate fast / slow poll mode.
+    this.registerEvent(
+      this.app.workspace.on("active-leaf-change", (leaf) => {
+        this.restartSyncPollerIfModeChanged();
+        if (leaf && leaf.view?.getViewType?.() === VIEW_TYPE_CHINESE) {
+          void this.checkMirrorOnce();
+        }
+      })
     );
     this.app.workspace.onLayoutReady(() => this.injectMarkdownHeaderActions());
 
@@ -434,19 +448,36 @@ export default class CciPlugin extends Plugin {
    * missed when remotely-save writes while the window is backgrounded or
    * when sync happens via a path that bypasses Obsidian's vault layer.
    * Periodically re-check the mirror file's hash and merge if it diverged.
-   * Safe to call repeatedly — clears any previous timer first.
+   *
+   * Adaptive cadence: when at least one Chinese view is open, poll every
+   * 3 s for near-instant cross-device updates. When no Chinese view is
+   * open, fall back to the user's configured `mirrorPollIntervalMinutes`.
+   * The 3 s tick is virtually free thanks to the mtime gate inside
+   * absorbExternalMirrorChange — no 2.9 MB read unless the file moved.
    */
   private mirrorPollTimer: number | null = null;
+  private mirrorPollMode: "fast" | "slow" = "slow";
+  private static FAST_POLL_MS = 3_000;
+
+  private chineseViewIsOpen(): boolean {
+    return this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE).length > 0;
+  }
+
+  private syncPollerMs(): number {
+    if (this.chineseViewIsOpen()) return CciPlugin.FAST_POLL_MS;
+    const minutes = this.settings.sync?.mirrorPollIntervalMinutes ?? 5;
+    if (!minutes || minutes <= 0) return 0;
+    return Math.max(30_000, Math.floor(minutes * 60_000));
+  }
 
   startSyncMirrorPoller(): void {
     if (this.mirrorPollTimer != null) {
       window.clearInterval(this.mirrorPollTimer);
       this.mirrorPollTimer = null;
     }
-    const minutes = this.settings.sync?.mirrorPollIntervalMinutes ?? 5;
-    if (!minutes || minutes <= 0) return;
-    // Floor at 30s so a fat-fingered "0.01" can't pin the disk.
-    const ms = Math.max(30_000, Math.floor(minutes * 60_000));
+    this.mirrorPollMode = this.chineseViewIsOpen() ? "fast" : "slow";
+    const ms = this.syncPollerMs();
+    if (!ms) return;
     const handle = window.setInterval(async () => {
       if (!this.settings.sync?.mirrorEnabled) return;
       try {
@@ -461,6 +492,28 @@ export default class CciPlugin extends Plugin {
     }, ms);
     this.mirrorPollTimer = handle;
     this.registerInterval(handle);
+  }
+
+  private restartSyncPollerIfModeChanged(): void {
+    const want: "fast" | "slow" = this.chineseViewIsOpen() ? "fast" : "slow";
+    if (want !== this.mirrorPollMode) {
+      this.startSyncMirrorPoller(); // sets this.mirrorPollMode internally
+    }
+  }
+
+  /** One-shot mirror check, used on Chinese view activation so the user
+   *  doesn't have to wait for the next poll tick. */
+  private async checkMirrorOnce(): Promise<void> {
+    if (!this.settings.sync?.mirrorEnabled) return;
+    try {
+      const changed = await this.vocab.absorbExternalMirrorChange();
+      if (changed) {
+        this.refreshChineseViews();
+        this.refreshStatsViews();
+      }
+    } catch (e) {
+      console.error("CCI sync: mirror check failed", e);
+    }
   }
 
   // Commands -----------------------------------------------------------
