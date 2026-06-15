@@ -10,8 +10,11 @@ export interface GeneratedStory {
   title: string;
   targetLevel: string;
   textChinese: string;
-  targetWordsUsed: { word: string; used: boolean; sentence?: string }[];
-  glossary: { word: string; pinyin: string; definition: string }[];
+  // Optional — the LLM is no longer asked for these. Kept so older
+  // providers that ignore the trimmed schema and still emit them don't
+  // break parsing.
+  targetWordsUsed?: { word: string; used: boolean; sentence?: string }[];
+  glossary?: { word: string; pinyin: string; definition: string }[];
   notesForLearner?: string;
 }
 

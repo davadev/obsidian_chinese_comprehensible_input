@@ -35,9 +35,23 @@ export class StoryGenerator {
     }
     this.generationInFlight = true;
     try {
-      const dueRecords = this.srs.due().slice(0, req.dueCount);
+      // Target-word selection: only send classified vocab to the LLM, and
+      // prefer partially-known statuses (the user already has a foothold)
+      // over fully unknown. Completely uncategorized "new" words are never
+      // sent — they're not actionable review material.
+      const partialStatuses = new Set<string>([
+        "meaningKnownPinyinUnknown",
+        "pinyinKnownMeaningUnknown",
+        "charactersUnknown",
+      ]);
+      const dueAll = this.srs.due();
+      const partial = dueAll.filter((r) => partialStatuses.has(r.status));
+      const fullyUnknown = dueAll.filter((r) => r.status === "unknown");
+      const dueRecords = [...partial, ...fullyUnknown].slice(0, req.dueCount);
       if (dueRecords.length === 0) {
-        throw new Error("No due words to review yet. Mark some words first.");
+        throw new Error(
+          "No classified due words to review yet. Mark some words as unknown or partial first."
+        );
       }
       const targetWords: TargetWord[] = dueRecords.map((r) => ({
         word: r.simplified ?? r.surfaces[0],
@@ -240,14 +254,17 @@ export class StoryGenerator {
     body.push("");
     body.push(story.textChinese);
     body.push("");
-    if (settings.story.includeGlossary && story.glossary?.length) {
-      body.push("## 生词 Glossary");
-      for (const g of story.glossary) body.push(`- **${g.word}** *(${g.pinyin})* — ${g.definition}`);
-      body.push("");
-    }
-    if (story.targetWordsUsed?.length) {
+    // Target-word checklist is built from a REAL scan of the story body,
+    // not from the LLM's self-reported claim. A checked box means the
+    // word literally appears in textChinese. The glossary section that
+    // used to live here is gone — the LLM is no longer asked for one.
+    if (targets.length) {
       body.push("## Target word checklist");
-      for (const t of story.targetWordsUsed) body.push(`- [${t.used ? "x" : " "}] ${t.word}`);
+      for (const t of targets) {
+        const surface = t.simplified ?? t.surfaces[0];
+        if (!surface) continue;
+        body.push(`- [${story.textChinese.includes(surface) ? "x" : " "}] ${surface}`);
+      }
       body.push("");
     }
     if (story.notesForLearner) {
@@ -327,8 +344,10 @@ function shapeStory(partial: Partial<GeneratedStory>): GeneratedStory {
     title: p.title ?? "复习故事",
     targetLevel: p.targetLevel ?? "",
     textChinese: p.textChinese ?? p.text ?? p.content ?? "",
-    targetWordsUsed: p.targetWordsUsed ?? [],
-    glossary: p.glossary ?? [],
+    // The LLM is no longer asked for these. If a non-conforming provider
+    // still emits them, pass through untouched (unused downstream).
+    targetWordsUsed: p.targetWordsUsed,
+    glossary: p.glossary,
     notesForLearner: p.notesForLearner,
   };
 }
