@@ -173,19 +173,6 @@ export class CciSettingsTab extends PluginSettingTab {
       });
 
     new Setting(c)
-      .setName("Pinyin style")
-      .addDropdown((d) => {
-        d.addOption("marks", "Tone marks");
-        d.addOption("numbers", "Tone numbers");
-        d.addOption("none", "None");
-        d.setValue(this.plugin.settings.pinyinStyle);
-        d.onChange(async (v) => {
-          this.plugin.settings.pinyinStyle = v as any;
-          await this.plugin.saveSettings();
-        });
-      });
-
-    new Setting(c)
       .setName("Known-word popups")
       .addToggle((t) =>
         t.setValue(this.plugin.settings.knownWordPopups).onChange(async (v) => {
@@ -195,6 +182,18 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     this.renderCollapsible(c, "Advanced display ▾", (a) => {
+      new Setting(a)
+        .setName("Pinyin style")
+        .addDropdown((d) => {
+          d.addOption("marks", "Tone marks");
+          d.addOption("numbers", "Tone numbers");
+          d.addOption("none", "None");
+          d.setValue(this.plugin.settings.pinyinStyle);
+          d.onChange(async (v) => {
+            this.plugin.settings.pinyinStyle = v as any;
+            await this.plugin.saveSettings();
+          });
+        });
       new Setting(a)
         .setName("Reader font size (px)")
         .setDesc("Base font size used inside the Chinese Learning View.")
@@ -351,135 +350,134 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderTokenizer(c: HTMLElement) {
     c.createEl("h3", { text: "Tokenizer" });
-    new Setting(c).setName("Engine").addDropdown((d) => {
-      d.addOption("lattice", "Dictionary lattice (recommended)");
-      d.addOption("intl-segmenter", "Intl.Segmenter (helper/fallback)");
-      d.addOption("experimental", "Experimental WASM (not bundled)");
-      d.setValue(this.plugin.settings.tokenizerEngine);
-      d.onChange(async (v) => {
-        this.plugin.settings.tokenizerEngine = v as any;
-        await this.plugin.saveSettings();
+    this.renderCollapsible(c, "Advanced tokenizer ▾", (a) => {
+      new Setting(a).setName("Engine").addDropdown((d) => {
+        d.addOption("lattice", "Dictionary lattice (recommended)");
+        d.addOption("intl-segmenter", "Intl.Segmenter (helper/fallback)");
+        d.addOption("experimental", "Experimental WASM (not bundled)");
+        d.setValue(this.plugin.settings.tokenizerEngine);
+        d.onChange(async (v) => {
+          this.plugin.settings.tokenizerEngine = v as any;
+          await this.plugin.saveSettings();
+        });
       });
-    });
-
-    new Setting(c).setName("HSK source").addDropdown((d) => {
-      d.addOption("2.0", "HSK 2.0");
-      d.addOption("3.0", "HSK 3.0 / new HSK");
-      d.addOption("both", "Both");
-      d.setValue(this.plugin.settings.hskSource);
-      d.onChange(async (v) => {
-        this.plugin.settings.hskSource = v as any;
-        await this.plugin.saveSettings();
+      new Setting(a).setName("HSK source").addDropdown((d) => {
+        d.addOption("2.0", "HSK 2.0");
+        d.addOption("3.0", "HSK 3.0 / new HSK");
+        d.addOption("both", "Both");
+        d.setValue(this.plugin.settings.hskSource);
+        d.onChange(async (v) => {
+          this.plugin.settings.hskSource = v as any;
+          await this.plugin.saveSettings();
+        });
       });
     });
   }
 
   private renderExposure(c: HTMLElement) {
     c.createEl("h3", { text: "Exposure tracking" });
-    new Setting(c)
-      .setName("Minimum visible time (ms)")
-      .setDesc("How long a word must be visible before it counts as seen.")
-      .addText((t) => {
-        t.setValue(String(this.plugin.settings.exposure.minVisibleMs));
-        t.onChange(async (v) => {
-          const n = parseInt(v, 10);
-          if (!Number.isNaN(n)) {
-            this.plugin.settings.exposure.minVisibleMs = n;
-            await this.plugin.saveSettings();
-          }
+    this.renderCollapsible(c, "Advanced exposure ▾", (a) => {
+      new Setting(a)
+        .setName("Minimum visible time (ms)")
+        .setDesc("How long a word must be visible before it counts as seen.")
+        .addText((t) => {
+          t.setValue(String(this.plugin.settings.exposure.minVisibleMs));
+          t.onChange(async (v) => {
+            const n = parseInt(v, 10);
+            if (!Number.isNaN(n)) {
+              this.plugin.settings.exposure.minVisibleMs = n;
+              await this.plugin.saveSettings();
+            }
+          });
         });
-      });
-
-    new Setting(c)
-      .setName("Limit: one exposure per word per note per session")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.exposure.maxOncePerNotePerSession).onChange(async (v) => {
-          this.plugin.settings.exposure.maxOncePerNotePerSession = v;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(c)
-      .setName("Limit: one exposure per word per day")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.exposure.maxOncePerDay).onChange(async (v) => {
-          this.plugin.settings.exposure.maxOncePerDay = v;
-          await this.plugin.saveSettings();
-        })
-      );
-
-    new Setting(c).setName("Popup counts as exposure").addToggle((t) =>
-      t.setValue(this.plugin.settings.exposure.popupCountsAsExposure).onChange(async (v) => {
-        this.plugin.settings.exposure.popupCountsAsExposure = v;
-        await this.plugin.saveSettings();
-      })
-    );
-
-    new Setting(c).setName("Generated stories count as exposure").addToggle((t) =>
-      t.setValue(this.plugin.settings.exposure.generatedReadingCountsAsExposure).onChange(async (v) => {
-        this.plugin.settings.exposure.generatedReadingCountsAsExposure = v;
-        await this.plugin.saveSettings();
-      })
-    );
-
-    new Setting(c)
-      .setName("Exact timestamp retention limit (per word)")
-      .addText((t) => {
-        t.setValue(String(this.plugin.settings.exactTimestampRetentionLimit));
-        t.onChange(async (v) => {
-          const n = parseInt(v, 10);
-          if (!Number.isNaN(n)) {
-            this.plugin.settings.exactTimestampRetentionLimit = n;
+      new Setting(a)
+        .setName("Limit: one exposure per word per note per session")
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.exposure.maxOncePerNotePerSession).onChange(async (v) => {
+            this.plugin.settings.exposure.maxOncePerNotePerSession = v;
             await this.plugin.saveSettings();
-          }
-        });
-      });
-
-    new Setting(c)
-      .setName("Store ALL exact timestamps (storage-heavy)")
-      .setDesc("Warning: enabling this disables retention pruning and can grow storage large over time.")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.storeAllExactTimestamps).onChange(async (v) => {
-          this.plugin.settings.storeAllExactTimestamps = v;
+          })
+        );
+      new Setting(a)
+        .setName("Limit: one exposure per word per day")
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.exposure.maxOncePerDay).onChange(async (v) => {
+            this.plugin.settings.exposure.maxOncePerDay = v;
+            await this.plugin.saveSettings();
+          })
+        );
+      new Setting(a).setName("Popup counts as exposure").addToggle((t) =>
+        t.setValue(this.plugin.settings.exposure.popupCountsAsExposure).onChange(async (v) => {
+          this.plugin.settings.exposure.popupCountsAsExposure = v;
           await this.plugin.saveSettings();
         })
       );
+      new Setting(a).setName("Generated stories count as exposure").addToggle((t) =>
+        t.setValue(this.plugin.settings.exposure.generatedReadingCountsAsExposure).onChange(async (v) => {
+          this.plugin.settings.exposure.generatedReadingCountsAsExposure = v;
+          await this.plugin.saveSettings();
+        })
+      );
+      new Setting(a)
+        .setName("Exact timestamp retention limit (per word)")
+        .addText((t) => {
+          t.setValue(String(this.plugin.settings.exactTimestampRetentionLimit));
+          t.onChange(async (v) => {
+            const n = parseInt(v, 10);
+            if (!Number.isNaN(n)) {
+              this.plugin.settings.exactTimestampRetentionLimit = n;
+              await this.plugin.saveSettings();
+            }
+          });
+        });
+      new Setting(a)
+        .setName("Store ALL exact timestamps (storage-heavy)")
+        .setDesc("Warning: enabling this disables retention pruning and can grow storage large over time.")
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.storeAllExactTimestamps).onChange(async (v) => {
+            this.plugin.settings.storeAllExactTimestamps = v;
+            await this.plugin.saveSettings();
+          })
+        );
+    });
   }
 
   private renderSrs(c: HTMLElement) {
     c.createEl("h3", { text: "Spaced repetition" });
-    new Setting(c).setName("Review known words occasionally").addToggle((t) =>
-      t.setValue(this.plugin.settings.srs.scheduleKnownOccasionally).onChange(async (v) => {
-        this.plugin.settings.srs.scheduleKnownOccasionally = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new Setting(c)
-      .setName("Popup on a due word counts as a failed recall")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.srs.popupOnDueIsFailedRecall).onChange(async (v) => {
-          this.plugin.settings.srs.popupOnDueIsFailedRecall = v;
+    this.renderCollapsible(c, "Advanced SRS ▾", (a) => {
+      new Setting(a).setName("Review known words occasionally").addToggle((t) =>
+        t.setValue(this.plugin.settings.srs.scheduleKnownOccasionally).onChange(async (v) => {
+          this.plugin.settings.srs.scheduleKnownOccasionally = v;
           await this.plugin.saveSettings();
         })
       );
-    new Setting(c).setName("Initial interval (days)").addText((t) => {
-      t.setValue(String(this.plugin.settings.srs.initialIntervalDays));
-      t.onChange(async (v) => {
-        const n = parseInt(v, 10);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.srs.initialIntervalDays = n;
-          await this.plugin.saveSettings();
-        }
+      new Setting(a)
+        .setName("Popup on a due word counts as a failed recall")
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.srs.popupOnDueIsFailedRecall).onChange(async (v) => {
+            this.plugin.settings.srs.popupOnDueIsFailedRecall = v;
+            await this.plugin.saveSettings();
+          })
+        );
+      new Setting(a).setName("Initial interval (days)").addText((t) => {
+        t.setValue(String(this.plugin.settings.srs.initialIntervalDays));
+        t.onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            this.plugin.settings.srs.initialIntervalDays = n;
+            await this.plugin.saveSettings();
+          }
+        });
       });
-    });
-    new Setting(c).setName("Initial ease").addText((t) => {
-      t.setValue(String(this.plugin.settings.srs.initialEase));
-      t.onChange(async (v) => {
-        const n = parseFloat(v);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.srs.initialEase = n;
-          await this.plugin.saveSettings();
-        }
+      new Setting(a).setName("Initial ease").addText((t) => {
+        t.setValue(String(this.plugin.settings.srs.initialEase));
+        t.onChange(async (v) => {
+          const n = parseFloat(v);
+          if (!Number.isNaN(n)) {
+            this.plugin.settings.srs.initialEase = n;
+            await this.plugin.saveSettings();
+          }
+        });
       });
     });
   }
@@ -764,19 +762,21 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
-    new Setting(c)
-      .setName("Auto-download dictionary on first load")
-      .setDesc(
-        "Silently fetch CC-CEDICT from MDBG when the vault doesn't have a dictionary yet."
-      )
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.autoDownloadDictionary)
-          .onChange(async (v) => {
-            this.plugin.settings.autoDownloadDictionary = v;
-            await this.plugin.saveSettings();
-          })
-      );
+    this.renderCollapsible(c, "Advanced data ▾", (a) => {
+      new Setting(a)
+        .setName("Auto-download dictionary on first load")
+        .setDesc(
+          "Silently fetch CC-CEDICT from MDBG when the vault doesn't have a dictionary yet."
+        )
+        .addToggle((t) =>
+          t
+            .setValue(this.plugin.settings.autoDownloadDictionary)
+            .onChange(async (v) => {
+              this.plugin.settings.autoDownloadDictionary = v;
+              await this.plugin.saveSettings();
+            })
+        );
+    });
 
     new Setting(c).setName("Export vocabulary JSON").addButton((b) =>
       b.setButtonText("Export JSON").onClick(async () => {
