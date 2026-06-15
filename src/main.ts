@@ -12,6 +12,7 @@ import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { DictionaryService } from "./dictionary/DictionaryService";
 import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
+import { EcdictDownloader } from "./dictionary/EcdictDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
 import { VocabularyStore } from "./vocabulary/VocabularyStore";
 import { ExposureTracker } from "./vocabulary/ExposureTracker";
@@ -30,6 +31,7 @@ export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
   dictionary!: DictionaryService;
   dictDownloader!: DictionaryDownloader;
+  ecdictDownloader!: EcdictDownloader;
   tokenizer!: TokenizerService;
   vocab!: VocabularyStore;
   exposure!: ExposureTracker;
@@ -117,7 +119,12 @@ export default class CciPlugin extends Plugin {
       () => this.dictionaryOverrides,
       () => this.dictionaryCustomWords
     );
+    this.dictionary.setSourceGates(
+      () => this.settings.useCedict,
+      () => this.settings.useEcdict
+    );
     this.dictDownloader = new DictionaryDownloader(this.app);
+    this.ecdictDownloader = new EcdictDownloader(this.app);
     this.vocab = new VocabularyStore(this, this.dictionary, () => this.settings);
     this.vocab.setDictionaryMirrorBridge({
       getOverrides: () => this.dictionaryOverrides,
@@ -240,6 +247,36 @@ export default class CciPlugin extends Plugin {
         // Dictionary is already on disk (or auto-download disabled). Make
         // sure it is loaded into memory.
         await this.dictionary.ensureLoaded();
+      }
+      // Auto-download ECDICT reverse index on first install too (same
+      // condition as CC-CEDICT: respects autoDownloadDictionary). If the
+      // user has disabled useEcdict, skip.
+      if (
+        this.settings.autoDownloadDictionary &&
+        this.settings.useEcdict &&
+        !(await this.dictionary.isEcdictOnDisk())
+      ) {
+        const notice = new Notice("Chinese plugin: downloading ECDICT…", 0);
+        try {
+          const result = await this.ecdictDownloader.run();
+          this.settings.dictionaryEcdictSource = {
+            source: "ECDICT (mini)",
+            versionLine: "skywind3000/ECDICT mini",
+            downloadedAt: new Date().toISOString(),
+            entryCount: result.buckets,
+            outputPath: ".cci-ecdict.json",
+          };
+          await this.saveSettings();
+          await this.dictionary.reload();
+          notice.setMessage(`Chinese plugin: ECDICT ready (${result.buckets} buckets).`);
+          setTimeout(() => notice.hide(), 3000);
+        } catch (err) {
+          notice.setMessage(
+            "Chinese plugin: ECDICT download failed — " + (err as Error).message
+          );
+          setTimeout(() => notice.hide(), 6000);
+          // Non-fatal: continue without ECDICT.
+        }
       }
       if (!this.settings.vaultIndexed) {
         await indexVaultWithNotice(this);

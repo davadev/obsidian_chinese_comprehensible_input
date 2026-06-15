@@ -1,5 +1,11 @@
 import { App, normalizePath } from "obsidian";
-import { DictionaryCustomWords, DictionaryEntry, DictionaryOverrides } from "./DictionaryTypes";
+import {
+  DictionaryCustomWords,
+  DictionaryEntry,
+  DictionaryOverrides,
+  EcdictReverseIndex,
+} from "./DictionaryTypes";
+import { ECDICT_OUTPUT_PATH } from "../constants";
 import { SEED_ENTRIES } from "./seedDictionary";
 import { HSK_MAP, HSK_SOURCE } from "./hskMap.generated";
 import { makeKey } from "./normalizeChinese";
@@ -15,6 +21,9 @@ import { makeKey } from "./normalizeChinese";
 export class DictionaryService {
   private bySimplified = new Map<string, DictionaryEntry[]>();
   private byTraditional = new Map<string, DictionaryEntry[]>();
+  /** ECDICT reverse-lookup index: Chinese substring → English entries.
+   *  Loaded from .cci-ecdict.json if present; empty otherwise. */
+  private ecdictIndex: EcdictReverseIndex = {};
   private loaded = false;
   private loadingPromise: Promise<void> | null = null;
   /**
@@ -24,6 +33,10 @@ export class DictionaryService {
    */
   private getOverrides: () => DictionaryOverrides = () => ({});
   private getCustomWords: () => DictionaryCustomWords = () => ({});
+  /** Gates for whether each dictionary source is currently enabled.
+   *  Injected by the plugin so toggles in settings take effect live. */
+  private useCedictGate: () => boolean = () => true;
+  private useEcdictGate: () => boolean = () => true;
 
   constructor(private app: App) {}
 
@@ -40,6 +53,13 @@ export class DictionaryService {
     this.getCustomWords = customWords;
   }
 
+  /** Inject gates for "use this dictionary" toggles. Called by the plugin
+   *  after settings are loaded so live toggling works. */
+  setSourceGates(useCedict: () => boolean, useEcdict: () => boolean): void {
+    this.useCedictGate = useCedict;
+    this.useEcdictGate = useEcdict;
+  }
+
   async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
     if (this.loadingPromise) return this.loadingPromise;
@@ -51,6 +71,7 @@ export class DictionaryService {
   async reload(): Promise<void> {
     this.bySimplified.clear();
     this.byTraditional.clear();
+    this.ecdictIndex = {};
     this.loaded = false;
     this.loadingPromise = null;
     await this.ensureLoaded();
@@ -65,10 +86,36 @@ export class DictionaryService {
     }
   }
 
+  /** True iff the vault-side ECDICT reverse-index file exists. */
+  async isEcdictOnDisk(): Promise<boolean> {
+    try {
+      return await this.app.vault.adapter.exists(normalizePath(ECDICT_OUTPUT_PATH));
+    } catch {
+      return false;
+    }
+  }
+
   private async doLoad(): Promise<void> {
     for (const e of SEED_ENTRIES) this.index(e);
     await this.tryLoadVaultDictionary();
+    await this.tryLoadEcdict();
     this.loaded = true;
+  }
+
+  private async tryLoadEcdict(): Promise<void> {
+    const path = normalizePath(ECDICT_OUTPUT_PATH);
+    try {
+      const exists = await this.app.vault.adapter.exists(path);
+      if (!exists) return;
+      const raw = await this.app.vault.adapter.read(path);
+      const data = JSON.parse(raw) as EcdictReverseIndex;
+      if (data && typeof data === "object") {
+        this.ecdictIndex = data;
+      }
+    } catch {
+      // Missing / invalid ECDICT index is non-fatal — popup just won't
+      // show an ECDICT section.
+    }
   }
 
   private async tryLoadVaultDictionary(): Promise<void> {
@@ -137,24 +184,40 @@ export class DictionaryService {
         pinyin: custom.pinyin,
         definitions: custom.definitions,
         hsk: custom.hsk,
+        source: "custom",
       });
     }
-    const native = this.bySimplified.get(surface) ?? this.byTraditional.get(surface) ?? [];
-    const overrides = this.getOverrides();
-    for (const e of native) {
-      const key = makeKey(e.simplified, e.pinyin);
-      const ov = overrides[key];
-      if (!ov) {
-        out.push(e);
-        continue;
+    if (this.useCedictGate()) {
+      const native = this.bySimplified.get(surface) ?? this.byTraditional.get(surface) ?? [];
+      const overrides = this.getOverrides();
+      for (const e of native) {
+        const key = makeKey(e.simplified, e.pinyin);
+        const ov = overrides[key];
+        if (!ov) {
+          out.push({ ...e, source: e.source ?? "cedict" });
+          continue;
+        }
+        out.push({
+          ...e,
+          pinyin: ov.pinyin ?? e.pinyin,
+          traditional: ov.traditional ?? e.traditional,
+          definitions: ov.definitions ?? e.definitions,
+          hsk: ov.hsk ?? e.hsk,
+          source: "override",
+        });
       }
-      out.push({
-        ...e,
-        pinyin: ov.pinyin ?? e.pinyin,
-        traditional: ov.traditional ?? e.traditional,
-        definitions: ov.definitions ?? e.definitions,
-        hsk: ov.hsk ?? e.hsk,
-      });
+    }
+    if (this.useEcdictGate()) {
+      for (const r of this.ecdictIndex[surface] ?? []) {
+        out.push({
+          simplified: surface,
+          traditional: surface,
+          pinyin: r.phonetic ?? "",
+          definitions: [r.translation],
+          source: "ecdict",
+          englishHeadword: r.word,
+        });
+      }
     }
     return out;
   }

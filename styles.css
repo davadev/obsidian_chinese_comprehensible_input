@@ -579,6 +579,38 @@
   margin-bottom: 0.4rem;
   color: var(--text-normal);
 }
+.cci-popup-defs-scroll {
+  max-height: 38vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.cci-popup-defs-section + .cci-popup-defs-section {
+  margin-top: 0.55rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.cci-popup-defs-source {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  margin-bottom: 0.15rem;
+}
+.cci-popup-defs-source-custom,
+.cci-popup-defs-source-override {
+  color: var(--text-accent);
+  opacity: 0.85;
+}
+.cci-popup-defs-item {
+  margin: 0.15rem 0;
+}
+.cci-popup-defs-headword {
+  font-style: italic;
+  opacity: 0.85;
+}
 .cci-popup-meta {
   font-size: 0.8rem;
   color: var(--text-muted);

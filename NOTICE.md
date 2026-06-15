@@ -7,6 +7,11 @@ This Obsidian plugin redistributes and/or relies on third-party data:
 - License: CC BY-SA 4.0 (most recent MDBG distribution). The older CC-CEDICT wiki references CC BY-SA 3.0; the build script pins the exact archive URL and download date.
 - Obligation: attribution + share-alike. Any modified/derived dictionary data shipped from this plugin must remain under CC BY-SA and credit CC-CEDICT.
 
+## ECDICT — skywind3000/ECDICT
+- Source: https://github.com/skywind3000/ECDICT
+- License: MIT, © skywind3000
+- Usage: the plugin auto-downloads `ecdict.mini.csv` (~5 MB) at first install when "Use ECDICT" is enabled. The CSV is parsed into a Chinese→English reverse-lookup index and stored in the vault at `.cci-ecdict.json`. Lookups show English headwords whose Chinese translation contains the queried surface.
+
 ## HSK 2.0 level data — glxxyz/hskhsk.com
 - Source: https://github.com/glxxyz/hskhsk.com  (path: `data/lists/HSK Official 2012 L{1..6}.txt`)
 - License: MIT, © 2020 Alan Davies

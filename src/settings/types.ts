@@ -139,6 +139,13 @@ export interface DictionarySourceMeta {
 export interface CciSettings {
   schemaVersion: number;
   dictionarySource?: DictionarySourceMeta;
+  /** Metadata for the downloaded ECDICT reverse-index file. Undefined
+   *  until the user downloads ECDICT in Settings. */
+  dictionaryEcdictSource?: DictionarySourceMeta;
+  /** Whether the CC-CEDICT source contributes to lookups + tokenization. */
+  useCedict: boolean;
+  /** Whether the ECDICT reverse-lookup source contributes to popup display. */
+  useEcdict: boolean;
   defaultDisplayMode: DisplayMode;
   knownWordPopups: boolean;
   showKnownColor: boolean;
