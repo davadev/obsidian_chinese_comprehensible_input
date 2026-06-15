@@ -40,33 +40,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderDictionary(c: HTMLElement) {
-    c.createEl("h3", { text: "Dictionaries" });
-
-    new Setting(c)
-      .setName("Use CC-CEDICT")
-      .setDesc("Include CC-CEDICT entries in popups, tokenization, and pinyin lookup.")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.useCedict).onChange(async (v) => {
-          this.plugin.settings.useCedict = v;
-          await this.plugin.saveSettings();
-          this.plugin.tokenizer.invalidate();
-          this.plugin.refreshChineseViews();
-        })
-      );
-    new Setting(c)
-      .setName("Use ECDICT (reverse English→Chinese)")
-      .setDesc(
-        "Show English headwords whose Chinese translation contains the looked-up surface. Read-only; appears as a separate section in the popup. Source: skywind3000/ECDICT (MIT)."
-      )
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.useEcdict).onChange(async (v) => {
-          this.plugin.settings.useEcdict = v;
-          await this.plugin.saveSettings();
-          this.plugin.refreshChineseViews();
-        })
-      );
-
-    c.createEl("h4", { text: "CC-CEDICT" });
+    c.createEl("h3", { text: "Dictionary" });
     c.createEl("p", {
       cls: "setting-item-description",
       text:
@@ -147,92 +121,6 @@ export class CciSettingsTab extends PluginSettingTab {
 
     // Detach status listener when the settings tab rebuilds.
     this.plugin.register(() => unsub());
-
-    // ----- ECDICT (reverse English→Chinese) -----
-    c.createEl("h4", { text: "ECDICT (reverse English→Chinese)" });
-    c.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Optional. Download skywind3000/ECDICT full CSV (~65 MB, ~770k rows, MIT). WARNING: the download is heavy and has OOM-crashed iOS Obsidian in testing — recommended on desktop only. Files are parsed into a Chinese→English reverse index (~25-50 MB JSON) stored locally. Looking up a Chinese word in the popup also shows English headwords whose translation contains it.",
-    });
-
-    const ecdictStatusEl = c.createDiv({ cls: "setting-item-description" });
-    const updateEcdictStatusEl = () => {
-      const meta = this.plugin.settings.dictionaryEcdictSource;
-      const live = this.plugin.ecdictDownloader.getStatus();
-      if (live.state === "downloading" || live.state === "parsing" || live.state === "writing") {
-        ecdictStatusEl.setText(
-          `${live.message} (rows ${live.entriesParsed} → buckets ${live.reverseBuckets})`
-        );
-        return;
-      }
-      if (meta) {
-        ecdictStatusEl.setText(
-          `Active: ${meta.source} · ${meta.entryCount} buckets · downloaded ${meta.downloadedAt.slice(0, 10)} · file ${meta.outputPath}`
-        );
-      } else {
-        ecdictStatusEl.setText("ECDICT not yet downloaded.");
-      }
-    };
-    updateEcdictStatusEl();
-    const ecdictUnsub = this.plugin.ecdictDownloader.onStatus(() => updateEcdictStatusEl());
-
-    new Setting(c)
-      .setName("Download ECDICT")
-      .setDesc("Fetches ecdict.csv (~65 MB) from the upstream GitHub repo and builds the reverse-lookup index in the vault. One-time download per device.")
-      .addButton((b) =>
-        b
-          .setButtonText("Download ECDICT")
-          .setCta()
-          .onClick(async () => {
-            b.setDisabled(true);
-            try {
-              const result = await this.plugin.ecdictDownloader.run();
-              const status = this.plugin.ecdictDownloader.getStatus();
-              this.plugin.settings.dictionaryEcdictSource = {
-                source: "ECDICT",
-                versionLine: "skywind3000/ECDICT full",
-                downloadedAt: status.downloadedAt ?? new Date().toISOString(),
-                entryCount: result.buckets,
-                outputPath: ".cci-ecdict.json",
-              };
-              await this.plugin.saveSettings();
-              await this.plugin.dictionary.reload();
-              new Notice(`ECDICT installed: ${result.entries} rows → ${result.buckets} buckets.`);
-            } catch (e) {
-              new Notice("ECDICT download failed: " + (e as Error).message);
-            } finally {
-              b.setDisabled(false);
-              updateEcdictStatusEl();
-            }
-          })
-      )
-      .addButton((b) =>
-        b.setButtonText("Remove").setWarning().onClick(async () => {
-          if (!confirm("Delete the downloaded ECDICT file from the vault?")) return;
-          const path = this.plugin.settings.dictionaryEcdictSource?.outputPath ?? ".cci-ecdict.json";
-          try {
-            if (await this.app.vault.adapter.exists(path)) {
-              await this.app.vault.adapter.remove(path);
-            }
-            this.plugin.settings.dictionaryEcdictSource = undefined;
-            await this.plugin.saveSettings();
-            await this.plugin.dictionary.reload();
-            new Notice("ECDICT removed.");
-          } catch (e) {
-            new Notice("Remove failed: " + (e as Error).message);
-          }
-          updateEcdictStatusEl();
-        })
-      );
-
-    c.createEl("p", {
-      cls: "setting-item-description",
-      text:
-        "Attribution: ECDICT by skywind3000 (https://github.com/skywind3000/ECDICT), MIT License. CC-CEDICT data is licensed CC BY-SA 4.0 by MDBG (https://www.mdbg.net/chinese/dictionary?page=cc-cedict).",
-    });
-
-    this.plugin.register(() => ecdictUnsub());
   }
 
   private renderDisplay(c: HTMLElement) {

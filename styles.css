@@ -565,29 +565,6 @@
   color: var(--text-normal);
 }
 
-/* iOS Obsidian's mobile stylesheet sets -webkit-touch-callout: none on
-   many descendants, which suppresses the long-press copy menu. Re-enable
-   it across the popup tree. The .cci-popup-axes checkbox row keeps its
-   own user-select: none so checkboxes still behave like buttons. */
-.cci-popup,
-.cci-popup *,
-.cci-bottom-sheet,
-.cci-bottom-sheet * {
-  -webkit-touch-callout: default;
-}
-
-.cci-popup-defs,
-.cci-popup-defs-scroll,
-.cci-popup-defs-section,
-.cci-popup-defs-item,
-.cci-popup-defs-headword,
-.cci-popup-head,
-.cci-popup-pinyin,
-.cci-popup-meta {
-  -webkit-user-select: text;
-  user-select: text;
-}
-
 .cci-popup-head {
   font-size: 1.4rem;
   font-weight: 700;
@@ -606,33 +583,26 @@
   max-height: 38vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+/* iOS Obsidian's mobile stylesheet sets -webkit-touch-callout: none on
+   many descendants, which suppresses the long-press copy menu. Re-enable
+   it across the popup tree. The .cci-popup-axes checkbox row keeps its
+   own user-select: none so checkboxes still behave like buttons. */
+.cci-popup,
+.cci-popup *,
+.cci-bottom-sheet,
+.cci-bottom-sheet * {
+  -webkit-touch-callout: default;
+}
+.cci-popup-defs,
+.cci-popup-defs-scroll,
+.cci-popup-head,
+.cci-popup-pinyin,
+.cci-popup-meta {
   -webkit-user-select: text;
   user-select: text;
-}
-.cci-popup-defs-section + .cci-popup-defs-section {
-  margin-top: 0.55rem;
-  padding-top: 0.45rem;
-  border-top: 1px solid var(--background-modifier-border);
-}
-.cci-popup-defs-source {
-  display: block;
-  font-size: 0.7rem;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  opacity: 0.65;
-  margin-bottom: 0.15rem;
-}
-.cci-popup-defs-source-custom,
-.cci-popup-defs-source-override {
-  color: var(--text-accent);
-  opacity: 0.85;
-}
-.cci-popup-defs-item {
-  margin: 0.15rem 0;
-}
-.cci-popup-defs-headword {
-  font-style: italic;
-  opacity: 0.85;
 }
 .cci-popup-meta {
   font-size: 0.8rem;
@@ -695,9 +665,6 @@
   z-index: 200;
   max-height: 70vh;
   overflow: auto;
-  touch-action: pan-y;
-}
-.cci-popup-defs-scroll {
   touch-action: pan-y;
 }
 

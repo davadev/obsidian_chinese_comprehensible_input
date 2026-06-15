@@ -2,35 +2,6 @@ import { Platform } from "obsidian";
 import type CciPlugin from "../main";
 import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { axesFromStatus } from "../vocabulary/axes";
-import { DictionaryEntry, DictionarySource } from "../dictionary/DictionaryTypes";
-
-const SOURCE_LABEL: Record<DictionarySource, string> = {
-  custom: "Your custom word",
-  override: "Your edit",
-  cedict: "CC-CEDICT",
-  ecdict: "ECDICT",
-  seed: "Seed",
-};
-
-/** Stable display order. Custom + override entries get top billing,
- *  CC-CEDICT next, ECDICT reverse lookups last. */
-const SOURCE_ORDER: DictionarySource[] = ["custom", "override", "cedict", "seed", "ecdict"];
-
-function groupBySource(entries: DictionaryEntry[]): { source: DictionarySource; entries: DictionaryEntry[] }[] {
-  const buckets = new Map<DictionarySource, DictionaryEntry[]>();
-  for (const e of entries) {
-    const src: DictionarySource = e.source ?? "cedict";
-    const arr = buckets.get(src) ?? [];
-    arr.push(e);
-    buckets.set(src, arr);
-  }
-  const out: { source: DictionarySource; entries: DictionaryEntry[] }[] = [];
-  for (const src of SOURCE_ORDER) {
-    const arr = buckets.get(src);
-    if (arr && arr.length) out.push({ source: src, entries: arr });
-  }
-  return out;
-}
 
 export class WordPopup {
   private el: HTMLElement | null = null;
@@ -95,24 +66,20 @@ export class WordPopup {
   private renderInto(el: HTMLElement, rec: WordRecord): void {
     el.empty();
 
-    const surface = rec.surfaces[0];
-    const entries = this.plugin.dictionary.lookup(surface);
-    // For header pinyin/traditional, prefer the first non-ECDICT entry
-    // since ECDICT reverse hits don't carry authoritative pinyin.
-    const headerEntry = entries.find((e) => e.source !== "ecdict") ?? entries[0];
+    const dictTop = this.plugin.dictionary.lookup(rec.surfaces[0])[0];
 
     const head = el.createDiv({ cls: "cci-popup-head" });
-    head.textContent = rec.simplified ?? surface;
+    head.textContent = rec.simplified ?? rec.surfaces[0];
 
-    const displayPinyin = headerEntry?.pinyin ?? rec.pinyin;
-    const displayTraditional = headerEntry?.traditional ?? rec.traditional;
+    const displayPinyin = dictTop?.pinyin ?? rec.pinyin;
+    const displayTraditional = dictTop?.traditional ?? rec.traditional;
 
     if (displayPinyin) {
       const py = el.createDiv({ cls: "cci-popup-pinyin" });
       py.textContent = displayPinyin;
     }
 
-    if (displayTraditional && displayTraditional !== (rec.simplified ?? surface)) {
+    if (displayTraditional && displayTraditional !== (rec.simplified ?? rec.surfaces[0])) {
       const tr = el.createDiv({ cls: "cci-popup-meta" });
       tr.createSpan({ text: "Traditional:" });
       tr.createSpan({ text: displayTraditional });
@@ -122,31 +89,7 @@ export class WordPopup {
     if (this.plugin.settings.mnemonicsFirst && rec.mnemonic?.text) {
       defs.createEl("div", { text: `🧠 ${rec.mnemonic.text}` });
     }
-    const groups = groupBySource(entries);
-    if (groups.length === 0) {
-      // Fall back to whatever the word record itself carries (seed entries
-      // didn't reach the dictionary lookup path, or no sources are enabled).
-      for (const d of rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
-    } else {
-      for (const g of groups) {
-        const section = defs.createDiv({ cls: "cci-popup-defs-section" });
-        section.createSpan({
-          cls: `cci-popup-defs-source cci-popup-defs-source-${g.source}`,
-          text: SOURCE_LABEL[g.source],
-        });
-        for (const e of g.entries) {
-          const item = section.createDiv({ cls: "cci-popup-defs-item" });
-          if (g.source === "ecdict" && e.englishHeadword) {
-            item.createSpan({
-              cls: "cci-popup-defs-headword",
-              text: e.englishHeadword,
-            });
-            item.createSpan({ text: " — " });
-          }
-          item.createSpan({ text: (e.definitions ?? []).join("; ") });
-        }
-      }
-    }
+    for (const d of dictTop?.definitions ?? rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
 
     // Knowledge checkboxes — the primary marking control.
     this.renderAxesCheckboxes(el, rec);

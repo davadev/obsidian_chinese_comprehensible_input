@@ -12,7 +12,6 @@ import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { DictionaryService } from "./dictionary/DictionaryService";
 import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
-import { EcdictDownloader } from "./dictionary/EcdictDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
 import { VocabularyStore } from "./vocabulary/VocabularyStore";
 import { ExposureTracker } from "./vocabulary/ExposureTracker";
@@ -31,7 +30,6 @@ export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
   dictionary!: DictionaryService;
   dictDownloader!: DictionaryDownloader;
-  ecdictDownloader!: EcdictDownloader;
   tokenizer!: TokenizerService;
   vocab!: VocabularyStore;
   exposure!: ExposureTracker;
@@ -119,12 +117,7 @@ export default class CciPlugin extends Plugin {
       () => this.dictionaryOverrides,
       () => this.dictionaryCustomWords
     );
-    this.dictionary.setSourceGates(
-      () => this.settings.useCedict,
-      () => this.settings.useEcdict
-    );
     this.dictDownloader = new DictionaryDownloader(this.app);
-    this.ecdictDownloader = new EcdictDownloader(this.app);
     this.vocab = new VocabularyStore(this, this.dictionary, () => this.settings);
     this.vocab.setDictionaryMirrorBridge({
       getOverrides: () => this.dictionaryOverrides,
@@ -248,11 +241,6 @@ export default class CciPlugin extends Plugin {
         // sure it is loaded into memory.
         await this.dictionary.ensureLoaded();
       }
-      // ECDICT is NOT auto-downloaded on bootstrap. The full CSV is ~65 MB
-      // and OOM-crashes iOS Obsidian during requestUrl; if the crash hits
-      // before we mark the file as on-disk, every subsequent launch tries
-      // again → user is stuck in a crash loop. Download is now strictly
-      // user-initiated via Settings → Dictionaries → ECDICT → Download.
       if (!this.settings.vaultIndexed) {
         await indexVaultWithNotice(this);
       }
