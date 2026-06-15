@@ -10,6 +10,20 @@ import { WordRecord } from "../vocabulary/VocabularyTypes";
 import { CciSettings } from "../settings/types";
 import { VIEW_TYPE_CHINESE } from "../constants";
 
+/** Days to push a target word's SRS dueAt after a successful story
+ *  generation. Lets the picker rotate to different words on the next
+ *  run instead of always re-using the same dozen. */
+const STORY_COOLDOWN_DAYS = 1;
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export class StoryGenerator {
   private generationInFlight = false;
 
@@ -45,8 +59,11 @@ export class StoryGenerator {
         "charactersUnknown",
       ]);
       const dueAll = this.srs.due();
-      const partial = dueAll.filter((r) => partialStatuses.has(r.status));
-      const fullyUnknown = dueAll.filter((r) => r.status === "unknown");
+      // Shuffle within each priority bucket so two consecutive generations
+      // don't keep picking the same first N words (the "Peking duck story
+      // every time" problem). Bucket priority is preserved.
+      const partial = shuffle(dueAll.filter((r) => partialStatuses.has(r.status)));
+      const fullyUnknown = shuffle(dueAll.filter((r) => r.status === "unknown"));
       const dueRecords = [...partial, ...fullyUnknown].slice(0, req.dueCount);
       if (dueRecords.length === 0) {
         throw new Error(
@@ -128,6 +145,20 @@ export class StoryGenerator {
           this.settings().exactTimestampRetentionLimit,
           this.settings().storeAllExactTimestamps
         );
+      }
+
+      // Story-exposure cooldown: push dueAt forward 1 day for target words
+      // that were due now. Avoids the same dozen showing up in every story
+      // back-to-back. Ease / interval / lapses are NOT changed — actual
+      // SRS state for real reviews is untouched. Additive-only: already
+      // future-dated words keep their existing schedule.
+      const now = new Date();
+      const cooldownDueAt = new Date(now.getTime() + STORY_COOLDOWN_DAYS * 86_400_000).toISOString();
+      for (const r of dueRecords) {
+        const existing = r.srs?.dueAt ? new Date(r.srs.dueAt).getTime() : 0;
+        if (existing <= now.getTime()) {
+          this.vocab.updateSrs(r.surfaces[0], { dueAt: cooldownDueAt });
+        }
       }
 
       return { story, targets: dueRecords, targetHsk, score: report.score, file, iterations: iter };
