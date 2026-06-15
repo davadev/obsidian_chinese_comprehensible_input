@@ -659,6 +659,34 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderStory(c: HTMLElement) {
     c.createEl("h3", { text: "Generated stories" });
+
+    new Setting(c)
+      .setName("Auto-generate a daily story")
+      .setDesc(
+        "When the AI provider is reachable, generate one story per day at the time below. Saves to the folder. Retries every 30 min on failure; failed days are dropped at midnight — no carry-over."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.story.autoGenerateEnabled).onChange(async (v) => {
+          this.plugin.settings.story.autoGenerateEnabled = v;
+          await this.plugin.saveSettings();
+        })
+      );
+    new Setting(c)
+      .setName("Daily generation time")
+      .setDesc("Local 24-hour HH:MM. Default 08:00.")
+      .addText((t) =>
+        t
+          .setPlaceholder("08:00")
+          .setValue(this.plugin.settings.story.autoGenerateTime)
+          .onChange(async (v) => {
+            const trimmed = v.trim();
+            if (/^\d{1,2}:\d{2}$/.test(trimmed)) {
+              this.plugin.settings.story.autoGenerateTime = trimmed;
+              await this.plugin.saveSettings();
+            }
+          })
+      );
+
     const folderSetting = new Setting(c).setName("Folder");
     let folderInput: any = null;
     folderSetting.addText((t) => {

@@ -280,7 +280,65 @@ export default class CciPlugin extends Plugin {
       void this.settingsMirror.bootstrap().catch((e) =>
         console.error("CCI settings mirror bootstrap failed", e)
       );
+      // One-shot auto-story check shortly after layout-ready — covers the
+      // case where the user opened the app well after their configured
+      // target time and we shouldn't make them wait for the first tick.
+      setTimeout(() => void this.tickAutoStory(), 3000);
     });
+    // Periodic auto-story tick. Cheap when disabled (early-return path).
+    const autoStoryHandle = window.setInterval(
+      () => void this.tickAutoStory(),
+      5 * 60_000
+    );
+    this.registerInterval(autoStoryHandle);
+  }
+
+  /** Periodic check that drives the "one auto-generated story per day"
+   *  feature. Early-exits unless enabled, the configured local time has
+   *  passed, today hasn't yet produced a story, and the 30-min retry
+   *  throttle has elapsed. Failures don't carry across midnight — the
+   *  date-string equality check resets state implicitly. */
+  private async tickAutoStory(): Promise<void> {
+    const s = this.settings.story;
+    if (!s?.autoGenerateEnabled) return;
+    const now = new Date();
+    const today = localDateString(now);
+    let blob = (await this.loadData()) ?? {};
+    if (blob.__autoStoryLastSuccessDate === today) return;
+
+    const target = parseHHMMToDate(s.autoGenerateTime, now);
+    if (now.getTime() < target.getTime()) return;
+
+    const lastAtt = blob.__autoStoryLastAttemptAt
+      ? new Date(blob.__autoStoryLastAttemptAt)
+      : null;
+    if (lastAtt && now.getTime() - lastAtt.getTime() < 30 * 60_000) return;
+
+    // Mark the attempt before kicking off, so generationInFlight guards
+    // can't end up running this tick repeatedly inside the throttle window.
+    blob.__autoStoryLastAttemptAt = now.toISOString();
+    await this.saveData(blob);
+
+    if (!this.settings.ai?.enabled) return;
+
+    try {
+      const preview = await this.story.generatePreview({
+        dueCount: s.defaultDueCount,
+        lengthChars: s.defaultLengthChars,
+        style: s.defaultStyle,
+        targetHsk: "auto",
+        includeGlossary: s.includeGlossary,
+      });
+      await this.story.commitPreviewAsNote(preview);
+      blob = (await this.loadData()) ?? {};
+      blob.__autoStoryLastSuccessDate = today;
+      await this.saveData(blob);
+      new Notice("Daily Chinese story generated.");
+    } catch (e) {
+      console.warn("CCI auto-story: generation failed", e);
+      // No further bookkeeping — the 30-min throttle handles retries.
+      // Day-rollover wipes lastAttempt indirectly via the date check.
+    }
   }
 
   private async bootstrapVocabMirror(): Promise<void> {
@@ -943,4 +1001,18 @@ export default class CciPlugin extends Plugin {
     }
     return { ...counts, topHsk };
   }
+}
+
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function parseHHMMToDate(hhmm: string, ref: Date): Date {
+  const [hh, mm] = (hhmm ?? "08:00").split(":").map((s) => parseInt(s, 10));
+  const out = new Date(ref);
+  out.setHours(Number.isFinite(hh) ? hh : 8, Number.isFinite(mm) ? mm : 0, 0, 0);
+  return out;
 }

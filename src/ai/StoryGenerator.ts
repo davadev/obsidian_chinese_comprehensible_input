@@ -15,6 +15,16 @@ import { VIEW_TYPE_CHINESE } from "../constants";
  *  run instead of always re-using the same dozen. */
 const STORY_COOLDOWN_DAYS = 1;
 
+/** Strip filesystem-illegal characters from a string so it can be used
+ *  inside a vault filename. Caps length to keep results sensible. */
+function sanitizeForFilename(s: string): string {
+  return s
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60);
+}
+
 function shuffle<T>(arr: T[]): T[] {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
@@ -188,11 +198,14 @@ export class StoryGenerator {
     const folder = normalizePath(settings.story.folder);
     await ensureFolder(this.app, folder);
     const stamp = new Date().toISOString().slice(0, 10);
-    let filename = `${stamp} - Review Story.md`;
+    // Use the LLM-generated title so multiple stories on the same day
+    // get genuinely distinguishable filenames instead of bare (1)/(2).
+    const titleSlug = sanitizeForFilename(preview.story.title) || "Review Story";
+    let filename = `${stamp} - ${titleSlug}.md`;
     let target = normalizePath(`${folder}/${filename}`);
     let n = 2;
     while (this.app.vault.getAbstractFileByPath(target)) {
-      filename = `${stamp} - Review Story (${n}).md`;
+      filename = `${stamp} - ${titleSlug} (${n}).md`;
       target = normalizePath(`${folder}/${filename}`);
       n++;
     }

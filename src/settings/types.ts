@@ -132,6 +132,12 @@ export interface StorySettings {
   includeGlossary: boolean;
   sendKnownWords: boolean;
   knownWordsSamplePercent: number;
+  /** When on, plugin attempts one story generation per day at
+   *  autoGenerateTime, retrying every 30 min if the AI provider is
+   *  unreachable. Day-rollover wipes any unfinished retry state. */
+  autoGenerateEnabled: boolean;
+  /** Local-time "HH:MM" target for the daily auto-generation. */
+  autoGenerateTime: string;
 }
 
 export interface DictionarySourceMeta {

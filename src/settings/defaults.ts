@@ -98,6 +98,8 @@ export const DEFAULT_SETTINGS: CciSettings = {
     includeGlossary: true,
     sendKnownWords: false,
     knownWordsSamplePercent: 30,
+    autoGenerateEnabled: false,
+    autoGenerateTime: "08:00",
   },
   sync: {
     mirrorEnabled: false,
