@@ -651,6 +651,25 @@
   cursor: pointer;
 }
 
+/* Collapsible Advanced settings sections */
+.cci-settings-advanced {
+  margin: 0.6rem 0 1rem 0;
+  padding: 0 0.2rem;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.cci-settings-advanced > summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+}
+.cci-settings-advanced > summary::-webkit-details-marker { display: none; }
+.cci-settings-advanced[open] > summary {
+  color: var(--text-normal);
+}
+
 /* Mobile bottom sheet */
 .cci-bottom-sheet {
   position: fixed;

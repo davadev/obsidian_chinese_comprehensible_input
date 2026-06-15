@@ -36,6 +36,14 @@ export class CciSettingsTab extends PluginSettingTab {
     this.renderAbout(containerEl);
   }
 
+  /** Wrap a block of settings in a collapsible `<details>` so power-user
+   *  knobs don't crowd the page. Common items stay rendered above. */
+  private renderCollapsible(c: HTMLElement, label: string, fn: (host: HTMLElement) => void): void {
+    const details = c.createEl("details", { cls: "cci-settings-advanced" });
+    details.createEl("summary", { text: label });
+    fn(details);
+  }
+
   private renderDataManagement(c: HTMLElement) {
     c.createEl("h3", { text: "Data Management" });
     new Setting(c)
@@ -178,34 +186,6 @@ export class CciSettingsTab extends PluginSettingTab {
       });
 
     new Setting(c)
-      .setName("Reader font size (px)")
-      .setDesc("Base font size used inside the Chinese Learning View.")
-      .addSlider((s) =>
-        s
-          .setLimits(14, 40, 1)
-          .setValue(this.plugin.settings.readerFontPx ?? 22)
-          .setDynamicTooltip()
-          .onChange(async (v) => {
-            this.plugin.settings.readerFontPx = v;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(c)
-      .setName("Annotation density cap (%)")
-      .setDesc("If more than this % of visible words are densely annotated, auto-degrade to popup-only.")
-      .addText((t) => {
-        t.setValue(String(this.plugin.settings.densityCapPercent));
-        t.onChange(async (v) => {
-          const n = parseInt(v, 10);
-          if (!Number.isNaN(n)) {
-            this.plugin.settings.densityCapPercent = n;
-            await this.plugin.saveSettings();
-          }
-        });
-      });
-
-    new Setting(c)
       .setName("Known-word popups")
       .addToggle((t) =>
         t.setValue(this.plugin.settings.knownWordPopups).onChange(async (v) => {
@@ -214,45 +194,71 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
-    new Setting(c)
-      .setName("Show mnemonic before full definition")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.mnemonicsFirst).onChange(async (v) => {
-          this.plugin.settings.mnemonicsFirst = v;
+    this.renderCollapsible(c, "Advanced display ▾", (a) => {
+      new Setting(a)
+        .setName("Reader font size (px)")
+        .setDesc("Base font size used inside the Chinese Learning View.")
+        .addSlider((s) =>
+          s
+            .setLimits(14, 40, 1)
+            .setValue(this.plugin.settings.readerFontPx ?? 22)
+            .setDynamicTooltip()
+            .onChange(async (v) => {
+              this.plugin.settings.readerFontPx = v;
+              await this.plugin.saveSettings();
+            })
+        );
+      new Setting(a)
+        .setName("Annotation density cap (%)")
+        .setDesc("If more than this % of visible words are densely annotated, auto-degrade to popup-only.")
+        .addText((t) => {
+          t.setValue(String(this.plugin.settings.densityCapPercent));
+          t.onChange(async (v) => {
+            const n = parseInt(v, 10);
+            if (!Number.isNaN(n)) {
+              this.plugin.settings.densityCapPercent = n;
+              await this.plugin.saveSettings();
+            }
+          });
+        });
+      new Setting(a)
+        .setName("Show mnemonic before full definition")
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.mnemonicsFirst).onChange(async (v) => {
+            this.plugin.settings.mnemonicsFirst = v;
+            await this.plugin.saveSettings();
+          })
+        );
+      this.renderColorPickers(a);
+      new Setting(a).setName("Color known words").addToggle((t) =>
+        t.setValue(this.plugin.settings.showKnownColor).onChange(async (v) => {
+          this.plugin.settings.showKnownColor = v;
           await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
         })
       );
-
-    this.renderColorPickers(c);
-
-    new Setting(c).setName("Color known words").addToggle((t) =>
-      t.setValue(this.plugin.settings.showKnownColor).onChange(async (v) => {
-        this.plugin.settings.showKnownColor = v;
-        await this.plugin.saveSettings();
-        this.plugin.refreshChineseViews();
-      })
-    );
-    new Setting(c).setName("Color partial words").addToggle((t) =>
-      t.setValue(this.plugin.settings.showPartialColor).onChange(async (v) => {
-        this.plugin.settings.showPartialColor = v;
-        await this.plugin.saveSettings();
-        this.plugin.refreshChineseViews();
-      })
-    );
-    new Setting(c).setName("Color unknown words").addToggle((t) =>
-      t.setValue(this.plugin.settings.showUnknownColor).onChange(async (v) => {
-        this.plugin.settings.showUnknownColor = v;
-        await this.plugin.saveSettings();
-        this.plugin.refreshChineseViews();
-      })
-    );
-    new Setting(c).setName("Color new (untracked) words").addToggle((t) =>
-      t.setValue(this.plugin.settings.showNewColor).onChange(async (v) => {
-        this.plugin.settings.showNewColor = v;
-        await this.plugin.saveSettings();
-        this.plugin.refreshChineseViews();
-      })
-    );
+      new Setting(a).setName("Color partial words").addToggle((t) =>
+        t.setValue(this.plugin.settings.showPartialColor).onChange(async (v) => {
+          this.plugin.settings.showPartialColor = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+        })
+      );
+      new Setting(a).setName("Color unknown words").addToggle((t) =>
+        t.setValue(this.plugin.settings.showUnknownColor).onChange(async (v) => {
+          this.plugin.settings.showUnknownColor = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+        })
+      );
+      new Setting(a).setName("Color new (untracked) words").addToggle((t) =>
+        t.setValue(this.plugin.settings.showNewColor).onChange(async (v) => {
+          this.plugin.settings.showNewColor = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+        })
+      );
+    });
   }
 
   private renderColorPickers(c: HTMLElement) {
@@ -517,7 +523,9 @@ export class CciSettingsTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new Setting(c)
+
+    this.renderCollapsible(c, "Advanced AI ▾", (a) => {
+    new Setting(a)
       .setName("Endpoint mode")
       .setDesc(
         "Pick 'Ollama native' if you reach Ollama directly (especially over Tailscale from iPhone). " +
@@ -534,7 +542,7 @@ export class CciSettingsTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         });
       });
-    new Setting(c).setName("Temperature").addText((t) =>
+    new Setting(a).setName("Temperature").addText((t) =>
       t.setValue(String(this.plugin.settings.ai.temperature)).onChange(async (v) => {
         const n = parseFloat(v);
         if (!Number.isNaN(n)) {
@@ -543,7 +551,7 @@ export class CciSettingsTab extends PluginSettingTab {
         }
       })
     );
-    new Setting(c).setName("Max output tokens").addText((t) =>
+    new Setting(a).setName("Max output tokens").addText((t) =>
       t.setValue(String(this.plugin.settings.ai.maxOutputTokens)).onChange(async (v) => {
         const n = parseInt(v, 10);
         if (!Number.isNaN(n)) {
@@ -552,7 +560,7 @@ export class CciSettingsTab extends PluginSettingTab {
         }
       })
     );
-    new Setting(c).setName("Timeout (ms)").addText((t) =>
+    new Setting(a).setName("Timeout (ms)").addText((t) =>
       t.setValue(String(this.plugin.settings.ai.timeoutMs)).onChange(async (v) => {
         const n = parseInt(v, 10);
         if (!Number.isNaN(n)) {
@@ -561,7 +569,7 @@ export class CciSettingsTab extends PluginSettingTab {
         }
       })
     );
-    new Setting(c).setName("Max repair iterations").addText((t) =>
+    new Setting(a).setName("Max repair iterations").addText((t) =>
       t.setValue(String(this.plugin.settings.ai.maxRepairIterations)).onChange(async (v) => {
         const n = parseInt(v, 10);
         if (!Number.isNaN(n)) {
@@ -571,7 +579,7 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
 
-    new Setting(c)
+    new Setting(a)
       .setName("Structured-output format")
       .setDesc(
         "json_object works on the widest range of providers (Ollama, OpenAI, vLLM). " +
@@ -592,7 +600,7 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       );
 
-    new Setting(c)
+    new Setting(a)
       .setName("Stream responses (SSE)")
       .setDesc(
         "Stream tokens as the model generates instead of waiting for the full reply. " +
@@ -608,7 +616,7 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       );
 
-    new Setting(c)
+    new Setting(a)
       .setName("Suppress thinking trace")
       .setDesc(
         "Append /no_think to the system prompt so qwen3-style reasoning models skip the long thought trace " +
@@ -623,7 +631,7 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       );
 
-    new Setting(c)
+    new Setting(a)
       .setName("Verbose AI debug notifications")
       .setDesc(
         "When on, a persistent Notice tracks each AI request: fetch issued → HTTP status → first byte → streaming chunks → finish_reason. " +
@@ -638,7 +646,7 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       );
 
-    new Setting(c).setName("Test connection").addButton((b) => {
+    new Setting(a).setName("Test connection").addButton((b) => {
       b.setButtonText("Test").onClick(async () => {
         try {
           const ok = await this.plugin.ai.testConnection();
@@ -647,6 +655,7 @@ export class CciSettingsTab extends PluginSettingTab {
           new Notice("AI test error: " + (e as Error).message);
         }
       });
+    });
     });
   }
 
@@ -698,42 +707,44 @@ export class CciSettingsTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
-    new Setting(c).setName("Known coverage threshold (0..1)").addText((t) =>
-      t.setValue(String(this.plugin.settings.story.knownCoverageThreshold)).onChange(async (v) => {
-        const n = parseFloat(v);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.story.knownCoverageThreshold = n;
-          await this.plugin.saveSettings();
-        }
-      })
-    );
-    new Setting(c).setName("Include glossary in note").addToggle((t) =>
-      t.setValue(this.plugin.settings.story.includeGlossary).onChange(async (v) => {
-        this.plugin.settings.story.includeGlossary = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new Setting(c)
-      .setName("Send known words to AI")
-      .setDesc("Opt in to include a sample of your known vocabulary in story prompts, so the model sees examples of your current Chinese level.")
-      .addToggle((t) =>
-        t.setValue(this.plugin.settings.story.sendKnownWords ?? false).onChange(async (v) => {
-          this.plugin.settings.story.sendKnownWords = v;
-          await this.plugin.saveSettings();
-        })
-      );
-    new Setting(c)
-      .setName("Known words sample percent")
-      .setDesc("When sending known words, randomly include this percent of all known words. Lower values keep prompts smaller.")
-      .addText((t) =>
-        t.setValue(String(this.plugin.settings.story.knownWordsSamplePercent ?? 30)).onChange(async (v) => {
-          const n = parseInt(v, 10);
+    this.renderCollapsible(c, "Advanced story options ▾", (a) => {
+      new Setting(a).setName("Known coverage threshold (0..1)").addText((t) =>
+        t.setValue(String(this.plugin.settings.story.knownCoverageThreshold)).onChange(async (v) => {
+          const n = parseFloat(v);
           if (!Number.isNaN(n)) {
-            this.plugin.settings.story.knownWordsSamplePercent = Math.max(1, Math.min(100, n));
+            this.plugin.settings.story.knownCoverageThreshold = n;
             await this.plugin.saveSettings();
           }
         })
       );
+      new Setting(a).setName("Include glossary in note").addToggle((t) =>
+        t.setValue(this.plugin.settings.story.includeGlossary).onChange(async (v) => {
+          this.plugin.settings.story.includeGlossary = v;
+          await this.plugin.saveSettings();
+        })
+      );
+      new Setting(a)
+        .setName("Send known words to AI")
+        .setDesc("Opt in to include a sample of your known vocabulary in story prompts, so the model sees examples of your current Chinese level.")
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.story.sendKnownWords ?? false).onChange(async (v) => {
+            this.plugin.settings.story.sendKnownWords = v;
+            await this.plugin.saveSettings();
+          })
+        );
+      new Setting(a)
+        .setName("Known words sample percent")
+        .setDesc("When sending known words, randomly include this percent of all known words. Lower values keep prompts smaller.")
+        .addText((t) =>
+          t.setValue(String(this.plugin.settings.story.knownWordsSamplePercent ?? 30)).onChange(async (v) => {
+            const n = parseInt(v, 10);
+            if (!Number.isNaN(n)) {
+              this.plugin.settings.story.knownWordsSamplePercent = Math.max(1, Math.min(100, n));
+              await this.plugin.saveSettings();
+            }
+          })
+        );
+    });
   }
 
   private renderData(c: HTMLElement) {
@@ -897,39 +908,6 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
 
-    c.createEl("h4", { text: "Conflict resolution priority" });
-    c.createEl("p", {
-      cls: "cci-settings-section-desc",
-      text:
-        "When two devices set different statuses on the same word, the status higher in this list wins — overriding the timestamp. " +
-        "\"New\" always loses to any classified status (hardcoded). Drag rows or use the arrow buttons to reorder.",
-    });
-
-    const listHost = c.createDiv();
-    renderStatusPriorityList(listHost, {
-      values: this.plugin.settings.sync.statusPriority,
-      onChange: async (next) => {
-        this.plugin.settings.sync.statusPriority = next;
-        await this.plugin.saveSettings();
-      },
-    });
-
-    new Setting(c)
-      .setName("Reset priority list to default")
-      .addButton((b) =>
-        b.setButtonText("Reset").onClick(async () => {
-          this.plugin.settings.sync.statusPriority = [...DEFAULT_STATUS_PRIORITY];
-          await this.plugin.saveSettings();
-          renderStatusPriorityList(listHost, {
-            values: this.plugin.settings.sync.statusPriority,
-            onChange: async (next: WordStatus[]) => {
-              this.plugin.settings.sync.statusPriority = next;
-              await this.plugin.saveSettings();
-            },
-          });
-        })
-      );
-
     new Setting(c)
       .setName("Auto re-sync interval (minutes)")
       .setDesc(
@@ -967,14 +945,46 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
+    this.renderCollapsible(c, "Advanced sync ▾", (a) => {
+    a.createEl("h4", { text: "Conflict resolution priority" });
+    a.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text:
+        "When two devices set different statuses on the same word, the status higher in this list wins — overriding the timestamp. " +
+        "\"New\" always loses to any classified status (hardcoded). Drag rows or use the arrow buttons to reorder.",
+    });
+    const listHost = a.createDiv();
+    renderStatusPriorityList(listHost, {
+      values: this.plugin.settings.sync.statusPriority,
+      onChange: async (next) => {
+        this.plugin.settings.sync.statusPriority = next;
+        await this.plugin.saveSettings();
+      },
+    });
+    new Setting(a)
+      .setName("Reset priority list to default")
+      .addButton((b) =>
+        b.setButtonText("Reset").onClick(async () => {
+          this.plugin.settings.sync.statusPriority = [...DEFAULT_STATUS_PRIORITY];
+          await this.plugin.saveSettings();
+          renderStatusPriorityList(listHost, {
+            values: this.plugin.settings.sync.statusPriority,
+            onChange: async (next: WordStatus[]) => {
+              this.plugin.settings.sync.statusPriority = next;
+              await this.plugin.saveSettings();
+            },
+          });
+        })
+      );
+
     // ----- Settings mirror (preferences sync) -----
-    c.createEl("h4", { text: "Settings sync between devices" });
-    c.createEl("p", {
+    a.createEl("h4", { text: "Settings sync between devices" });
+    a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
         "Optional: mirror your display + behavioral settings to a vault-side JSON file so other devices can pick them up via remotely-save / Nextcloud. Excluded from the mirror: AI credentials, mirror paths, per-device dictionary state.",
     });
-    new Setting(c)
+    new Setting(a)
       .setName("Mirror settings to a vault file")
       .addToggle((t) =>
         t.setValue(this.plugin.settings.sync.settingsMirrorEnabled).onChange(async (v) => {
@@ -983,7 +993,7 @@ export class CciSettingsTab extends PluginSettingTab {
           if (v) await this.plugin.settingsMirror.bootstrap();
         })
       );
-    const settingsMirrorPathSetting = new Setting(c).setName("Settings mirror file path");
+    const settingsMirrorPathSetting = new Setting(a).setName("Settings mirror file path");
     let settingsMirrorPathInput: any = null;
     settingsMirrorPathSetting.addText((t) => {
       settingsMirrorPathInput = t;
@@ -1010,14 +1020,14 @@ export class CciSettingsTab extends PluginSettingTab {
     );
 
     // ----- Backup / Restore (one-shot export / import) -----
-    c.createEl("h4", { text: "Backup / restore settings" });
-    c.createEl("p", {
+    a.createEl("h4", { text: "Backup / restore settings" });
+    a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
         "Export your settings to a JSON file inside the vault, or restore from one. Sensitive fields (AI key, sync paths) are excluded from both directions.",
     });
     let exportPath = SETTINGS_EXPORT_DEFAULT_PATH;
-    const exportSetting = new Setting(c).setName("Export path");
+    const exportSetting = new Setting(a).setName("Export path");
     let exportPathInput: any = null;
     exportSetting.addText((t) => {
       exportPathInput = t;
@@ -1037,7 +1047,7 @@ export class CciSettingsTab extends PluginSettingTab {
     );
 
     let importPath = SETTINGS_EXPORT_DEFAULT_PATH;
-    const importSetting = new Setting(c).setName("Import path");
+    const importSetting = new Setting(a).setName("Import path");
     let importPathInput: any = null;
     importSetting.addText((t) => {
       importPathInput = t;
@@ -1071,6 +1081,7 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
     void exportPathInput;
+    });
   }
 
   private renderAbout(c: HTMLElement) {

@@ -1,4 +1,4 @@
-import { addIcon, MarkdownView, Notice, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, MarkdownView, Notice, Platform, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { applyCustomColors, deriveHskColorsFromAccent } from "./ui/colorTheme";
 import {
@@ -52,9 +52,57 @@ export default class CciPlugin extends Plugin {
   pendingCustomSurface = "";
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
+  /** Counter timer that resets the persisted crash counter ~30s after
+   *  onload completes (i.e. once we've proven we don't crash). */
+  private crashResetTimer: number | null = null;
+  private static CRASH_THRESHOLD = 5;
+  private static CRASH_RESET_DELAY_MS = 30_000;
+
   async onload(): Promise<void> {
+    // Crash protection: if previous launches kept dying before the
+    // stability mark fired, auto-disable so the user can recover via
+    // Community plugins instead of being stuck in a reload loop.
+    try {
+      const probeBlob = (await this.loadData()) ?? {};
+      if (probeBlob.__autoDisabled) {
+        new Notice(
+          "Chinese plugin auto-disabled after repeated crashes. Re-enable in Settings → Community plugins after addressing the cause.",
+          0
+        );
+        // Clear the flag so the next manual enable can run normally.
+        probeBlob.__autoDisabled = false;
+        await this.saveData(probeBlob);
+        // @ts-ignore - app.plugins is on Obsidian's runtime API.
+        void this.app.plugins?.disablePlugin?.(this.manifest.id);
+        return;
+      }
+      const counter = (probeBlob.__crashCounter ?? 0) + 1;
+      if (counter > CciPlugin.CRASH_THRESHOLD) {
+        probeBlob.__autoDisabled = true;
+        probeBlob.__crashCounter = 0;
+        await this.saveData(probeBlob);
+        new Notice(
+          `Chinese plugin auto-disabled: hit ${CciPlugin.CRASH_THRESHOLD} crashes in a row. Open Community plugins to re-enable.`,
+          0
+        );
+        // @ts-ignore
+        void this.app.plugins?.disablePlugin?.(this.manifest.id);
+        return;
+      }
+      probeBlob.__crashCounter = counter;
+      await this.saveData(probeBlob);
+    } catch (e) {
+      console.warn("CCI crash-counter probe failed", e);
+    }
+
     try {
       await this.onloadInner();
+      // Schedule a "we're stable" reset of the crash counter. If anything
+      // crashes the app within 30s of onload, the counter survives.
+      this.crashResetTimer = window.setTimeout(() => {
+        this.resetCrashCounter().catch(() => {});
+      }, CciPlugin.CRASH_RESET_DELAY_MS);
+      this.registerInterval(this.crashResetTimer);
     } catch (e) {
       console.error("CCI onload failed", e);
       // Sticky Notice so the actual error is visible to the user — on iOS
@@ -69,6 +117,19 @@ export default class CciPlugin extends Plugin {
         /* if even Notice fails, give up — the throw below still flags it */
       }
       throw e;
+    }
+  }
+
+  private async resetCrashCounter(): Promise<void> {
+    try {
+      const blob = (await this.loadData()) ?? {};
+      if (blob.__crashCounter || blob.__autoDisabled) {
+        blob.__crashCounter = 0;
+        blob.__autoDisabled = false;
+        await this.saveData(blob);
+      }
+    } catch (e) {
+      console.warn("CCI crash-counter reset failed", e);
     }
   }
 
@@ -159,9 +220,15 @@ export default class CciPlugin extends Plugin {
 
     this.registerCommands();
 
-    this.addRibbonIcon("cci-zhong", "Open current note in Chinese Learning View", () => {
-      this.openCurrentInChineseView();
-    });
+    // Ribbon: mobile only. On desktop the MarkdownView header already gets
+    // the same action (`injectMarkdownHeaderActions` → `addAction`), so a
+    // left-panel ribbon button is redundant. iOS doesn't expose addAction,
+    // so the ribbon (== bottom toolbar on mobile) stays as the entry point.
+    if (Platform.isMobile) {
+      this.addRibbonIcon("cci-zhong", "Open current note in Chinese Learning View", () => {
+        this.openCurrentInChineseView();
+      });
+    }
 
     this.registerEvent(
       this.app.workspace.on("file-open", () => this.injectMarkdownHeaderActions())
@@ -256,6 +323,9 @@ export default class CciPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    // Clean shutdown = we ran fine. Reset the crash counter eagerly so
+    // user-triggered toggles don't accumulate toward the threshold.
+    await this.resetCrashCounter();
     await this.vocab.flushSave();
     // Force-flush any pending debounced mirror write so we don't lose
     // the tail of an exposure burst on quit.
@@ -591,7 +661,10 @@ export default class CciPlugin extends Plugin {
   appendToCustomWordSelection(surface: string): void {
     this.pendingCustomSurface += surface;
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
-      (leaf.view as ChineseTextFileView).refreshToolbar();
+      const v = leaf.view;
+      if (v instanceof ChineseTextFileView && typeof v.refreshToolbar === "function") {
+        try { v.refreshToolbar(); } catch (e) { console.warn("CCI refreshToolbar failed", e); }
+      }
     }
   }
 
@@ -609,10 +682,18 @@ export default class CciPlugin extends Plugin {
     }
     const editBoundaryCrossed = (prev === "edit") !== (m === "edit");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
-      const v = leaf.view as ChineseTextFileView;
-      v.refreshToolbar();
-      if (editBoundaryCrossed) v.reconfigureEditor();
-      else v.redecorate();
+      const v = leaf.view;
+      if (!(v instanceof ChineseTextFileView)) continue;
+      try {
+        if (typeof v.refreshToolbar === "function") v.refreshToolbar();
+        if (editBoundaryCrossed) {
+          if (typeof v.reconfigureEditor === "function") v.reconfigureEditor();
+        } else {
+          if (typeof v.redecorate === "function") v.redecorate();
+        }
+      } catch (e) {
+        console.warn("CCI view refresh failed", e);
+      }
     }
   }
 
@@ -700,7 +781,13 @@ export default class CciPlugin extends Plugin {
 
   refreshStatsViews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
-      (leaf.view as StatsView).render();
+      const v = leaf.view;
+      // iOS deferred / restored views may not yet have our class methods
+      // attached. instanceof + typeof guard prevents
+      // `e.view.render is not a function` from leaking into a Notice.
+      if (v instanceof StatsView && typeof v.render === "function") {
+        try { v.render(); } catch (e) { console.warn("CCI stats render failed", e); }
+      }
     }
   }
 
@@ -732,9 +819,14 @@ export default class CciPlugin extends Plugin {
 
   refreshChineseViews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
-      const v = leaf.view as ChineseTextFileView;
-      v.redecorate();
-      v.refreshToolbar();
+      const v = leaf.view;
+      if (!(v instanceof ChineseTextFileView)) continue;
+      if (typeof v.redecorate === "function") {
+        try { v.redecorate(); } catch (e) { console.warn("CCI redecorate failed", e); }
+      }
+      if (typeof v.refreshToolbar === "function") {
+        try { v.refreshToolbar(); } catch (e) { console.warn("CCI refreshToolbar failed", e); }
+      }
     }
   }
 
@@ -742,8 +834,10 @@ export default class CciPlugin extends Plugin {
    *  changes because the cached token list inside the ViewPlugin is stale. */
   forceRetokenizeViews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
-      const v = leaf.view as ChineseTextFileView;
-      v.forceRetokenize();
+      const v = leaf.view;
+      if (v instanceof ChineseTextFileView && typeof v.forceRetokenize === "function") {
+        try { v.forceRetokenize(); } catch (e) { console.warn("CCI forceRetokenize failed", e); }
+      }
     }
   }
 
