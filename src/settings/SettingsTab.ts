@@ -153,7 +153,7 @@ export class CciSettingsTab extends PluginSettingTab {
     c.createEl("p", {
       cls: "setting-item-description",
       text:
-        "Download skywind3000/ECDICT mini (~5 MB CSV, MIT). The plugin parses it into a Chinese→English reverse index and stores it in the vault. Looking up a Chinese word in the popup also shows English headwords whose translation contains it.",
+        "Download skywind3000/ECDICT full CSV (~65 MB, ~770k rows, MIT). The plugin parses it into a Chinese→English reverse index (~25-50 MB JSON in vault) and stores it locally. Looking up a Chinese word in the popup also shows English headwords whose translation contains it.",
     });
 
     const ecdictStatusEl = c.createDiv({ cls: "setting-item-description" });
@@ -178,8 +178,8 @@ export class CciSettingsTab extends PluginSettingTab {
     const ecdictUnsub = this.plugin.ecdictDownloader.onStatus(() => updateEcdictStatusEl());
 
     new Setting(c)
-      .setName("Download ECDICT (mini)")
-      .setDesc("Fetches ecdict.mini.csv from the upstream GitHub repo and builds the reverse-lookup index in the vault.")
+      .setName("Download ECDICT")
+      .setDesc("Fetches ecdict.csv (~65 MB) from the upstream GitHub repo and builds the reverse-lookup index in the vault. One-time download per device.")
       .addButton((b) =>
         b
           .setButtonText("Download ECDICT")
@@ -190,8 +190,8 @@ export class CciSettingsTab extends PluginSettingTab {
               const result = await this.plugin.ecdictDownloader.run();
               const status = this.plugin.ecdictDownloader.getStatus();
               this.plugin.settings.dictionaryEcdictSource = {
-                source: "ECDICT (mini)",
-                versionLine: "skywind3000/ECDICT mini",
+                source: "ECDICT",
+                versionLine: "skywind3000/ECDICT full",
                 downloadedAt: status.downloadedAt ?? new Date().toISOString(),
                 entryCount: result.buckets,
                 outputPath: ".cci-ecdict.json",

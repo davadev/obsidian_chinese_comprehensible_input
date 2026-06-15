@@ -565,6 +565,29 @@
   color: var(--text-normal);
 }
 
+/* iOS Obsidian's mobile stylesheet sets -webkit-touch-callout: none on
+   many descendants, which suppresses the long-press copy menu. Re-enable
+   it across the popup tree. The .cci-popup-axes checkbox row keeps its
+   own user-select: none so checkboxes still behave like buttons. */
+.cci-popup,
+.cci-popup *,
+.cci-bottom-sheet,
+.cci-bottom-sheet * {
+  -webkit-touch-callout: default;
+}
+
+.cci-popup-defs,
+.cci-popup-defs-scroll,
+.cci-popup-defs-section,
+.cci-popup-defs-item,
+.cci-popup-defs-headword,
+.cci-popup-head,
+.cci-popup-pinyin,
+.cci-popup-meta {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .cci-popup-head {
   font-size: 1.4rem;
   font-weight: 700;
@@ -672,6 +695,10 @@
   z-index: 200;
   max-height: 70vh;
   overflow: auto;
+  touch-action: pan-y;
+}
+.cci-popup-defs-scroll {
+  touch-action: pan-y;
 }
 
 /* Stats view */

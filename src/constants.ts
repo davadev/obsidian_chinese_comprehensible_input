@@ -9,8 +9,10 @@ export const DICTIONARY_DATA_FOLDER = "_dictionary";
  *  field. Dotfile at vault root so remotely-save's default ignore list
  *  excludes it from sync — each device downloads its own copy. */
 export const ECDICT_OUTPUT_PATH = ".cci-ecdict.json";
-/** Mini variant of ECDICT (~5MB CSV, ~66k entries). Hosted in the repo's
- *  master branch as a raw file, so no release-asset URL chasing. The full
- *  variant ships only as .7z which browsers cannot decompress natively. */
+/** Full ECDICT (~65MB CSV, ~770k rows). Hosted in the repo's master branch
+ *  as a raw file — GitHub serves it as text/plain HTTP 200. The "mini"
+ *  file in that repo is only ~50 sample rows and useless for real
+ *  reverse-lookup. Release-asset variants ship as .7z which browsers
+ *  cannot decompress natively. */
 export const ECDICT_CSV_URL =
-  "https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.mini.csv";
+  "https://raw.githubusercontent.com/skywind3000/ECDICT/master/ecdict.csv";

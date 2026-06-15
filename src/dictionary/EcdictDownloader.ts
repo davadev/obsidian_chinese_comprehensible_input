@@ -57,7 +57,7 @@ export class EcdictDownloader {
     try {
       this.update({
         state: "downloading",
-        message: "Downloading ECDICT (mini)…",
+        message: "Downloading ECDICT (~65 MB, one time)…",
         bytesDownloaded: 0,
         entriesParsed: 0,
         reverseBuckets: 0,

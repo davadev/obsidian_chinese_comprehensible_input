@@ -256,12 +256,12 @@ export default class CciPlugin extends Plugin {
         this.settings.useEcdict &&
         !(await this.dictionary.isEcdictOnDisk())
       ) {
-        const notice = new Notice("Chinese plugin: downloading ECDICT…", 0);
+        const notice = new Notice("Chinese plugin: downloading ECDICT (~65 MB, one-time)…", 0);
         try {
           const result = await this.ecdictDownloader.run();
           this.settings.dictionaryEcdictSource = {
-            source: "ECDICT (mini)",
-            versionLine: "skywind3000/ECDICT mini",
+            source: "ECDICT",
+            versionLine: "skywind3000/ECDICT full",
             downloadedAt: new Date().toISOString(),
             entryCount: result.buckets,
             outputPath: ".cci-ecdict.json",
