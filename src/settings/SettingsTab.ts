@@ -1019,6 +1019,26 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
 
+    new Setting(a)
+      .setName("Push current settings to mirror now")
+      .setDesc(
+        "Force-write this device's settings to the mirror file, bypassing the fresh-install touched check. Use when the other device's changes haven't propagated and you want to seed the file from here."
+      )
+      .addButton((b) =>
+        b.setButtonText("Push").setCta().onClick(async () => {
+          if (!this.plugin.settings.sync.settingsMirrorEnabled) {
+            new Notice("Settings mirror is off — enable it first.");
+            return;
+          }
+          try {
+            await this.plugin.settingsMirror.forcePushNow();
+            new Notice("Settings pushed to mirror.");
+          } catch (e) {
+            new Notice("Push failed: " + (e as Error).message);
+          }
+        })
+      );
+
     // ----- Backup / Restore (one-shot export / import) -----
     a.createEl("h4", { text: "Backup / restore settings" });
     a.createEl("p", {

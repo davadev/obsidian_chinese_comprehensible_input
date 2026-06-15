@@ -86,6 +86,18 @@ export class SettingsMirror {
     await this.write();
   }
 
+  /** Explicit user-initiated push that bypasses the touched gate. Used
+   *  by the "Push settings to mirror now" button to unstick users whose
+   *  device made changes pre-0.1.95 (touched flag didn't exist yet, so
+   *  the file was never written). */
+  async forcePushNow(): Promise<void> {
+    if (this.writeTimer != null) {
+      window.clearTimeout(this.writeTimer);
+      this.writeTimer = null;
+    }
+    await this.write({ force: true });
+  }
+
   async absorbExternalChange(): Promise<boolean> {
     const path = this.path();
     if (!path) return false;
@@ -198,12 +210,13 @@ export class SettingsMirror {
     }
   }
 
-  private async write(): Promise<void> {
+  private async write(opts: { force?: boolean } = {}): Promise<void> {
     const path = this.path();
     if (!path) return;
     // Fresh-install guard: don't push defaults to the mirror file before
-    // the user has touched any setting on this device.
-    if (!(await this.plugin.hasUserTouchedSettings())) return;
+    // the user has touched any setting on this device. Bypassed by an
+    // explicit user-initiated forcePushNow().
+    if (!opts.force && !(await this.plugin.hasUserTouchedSettings())) return;
     const adapter = this.plugin.app.vault.adapter;
     const norm = normalizePath(path);
     await ensureFolder(this.plugin, norm);

@@ -10,7 +10,9 @@ export const SETTINGS_EXPORT_DEFAULT_PATH = "Chinese Learning/cci-settings-expor
  *  or settings-mirror. AI credentials, paths used to bootstrap the sync
  *  layer itself, per-device download manifests, install-time boot flags. */
 const FILTER_OUT = {
-  ai: ["apiKey", "baseUrl"] as const,
+  // Only the API key is sensitive enough to filter. baseUrl, model
+  // names, endpoint mode etc. are useful to sync between devices.
+  ai: ["apiKey"] as const,
   sync: [
     "mirrorPath",
     "settingsMirrorPath",

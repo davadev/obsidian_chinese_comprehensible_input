@@ -11,6 +11,7 @@ import { clearTokenCache } from "./tokenizer/tokenCache";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
+import { filterSettingsForSharing } from "./settings/SettingsIO";
 import { DictionaryService } from "./dictionary/DictionaryService";
 import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
@@ -174,6 +175,9 @@ export default class CciPlugin extends Plugin {
       void this.saveSettingsSilently();
     }
     applyCustomColors(this.settings);
+    // Snapshot the initial filtered-settings fingerprint so saveSettings
+    // can tell whether a UI change actually altered a sync-eligible field.
+    this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
 
     this.dictionaryOverrides = (blob.dictionaryOverrides as DictionaryOverrides) ?? {};
     this.dictionaryCustomWords = (blob.dictionaryCustomWords as DictionaryCustomWords) ?? {};
@@ -344,13 +348,19 @@ export default class CciPlugin extends Plugin {
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_STATS);
   }
 
+  /** Fingerprint of the shareable subset of settings at last save. Used
+   *  to detect whether a UI change actually altered any sync-eligible
+   *  field. Pure sync-config edits (mirror toggle, mirror path, poll
+   *  interval) don't change the filtered fingerprint, so they don't
+   *  mark the device as touched and don't trigger a clobbering write. */
+  private lastSharedFingerprint: string | null = null;
+
   async saveSettings(): Promise<void> {
-    await this.saveSettingsSilently({ markUserTouched: true });
-    // Echo to the optional settings mirror so other devices pick up the
-    // change. No-op if the mirror is disabled OR the user hasn't touched
-    // any setting yet on this device — protects fresh installs from
-    // overwriting a remote settings file that hasn't synced in yet.
-    this.settingsMirror?.scheduleWrite();
+    const fp = JSON.stringify(filterSettingsForSharing(this.settings));
+    const shareableChanged = fp !== this.lastSharedFingerprint;
+    this.lastSharedFingerprint = fp;
+    await this.saveSettingsSilently({ markUserTouched: shareableChanged });
+    if (shareableChanged) this.settingsMirror?.scheduleWrite();
   }
 
   /** Persist settings without scheduling a mirror write. Used by
