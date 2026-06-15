@@ -117,7 +117,16 @@ export class VocabularyStore {
     } catch (e) {
       console.error("CCI sync: mirror load failed", e);
     }
-    if (this.loaded) await this.flushSave();
+    // Never let a mirror write failure cascade into a plugin load failure —
+    // the user can still use the plugin even if the vault-side mirror is
+    // momentarily unwritable.
+    if (this.loaded) {
+      try {
+        await this.flushSave();
+      } catch (e) {
+        console.error("CCI sync: post-load flushSave failed", e);
+      }
+    }
   }
 
   private async sweepConflictFiles(mirrorPath: string): Promise<void> {
@@ -551,16 +560,31 @@ export class VocabularyStore {
       };
       const content = JSON.stringify(envelope, null, 2);
       const adapter = this.plugin.app.vault.adapter;
-      // Atomic write: stage to .tmp, then rename. Prevents Nextcloud /
-      // remotely-save from catching a half-written JSON and treating it as
-      // a divergent state. The .tmp suffix is on most clients' default
-      // exclude list, so the staging file isn't itself pushed upstream.
+      // Try atomic write (stage to .tmp, then rename). Avoids Nextcloud /
+      // remotely-save catching a half-written JSON. Some mobile adapters
+      // (older Obsidian builds) don't expose `rename` or reject `.tmp`
+      // paths, so fall back to a direct write in that case rather than
+      // failing the whole save.
       const tmpPath = `${path}.tmp`;
-      await adapter.write(tmpPath, content);
-      if (await adapter.exists(path)) {
-        await adapter.remove(path);
+      let wroteAtomic = false;
+      try {
+        await adapter.write(tmpPath, content);
+        if (await adapter.exists(path)) {
+          await adapter.remove(path);
+        }
+        await adapter.rename(tmpPath, path);
+        wroteAtomic = true;
+      } catch (atomicErr) {
+        console.warn("CCI sync: atomic mirror write unavailable, falling back to direct write", atomicErr);
+        // Best-effort cleanup of the staging file; ignore failures.
+        try {
+          if (await adapter.exists(tmpPath)) await adapter.remove(tmpPath);
+        } catch {
+          /* ignore */
+        }
+        await adapter.write(path, content);
       }
-      await adapter.rename(tmpPath, path);
+      void wroteAtomic;
       this.lastMirrorHash = await hashString(content);
     } catch (e) {
       console.error("CCI sync: mirror write failed", e);
