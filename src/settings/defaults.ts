@@ -46,7 +46,7 @@ export const DEFAULT_STATUS_PRIORITY: WordStatus[] = [
 export const DEFAULT_SETTINGS: CciSettings = {
   schemaVersion: DATA_SCHEMA_VERSION,
   useCedict: true,
-  useEcdict: true,
+  useEcdict: false,
   defaultDisplayMode: "none",
   knownWordPopups: false,
   showKnownColor: false,

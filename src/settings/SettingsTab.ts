@@ -153,7 +153,7 @@ export class CciSettingsTab extends PluginSettingTab {
     c.createEl("p", {
       cls: "setting-item-description",
       text:
-        "Download skywind3000/ECDICT full CSV (~65 MB, ~770k rows, MIT). The plugin parses it into a Chinese→English reverse index (~25-50 MB JSON in vault) and stores it locally. Looking up a Chinese word in the popup also shows English headwords whose translation contains it.",
+        "Optional. Download skywind3000/ECDICT full CSV (~65 MB, ~770k rows, MIT). WARNING: the download is heavy and has OOM-crashed iOS Obsidian in testing — recommended on desktop only. Files are parsed into a Chinese→English reverse index (~25-50 MB JSON) stored locally. Looking up a Chinese word in the popup also shows English headwords whose translation contains it.",
     });
 
     const ecdictStatusEl = c.createDiv({ cls: "setting-item-description" });

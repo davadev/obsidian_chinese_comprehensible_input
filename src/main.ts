@@ -248,36 +248,11 @@ export default class CciPlugin extends Plugin {
         // sure it is loaded into memory.
         await this.dictionary.ensureLoaded();
       }
-      // Auto-download ECDICT reverse index on first install too (same
-      // condition as CC-CEDICT: respects autoDownloadDictionary). If the
-      // user has disabled useEcdict, skip.
-      if (
-        this.settings.autoDownloadDictionary &&
-        this.settings.useEcdict &&
-        !(await this.dictionary.isEcdictOnDisk())
-      ) {
-        const notice = new Notice("Chinese plugin: downloading ECDICT (~65 MB, one-time)…", 0);
-        try {
-          const result = await this.ecdictDownloader.run();
-          this.settings.dictionaryEcdictSource = {
-            source: "ECDICT",
-            versionLine: "skywind3000/ECDICT full",
-            downloadedAt: new Date().toISOString(),
-            entryCount: result.buckets,
-            outputPath: ".cci-ecdict.json",
-          };
-          await this.saveSettings();
-          await this.dictionary.reload();
-          notice.setMessage(`Chinese plugin: ECDICT ready (${result.buckets} buckets).`);
-          setTimeout(() => notice.hide(), 3000);
-        } catch (err) {
-          notice.setMessage(
-            "Chinese plugin: ECDICT download failed — " + (err as Error).message
-          );
-          setTimeout(() => notice.hide(), 6000);
-          // Non-fatal: continue without ECDICT.
-        }
-      }
+      // ECDICT is NOT auto-downloaded on bootstrap. The full CSV is ~65 MB
+      // and OOM-crashes iOS Obsidian during requestUrl; if the crash hits
+      // before we mark the file as on-disk, every subsequent launch tries
+      // again → user is stuck in a crash loop. Download is now strictly
+      // user-initiated via Settings → Dictionaries → ECDICT → Download.
       if (!this.settings.vaultIndexed) {
         await indexVaultWithNotice(this);
       }
