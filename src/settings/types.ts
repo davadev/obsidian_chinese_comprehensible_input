@@ -42,6 +42,14 @@ export interface SyncSettings {
   mirrorEnabled: boolean;
   mirrorPath: string;
   /**
+   * Belt-and-suspenders for the vault `modify` watcher: every N minutes,
+   * re-hash the mirror file on disk and merge if it differs from what we
+   * last wrote. Catches updates pulled in by remotely-save while the
+   * window was backgrounded, or written outside Obsidian's vault layer.
+   * 0 disables the poll; "Force re-sync now" still works.
+   */
+  mirrorPollIntervalMinutes: number;
+  /**
    * User-ordered priority list used by `resolveStatus` when two devices
    * have set different statuses on the same word. Earlier in the list =
    * wins. The hardcoded "new always loses" rule runs first, so `new`'s

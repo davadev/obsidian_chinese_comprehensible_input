@@ -102,6 +102,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   sync: {
     mirrorEnabled: false,
     mirrorPath: VOCAB_MIRROR_PATH_DEFAULT,
+    mirrorPollIntervalMinutes: 5,
     statusPriority: DEFAULT_STATUS_PRIORITY,
   },
   exactTimestampRetentionLimit: 500,

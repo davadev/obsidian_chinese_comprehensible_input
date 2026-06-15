@@ -106,6 +106,7 @@ export default class CciPlugin extends Plugin {
     });
     await this.vocab.load(blob);
     this.registerSyncMirrorWatchers();
+    this.startSyncMirrorPoller();
 
     this.tokenizer = new TokenizerService(this.dictionary, {
       hasRecord: (s) => !!this.vocab.bySurface(s),
@@ -315,12 +316,13 @@ export default class CciPlugin extends Plugin {
 
   /**
    * Called by the Settings tab after the user flips the vocabulary mirror
-   * toggle on (or changes the path). Forces a save so the mirror file
-   * appears immediately, then absorbs any existing mirror at the new path.
+   * toggle on (or changes the path). Reads the existing mirror first (so
+   * a pre-synced file isn't clobbered by the local — possibly empty —
+   * store), merges and writes the result, then re-arms the periodic poll.
    */
   async refreshSyncMirror(): Promise<void> {
-    await this.vocab.flushSave();
-    await this.vocab.absorbExternalMirrorChange();
+    await this.vocab.reloadMirror();
+    this.startSyncMirrorPoller();
     this.refreshChineseViews();
     this.refreshStatsViews();
   }
@@ -367,12 +369,49 @@ export default class CciPlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("create", async (file: TAbstractFile) => {
         if (!this.settings.sync?.mirrorEnabled) return;
-        if (!isMirrorConflict(file.path)) return;
+        // Also catch the mirror file itself appearing post-load — happens
+        // when remotely-save pulls it down after the plugin has already
+        // finished initial loadMirrorOnLoad and the modify watcher won't fire.
+        if (!isMirrorPath(file.path) && !isMirrorConflict(file.path)) return;
         await this.vocab.reloadMirror();
         this.refreshChineseViews();
         this.refreshStatsViews();
       })
     );
+  }
+
+  /**
+   * Belt-and-suspenders for the `modify` watcher: the vault event can be
+   * missed when remotely-save writes while the window is backgrounded or
+   * when sync happens via a path that bypasses Obsidian's vault layer.
+   * Periodically re-check the mirror file's hash and merge if it diverged.
+   * Safe to call repeatedly — clears any previous timer first.
+   */
+  private mirrorPollTimer: number | null = null;
+
+  startSyncMirrorPoller(): void {
+    if (this.mirrorPollTimer != null) {
+      window.clearInterval(this.mirrorPollTimer);
+      this.mirrorPollTimer = null;
+    }
+    const minutes = this.settings.sync?.mirrorPollIntervalMinutes ?? 5;
+    if (!minutes || minutes <= 0) return;
+    // Floor at 30s so a fat-fingered "0.01" can't pin the disk.
+    const ms = Math.max(30_000, Math.floor(minutes * 60_000));
+    const handle = window.setInterval(async () => {
+      if (!this.settings.sync?.mirrorEnabled) return;
+      try {
+        const changed = await this.vocab.absorbExternalMirrorChange();
+        if (changed) {
+          this.refreshChineseViews();
+          this.refreshStatsViews();
+        }
+      } catch (e) {
+        console.error("CCI sync: mirror poll failed", e);
+      }
+    }, ms);
+    this.mirrorPollTimer = handle;
+    this.registerInterval(handle);
   }
 
   // Commands -----------------------------------------------------------

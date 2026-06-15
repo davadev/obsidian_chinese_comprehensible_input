@@ -894,6 +894,25 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     new Setting(c)
+      .setName("Auto re-sync interval (minutes)")
+      .setDesc(
+        "How often to re-check the mirror file on disk for changes pulled in by remotely-save. " +
+        "0 disables auto-poll (manual \"Force re-sync now\" still works). Minimum effective interval is 30 seconds."
+      )
+      .addText((t) =>
+        t
+          .setPlaceholder("5")
+          .setValue(String(this.plugin.settings.sync.mirrorPollIntervalMinutes ?? 5))
+          .onChange(async (v) => {
+            const n = Number(v);
+            this.plugin.settings.sync.mirrorPollIntervalMinutes =
+              Number.isFinite(n) && n >= 0 ? n : 5;
+            await this.plugin.saveSettings();
+            this.plugin.startSyncMirrorPoller();
+          })
+      );
+
+    new Setting(c)
       .setName("Force re-sync now")
       .setDesc(
         "Re-read the mirror file, merge any pending changes (including remotely-save conflict files), and write the result back."
