@@ -83,7 +83,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
     temperature: 0.6,
     maxOutputTokens: 8000,
     timeoutMs: 300000,
-    maxRepairIterations: 1,
+    maxRepairIterations: 4,
     responseFormat: "json_object",
     suppressThinking: true,
     stream: true,

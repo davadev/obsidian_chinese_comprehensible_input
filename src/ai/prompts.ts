@@ -41,16 +41,25 @@ export function buildUserPrompt(args: {
 
 export function buildRepairPrompt(args: {
   originalText: string;
-  missingWords: string[];
+  missingTargetWords: TargetWord[];
   tooHardWords: string[];
   targetHsk: string;
+  totalTargets: number;
 }): string {
+  const missingBlock = args.missingTargetWords
+    .map((w, i) => `  ${i + 1}. ${w.word} (${w.pinyin}) — ${w.definition}`)
+    .join("\n");
   return (
-    `Your previous output had problems. Revise the JSON to fix them.\n` +
-    `Missing target words (must appear naturally): ${args.missingWords.join(", ") || "(none)"}.\n` +
-    `Too-difficult vocabulary to replace with simpler alternatives at HSK ${args.targetHsk} or below: ${args.tooHardWords.join(", ") || "(none)"}.\n` +
-    `Preserve valid parts of the previous text:\n---\n${args.originalText}\n---\n` +
-    `Return revised JSON only.`
+    `Your previous Chinese story is missing ${args.missingTargetWords.length} of ` +
+    `${args.totalTargets} required target words from textChinese.\n` +
+    `Each missing word below MUST appear at least once verbatim inside textChinese, ` +
+    `as the exact simplified-Chinese surface form. Putting it in a glossary, comment, ` +
+    `or paraphrase does NOT count.\n\n` +
+    `Missing target words to add to the story:\n${missingBlock || "  (none)"}\n\n` +
+    `Also replace any too-difficult vocabulary with simpler alternatives at HSK ${args.targetHsk} or below: ${args.tooHardWords.join(", ") || "(none)"}.\n` +
+    `Keep the existing story arc where it works; add or rewrite sentences so every missing word lands naturally in the prose.\n\n` +
+    `Previous textChinese (for reference — revise, don't replace wholesale):\n---\n${args.originalText}\n---\n` +
+    `Return revised JSON only with shape {title, targetLevel, textChinese}.`
   );
 }
 

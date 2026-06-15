@@ -61,43 +61,64 @@ export class StoryGenerator {
 
       const targetHsk = req.targetHsk === "auto" ? String(this.estimateHsk()) : req.targetHsk;
 
-      let story = await this.callOnce(req, targetWords, targetHsk);
+      const initialStory = await this.callOnce(req, targetWords, targetHsk);
       const cfg: ValidatorConfig = {
         targetHsk: parseInt(targetHsk, 10) || 0,
         lengthChars: req.lengthChars,
         tooHardRatioCap: 0.15,
       };
-      let report = await validateStory(
-        story,
-        targetWords.map((t) => t.word),
-        this.tokenizer,
-        cfg
-      );
+      const targetSurfaces = targetWords.map((t) => t.word);
+      const initialReport = await validateStory(initialStory, targetSurfaces, this.tokenizer, cfg);
+      // Best-of-N: each repair can make things worse — track the best
+      // story seen so far (fewest missing target words; tie-break on score)
+      // and return that, not the last iteration.
+      let best = { story: initialStory, report: initialReport };
 
       const maxIters = this.settings().ai.maxRepairIterations;
       let iter = 0;
-      while (!report.ok && iter < maxIters) {
+      while (iter < maxIters && best.report.missingWords.length > 0) {
         iter++;
+        const missingTargetWords = targetWords.filter((t) =>
+          best.report.missingWords.includes(t.word)
+        );
         const repair = buildRepairPrompt({
-          originalText: story.textChinese,
-          missingWords: report.missingWords,
-          tooHardWords: report.tooHardWords,
+          originalText: best.story.textChinese,
+          missingTargetWords,
+          tooHardWords: best.report.tooHardWords,
           targetHsk,
+          totalTargets: targetWords.length,
         });
         try {
           const out = await this.ai.chatJson(STORY_SYSTEM_PROMPT, repair, "ChineseStory", STORY_SCHEMA);
-          story = parseStory(out);
+          const candidate = parseStory(out);
+          const candReport = await validateStory(candidate, targetSurfaces, this.tokenizer, cfg);
+          if (
+            candReport.missingWords.length < best.report.missingWords.length ||
+            (candReport.missingWords.length === best.report.missingWords.length &&
+              candReport.score > best.report.score)
+          ) {
+            best = { story: candidate, report: candReport };
+          }
+          new Notice(
+            `Story iter ${iter}/${maxIters}: ${targetWords.length - best.report.missingWords.length}/${targetWords.length} target words included`,
+            3000
+          );
         } catch (e) {
           new Notice("Repair iteration failed: " + (e as Error).message);
           break;
         }
-        report = await validateStory(
-          story,
-          targetWords.map((t) => t.word),
-          this.tokenizer,
-          cfg
-        );
       }
+      const story = best.story;
+      const report = best.report;
+      const included = targetWords.length - report.missingWords.length;
+      new Notice(
+        `Generated story: ${included}/${targetWords.length} target words included` +
+          (report.missingWords.length
+            ? ` (missing: ${report.missingWords.join(", ")})`
+            : "") +
+          `. Iterations used: ${iter}/${maxIters}.`,
+        6000
+      );
 
       const file = await this.writePreviewFile(story, dueRecords, targetHsk, report.score);
 
