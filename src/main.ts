@@ -556,6 +556,13 @@ export default class CciPlugin extends Plugin {
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view as MarkdownView;
       if (this.injectedMarkdownViews.has(view)) continue;
+      // iOS Obsidian's MarkdownView doesn't expose `addAction` — guard so
+      // an iPad load doesn't crash here. Desktop / Android still get the
+      // header button.
+      if (typeof (view as unknown as { addAction?: unknown }).addAction !== "function") {
+        this.injectedMarkdownViews.add(view);
+        continue;
+      }
       view.addAction("cci-zhong", "Open in Chinese Learning View", () => {
         if (view.file) void this.openFileInChineseView(view.file);
       });
