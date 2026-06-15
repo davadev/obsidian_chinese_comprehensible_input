@@ -86,6 +86,13 @@ export class StoryGenerator {
       };
       const targetSurfaces = targetWords.map((t) => t.word);
       const initialReport = await validateStory(initialStory, targetSurfaces, this.tokenizer, cfg);
+      // Full history of attempts (initial + every repair candidate) so the
+      // repair prompt can show the model what it kept getting wrong, not
+      // just the most recent attempt. Lets the model triangulate from
+      // multiple examples instead of seeing one stale draft.
+      const history: { textChinese: string; missingCount: number }[] = [
+        { textChinese: initialStory.textChinese, missingCount: initialReport.missingWords.length },
+      ];
       // Best-of-N: each repair can make things worse — track the best
       // story seen so far (fewest missing target words; tie-break on score)
       // and return that, not the last iteration.
@@ -99,7 +106,7 @@ export class StoryGenerator {
           best.report.missingWords.includes(t.word)
         );
         const repair = buildRepairPrompt({
-          originalText: best.story.textChinese,
+          priorAttempts: history,
           missingTargetWords,
           tooHardWords: best.report.tooHardWords,
           targetHsk,
@@ -109,6 +116,10 @@ export class StoryGenerator {
           const out = await this.ai.chatJson(STORY_SYSTEM_PROMPT, repair, "ChineseStory", STORY_SCHEMA);
           const candidate = parseStory(out);
           const candReport = await validateStory(candidate, targetSurfaces, this.tokenizer, cfg);
+          history.push({
+            textChinese: candidate.textChinese,
+            missingCount: candReport.missingWords.length,
+          });
           if (
             candReport.missingWords.length < best.report.missingWords.length ||
             (candReport.missingWords.length === best.report.missingWords.length &&
