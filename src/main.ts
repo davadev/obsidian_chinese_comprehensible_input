@@ -10,6 +10,7 @@ import {
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { CciSettings, ViewMode } from "./settings/types";
 import { CciSettingsTab } from "./settings/SettingsTab";
+import { SettingsMirror } from "./settings/SettingsMirror";
 import { DictionaryService } from "./dictionary/DictionaryService";
 import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
@@ -30,6 +31,7 @@ export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
   dictionary!: DictionaryService;
   dictDownloader!: DictionaryDownloader;
+  settingsMirror!: SettingsMirror;
   tokenizer!: TokenizerService;
   vocab!: VocabularyStore;
   exposure!: ExposureTracker;
@@ -118,6 +120,7 @@ export default class CciPlugin extends Plugin {
       () => this.dictionaryCustomWords
     );
     this.dictDownloader = new DictionaryDownloader(this.app);
+    this.settingsMirror = new SettingsMirror(this);
     this.vocab = new VocabularyStore(this, this.dictionary, () => this.settings);
     this.vocab.setDictionaryMirrorBridge({
       getOverrides: () => this.dictionaryOverrides,
@@ -194,6 +197,9 @@ export default class CciPlugin extends Plugin {
     // can never cascade into a plugin load failure.
     this.app.workspace.onLayoutReady(() => {
       void this.bootstrapVocabMirror();
+      void this.settingsMirror.bootstrap().catch((e) =>
+        console.error("CCI settings mirror bootstrap failed", e)
+      );
     });
   }
 
@@ -254,11 +260,22 @@ export default class CciPlugin extends Plugin {
     // Force-flush any pending debounced mirror write so we don't lose
     // the tail of an exposure burst on quit.
     await this.vocab.flushMirrorNow();
+    await this.settingsMirror?.flushNow().catch(() => {});
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHINESE);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_STATS);
   }
 
   async saveSettings(): Promise<void> {
+    await this.saveSettingsSilently();
+    // Echo to the optional settings mirror so other devices pick up the
+    // change. No-op if the mirror is disabled.
+    this.settingsMirror?.scheduleWrite();
+  }
+
+  /** Persist settings without scheduling a mirror write. Used by
+   *  SettingsMirror.absorbExternalChange after applying a remote envelope,
+   *  to avoid an echo loop. */
+  async saveSettingsSilently(): Promise<void> {
     const blob = (await this.loadData()) ?? {};
     blob.settings = this.settings;
     await this.saveData(blob);
@@ -418,27 +435,41 @@ export default class CciPlugin extends Plugin {
         name.toLowerCase().endsWith(".json")
       );
     };
+    const isSettingsMirrorPath = (path: string): boolean => {
+      const p = this.settings.sync?.settingsMirrorPath;
+      return !!p && path === p && !!this.settings.sync?.settingsMirrorEnabled;
+    };
     this.registerEvent(
       this.app.vault.on("modify", async (file: TAbstractFile) => {
-        if (!this.settings.sync?.mirrorEnabled) return;
-        if (!isMirrorPath(file.path)) return;
-        const changed = await this.vocab.absorbExternalMirrorChange();
-        if (changed) {
-          this.refreshChineseViews();
-          this.refreshStatsViews();
+        if (this.settings.sync?.mirrorEnabled && isMirrorPath(file.path)) {
+          const changed = await this.vocab.absorbExternalMirrorChange();
+          if (changed) {
+            this.refreshChineseViews();
+            this.refreshStatsViews();
+          }
+          return;
+        }
+        if (isSettingsMirrorPath(file.path)) {
+          await this.settingsMirror.absorbExternalChange();
+          return;
         }
       })
     );
     this.registerEvent(
       this.app.vault.on("create", async (file: TAbstractFile) => {
-        if (!this.settings.sync?.mirrorEnabled) return;
-        // Also catch the mirror file itself appearing post-load — happens
-        // when remotely-save pulls it down after the plugin has already
-        // finished initial loadMirrorOnLoad and the modify watcher won't fire.
-        if (!isMirrorPath(file.path) && !isMirrorConflict(file.path)) return;
-        await this.vocab.reloadMirror();
-        this.refreshChineseViews();
-        this.refreshStatsViews();
+        if (
+          this.settings.sync?.mirrorEnabled &&
+          (isMirrorPath(file.path) || isMirrorConflict(file.path))
+        ) {
+          await this.vocab.reloadMirror();
+          this.refreshChineseViews();
+          this.refreshStatsViews();
+          return;
+        }
+        if (isSettingsMirrorPath(file.path)) {
+          await this.settingsMirror.bootstrap();
+          return;
+        }
       })
     );
   }

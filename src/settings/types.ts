@@ -41,6 +41,12 @@ export interface SyncSettings {
    */
   mirrorEnabled: boolean;
   mirrorPath: string;
+  /** Opt-in: write a vault-side JSON mirror of display + behavioral
+   *  settings (no credentials, no device-local paths). Lets multiple
+   *  devices share preferences via remotely-save / Nextcloud the same
+   *  way vocabulary syncs. */
+  settingsMirrorEnabled: boolean;
+  settingsMirrorPath: string;
   /**
    * Belt-and-suspenders for the vault `modify` watcher: every N minutes,
    * re-hash the mirror file on disk and merge if it differs from what we

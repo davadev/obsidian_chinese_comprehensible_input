@@ -6,6 +6,12 @@ import { DEFAULT_CUSTOM_COLORS, DEFAULT_STATUS_PRIORITY } from "./defaults";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
+import { openVaultFilePicker, openVaultFolderPicker } from "../ui/PathPickers";
+import {
+  exportSettings,
+  importSettings,
+  SETTINGS_EXPORT_DEFAULT_PATH,
+} from "./SettingsIO";
 
 export class CciSettingsTab extends PluginSettingTab {
   constructor(app: App, private plugin: CciPlugin) {
@@ -646,10 +652,22 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderStory(c: HTMLElement) {
     c.createEl("h3", { text: "Generated stories" });
-    new Setting(c).setName("Folder").addText((t) =>
+    const folderSetting = new Setting(c).setName("Folder");
+    let folderInput: any = null;
+    folderSetting.addText((t) => {
+      folderInput = t;
       t.setValue(this.plugin.settings.story.folder).onChange(async (v) => {
         this.plugin.settings.story.folder = v;
         await this.plugin.saveSettings();
+      });
+    });
+    folderSetting.addButton((b) =>
+      b.setButtonText("Browse").onClick(() => {
+        openVaultFolderPicker(this.app, this.plugin.settings.story.folder, async (path) => {
+          this.plugin.settings.story.folder = path;
+          await this.plugin.saveSettings();
+          if (folderInput?.setValue) folderInput.setValue(path);
+        });
       })
     );
     new Setting(c).setName("Default due word count").addText((t) =>
@@ -841,24 +859,43 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
-    new Setting(c)
+    const mirrorPathSetting = new Setting(c)
       .setName("Mirror file path")
       .setDesc(
         `Default: ${VOCAB_MIRROR_PATH_DEFAULT}. Must be a regular vault path (not under .obsidian/) so remotely-save picks it up.`
-      )
-      .addText((t) =>
-        t
-          .setPlaceholder(VOCAB_MIRROR_PATH_DEFAULT)
-          .setValue(this.plugin.settings.sync.mirrorPath)
-          .onChange(async (v) => {
-            const trimmed = v.trim();
-            this.plugin.settings.sync.mirrorPath = trimmed || VOCAB_MIRROR_PATH_DEFAULT;
+      );
+    let mirrorPathInput: any = null;
+    mirrorPathSetting.addText((t) => {
+      mirrorPathInput = t;
+      t
+        .setPlaceholder(VOCAB_MIRROR_PATH_DEFAULT)
+        .setValue(this.plugin.settings.sync.mirrorPath)
+        .onChange(async (v) => {
+          const trimmed = v.trim();
+          this.plugin.settings.sync.mirrorPath = trimmed || VOCAB_MIRROR_PATH_DEFAULT;
+          await this.plugin.saveSettings();
+          if (this.plugin.settings.sync.mirrorEnabled) {
+            await this.plugin.refreshSyncMirror();
+          }
+        });
+    });
+    mirrorPathSetting.addButton((b) =>
+      b.setButtonText("Browse").onClick(() => {
+        openVaultFilePicker(
+          this.app,
+          this.plugin.settings.sync.mirrorPath,
+          { extensions: ["json"] },
+          async (path) => {
+            this.plugin.settings.sync.mirrorPath = path;
             await this.plugin.saveSettings();
+            if (mirrorPathInput?.setValue) mirrorPathInput.setValue(path);
             if (this.plugin.settings.sync.mirrorEnabled) {
               await this.plugin.refreshSyncMirror();
             }
-          })
-      );
+          }
+        );
+      })
+    );
 
     c.createEl("h4", { text: "Conflict resolution priority" });
     c.createEl("p", {
@@ -929,6 +966,111 @@ export class CciSettingsTab extends PluginSettingTab {
           new Notice("Vocabulary mirror re-synced.");
         })
       );
+
+    // ----- Settings mirror (preferences sync) -----
+    c.createEl("h4", { text: "Settings sync between devices" });
+    c.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text:
+        "Optional: mirror your display + behavioral settings to a vault-side JSON file so other devices can pick them up via remotely-save / Nextcloud. Excluded from the mirror: AI credentials, mirror paths, per-device dictionary state.",
+    });
+    new Setting(c)
+      .setName("Mirror settings to a vault file")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.sync.settingsMirrorEnabled).onChange(async (v) => {
+          this.plugin.settings.sync.settingsMirrorEnabled = v;
+          await this.plugin.saveSettings();
+          if (v) await this.plugin.settingsMirror.bootstrap();
+        })
+      );
+    const settingsMirrorPathSetting = new Setting(c).setName("Settings mirror file path");
+    let settingsMirrorPathInput: any = null;
+    settingsMirrorPathSetting.addText((t) => {
+      settingsMirrorPathInput = t;
+      t
+        .setValue(this.plugin.settings.sync.settingsMirrorPath)
+        .onChange(async (v) => {
+          this.plugin.settings.sync.settingsMirrorPath = v.trim() || "Chinese Learning/cci-settings.json";
+          await this.plugin.saveSettings();
+        });
+    });
+    settingsMirrorPathSetting.addButton((b) =>
+      b.setButtonText("Browse").onClick(() => {
+        openVaultFilePicker(
+          this.app,
+          this.plugin.settings.sync.settingsMirrorPath,
+          { extensions: ["json"] },
+          async (path) => {
+            this.plugin.settings.sync.settingsMirrorPath = path;
+            await this.plugin.saveSettings();
+            if (settingsMirrorPathInput?.setValue) settingsMirrorPathInput.setValue(path);
+          }
+        );
+      })
+    );
+
+    // ----- Backup / Restore (one-shot export / import) -----
+    c.createEl("h4", { text: "Backup / restore settings" });
+    c.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text:
+        "Export your settings to a JSON file inside the vault, or restore from one. Sensitive fields (AI key, sync paths) are excluded from both directions.",
+    });
+    let exportPath = SETTINGS_EXPORT_DEFAULT_PATH;
+    const exportSetting = new Setting(c).setName("Export path");
+    let exportPathInput: any = null;
+    exportSetting.addText((t) => {
+      exportPathInput = t;
+      t.setValue(exportPath).onChange((v) => {
+        exportPath = v.trim() || SETTINGS_EXPORT_DEFAULT_PATH;
+      });
+    });
+    exportSetting.addButton((b) =>
+      b.setButtonText("Export").setCta().onClick(async () => {
+        try {
+          await exportSettings(this.plugin, exportPath);
+          new Notice(`Settings exported to ${exportPath}`);
+        } catch (e) {
+          new Notice("Export failed: " + (e as Error).message);
+        }
+      })
+    );
+
+    let importPath = SETTINGS_EXPORT_DEFAULT_PATH;
+    const importSetting = new Setting(c).setName("Import path");
+    let importPathInput: any = null;
+    importSetting.addText((t) => {
+      importPathInput = t;
+      t.setValue(importPath).onChange((v) => {
+        importPath = v.trim();
+      });
+    });
+    importSetting.addButton((b) =>
+      b.setButtonText("Browse").onClick(() => {
+        openVaultFilePicker(this.app, importPath, { extensions: ["json"] }, (path) => {
+          importPath = path;
+          if (importPathInput?.setValue) importPathInput.setValue(path);
+        });
+      })
+    );
+    importSetting.addButton((b) =>
+      b.setButtonText("Import").setWarning().onClick(async () => {
+        if (!importPath) {
+          new Notice("Pick an import path first.");
+          return;
+        }
+        if (!confirm("Import settings from " + importPath + "? Your current settings will be overwritten where the file has values.")) return;
+        try {
+          const { applied, skipped } = await importSettings(this.plugin, importPath);
+          const skip = skipped.length ? ` (skipped sensitive: ${skipped.join(", ")})` : "";
+          new Notice(`Imported ${applied} top-level keys${skip}.`);
+          this.display();
+        } catch (e) {
+          new Notice("Import failed: " + (e as Error).message);
+        }
+      })
+    );
+    void exportPathInput;
   }
 
   private renderAbout(c: HTMLElement) {

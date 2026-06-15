@@ -1,0 +1,184 @@
+import { normalizePath } from "obsidian";
+import type CciPlugin from "../main";
+import { CciSettings } from "./types";
+import { DEFAULT_SETTINGS } from "./defaults";
+import { applyCustomColors } from "../ui/colorTheme";
+import { filterSettingsForSharing } from "./SettingsIO";
+
+interface SettingsMirrorEnvelope {
+  schemaVersion: 1;
+  updatedAt: string;
+  settings: Partial<CciSettings>;
+}
+
+const WRITE_DEBOUNCE_MS = 1_500;
+
+async function hashString(s: string): Promise<string> {
+  const buf = new TextEncoder().encode(s);
+  const digest = await crypto.subtle.digest("SHA-256", buf);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** Settings-side companion of VocabularyStore's mirror. Opt-in via
+ *  settings.sync.settingsMirrorEnabled. Sensitive + device-local fields
+ *  are filtered out (see SettingsIO.filterSettingsForSharing). */
+export class SettingsMirror {
+  private writeTimer: number | null = null;
+  private lastWrittenHash: string | null = null;
+  /** Highest envelope updatedAt we've either written ourselves or absorbed
+   *  from an external change. Used as the LWW pointer. */
+  private appliedUpdatedAt = "";
+
+  constructor(private plugin: CciPlugin) {}
+
+  /** Path the mirror lives at, or null if disabled. */
+  path(): string | null {
+    const s = this.plugin.settings.sync;
+    if (!s?.settingsMirrorEnabled) return null;
+    return s.settingsMirrorPath || null;
+  }
+
+  /** Read + merge the mirror at startup. Safe if the file is absent.
+   *  Caller decides when to await (we defer past onload). */
+  async bootstrap(): Promise<void> {
+    const path = this.path();
+    if (!path) return;
+    const adapter = this.plugin.app.vault.adapter;
+    try {
+      const norm = normalizePath(path);
+      if (!(await adapter.exists(norm))) return;
+      const content = await adapter.read(norm);
+      await this.applyEnvelope(content);
+    } catch (e) {
+      console.error("CCI settings mirror: bootstrap failed", e);
+    }
+  }
+
+  /** Called by saveSettings. Schedules an atomic write of the filtered
+   *  envelope. Debounced so a flurry of UI changes coalesces. */
+  scheduleWrite(): void {
+    if (!this.path()) return;
+    if (this.writeTimer != null) window.clearTimeout(this.writeTimer);
+    this.writeTimer = window.setTimeout(() => {
+      this.writeTimer = null;
+      this.write().catch((e) => console.error("CCI settings mirror: write failed", e));
+    }, WRITE_DEBOUNCE_MS);
+  }
+
+  /** Force-flush any pending write (onunload, manual). */
+  async flushNow(): Promise<void> {
+    if (this.writeTimer != null) {
+      window.clearTimeout(this.writeTimer);
+      this.writeTimer = null;
+    }
+    await this.write();
+  }
+
+  /** Called by main.ts vault `'modify'` watcher when an external write
+   *  lands on our settings-mirror path. Returns true iff something was
+   *  applied (so the caller can refresh views). */
+  async absorbExternalChange(): Promise<boolean> {
+    const path = this.path();
+    if (!path) return false;
+    const adapter = this.plugin.app.vault.adapter;
+    try {
+      const norm = normalizePath(path);
+      if (!(await adapter.exists(norm))) return false;
+      const content = await adapter.read(norm);
+      const hash = await hashString(content);
+      if (hash === this.lastWrittenHash) return false;
+      return await this.applyEnvelope(content);
+    } catch (e) {
+      console.error("CCI settings mirror: absorb failed", e);
+      return false;
+    }
+  }
+
+  private async applyEnvelope(content: string): Promise<boolean> {
+    let parsed: SettingsMirrorEnvelope;
+    try {
+      parsed = JSON.parse(content);
+    } catch (e) {
+      console.warn("CCI settings mirror: invalid JSON", e);
+      return false;
+    }
+    if (!parsed || typeof parsed !== "object" || !parsed.settings) return false;
+    const remoteUpdatedAt = parsed.updatedAt ?? "";
+    if (remoteUpdatedAt && remoteUpdatedAt <= this.appliedUpdatedAt) {
+      // Stale — older than what we've already applied.
+      return false;
+    }
+    // Filter again on the absorb side so a hand-edited mirror file can't
+    // slip credentials onto this device.
+    const safe = filterSettingsForSharing(parsed.settings as CciSettings);
+    const next: CciSettings = JSON.parse(JSON.stringify(this.plugin.settings));
+    deepMerge(next, safe);
+    this.plugin.settings = { ...DEFAULT_SETTINGS, ...next };
+    applyCustomColors(this.plugin.settings);
+    this.appliedUpdatedAt = remoteUpdatedAt;
+    // Persist locally but do NOT echo back to the mirror — set the hash
+    // gate first so the watcher ignores our own re-write attempt.
+    this.lastWrittenHash = await hashString(content);
+    await this.plugin.saveSettingsSilently();
+    this.plugin.refreshChineseViews();
+    this.plugin.refreshStatsViews();
+    return true;
+  }
+
+  private async write(): Promise<void> {
+    const path = this.path();
+    if (!path) return;
+    const adapter = this.plugin.app.vault.adapter;
+    const norm = normalizePath(path);
+    await ensureFolder(this.plugin, norm);
+    const envelope: SettingsMirrorEnvelope = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      settings: filterSettingsForSharing(this.plugin.settings),
+    };
+    const content = JSON.stringify(envelope, null, 2);
+    this.appliedUpdatedAt = envelope.updatedAt;
+    const tmp = `${norm}.tmp`;
+    try {
+      try {
+        await adapter.write(tmp, content);
+        if (await adapter.exists(norm)) await adapter.remove(norm);
+        await adapter.rename(tmp, norm);
+      } catch {
+        try {
+          if (await adapter.exists(tmp)) await adapter.remove(tmp);
+        } catch {
+          /* ignore */
+        }
+        await adapter.write(norm, content);
+      }
+      this.lastWrittenHash = await hashString(content);
+    } catch (e) {
+      console.error("CCI settings mirror: write failed", e);
+    }
+  }
+}
+
+function deepMerge(into: any, patch: any): void {
+  for (const k of Object.keys(patch ?? {})) {
+    const pv = patch[k];
+    if (pv && typeof pv === "object" && !Array.isArray(pv)) {
+      if (!into[k] || typeof into[k] !== "object" || Array.isArray(into[k])) {
+        into[k] = {};
+      }
+      deepMerge(into[k], pv);
+    } else {
+      into[k] = pv;
+    }
+  }
+}
+
+async function ensureFolder(plugin: CciPlugin, filePath: string): Promise<void> {
+  const slash = filePath.lastIndexOf("/");
+  if (slash <= 0) return;
+  const folder = filePath.slice(0, slash);
+  if (await plugin.app.vault.adapter.exists(folder)) return;
+  await plugin.app.vault.adapter.mkdir(folder);
+}
