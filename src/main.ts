@@ -1,4 +1,4 @@
-import { addIcon, MarkdownView, Notice, Platform, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, MarkdownView, normalizePath, Notice, Platform, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { applyCustomColors, deriveHskColorsFromAccent } from "./ui/colorTheme";
 import {
@@ -168,7 +168,10 @@ export default class CciPlugin extends Plugin {
     if (!this.settings.hskColorsDerivedFromAccent) {
       this.settings.customColors.hsk = deriveHskColorsFromAccent();
       this.settings.hskColorsDerivedFromAccent = true;
-      void this.saveSettings();
+      // System-driven save (not a user setting change) — don't mark the
+      // device as "touched". Otherwise a fresh install would start
+      // broadcasting defaults via the settings mirror.
+      void this.saveSettingsSilently();
     }
     applyCustomColors(this.settings);
 
@@ -248,8 +251,14 @@ export default class CciPlugin extends Plugin {
         if (leaf && leaf.view?.getViewType?.() === VIEW_TYPE_CHINESE) {
           void this.checkMirrorOnce();
         }
+        void this.checkSettingsMirrorOnce();
       })
     );
+    // Window focus = user came back to this device, likely after editing
+    // settings on the other one. Check the settings mirror immediately.
+    this.registerDomEvent(window, "focus", () => {
+      void this.checkSettingsMirrorOnce();
+    });
     this.app.workspace.onLayoutReady(() => this.injectMarkdownHeaderActions());
 
     // Background bootstrap: auto-download the dictionary if missing, then
@@ -336,20 +345,35 @@ export default class CciPlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveSettingsSilently();
+    await this.saveSettingsSilently({ markUserTouched: true });
     // Echo to the optional settings mirror so other devices pick up the
-    // change. No-op if the mirror is disabled.
+    // change. No-op if the mirror is disabled OR the user hasn't touched
+    // any setting yet on this device — protects fresh installs from
+    // overwriting a remote settings file that hasn't synced in yet.
     this.settingsMirror?.scheduleWrite();
   }
 
   /** Persist settings without scheduling a mirror write. Used by
-   *  SettingsMirror.absorbExternalChange after applying a remote envelope,
-   *  to avoid an echo loop. */
-  async saveSettingsSilently(): Promise<void> {
+   *  SettingsMirror.absorbExternalChange after applying a remote envelope
+   *  (to avoid an echo loop) and by system-driven saves like the HSK
+   *  accent derivation at first install (we don't want internal writes
+   *  to mark the user as "touched" and start broadcasting defaults). */
+  async saveSettingsSilently(opts: { markUserTouched?: boolean } = {}): Promise<void> {
     const blob = (await this.loadData()) ?? {};
     blob.settings = this.settings;
+    if (opts.markUserTouched) {
+      blob.__settingsTouchedAt = new Date().toISOString();
+    }
     await this.saveData(blob);
     applyCustomColors(this.settings);
+  }
+
+  /** Has the user changed any setting on this device through the UI? Used
+   *  by SettingsMirror to gate writes (fresh device must not overwrite
+   *  a remote envelope it hasn't seen yet). */
+  async hasUserTouchedSettings(): Promise<boolean> {
+    const blob = (await this.loadData()) ?? {};
+    return !!blob.__settingsTouchedAt;
   }
 
   /** Persist dictionary overrides + custom words atomically. Also rewrites
@@ -507,7 +531,8 @@ export default class CciPlugin extends Plugin {
     };
     const isSettingsMirrorPath = (path: string): boolean => {
       const p = this.settings.sync?.settingsMirrorPath;
-      return !!p && path === p && !!this.settings.sync?.settingsMirrorEnabled;
+      if (!p || !this.settings.sync?.settingsMirrorEnabled) return false;
+      return normalizePath(path) === normalizePath(p);
     };
     this.registerEvent(
       this.app.vault.on("modify", async (file: TAbstractFile) => {
@@ -580,15 +605,28 @@ export default class CciPlugin extends Plugin {
     const ms = this.syncPollerMs();
     if (!ms) return;
     const handle = window.setInterval(async () => {
-      if (!this.settings.sync?.mirrorEnabled) return;
-      try {
-        const changed = await this.vocab.absorbExternalMirrorChange();
-        if (changed) {
-          this.refreshChineseViews();
-          this.refreshStatsViews();
+      if (this.settings.sync?.mirrorEnabled) {
+        try {
+          const changed = await this.vocab.absorbExternalMirrorChange();
+          if (changed) {
+            this.refreshChineseViews();
+            this.refreshStatsViews();
+          }
+        } catch (e) {
+          console.error("CCI sync: mirror poll failed", e);
         }
-      } catch (e) {
-        console.error("CCI sync: mirror poll failed", e);
+      }
+      // Settings mirror absorb piggybacks on the same tick. The file is
+      // tiny; the absorb call is hash-gated so it's nearly free when
+      // nothing changed. Catches external writes that Obsidian's modify
+      // event misses (remotely-save / Nextcloud writes outside the TFile
+      // layer).
+      if (this.settings.sync?.settingsMirrorEnabled) {
+        try {
+          await this.settingsMirror.absorbExternalChange();
+        } catch (e) {
+          console.error("CCI settings mirror poll failed", e);
+        }
       }
     }, ms);
     this.mirrorPollTimer = handle;
@@ -614,6 +652,18 @@ export default class CciPlugin extends Plugin {
       }
     } catch (e) {
       console.error("CCI sync: mirror check failed", e);
+    }
+  }
+
+  /** One-shot settings-mirror absorb. Hooked into active-leaf-change and
+   *  window focus so the user sees settings synced from another device
+   *  the moment they switch back to this one. */
+  private async checkSettingsMirrorOnce(): Promise<void> {
+    if (!this.settings.sync?.settingsMirrorEnabled) return;
+    try {
+      await this.settingsMirror.absorbExternalChange();
+    } catch (e) {
+      console.error("CCI settings mirror check failed", e);
     }
   }
 

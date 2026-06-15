@@ -4,6 +4,10 @@ import { CciSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./defaults";
 import { applyCustomColors } from "../ui/colorTheme";
 import { filterSettingsForSharing } from "./SettingsIO";
+import {
+  SettingsConflict,
+  SettingsConflictModal,
+} from "../ui/SettingsConflictModal";
 
 interface SettingsMirrorEnvelope {
   schemaVersion: 1;
@@ -21,27 +25,36 @@ async function hashString(s: string): Promise<string> {
     .join("");
 }
 
-/** Settings-side companion of VocabularyStore's mirror. Opt-in via
- *  settings.sync.settingsMirrorEnabled. Sensitive + device-local fields
- *  are filtered out (see SettingsIO.filterSettingsForSharing). */
+/**
+ * Settings-side companion of VocabularyStore's mirror. Opt-in via
+ * settings.sync.settingsMirrorEnabled. Sensitive + device-local fields
+ * are filtered out (see SettingsIO.filterSettingsForSharing).
+ *
+ * Conflict resolution rules:
+ *  - If this device hasn't user-touched its settings → take remote
+ *    entirely (fresh installs pull, never push defaults).
+ *  - Per-key on absorb: if local value matches the install default →
+ *    take remote; if remote matches default → take local. Defaults
+ *    always yield to a non-default value.
+ *  - True conflicts (both touched, both non-default, different) →
+ *    open SettingsConflictModal so the user picks per key.
+ *  - Modal is suppressed if already open; subsequent absorbs queue
+ *    behind it.
+ */
 export class SettingsMirror {
   private writeTimer: number | null = null;
   private lastWrittenHash: string | null = null;
-  /** Highest envelope updatedAt we've either written ourselves or absorbed
-   *  from an external change. Used as the LWW pointer. */
   private appliedUpdatedAt = "";
+  private conflictModalOpen = false;
 
   constructor(private plugin: CciPlugin) {}
 
-  /** Path the mirror lives at, or null if disabled. */
   path(): string | null {
     const s = this.plugin.settings.sync;
     if (!s?.settingsMirrorEnabled) return null;
     return s.settingsMirrorPath || null;
   }
 
-  /** Read + merge the mirror at startup. Safe if the file is absent.
-   *  Caller decides when to await (we defer past onload). */
   async bootstrap(): Promise<void> {
     const path = this.path();
     if (!path) return;
@@ -56,8 +69,6 @@ export class SettingsMirror {
     }
   }
 
-  /** Called by saveSettings. Schedules an atomic write of the filtered
-   *  envelope. Debounced so a flurry of UI changes coalesces. */
   scheduleWrite(): void {
     if (!this.path()) return;
     if (this.writeTimer != null) window.clearTimeout(this.writeTimer);
@@ -67,7 +78,6 @@ export class SettingsMirror {
     }, WRITE_DEBOUNCE_MS);
   }
 
-  /** Force-flush any pending write (onunload, manual). */
   async flushNow(): Promise<void> {
     if (this.writeTimer != null) {
       window.clearTimeout(this.writeTimer);
@@ -76,12 +86,10 @@ export class SettingsMirror {
     await this.write();
   }
 
-  /** Called by main.ts vault `'modify'` watcher when an external write
-   *  lands on our settings-mirror path. Returns true iff something was
-   *  applied (so the caller can refresh views). */
   async absorbExternalChange(): Promise<boolean> {
     const path = this.path();
     if (!path) return false;
+    if (this.conflictModalOpen) return false;
     const adapter = this.plugin.app.vault.adapter;
     try {
       const norm = normalizePath(path);
@@ -107,29 +115,95 @@ export class SettingsMirror {
     if (!parsed || typeof parsed !== "object" || !parsed.settings) return false;
     const remoteUpdatedAt = parsed.updatedAt ?? "";
     if (remoteUpdatedAt && remoteUpdatedAt <= this.appliedUpdatedAt) {
-      // Stale — older than what we've already applied.
       return false;
     }
-    // Filter again on the absorb side so a hand-edited mirror file can't
-    // slip credentials onto this device.
-    const safe = filterSettingsForSharing(parsed.settings as CciSettings);
+    const safeRemote = filterSettingsForSharing(parsed.settings as CciSettings);
+    const userTouched = await this.plugin.hasUserTouchedSettings();
+    if (!userTouched) {
+      // Fresh device: pull remote in its entirety. No risk of clobbering
+      // anything the user has personally set on this device.
+      await this.applyMerge(safeRemote, content, remoteUpdatedAt);
+      return true;
+    }
+    // Both sides have user-touched state. Per-key conflict resolution.
+    const filteredLocal = filterSettingsForSharing(this.plugin.settings);
+    const defaultFiltered = filterSettingsForSharing(DEFAULT_SETTINGS);
+    const localFlat = flatten(filteredLocal);
+    const remoteFlat = flatten(safeRemote);
+    const defaultFlat = flatten(defaultFiltered);
+    const autoPatch: Record<string, unknown> = {};
+    const conflicts: SettingsConflict[] = [];
+    const remoteKeys = new Set([...Object.keys(localFlat), ...Object.keys(remoteFlat)]);
+    for (const k of remoteKeys) {
+      const lv = localFlat[k];
+      const rv = remoteFlat[k];
+      if (deepEqual(lv, rv)) continue;
+      const dv = defaultFlat[k];
+      if (rv === undefined) continue;
+      if (lv === undefined || deepEqual(lv, dv)) {
+        autoPatch[k] = rv; // local missing or matches default → take remote
+        continue;
+      }
+      if (deepEqual(rv, dv)) {
+        // remote matches default; keep local
+        continue;
+      }
+      conflicts.push({ keyPath: k, local: lv, remote: rv });
+    }
+    if (conflicts.length === 0) {
+      const patch = unflatten(autoPatch);
+      await this.applyMerge(patch, content, remoteUpdatedAt);
+      return true;
+    }
+    // True conflicts — surface the modal.
+    return await new Promise<boolean>((resolve) => {
+      this.conflictModalOpen = true;
+      new SettingsConflictModal(this.plugin.app, conflicts, async (choices) => {
+        this.conflictModalOpen = false;
+        const patch: Record<string, unknown> = { ...autoPatch };
+        for (const c of conflicts) {
+          if (choices.get(c.keyPath) === "remote") patch[c.keyPath] = c.remote;
+        }
+        await this.applyMerge(unflatten(patch), content, remoteUpdatedAt);
+        resolve(true);
+      }).open();
+    });
+  }
+
+  private async applyMerge(
+    patch: Record<string, unknown> | Partial<CciSettings>,
+    rawContent: string,
+    remoteUpdatedAt: string
+  ): Promise<void> {
     const next: CciSettings = JSON.parse(JSON.stringify(this.plugin.settings));
-    deepMerge(next, safe);
+    deepMerge(next, patch);
     this.plugin.settings = { ...DEFAULT_SETTINGS, ...next };
     applyCustomColors(this.plugin.settings);
     this.appliedUpdatedAt = remoteUpdatedAt;
-    // Persist locally but do NOT echo back to the mirror — set the hash
-    // gate first so the watcher ignores our own re-write attempt.
-    this.lastWrittenHash = await hashString(content);
+    this.lastWrittenHash = await hashString(rawContent);
     await this.plugin.saveSettingsSilently();
     this.plugin.refreshChineseViews();
     this.plugin.refreshStatsViews();
-    return true;
+    // Re-render the open settings tab if it's ours, so absorbed values are
+    // visible immediately rather than after a manual reopen.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const setting = (this.plugin.app as any).setting;
+      const active = setting?.activeTab;
+      if (active && active.constructor?.name === "CciSettingsTab" && typeof active.display === "function") {
+        active.display();
+      }
+    } catch (e) {
+      console.warn("CCI: settings-tab re-render failed", e);
+    }
   }
 
   private async write(): Promise<void> {
     const path = this.path();
     if (!path) return;
+    // Fresh-install guard: don't push defaults to the mirror file before
+    // the user has touched any setting on this device.
+    if (!(await this.plugin.hasUserTouchedSettings())) return;
     const adapter = this.plugin.app.vault.adapter;
     const norm = normalizePath(path);
     await ensureFolder(this.plugin, norm);
@@ -173,6 +247,56 @@ function deepMerge(into: any, patch: any): void {
       into[k] = pv;
     }
   }
+}
+
+function flatten(
+  obj: any,
+  prefix = "",
+  out: Record<string, unknown> = {}
+): Record<string, unknown> {
+  if (obj == null || typeof obj !== "object" || Array.isArray(obj)) {
+    if (prefix) out[prefix] = obj;
+    return out;
+  }
+  for (const k of Object.keys(obj)) {
+    const next = prefix ? `${prefix}.${k}` : k;
+    flatten(obj[k], next, out);
+  }
+  return out;
+}
+
+function unflatten(flat: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(flat)) {
+    const parts = k.split(".");
+    let cursor: any = out;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const p = parts[i];
+      if (!cursor[p] || typeof cursor[p] !== "object") cursor[p] = {};
+      cursor = cursor[p];
+    }
+    cursor[parts[parts.length - 1]] = flat[k];
+  }
+  return out;
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== "object") return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => deepEqual(v, b[i]));
+  }
+  if (Array.isArray(a) || Array.isArray(b)) return false;
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  const keys = new Set([...Object.keys(ao), ...Object.keys(bo)]);
+  for (const k of keys) {
+    if (!deepEqual(ao[k], bo[k])) return false;
+  }
+  return true;
 }
 
 async function ensureFolder(plugin: CciPlugin, filePath: string): Promise<void> {

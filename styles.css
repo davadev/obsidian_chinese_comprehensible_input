@@ -651,6 +651,38 @@
   cursor: pointer;
 }
 
+/* Settings-mirror conflict modal */
+.cci-conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.8rem 0;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.cci-conflict-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cci-conflict-key {
+  font-family: var(--font-monospace);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+.cci-conflict-row button {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.55rem;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Collapsible Advanced settings sections */
 .cci-settings-advanced {
   margin: 0.6rem 0 1rem 0;
