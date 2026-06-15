@@ -191,6 +191,9 @@ export default class CciPlugin extends Plugin {
 
   async onunload(): Promise<void> {
     await this.vocab.flushSave();
+    // Force-flush any pending debounced mirror write so we don't lose
+    // the tail of an exposure burst on quit.
+    await this.vocab.flushMirrorNow();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHINESE);
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_STATS);
   }

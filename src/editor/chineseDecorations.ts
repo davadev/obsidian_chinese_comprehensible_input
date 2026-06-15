@@ -248,6 +248,18 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               },
             })
           );
+        } else if (statusColor === "known" && settings.knownWordPopups) {
+          // No tint, but make it clickable so the popup can open. Without
+          // this, wordInteractionPlugin's `.cci-word` lookup finds nothing
+          // and the knownWordPopups toggle has no observable effect.
+          builder.add(
+            tok.start,
+            tok.end,
+            Decoration.mark({
+              class: "cci-word",
+              attributes: { "data-cci-surface": tok.surface },
+            })
+          );
         }
       }
     },

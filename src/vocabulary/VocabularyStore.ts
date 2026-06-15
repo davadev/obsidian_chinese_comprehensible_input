@@ -45,9 +45,18 @@ interface MirrorEnvelope {
  * from main.ts' vault `'modify'` watcher.
  */
 export class VocabularyStore {
+  /**
+   * Coalesce rapid mirror writes (exposure ticks while reading) so Nextcloud
+   * /  remotely-save get a quiet target. data.json keeps its own 400ms
+   * debounce because crash-recovery there cares about granularity; the
+   * mirror only needs to converge for cross-device sync.
+   */
+  private static MIRROR_WRITE_DEBOUNCE_MS = 5_000;
+
   private data: PersistedVocabData = { schemaVersion: DATA_SCHEMA_VERSION, words: {} };
   private loaded = false;
   private saveTimer: number | null = null;
+  private mirrorWriteTimer: number | null = null;
   /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
   private lastMirrorHash: string | null = null;
   private dictBridge: DictionaryMirrorBridge | null = null;
@@ -86,9 +95,12 @@ export class VocabularyStore {
    * scans the mirror's folder for `*.conflict-*.json` siblings written by
    * remotely-save, merges and removes each.
    */
-  /** Public entry point for re-running the load-time mirror sweep. */
+  /** Public entry point for re-running the load-time mirror sweep. User-
+   *  initiated, so the resulting write should be immediate rather than
+   *  deferred by the mirror-write debounce. */
   async reloadMirror(): Promise<void> {
-    return this.mergeMirrorOnLoad();
+    await this.mergeMirrorOnLoad();
+    await this.flushMirrorNow();
   }
 
   private async mergeMirrorOnLoad(): Promise<void> {
@@ -501,6 +513,28 @@ export class VocabularyStore {
     const blob = (await this.plugin.loadData()) ?? {};
     blob[this.namespace] = this.data;
     await this.plugin.saveData(blob);
+    // Mirror write is decoupled and debounced — see scheduleMirrorWrite.
+    this.scheduleMirrorWrite();
+  }
+
+  private scheduleMirrorWrite(): void {
+    if (!this.loaded) return;
+    if (!this.mirrorPath()) return;
+    if (this.mirrorWriteTimer != null) window.clearTimeout(this.mirrorWriteTimer);
+    this.mirrorWriteTimer = window.setTimeout(() => {
+      this.mirrorWriteTimer = null;
+      this.writeMirror().catch((e) => console.error("CCI sync: mirror write failed", e));
+    }, VocabularyStore.MIRROR_WRITE_DEBOUNCE_MS);
+  }
+
+  /** Force-flush a pending mirror write immediately. Called from user-initiated
+   *  paths (re-sync button, settings refresh) and plugin unload so we don't
+   *  lose the last few seconds of changes on quit. */
+  async flushMirrorNow(): Promise<void> {
+    if (this.mirrorWriteTimer != null) {
+      window.clearTimeout(this.mirrorWriteTimer);
+      this.mirrorWriteTimer = null;
+    }
     await this.writeMirror();
   }
 
@@ -516,7 +550,17 @@ export class VocabularyStore {
         dictionaryCustomWords: this.dictBridge?.getCustomWords() ?? {},
       };
       const content = JSON.stringify(envelope, null, 2);
-      await this.plugin.app.vault.adapter.write(path, content);
+      const adapter = this.plugin.app.vault.adapter;
+      // Atomic write: stage to .tmp, then rename. Prevents Nextcloud /
+      // remotely-save from catching a half-written JSON and treating it as
+      // a divergent state. The .tmp suffix is on most clients' default
+      // exclude list, so the staging file isn't itself pushed upstream.
+      const tmpPath = `${path}.tmp`;
+      await adapter.write(tmpPath, content);
+      if (await adapter.exists(path)) {
+        await adapter.remove(path);
+      }
+      await adapter.rename(tmpPath, path);
       this.lastMirrorHash = await hashString(content);
     } catch (e) {
       console.error("CCI sync: mirror write failed", e);
