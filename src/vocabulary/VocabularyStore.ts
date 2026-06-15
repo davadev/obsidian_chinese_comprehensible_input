@@ -86,6 +86,15 @@ export class VocabularyStore {
     this.data = migrateVocab(raw);
     this.loaded = true;
     this.dedupeOnLoad();
+    // Mirror merge is intentionally NOT awaited here. iOS Files-provider I/O
+    // (Nextcloud, iCloud) can stall or reject in ways that surface as a
+    // generic "plugin encountered an error while loading" notice. Caller
+    // (main.ts onload) schedules `bootstrapMirrorAfterLoad` for after
+    // workspace layout is ready, wrapped in its own try/catch.
+  }
+
+  /** Run the load-time mirror merge. Caller (main.ts) decides when. */
+  async bootstrapMirrorAfterLoad(): Promise<void> {
     await this.mergeMirrorOnLoad();
   }
 
@@ -195,7 +204,12 @@ export class VocabularyStore {
       const remoteOv = envelope.dictionaryOverrides ?? {};
       const remoteCw = envelope.dictionaryCustomWords ?? {};
       if (Object.keys(remoteOv).length || Object.keys(remoteCw).length) {
-        void this.dictBridge.mergeRemote(remoteOv, remoteCw);
+        // Fire-and-forget, but never leak an unhandled rejection — iOS
+        // WKWebView treats unhandled rejections more aggressively than
+        // Electron and can surface them as plugin load failures.
+        this.dictBridge
+          .mergeRemote(remoteOv, remoteCw)
+          .catch((err) => console.error("CCI sync: dictionary merge failed", err));
       }
     }
     return true;

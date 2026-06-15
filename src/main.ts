@@ -51,6 +51,26 @@ export default class CciPlugin extends Plugin {
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
   async onload(): Promise<void> {
+    try {
+      await this.onloadInner();
+    } catch (e) {
+      console.error("CCI onload failed", e);
+      // Sticky Notice so the actual error is visible to the user — on iOS
+      // Obsidian's own "encountered an error while loading" is otherwise
+      // opaque and there's no console.
+      try {
+        new Notice(
+          `Chinese plugin failed to load: ${(e as Error)?.message ?? String(e)}`,
+          0
+        );
+      } catch {
+        /* if even Notice fails, give up — the throw below still flags it */
+      }
+      throw e;
+    }
+  }
+
+  private async onloadInner(): Promise<void> {
     // Custom icon: the character 中 (zhōng / middle) — clearly signals
     // "Chinese view" and avoids visual collision with Obsidian's native
     // read/edit toggle which uses book-open / pencil.
@@ -151,8 +171,34 @@ export default class CciPlugin extends Plugin {
     // Background bootstrap: auto-download the dictionary if missing, then
     // index the vault on first run so the stats dashboard reflects every
     // Chinese note, not only the ones the user has visited. Fire-and-forget
-    // so we don't block onload.
-    void this.bootstrapVault();
+    // so we don't block onload — but never leak an unhandled rejection
+    // (iOS WKWebView surfaces those as load failures).
+    this.bootstrapVault().catch((e) => console.error("CCI bootstrap failed", e));
+
+    // Heavy mirror merge runs after layout-ready, isolated from onload, so
+    // a stalled / failed Files-provider read (Nextcloud / iCloud on iOS)
+    // can never cascade into a plugin load failure.
+    this.app.workspace.onLayoutReady(() => {
+      void this.bootstrapVocabMirror();
+    });
+  }
+
+  private async bootstrapVocabMirror(): Promise<void> {
+    try {
+      await this.vocab.bootstrapMirrorAfterLoad();
+      this.refreshChineseViews();
+      this.refreshStatsViews();
+    } catch (e) {
+      console.error("CCI sync: mirror bootstrap failed", e);
+      try {
+        new Notice(
+          `Chinese plugin: mirror sync failed — ${(e as Error)?.message ?? String(e)}. The plugin is still usable; use "Force re-sync now" in Settings → Sync to retry.`,
+          8000
+        );
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   /**
