@@ -4,6 +4,7 @@ import { CciSettings } from "./types";
 import { DEFAULT_SETTINGS } from "./defaults";
 import { applyCustomColors } from "../ui/colorTheme";
 import { filterSettingsForSharing } from "./SettingsIO";
+import { deepEqual, flatten, unflatten } from "./settingsMerge";
 import {
   SettingsConflict,
   SettingsConflictModal,
@@ -260,56 +261,6 @@ function deepMerge(into: any, patch: any): void {
       into[k] = pv;
     }
   }
-}
-
-function flatten(
-  obj: any,
-  prefix = "",
-  out: Record<string, unknown> = {}
-): Record<string, unknown> {
-  if (obj == null || typeof obj !== "object" || Array.isArray(obj)) {
-    if (prefix) out[prefix] = obj;
-    return out;
-  }
-  for (const k of Object.keys(obj)) {
-    const next = prefix ? `${prefix}.${k}` : k;
-    flatten(obj[k], next, out);
-  }
-  return out;
-}
-
-function unflatten(flat: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const k of Object.keys(flat)) {
-    const parts = k.split(".");
-    let cursor: any = out;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const p = parts[i];
-      if (!cursor[p] || typeof cursor[p] !== "object") cursor[p] = {};
-      cursor = cursor[p];
-    }
-    cursor[parts[parts.length - 1]] = flat[k];
-  }
-  return out;
-}
-
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a == null || b == null) return false;
-  if (typeof a !== typeof b) return false;
-  if (typeof a !== "object") return false;
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    return a.every((v, i) => deepEqual(v, b[i]));
-  }
-  if (Array.isArray(a) || Array.isArray(b)) return false;
-  const ao = a as Record<string, unknown>;
-  const bo = b as Record<string, unknown>;
-  const keys = new Set([...Object.keys(ao), ...Object.keys(bo)]);
-  for (const k of keys) {
-    if (!deepEqual(ao[k], bo[k])) return false;
-  }
-  return true;
 }
 
 async function ensureFolder(plugin: CciPlugin, filePath: string): Promise<void> {
