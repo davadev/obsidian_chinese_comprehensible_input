@@ -133,10 +133,7 @@ export class DictionaryDownloader {
 async function gunzip(input: Uint8Array): Promise<Uint8Array> {
   // @ts-ignore — DecompressionStream is available in Obsidian's Chromium/WebKit runtime.
   const ds = new DecompressionStream("gzip");
-  const blobPart: BlobPart = input.buffer.slice(
-    input.byteOffset,
-    input.byteOffset + input.byteLength
-  ) as ArrayBuffer;
+  const blobPart = new Uint8Array(input).slice().buffer as BlobPart;
   const stream = new Blob([blobPart]).stream().pipeThrough(ds);
   const out = await new Response(stream).arrayBuffer();
   return new Uint8Array(out);
@@ -224,10 +221,7 @@ async function unzipFirstEntry(zip: Uint8Array): Promise<Uint8Array> {
 
   // @ts-ignore — DecompressionStream is available in Obsidian's Chromium/WebKit runtime.
   const ds = new DecompressionStream("deflate-raw");
-  const blobPart: BlobPart = compressed.buffer.slice(
-    compressed.byteOffset,
-    compressed.byteOffset + compressed.byteLength
-  ) as ArrayBuffer;
+  const blobPart = new Uint8Array(compressed).slice().buffer as BlobPart;
   const stream = new Blob([blobPart]).stream().pipeThrough(ds);
   const out = await new Response(stream).arrayBuffer();
   return new Uint8Array(out);

@@ -320,7 +320,7 @@ export default class CciPlugin extends Plugin {
       // One-shot auto-story check shortly after layout-ready — covers the
       // case where the user opened the app well after their configured
       // target time and we shouldn't make them wait for the first tick.
-      setTimeout(() => void this.tickAutoStory(), 3000);
+      window.setTimeout(() => void this.tickAutoStory(), 3000);
     });
     // Periodic auto-story tick. Cheap when disabled (early-return path).
     const autoStoryHandle = window.setInterval(
@@ -409,12 +409,12 @@ export default class CciPlugin extends Plugin {
           await this.dictDownloader.run();
           await this.dictionary.reload();
           notice.setMessage("Chinese plugin: dictionary ready.");
-          setTimeout(() => notice.hide(), 3000);
+          window.setTimeout(() => notice.hide(), 3000);
         } catch (err) {
           notice.setMessage(
             "Chinese plugin: dictionary download failed — " + (err as Error).message
           );
-          setTimeout(() => notice.hide(), 6000);
+          window.setTimeout(() => notice.hide(), 6000);
           return;
         }
       } else {

@@ -16,7 +16,7 @@ import { Token } from "../tokenizer/tokenizerTypes";
 import { getCachedTokens, hashText } from "../tokenizer/tokenCache";
 import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { CciSettings, DisplayMode } from "../settings/types";
-import { hasCjk, shortenDefinition } from "../dictionary/normalizeChinese";
+import { hasCjk, shortenDefinition, toneMarksToNumbers } from "../dictionary/normalizeChinese";
 import { axesFromStatus, colorClassKey, ColorClassKey, colorOf } from "../vocabulary/axes";
 
 /**
@@ -42,7 +42,7 @@ function dispatchRedecorate(view: EditorView): void {
       // view destroyed mid-flight; ignore
     }
   };
-  if (typeof requestAnimationFrame === "function") requestAnimationFrame(fire);
+  if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(fire);
   else fire();
 }
 
@@ -360,7 +360,7 @@ class RubyWidget extends WidgetType {
      * wider when its content is longer than the chars row, naturally
      * spacing words apart so glosses do not overlap their neighbors.
      */
-    const stack = document.createElement("span");
+    const stack = activeDocument.createElement("span");
     const headingCls = this.headingLevel > 0 ? ` cci-stack-h${this.headingLevel}` : "";
     const colorCls = this.colorKey ? ` cci-color-${this.colorKey}` : "";
     stack.className = `cci-stack cci-word${colorCls}${headingCls}`;
@@ -439,8 +439,6 @@ function colorShouldShow(key: ColorClassKey, settings: CciSettings): boolean {
 function formatPinyin(p: string, style: CciSettings["pinyinStyle"]): string {
   if (style === "none") return "";
   if (style === "marks") return p;
-  // Numbers — reuse normalizer from dictionary module
-  // (lazy import to avoid circular).
-  const { toneMarksToNumbers } = require("../dictionary/normalizeChinese");
+  // Numbers — reuse normalizer from dictionary module.
   return toneMarksToNumbers(p);
 }

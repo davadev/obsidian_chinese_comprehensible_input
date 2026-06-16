@@ -39,7 +39,7 @@ export class GenerateStoryModal extends Modal {
       o.value = s;
     });
     sel.value = this.style;
-    sel.addEventListener("change", () => (this.style = sel.value as any));
+    sel.addEventListener("change", () => (this.style = sel.value as "story" | "article" | "dialogue"));
 
     const hskDiv = contentEl.createDiv();
     hskDiv.createEl("label", { text: "Target HSK: " });
@@ -55,7 +55,7 @@ export class GenerateStoryModal extends Modal {
     const glossCb = glossDiv.createEl("input", { type: "checkbox" });
     glossCb.checked = this.includeGlossary;
     glossCb.addEventListener("change", () => (this.includeGlossary = glossCb.checked));
-    glossDiv.appendChild(document.createTextNode(" Include glossary in generated note"));
+    glossDiv.appendChild(activeDocument.createTextNode(" Include glossary in generated note"));
 
     const actions = contentEl.createDiv();
     const gen = actions.createEl("button", { text: "Generate" });

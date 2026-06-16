@@ -10,7 +10,7 @@ import { mergeStoresForSync } from "./syncMerge";
 import { CciSettings } from "../settings/types";
 import { DictionaryCustomWords, DictionaryOverrides } from "../dictionary/DictionaryTypes";
 
-type PluginDataBlob = Record<string, any>;
+type PluginDataBlob = Record<string, unknown>;
 
 type BlobUpdatingPlugin = Plugin & {
   updateDataBlob?: (mutate: (blob: PluginDataBlob) => void | Promise<void>) => Promise<void>;
@@ -91,8 +91,9 @@ export class VocabularyStore {
     return sync.mirrorPath ? normalizePath(sync.mirrorPath) : null;
   }
 
-  async load(initialBlob: any): Promise<void> {
-    const raw = initialBlob?.[this.namespace];
+  async load(initialBlob: unknown): Promise<void> {
+    const blob = (initialBlob ?? {}) as Record<string, unknown>;
+    const raw = blob[this.namespace];
     this.data = migrateVocab(raw);
     this.clearSurfaceLookupCache();
     this.loaded = true;

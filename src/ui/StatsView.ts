@@ -6,6 +6,7 @@ import { colorClassKey, colorOf } from "../vocabulary/axes";
 import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
 import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
 import { StoryPreview } from "../ai/StoryGenerator";
+import { confirmAsync } from "./confirmInput";
 
 type SortKey = "seenCount" | "lastSeenAt" | "dueAt" | "status" | "hsk";
 type Tab = "dashboard" | "words" | "flashcards";
@@ -211,8 +212,8 @@ export class StatsView extends ItemView {
         cls: "cci-dash-batch-btn",
         text: `Mark all ${counts.new} new words as Unknown`,
       });
-      btn.addEventListener("click", () => {
-        if (!confirm(`Mark ${counts.new} unclassified words as "unknown"? This can be reversed per-word.`)) return;
+      btn.addEventListener("click", async () => {
+        if (!(await confirmAsync(this.plugin.app, `Mark ${counts.new} unclassified words as "unknown"? This can be reversed per-word.`, "Mark"))) return;
         const n = this.plugin.vocab.markAllNewAs("unknown");
         this.plugin.refreshChineseViews();
         this.plugin.refreshStatsViews();
@@ -791,8 +792,10 @@ export class StatsView extends ItemView {
       const discard = row.createEl("button", { cls: "cci-triage-act is-ignored", text: "Discard" });
       discard.addEventListener("click", async () => {
         try {
-          await this.plugin.app.vault.delete(previewFile);
-        } catch {}
+          await this.plugin.app.fileManager.trashFile(previewFile);
+        } catch {
+          // best-effort: file may already be gone
+        }
         this.currentPreview = null;
         this.render();
       });
@@ -831,7 +834,11 @@ export class StatsView extends ItemView {
       const previewPath = this.plugin.story.previewPath();
       const existing = this.plugin.app.vault.getAbstractFileByPath(previewPath);
       if (regen && existing instanceof TFile) {
-        try { await this.plugin.app.vault.delete(existing); } catch {}
+        try {
+          await this.plugin.app.fileManager.trashFile(existing);
+        } catch {
+          // best-effort: file may already be gone
+        }
       }
       const preview = await this.plugin.story.generatePreview({
         dueCount: settings.story.defaultDueCount,
@@ -844,10 +851,10 @@ export class StatsView extends ItemView {
       notice.setMessage(
         `Story ready · score ${preview.score.toFixed(2)} · ${preview.iterations} repair pass(es).`
       );
-      setTimeout(() => notice.hide(), 4000);
+      window.setTimeout(() => notice.hide(), 4000);
     } catch (err) {
       notice.setMessage("Story generation failed: " + (err as Error).message);
-      setTimeout(() => notice.hide(), 6000);
+      window.setTimeout(() => notice.hide(), 6000);
     } finally {
       this.smartGenerating = false;
       this.render();
@@ -898,7 +905,7 @@ export class StatsView extends ItemView {
       ...rec.surfaces.filter((s) => s && s !== key),
     ];
     const candidates = Object.entries(rec.notesSeenCounts ?? {})
-      .sort((a, b) => (b[1] as number) - (a[1] as number))
+      .sort((a, b) => b[1] - a[1])
       .map(([p]) => p);
     for (const notePath of candidates) {
       const f = this.plugin.app.vault.getAbstractFileByPath(notePath);
@@ -957,7 +964,7 @@ export class StatsView extends ItemView {
     }
     statusSel.value = this.statusFilter;
     statusSel.addEventListener("change", () => {
-      this.statusFilter = statusSel.value as any;
+      this.statusFilter = statusSel.value as WordStatus | "all" | "partial";
       this.render();
     });
 

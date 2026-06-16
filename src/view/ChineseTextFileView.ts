@@ -222,7 +222,7 @@ export class ChineseTextFileView extends TextFileView {
     this.toolbar?.refresh();
     if (this.editor) {
       const target = Math.min(topOffset, this.editor.state.doc.length);
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         try {
           this.editor?.dispatch({
             effects: EditorView.scrollIntoView(target, { y: "start" }),
@@ -342,7 +342,11 @@ export class ChineseTextFileView extends TextFileView {
 
     const discard = host.createEl("button", { text: "Discard" });
     discard.addEventListener("click", async () => {
-      try { await this.plugin.app.vault.delete(file); } catch {}
+      try {
+        await this.plugin.app.fileManager.trashFile(file);
+      } catch {
+        // best-effort: file may already be gone
+      }
       await this.openSmartStories();
     });
 
@@ -449,7 +453,7 @@ export class ChineseTextFileView extends TextFileView {
       ],
     });
     const target = Math.min(topOffset, this.editor.state.doc.length);
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       try {
         this.editor?.dispatch({
           effects: EditorView.scrollIntoView(target, { y: "start" }),

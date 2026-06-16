@@ -64,7 +64,7 @@ export function toneMarksToNumbers(s: string): string {
     }
   };
   for (const ch of s) {
-    const m = map[ch as keyof typeof map];
+    const m = map[ch];
     if (m) {
       curSyl += m[0];
       tone = m[1];

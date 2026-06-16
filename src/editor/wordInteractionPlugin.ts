@@ -69,7 +69,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           if (!this.pressedSurface || !this.pressedTarget) return;
           this.longPressFired = true;
           // Always blur first so the on-screen keyboard goes away.
-          (document.activeElement as HTMLElement | null)?.blur?.();
+          (activeDocument.activeElement as HTMLElement | null)?.blur?.();
           plugin.openWordPopup(this.pressedSurface, this.pressedTarget, ev);
           this.pressedSurface = null;
           this.pressedTarget = null;
@@ -131,7 +131,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         if (mode === "mark-partial") {
           ev.preventDefault();
           ev.stopPropagation();
-          (document.activeElement as HTMLElement | null)?.blur?.();
+          (activeDocument.activeElement as HTMLElement | null)?.blur?.();
           plugin.openWordPopup(surface, target, ev);
           return;
         }
@@ -153,7 +153,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         const rec = plugin.vocab.bySurface(surface);
         const status = rec?.status ?? "new";
         if (status === "known" && !plugin.settings.knownWordPopups) return;
-        (document.activeElement as HTMLElement | null)?.blur?.();
+        (activeDocument.activeElement as HTMLElement | null)?.blur?.();
         plugin.openWordPopup(surface, target, ev);
       };
     }
