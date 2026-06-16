@@ -6,6 +6,9 @@
 npm run dev                              # watch-mode esbuild
 npm run build                            # tsc --noEmit --skipLibCheck + production esbuild → main.js
 npm test                                 # vitest (src/tests/**/*.test.ts)
+npm run test:cov                         # vitest run + v8 coverage report (terminal + coverage/index.html + lcov)
+npm run test:cov:open                    # same, then opens the HTML report in your browser
+npm run test:watch                       # vitest watch mode
 npm run check-release                    # pre-release validator — REQUIRED before tagging
 npm run check-release -- --tag 0.X.Y     # also checks tag matches manifest.version
 npm run check-release -- --with-build    # also runs `npm run build` + `npm test`
@@ -14,6 +17,10 @@ npm run check-release -- --with-build    # also runs `npm run build` + `npm test
 Build order: always run `npm run build` (includes type-check). No separate lint step.
 
 Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vitest.config.ts`). No CI workflow in repo — releases are manual.
+
+### Coverage targets
+
+`npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. The `thresholds` block in `vitest.config.ts` starts at 0 — bump each value upward as we add tests so CI catches regressions. Pure-DOM UI files (`src/ui/`, `src/view/`, `src/settings/SettingsTab.ts`, `src/editor/chineseDecorations.ts`) need a jsdom env + Obsidian wrappers to test meaningfully; prioritize pure-logic modules first (validators, tokenizers, store mergers, schedulers) where 100 % is realistic. Type-only modules are excluded in the config.
 
 ## Architecture
 
