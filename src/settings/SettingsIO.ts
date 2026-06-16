@@ -7,12 +7,13 @@ import { applyCustomColors } from "../ui/colorTheme";
 export const SETTINGS_EXPORT_DEFAULT_PATH = "Chinese Learning/cci-settings-export.json";
 
 /** Per-section sensitive / device-local keys we never propagate via export
- *  or settings-mirror. AI credentials, paths used to bootstrap the sync
- *  layer itself, per-device download manifests, install-time boot flags. */
+ *  or settings-mirror. API keys live in Obsidian's localStorage (see
+ *  `src/ai/secrets.ts`) so they never appear in settings — only the
+ *  device-local usage log needs stripping here. The legacy `ollama.apiKey`
+ *  field still exists in the type for runtime overlay but is always "" at
+ *  rest, so we also drop it defensively in case an older blob set it. */
 const FILTER_OUT = {
-  // Only the API key is sensitive enough to filter. baseUrl, model
-  // names, endpoint mode etc. are useful to sync between devices.
-  ai: ["apiKey"] as const,
+  ai: ["ollama.apiKey", "usageLog"] as const,
   sync: [
     "mirrorPath",
     "settingsMirrorPath",
@@ -27,12 +28,24 @@ const FILTER_OUT = {
   ] as const,
 };
 
+/** Drop a dotted-path key from a nested record. No-op when any segment is
+ *  absent. Mutates the input. */
+function deleteDottedPath(obj: any, path: string): void {
+  const parts = path.split(".");
+  let cursor = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (cursor == null || typeof cursor !== "object") return;
+    cursor = cursor[parts[i]];
+  }
+  if (cursor && typeof cursor === "object") delete cursor[parts[parts.length - 1]];
+}
+
 /** Strip sensitive + device-local fields. Returns a fresh object so the
  *  caller can safely JSON.stringify it. */
 export function filterSettingsForSharing(s: CciSettings): Partial<CciSettings> {
   const out: any = JSON.parse(JSON.stringify(s));
   for (const k of FILTER_OUT.top) delete out[k];
-  if (out.ai) for (const k of FILTER_OUT.ai) delete out.ai[k];
+  if (out.ai) for (const k of FILTER_OUT.ai) deleteDottedPath(out, `ai.${k}`);
   if (out.sync) for (const k of FILTER_OUT.sync) delete out.sync[k];
   return out;
 }

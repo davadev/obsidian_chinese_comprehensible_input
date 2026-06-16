@@ -1425,3 +1425,56 @@
   font-size: 0.9em;
   margin: -6px 0 10px;
 }
+
+/* OpenAI provider info + usage card. Mimics OpenAI's pricing-page card:
+   model name in a tag-style header, short description, then two stacked
+   sections (Price + Your usage) with right-aligned values. */
+.cci-openai-usage {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+  margin: 12px 0 18px;
+  background: var(--background-secondary);
+}
+.cci-openai-usage-name {
+  display: inline-block;
+  font-size: 1.4em;
+  font-weight: 600;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.cci-openai-usage-desc {
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+.cci-openai-usage-section {
+  font-weight: 600;
+  margin: 12px 0 8px;
+}
+.cci-openai-usage-pricing .cci-openai-usage-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+.cci-openai-usage-label { color: var(--text-muted); }
+.cci-openai-usage-grid {
+  display: grid;
+  grid-template-columns: 1fr repeat(3, minmax(70px, max-content));
+  gap: 4px 14px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.cci-openai-usage-gridhead {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cci-openai-usage-gridhead:first-child { text-align: left; }
+.cci-openai-usage-gridlabel { color: var(--text-muted); }
+.cci-openai-usage-gridval { text-align: right; }

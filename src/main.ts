@@ -8,7 +8,8 @@ import {
   DictionaryOverrides,
 } from "./dictionary/DictionaryTypes";
 import { clearTokenCache } from "./tokenizer/tokenCache";
-import { CciSettings, ViewMode } from "./settings/types";
+import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
+import { migrateAiSettingsToV2 } from "./settings/migrations";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
 import { filterSettingsForSharing } from "./settings/SettingsIO";
@@ -20,6 +21,7 @@ import { ExposureTracker } from "./vocabulary/ExposureTracker";
 import { indexVaultWithNotice } from "./vocabulary/VaultIndexer";
 import { SrsScheduler } from "./srs/SrsScheduler";
 import { AiProviderService } from "./ai/AiProviderService";
+import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import { StatsView } from "./ui/StatsView";
@@ -145,7 +147,32 @@ export default class CciPlugin extends Plugin {
 
     // Keep onload light. Load just settings + small services.
     const blob = (await this.loadData()) ?? {};
-    this.settings = { ...DEFAULT_SETTINGS, ...((blob.settings as Partial<CciSettings>) ?? {}) };
+    const rawSettings = (blob.settings as Partial<CciSettings> | undefined) ?? {};
+    // Run pre-merge migrations on the raw blob so legacy flat-shaped
+    // ai.* fields (v1) get folded into ai.ollama.* before DEFAULT_SETTINGS
+    // injects an empty ai.ollama and erases them.
+    const { migrated, rescuedOllamaApiKey } = migrateAiSettingsToV2(rawSettings);
+    this.settings = { ...DEFAULT_SETTINGS, ...migrated };
+    // Merge ai sub-objects deeply so partial blobs keep their usageLog
+    // across reloads when DEFAULT_SETTINGS.ai would otherwise replace it
+    // wholesale.
+    if (migrated.ai) {
+      this.settings.ai = {
+        ...DEFAULT_SETTINGS.ai,
+        ...migrated.ai,
+        ollama: { ...DEFAULT_SETTINGS.ai.ollama, ...(migrated.ai.ollama ?? {}) },
+        usageLog: migrated.ai.usageLog ?? [],
+      };
+      // Belt-and-suspenders: the localStorage move means apiKey must
+      // never be persisted to data.json. Force it back to "" in case a
+      // hand-edited or older blob slipped one in.
+      this.settings.ai.ollama.apiKey = "";
+    }
+    // Rescue any legacy v1 ai.apiKey (or stray v2 ai.ollama.apiKey) into
+    // device-local secret storage so the user doesn't have to re-paste.
+    if (rescuedOllamaApiKey) {
+      saveApiKey(this.app, "ollama", rescuedOllamaApiKey);
+    }
     // One-time display-mode migration: popup-only and color-only used to be
     // separate options but rendered identically (no inline annotation, with
     // a color tint). Collapse both into "none". Run before applyCustomColors
@@ -215,7 +242,8 @@ export default class CciPlugin extends Plugin {
     this.ai = new AiProviderService(
       () => this.settings.ai,
       this.app,
-      () => this.settings.story.folder
+      () => this.settings.story.folder,
+      (entry) => this.recordAiUsage(entry)
     );
     this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings);
     this.popup = new WordPopup(this);
@@ -434,6 +462,22 @@ export default class CciPlugin extends Plugin {
     }
     await this.saveData(blob);
     applyCustomColors(this.settings);
+  }
+
+  /** Append a token-usage record. Prunes the log to the last 35 days so
+   *  the data blob never grows unbounded (one entry per AI call ≈ 60 B).
+   *  Debounced save keeps a story-repair-loop burst from thrashing disk. */
+  private aiUsageSaveTimer: number | null = null;
+  recordAiUsage(entry: AiUsageEntry): void {
+    const cutoff = Date.now() - 35 * 24 * 60 * 60 * 1000;
+    const log = (this.settings.ai.usageLog ?? []).filter((e) => e.ts >= cutoff);
+    log.push(entry);
+    this.settings.ai.usageLog = log;
+    if (this.aiUsageSaveTimer != null) window.clearTimeout(this.aiUsageSaveTimer);
+    this.aiUsageSaveTimer = window.setTimeout(() => {
+      this.aiUsageSaveTimer = null;
+      void this.saveSettingsSilently();
+    }, 1500);
   }
 
   /** Has the user changed any setting on this device through the UI? Used

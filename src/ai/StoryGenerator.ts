@@ -108,7 +108,7 @@ export class StoryGenerator {
       // and return that, not the last iteration.
       let best = { story: initialStory, report: initialReport };
 
-      const maxIters = this.settings().ai.maxRepairIterations;
+      const maxIters = this.ai.resolveActive().active.maxRepairIterations;
       let iter = 0;
       while (iter < maxIters && best.report.missingWords.length > 0) {
         iter++;
@@ -310,13 +310,13 @@ export class StoryGenerator {
     targetHsk: string,
     score: number
   ): string {
-    const settings = this.settings();
+    const { active, provider } = this.ai.resolveActive();
     const fm = [
       "---",
       "chinese_learning_generated: true",
       `generated_at: ${new Date().toISOString()}`,
-      `provider: ${settings.ai.providerName}`,
-      `model: ${settings.ai.chatModel}`,
+      `provider: ${provider}`,
+      `model: ${active.chatModel}`,
       `target_hsk: ${targetHsk}`,
       "target_words:",
       ...targets.map((r) => `  - ${r.simplified ?? r.surfaces[0]}`),

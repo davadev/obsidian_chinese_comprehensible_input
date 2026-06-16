@@ -8,19 +8,23 @@ function cloneDefaults(): CciSettings {
 }
 
 describe("filterSettingsForSharing", () => {
-  it("strips ai.apiKey but keeps ai.baseUrl + model + endpoint mode", () => {
+  it("strips ai.ollama.apiKey + ai.usageLog but keeps ollama base URL + model + endpoint mode", () => {
     const s = cloneDefaults();
-    s.ai.apiKey = "secret-do-not-leak";
-    s.ai.baseUrl = "http://192.168.1.10:11434/v1";
-    s.ai.chatModel = "qwen2.5:14b";
-    s.ai.endpointMode = "ollama";
-    s.ai.temperature = 0.42;
+    s.ai.ollama.apiKey = "secret-do-not-leak";
+    s.ai.ollama.baseUrl = "http://192.168.1.10:11434/v1";
+    s.ai.ollama.chatModel = "qwen2.5:14b";
+    s.ai.ollama.endpointMode = "ollama";
+    s.ai.ollama.temperature = 0.42;
+    s.ai.usageLog = [
+      { ts: Date.now(), provider: "openai", inputTokens: 100, cachedInputTokens: 0, outputTokens: 50 },
+    ];
     const out = filterSettingsForSharing(s) as any;
-    expect(out.ai.apiKey).toBeUndefined();
-    expect(out.ai.baseUrl).toBe("http://192.168.1.10:11434/v1");
-    expect(out.ai.chatModel).toBe("qwen2.5:14b");
-    expect(out.ai.endpointMode).toBe("ollama");
-    expect(out.ai.temperature).toBe(0.42);
+    expect(out.ai.ollama.apiKey).toBeUndefined();
+    expect(out.ai.usageLog).toBeUndefined();
+    expect(out.ai.ollama.baseUrl).toBe("http://192.168.1.10:11434/v1");
+    expect(out.ai.ollama.chatModel).toBe("qwen2.5:14b");
+    expect(out.ai.ollama.endpointMode).toBe("ollama");
+    expect(out.ai.ollama.temperature).toBe(0.42);
   });
 
   it("strips all sync-config keys that are device-local", () => {
@@ -78,10 +82,10 @@ describe("filterSettingsForSharing", () => {
 
   it("returns a fresh object — mutating the result does not change the input", () => {
     const s = cloneDefaults();
-    s.ai.chatModel = "original-model";
+    s.ai.ollama.chatModel = "original-model";
     const out = filterSettingsForSharing(s) as any;
-    out.ai.chatModel = "mutated";
-    expect(s.ai.chatModel).toBe("original-model");
+    out.ai.ollama.chatModel = "mutated";
+    expect(s.ai.ollama.chatModel).toBe("original-model");
   });
 
   it("survives missing nested ai / sync objects without throwing", () => {

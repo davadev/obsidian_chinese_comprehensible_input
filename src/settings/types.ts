@@ -65,9 +65,15 @@ export interface SyncSettings {
   statusPriority: WordStatus[];
 }
 
-export interface AiSettings {
-  enabled: boolean;
-  providerName: string;
+export type AiProviderKind = "ollama" | "openai";
+
+/**
+ * Runtime config shape consumed by AiProviderService. `apiKey` lives in
+ * Obsidian's localStorage (see `src/ai/secrets.ts`), NOT in the saved
+ * settings blob — `apiKey` here is filled at runtime by `resolveActive`.
+ * Defaults always set this to "" so it cannot leak via sync mirror.
+ */
+export interface AiOllamaConfig {
   baseUrl: string;
   apiKey: string;
   chatModel: string;
@@ -99,6 +105,27 @@ export interface AiSettings {
    * that idle-kill. Required for slow local LLMs reached over a VPN.
    */
   stream: boolean;
+}
+
+/** One successful AI call's token usage. Plugin keeps a rolling 35-day
+ *  window in `settings.ai.usageLog` for the OpenAI cost panel. */
+export interface AiUsageEntry {
+  ts: number;
+  provider: AiProviderKind;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+}
+
+export interface AiSettings {
+  enabled: boolean;
+  /** Active provider. Drives which sub-config feeds AiProviderService and
+   *  which sub-section the settings tab renders. Inactive provider's
+   *  config is preserved verbatim so toggling is lossless. */
+  provider: AiProviderKind;
+  ollama: AiOllamaConfig;
+  /** Append-only log of token-usage entries. Pruned to last 35 days. */
+  usageLog: AiUsageEntry[];
   /**
    * When true, AiProviderService fires verbose Notices at each milestone
    * of an HTTP request (DNS-resolve, send, first byte, each Nth chunk,

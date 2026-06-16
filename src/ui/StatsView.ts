@@ -763,7 +763,7 @@ export class StatsView extends ItemView {
     list.createEl("li", { text: `Target HSK level for filler vocabulary: ${settings.story.defaultStyle === "story" ? "auto" : "(see story settings)"}.` });
     list.createEl("li", { text: `Length: ~${settings.story.defaultLengthChars} characters.` });
     list.createEl("li", { text: `Known-coverage threshold: ${Math.round(settings.story.knownCoverageThreshold * 100)}%.` });
-    list.createEl("li", { text: `Max repair iterations: ${settings.ai.maxRepairIterations}.` });
+    list.createEl("li", { text: `Max repair iterations: ${this.plugin.ai.resolveActive().active.maxRepairIterations}.` });
 
     // 3. Existing preview, if any.
     const previewPath = this.plugin.story.previewPath();

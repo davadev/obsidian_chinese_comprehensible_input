@@ -1,5 +1,7 @@
 import { App, normalizePath, Notice, Platform, requestUrl, RequestUrlParam } from "obsidian";
-import { AiSettings } from "../settings/types";
+import { AiOllamaConfig, AiProviderKind, AiSettings, AiUsageEntry } from "../settings/types";
+import { buildOpenAiActiveConfig } from "./openaiProfile";
+import { loadApiKey } from "./secrets";
 
 class DebugSession {
   private notice: Notice | null = null;
@@ -104,7 +106,8 @@ export class AiProviderService {
   constructor(
     private getSettings: () => AiSettings,
     private app: App | null = null,
-    private getDebugFolder: () => string = () => ""
+    private getDebugFolder: () => string = () => "",
+    private onUsage: ((entry: AiUsageEntry) => void) | null = null
   ) {}
 
   /** Standard prefix for every DebugSession in this service. */
@@ -112,17 +115,33 @@ export class AiProviderService {
     return new DebugSession(this.getSettings().debug, label, this.app, this.getDebugFolder());
   }
 
-  async testConnection(): Promise<boolean> {
+  /** Resolve which provider config drives a request. For openai, builds
+   *  the hardcoded profile; for ollama, returns the saved config. In
+   *  both cases the apiKey is overlaid from device-local localStorage
+   *  (secrets module) so credentials never appear in the settings blob.
+   *  Public so the story generator + stats panel can read the active
+   *  model name. */
+  resolveActive(): { active: AiOllamaConfig; provider: AiProviderKind } {
     const s = this.getSettings();
-    const url = joinUrl(s.baseUrl, "/models");
-    const resp = await this.tryRequest({ url, method: "GET", headers: this.headers(s) });
+    const apiKey = this.app ? loadApiKey(this.app, s.provider) : "";
+    if (s.provider === "openai") {
+      return { active: buildOpenAiActiveConfig(apiKey), provider: "openai" };
+    }
+    return { active: { ...s.ollama, apiKey }, provider: "ollama" };
+  }
+
+  async testConnection(): Promise<boolean> {
+    const { active } = this.resolveActive();
+    const url = joinUrl(active.baseUrl, "/models");
+    const resp = await this.tryRequest({ url, method: "GET", headers: this.headers(active) }, active.timeoutMs);
     return resp.status >= 200 && resp.status < 500;
   }
 
   /** Send a chat completion with optional JSON schema. Returns parsed text content. */
   async chatJson(systemPrompt: string, userPrompt: string, schemaName: string, schema: object): Promise<string> {
-    const s = this.getSettings();
-    if (!s.enabled) throw new Error("AI is disabled in settings.");
+    const settings = this.getSettings();
+    if (!settings.enabled) throw new Error("AI is disabled in settings.");
+    const { active: s, provider } = this.resolveActive();
 
     const path =
       s.endpointMode === "ollama" ? "/api/chat" :
@@ -203,7 +222,17 @@ export class AiProviderService {
     // we hit was the `Accept: text/event-stream` header triggering a
     // CORS preflight Ollama didn't answer; minimal headers fix that.
     const wantStream = s.stream && typeof fetch === "function";
-    const body = wantStream ? { ...baseBody, stream: true } : baseBody;
+    // OpenAI only emits a final `usage` chunk in the SSE stream when
+    // stream_options.include_usage is set. Ollama-native emits token
+    // counts on its `done: true` line unconditionally.
+    const needIncludeUsage = wantStream && provider === "openai" && s.endpointMode !== "ollama";
+    const body = wantStream
+      ? {
+          ...baseBody,
+          stream: true,
+          ...(needIncludeUsage ? { stream_options: { include_usage: true } } : {}),
+        }
+      : baseBody;
 
     // eslint-disable-next-line no-console
     console.log(
@@ -215,8 +244,8 @@ export class AiProviderService {
 
     if (wantStream) {
       return s.endpointMode === "ollama"
-        ? await this.chatJsonStreamOllama(url, body, s)
-        : await this.chatJsonStream(url, body, s);
+        ? await this.chatJsonStreamOllama(url, body, s, provider)
+        : await this.chatJsonStream(url, body, s, provider);
     }
 
     const dbg = this.newDbg(`Buffered POST → ${url}`);
@@ -228,7 +257,7 @@ export class AiProviderService {
         method: "POST",
         headers: { "Content-Type": "application/json", ...this.headers(s) },
         body: JSON.stringify(body),
-      });
+      }, s.timeoutMs);
     } catch (err: unknown) {
       const m = (err as Error)?.message || String(err);
       // iOS bubbles "Request failed. The request timed out." from
@@ -261,6 +290,8 @@ export class AiProviderService {
       dbg.fail(msg);
       throw new Error(msg);
     }
+    this.maybeRecordUsageFromOpenAi(json, provider);
+    this.maybeRecordUsageFromOllamaResponse(json, provider);
     const out = extractText(json);
     if (!out || out.trim() === "") {
       const finish = extractFinishReason(json);
@@ -300,7 +331,7 @@ export class AiProviderService {
    * full NDJSON when Ollama sends its final `done` line. We parse the
    * accumulated text as line-delimited JSON.
    */
-  private async chatJsonStreamOllamaViaRequestUrl(url: string, body: object, s: AiSettings): Promise<string> {
+  private async chatJsonStreamOllamaViaRequestUrl(url: string, body: object, s: AiOllamaConfig, provider: AiProviderKind): Promise<string> {
     const dbg = this.newDbg(`Ollama via requestUrl → ${url}`);
     const bodyStr = JSON.stringify(body);
     dbg.attach("Request body", bodyStr);
@@ -330,7 +361,10 @@ export class AiProviderService {
           const json = JSON.parse(line);
           const piece = json?.message?.content;
           if (typeof piece === "string") content += piece;
-          if (json?.done) break;
+          if (json?.done) {
+            this.maybeRecordUsageFromOllamaResponse(json, provider);
+            break;
+          }
         } catch {
           // ignore — partial lines or non-JSON keep-alive
         }
@@ -356,9 +390,9 @@ export class AiProviderService {
    * user can see progress chunk-by-chunk in the debug Notice. Desktop
    * does not need the requestUrl CORS bypass.
    */
-  private async chatJsonStreamOllama(url: string, body: object, s: AiSettings): Promise<string> {
+  private async chatJsonStreamOllama(url: string, body: object, s: AiOllamaConfig, provider: AiProviderKind): Promise<string> {
     if (Platform.isMobile) {
-      return await this.chatJsonStreamOllamaViaRequestUrl(url, body, s);
+      return await this.chatJsonStreamOllamaViaRequestUrl(url, body, s, provider);
     }
     const dbg = this.newDbg(`Ollama /api/chat → ${url}`);
     try {
@@ -411,6 +445,7 @@ export class AiProviderService {
             const piece = json?.message?.content;
             if (typeof piece === "string") content += piece;
             if (json?.done) {
+              this.maybeRecordUsageFromOllamaResponse(json, provider);
               dbg.done(`Ollama done. ${content.length} chars in ${chunkCount} chunks.`);
               return content;
             }
@@ -442,7 +477,7 @@ export class AiProviderService {
    * requestUrl buffers all SSE chunks and we parse `data: …\n\n`
    * lines from the accumulated text.
    */
-  private async chatJsonStreamSSEViaRequestUrl(url: string, body: object, s: AiSettings): Promise<string> {
+  private async chatJsonStreamSSEViaRequestUrl(url: string, body: object, s: AiOllamaConfig, provider: AiProviderKind): Promise<string> {
     const dbg = this.newDbg(`SSE via requestUrl → ${url}`);
     const bodyStr = JSON.stringify(body);
     dbg.attach("Request body", bodyStr);
@@ -475,6 +510,7 @@ export class AiProviderService {
           if (typeof delta === "string") content += delta;
           const finish = json?.choices?.[0]?.finish_reason;
           if (finish) lastFinish = finish;
+          this.maybeRecordUsageFromOpenAi(json, provider);
         } catch {
           // ignore malformed lines / keep-alive comments
         }
@@ -498,9 +534,9 @@ export class AiProviderService {
     }
   }
 
-  private async chatJsonStream(url: string, body: object, s: AiSettings): Promise<string> {
+  private async chatJsonStream(url: string, body: object, s: AiOllamaConfig, provider: AiProviderKind): Promise<string> {
     if (Platform.isMobile) {
-      return await this.chatJsonStreamSSEViaRequestUrl(url, body, s);
+      return await this.chatJsonStreamSSEViaRequestUrl(url, body, s, provider);
     }
     const dbg = this.newDbg(`Streaming POST → ${url}`);
     // Two-stage timeout: only attach AbortSignal when we've received
@@ -575,6 +611,7 @@ export class AiProviderService {
             if (typeof delta === "string") content += delta;
             const finish = json?.choices?.[0]?.finish_reason;
             if (finish) lastFinish = finish;
+            this.maybeRecordUsageFromOpenAi(json, provider);
           } catch {
             // ignore malformed chunks; some providers emit keep-alive comments
           }
@@ -606,14 +643,51 @@ export class AiProviderService {
     }
   }
 
-  private headers(s: AiSettings): Record<string, string> {
+  private headers(s: AiOllamaConfig): Record<string, string> {
     const h: Record<string, string> = {};
     if (s.apiKey) h["Authorization"] = `Bearer ${s.apiKey}`;
     return h;
   }
 
-  private async tryRequest(p: RequestUrlParam): Promise<SimpleResponse> {
-    const timeoutMs = this.getSettings().timeoutMs;
+  /** Forward an OpenAI-shape `usage` block. Picks both regular input
+   *  and cached input tokens (the latter is billed at 10× discount and
+   *  is what makes prompt caching worth showing separately). */
+  private maybeRecordUsageFromOpenAi(json: any, provider: AiProviderKind): void {
+    if (!this.onUsage) return;
+    const u = json?.usage;
+    if (!u || typeof u !== "object") return;
+    const inputTokens = numberOr(u.prompt_tokens, 0);
+    const cachedInputTokens = numberOr(u.prompt_tokens_details?.cached_tokens, 0);
+    const outputTokens = numberOr(u.completion_tokens, 0);
+    if (inputTokens + cachedInputTokens + outputTokens === 0) return;
+    this.onUsage({
+      ts: Date.now(),
+      provider,
+      // Subtract cached portion so the buckets sum cleanly to total
+      // prompt tokens without double-counting.
+      inputTokens: Math.max(0, inputTokens - cachedInputTokens),
+      cachedInputTokens,
+      outputTokens,
+    });
+  }
+
+  /** Ollama's `done: true` line carries `prompt_eval_count` (input
+   *  tokens) and `eval_count` (output tokens). No cached-token concept. */
+  private maybeRecordUsageFromOllamaResponse(json: any, provider: AiProviderKind): void {
+    if (!this.onUsage) return;
+    const inputTokens = numberOr(json?.prompt_eval_count, 0);
+    const outputTokens = numberOr(json?.eval_count, 0);
+    if (inputTokens + outputTokens === 0) return;
+    this.onUsage({
+      ts: Date.now(),
+      provider,
+      inputTokens,
+      cachedInputTokens: 0,
+      outputTokens,
+    });
+  }
+
+  private async tryRequest(p: RequestUrlParam, timeoutMs: number): Promise<SimpleResponse> {
 
     // Mobile path: requestUrl + Promise.race timeout. Mobile's fetch
     // doesn't talk to localhost anyway, so this branch is mostly here
@@ -691,6 +765,10 @@ function buildResponseFormat(
     type: "json_schema",
     json_schema: { name: schemaName, schema, strict: true },
   };
+}
+
+function numberOr(v: unknown, fallback: number): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
 function joinUrl(base: string, path: string): string {

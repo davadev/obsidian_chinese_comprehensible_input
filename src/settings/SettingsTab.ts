@@ -12,6 +12,14 @@ import {
   importSettings,
   SETTINGS_EXPORT_DEFAULT_PATH,
 } from "./SettingsIO";
+import type { AiProviderKind } from "./types";
+import {
+  OPENAI_MODEL_DESC,
+  OPENAI_MODEL_DISPLAY,
+  OPENAI_PRICE_PER_1M,
+  computeOpenAiCostUsd,
+} from "../ai/openaiProfile";
+import { loadApiKey, saveApiKey } from "../ai/secrets";
 
 export class CciSettingsTab extends PluginSettingTab {
   constructor(app: App, private plugin: CciPlugin) {
@@ -487,8 +495,8 @@ export class CciSettingsTab extends PluginSettingTab {
     c.createEl("p", {
       cls: "setting-item-description",
       text:
-        "Plugin works fully without AI. When enabled, the provider must be OpenAI-compatible. " +
-        "For Ollama, the default localhost URL is for desktop only; on mobile use the LAN host/IP of the Ollama machine.",
+        "Plugin works fully without AI. Pick a provider below: OpenAI is the 'just works' path (paste an API key, done); " +
+        "Ollama exposes all the knobs for self-hosting power-users. Switching providers preserves the inactive provider's settings.",
     });
 
     new Setting(c).setName("Enabled").addToggle((t) =>
@@ -497,154 +505,29 @@ export class CciSettingsTab extends PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    new Setting(c).setName("Provider name").addText((t) =>
-      t.setValue(this.plugin.settings.ai.providerName).onChange(async (v) => {
-        this.plugin.settings.ai.providerName = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new Setting(c).setName("Base URL").addText((t) =>
-      t.setValue(this.plugin.settings.ai.baseUrl).onChange(async (v) => {
-        this.plugin.settings.ai.baseUrl = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new Setting(c).setName("API key").addText((t) =>
-      t.setValue(this.plugin.settings.ai.apiKey).onChange(async (v) => {
-        this.plugin.settings.ai.apiKey = v;
-        await this.plugin.saveSettings();
-      })
-    );
-    new Setting(c).setName("Chat model").addText((t) =>
-      t.setValue(this.plugin.settings.ai.chatModel).onChange(async (v) => {
-        this.plugin.settings.ai.chatModel = v;
-        await this.plugin.saveSettings();
-      })
-    );
 
-    this.renderCollapsible(c, "Advanced AI ▾", (a) => {
-    new Setting(a)
-      .setName("Endpoint mode")
-      .setDesc(
-        "Pick 'Ollama native' if you reach Ollama directly (especially over Tailscale from iPhone). " +
-          "Some Ollama builds expose CORS on /api/* but not /v1/*, which makes the OpenAI-compat path fail with 'Load failed'. " +
-          "/v1/responses is OpenAI-only."
-      )
-      .addDropdown((d) => {
-        d.addOption("chat", "OpenAI-compat /v1/chat/completions");
-        d.addOption("ollama", "Ollama native /api/chat (recommended for Ollama)");
-        d.addOption("responses", "OpenAI /v1/responses");
-        d.setValue(this.plugin.settings.ai.endpointMode);
-        d.onChange(async (v) => {
-          this.plugin.settings.ai.endpointMode = v as "chat" | "responses" | "ollama";
-          await this.plugin.saveSettings();
-        });
-      });
-    new Setting(a).setName("Temperature").addText((t) =>
-      t.setValue(String(this.plugin.settings.ai.temperature)).onChange(async (v) => {
-        const n = parseFloat(v);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.ai.temperature = n;
-          await this.plugin.saveSettings();
-        }
-      })
-    );
-    new Setting(a).setName("Max output tokens").addText((t) =>
-      t.setValue(String(this.plugin.settings.ai.maxOutputTokens)).onChange(async (v) => {
-        const n = parseInt(v, 10);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.ai.maxOutputTokens = n;
-          await this.plugin.saveSettings();
-        }
-      })
-    );
-    new Setting(a).setName("Timeout (ms)").addText((t) =>
-      t.setValue(String(this.plugin.settings.ai.timeoutMs)).onChange(async (v) => {
-        const n = parseInt(v, 10);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.ai.timeoutMs = n;
-          await this.plugin.saveSettings();
-        }
-      })
-    );
-    new Setting(a).setName("Max repair iterations").addText((t) =>
-      t.setValue(String(this.plugin.settings.ai.maxRepairIterations)).onChange(async (v) => {
-        const n = parseInt(v, 10);
-        if (!Number.isNaN(n)) {
-          this.plugin.settings.ai.maxRepairIterations = n;
-          await this.plugin.saveSettings();
-        }
-      })
-    );
-
-    new Setting(a)
-      .setName("Structured-output format")
-      .setDesc(
-        "json_object works on the widest range of providers (Ollama, OpenAI, vLLM). " +
-          "json_schema is stricter but only OpenAI + Ollama >= 0.5.7 honour it. " +
-          "none sends no response_format flag — the prompt alone steers the model."
-      )
+    new Setting(c)
+      .setName("Provider")
+      .setDesc("OpenAI: cloud, pay-per-token, hardcoded to GPT-5.4 mini. Ollama: self-hosted, free, your choice of model.")
       .addDropdown((d) =>
         d
-          .addOptions({
-            json_object: "json_object (recommended)",
-            json_schema: "json_schema (strict)",
-            none: "none",
-          })
-          .setValue(this.plugin.settings.ai.responseFormat)
+          .addOption("ollama", "Ollama (local / self-hosted)")
+          .addOption("openai", "OpenAI")
+          .setValue(this.plugin.settings.ai.provider)
           .onChange(async (v) => {
-            this.plugin.settings.ai.responseFormat = v as "json_object" | "json_schema" | "none";
+            this.plugin.settings.ai.provider = v as AiProviderKind;
             await this.plugin.saveSettings();
+            this.display();
           })
       );
 
-    new Setting(a)
-      .setName("Stream responses (SSE)")
-      .setDesc(
-        "Stream tokens as the model generates instead of waiting for the full reply. " +
-          "Required when the connection goes through Tailscale / a VPN / a load balancer that kills idle HTTP connections, " +
-          "because streaming keeps bytes flowing so the connection never goes idle."
-      )
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.ai.stream)
-          .onChange(async (v) => {
-            this.plugin.settings.ai.stream = v;
-            await this.plugin.saveSettings();
-          })
-      );
+    if (this.plugin.settings.ai.provider === "openai") {
+      this.renderOpenAi(c);
+    } else {
+      this.renderOllama(c);
+    }
 
-    new Setting(a)
-      .setName("Suppress thinking trace")
-      .setDesc(
-        "Append /no_think to the system prompt so qwen3-style reasoning models skip the long thought trace " +
-          "that otherwise eats the completion-token budget. Harmless to non-thinking models."
-      )
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.ai.suppressThinking)
-          .onChange(async (v) => {
-            this.plugin.settings.ai.suppressThinking = v;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(a)
-      .setName("Verbose AI debug notifications")
-      .setDesc(
-        "When on, a persistent Notice tracks each AI request: fetch issued → HTTP status → first byte → streaming chunks → finish_reason. " +
-          "Console logs the same milestones with elapsed seconds. Use while diagnosing a stuck request; turn off in normal use."
-      )
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.ai.debug)
-          .onChange(async (v) => {
-            this.plugin.settings.ai.debug = v;
-            await this.plugin.saveSettings();
-          })
-      );
-
-    new Setting(a).setName("Test connection").addButton((b) => {
+    new Setting(c).setName("Test connection").addButton((b) => {
       b.setButtonText("Test").onClick(async () => {
         try {
           const ok = await this.plugin.ai.testConnection();
@@ -654,6 +537,231 @@ export class CciSettingsTab extends PluginSettingTab {
         }
       });
     });
+
+    this.renderCollapsible(c, "Diagnostics ▾", (a) => {
+      new Setting(a)
+        .setName("Verbose AI debug notifications")
+        .setDesc(
+          "When on, a persistent Notice tracks each AI request: fetch issued → HTTP status → first byte → streaming chunks → finish_reason. " +
+            "Console logs the same milestones with elapsed seconds. Use while diagnosing a stuck request; turn off in normal use."
+        )
+        .addToggle((t) =>
+          t.setValue(this.plugin.settings.ai.debug).onChange(async (v) => {
+            this.plugin.settings.ai.debug = v;
+            await this.plugin.saveSettings();
+          })
+        );
+    });
+  }
+
+  private renderOpenAi(c: HTMLElement) {
+    new Setting(c)
+      .setName("OpenAI API key")
+      .setDesc(
+        "Paste your sk-… key. Stored in Obsidian's device-local key store (app.saveLocalStorage), " +
+          "never written to data.json or the settings-mirror file."
+      )
+      .addText((t) => {
+        t.inputEl.type = "password";
+        t.setValue(loadApiKey(this.plugin.app, "openai")).onChange((v) => {
+          saveApiKey(this.plugin.app, "openai", v);
+        });
+      });
+
+    this.renderOpenAiUsage(c);
+  }
+
+  /** GPT-5.4 mini info card + rolling token / cost totals. Mimics the
+   *  OpenAI pricing page layout the user referenced. */
+  private renderOpenAiUsage(c: HTMLElement) {
+    const wrap = c.createDiv({ cls: "cci-openai-usage" });
+    wrap.createEl("div", { cls: "cci-openai-usage-name", text: OPENAI_MODEL_DISPLAY });
+    wrap.createEl("p", { cls: "cci-openai-usage-desc", text: OPENAI_MODEL_DESC });
+
+    const priceBlock = wrap.createDiv({ cls: "cci-openai-usage-pricing" });
+    priceBlock.createEl("div", { cls: "cci-openai-usage-section", text: "Price" });
+    const priceRow = (label: string, value: string) => {
+      const row = priceBlock.createDiv({ cls: "cci-openai-usage-row" });
+      row.createSpan({ cls: "cci-openai-usage-label", text: label });
+      row.createSpan({ cls: "cci-openai-usage-value", text: value });
+    };
+    priceRow("Input:", `$${OPENAI_PRICE_PER_1M.input.toFixed(2)} / 1M tokens`);
+    priceRow("Cached input:", `$${OPENAI_PRICE_PER_1M.cachedInput.toFixed(3)} / 1M tokens`);
+    priceRow("Output:", `$${OPENAI_PRICE_PER_1M.output.toFixed(2)} / 1M tokens`);
+
+    const usageBlock = wrap.createDiv({ cls: "cci-openai-usage-spent" });
+    usageBlock.createEl("div", { cls: "cci-openai-usage-section", text: "Your usage" });
+
+    const now = Date.now();
+    const windows = [
+      { label: "24h", ms: 24 * 60 * 60 * 1000 },
+      { label: "7d", ms: 7 * 24 * 60 * 60 * 1000 },
+      { label: "30d", ms: 30 * 24 * 60 * 60 * 1000 },
+    ];
+    const entries = (this.plugin.settings.ai.usageLog ?? []).filter(
+      (e) => e.provider === "openai"
+    );
+    const fmtTok = (n: number) =>
+      n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+    const fmtUsd = (n: number) =>
+      n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
+
+    const grid = usageBlock.createDiv({ cls: "cci-openai-usage-grid" });
+    grid.createSpan({ cls: "cci-openai-usage-gridhead", text: "" });
+    for (const w of windows) {
+      grid.createSpan({ cls: "cci-openai-usage-gridhead", text: w.label });
+    }
+    for (const metric of ["Input", "Cached", "Output", "Cost"] as const) {
+      grid.createSpan({ cls: "cci-openai-usage-gridlabel", text: metric });
+      for (const w of windows) {
+        const cutoff = now - w.ms;
+        const slice = entries.filter((e) => e.ts >= cutoff);
+        const totals = slice.reduce(
+          (acc, e) => ({
+            inputTokens: acc.inputTokens + e.inputTokens,
+            cachedInputTokens: acc.cachedInputTokens + e.cachedInputTokens,
+            outputTokens: acc.outputTokens + e.outputTokens,
+          }),
+          { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 }
+        );
+        let text: string;
+        if (metric === "Input") text = fmtTok(totals.inputTokens);
+        else if (metric === "Cached") text = fmtTok(totals.cachedInputTokens);
+        else if (metric === "Output") text = fmtTok(totals.outputTokens);
+        else text = fmtUsd(computeOpenAiCostUsd(totals));
+        grid.createSpan({ cls: "cci-openai-usage-gridval", text });
+      }
+    }
+  }
+
+  private renderOllama(c: HTMLElement) {
+    const ai = this.plugin.settings.ai.ollama;
+    new Setting(c).setName("Base URL").addText((t) =>
+      t.setValue(ai.baseUrl).onChange(async (v) => {
+        ai.baseUrl = v;
+        await this.plugin.saveSettings();
+      })
+    );
+    new Setting(c)
+      .setName("API key (optional)")
+      .setDesc(
+        "Only needed for protected Ollama proxies. Stored in Obsidian's device-local key store, never in data.json."
+      )
+      .addText((t) => {
+        t.inputEl.type = "password";
+        t.setValue(loadApiKey(this.plugin.app, "ollama")).onChange((v) => {
+          saveApiKey(this.plugin.app, "ollama", v);
+        });
+      });
+    new Setting(c).setName("Chat model").addText((t) =>
+      t.setValue(ai.chatModel).onChange(async (v) => {
+        ai.chatModel = v;
+        await this.plugin.saveSettings();
+      })
+    );
+
+    this.renderCollapsible(c, "Advanced AI ▾", (a) => {
+      new Setting(a)
+        .setName("Endpoint mode")
+        .setDesc(
+          "Pick 'Ollama native' if you reach Ollama directly (especially over Tailscale from iPhone). " +
+            "Some Ollama builds expose CORS on /api/* but not /v1/*, which makes the OpenAI-compat path fail with 'Load failed'. " +
+            "/v1/responses is OpenAI-only."
+        )
+        .addDropdown((d) => {
+          d.addOption("chat", "OpenAI-compat /v1/chat/completions");
+          d.addOption("ollama", "Ollama native /api/chat (recommended for Ollama)");
+          d.addOption("responses", "OpenAI /v1/responses");
+          d.setValue(ai.endpointMode);
+          d.onChange(async (v) => {
+            ai.endpointMode = v as "chat" | "responses" | "ollama";
+            await this.plugin.saveSettings();
+          });
+        });
+      new Setting(a).setName("Temperature").addText((t) =>
+        t.setValue(String(ai.temperature)).onChange(async (v) => {
+          const n = parseFloat(v);
+          if (!Number.isNaN(n)) {
+            ai.temperature = n;
+            await this.plugin.saveSettings();
+          }
+        })
+      );
+      new Setting(a).setName("Max output tokens").addText((t) =>
+        t.setValue(String(ai.maxOutputTokens)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            ai.maxOutputTokens = n;
+            await this.plugin.saveSettings();
+          }
+        })
+      );
+      new Setting(a).setName("Timeout (ms)").addText((t) =>
+        t.setValue(String(ai.timeoutMs)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            ai.timeoutMs = n;
+            await this.plugin.saveSettings();
+          }
+        })
+      );
+      new Setting(a).setName("Max repair iterations").addText((t) =>
+        t.setValue(String(ai.maxRepairIterations)).onChange(async (v) => {
+          const n = parseInt(v, 10);
+          if (!Number.isNaN(n)) {
+            ai.maxRepairIterations = n;
+            await this.plugin.saveSettings();
+          }
+        })
+      );
+
+      new Setting(a)
+        .setName("Structured-output format")
+        .setDesc(
+          "json_object works on the widest range of providers (Ollama, OpenAI, vLLM). " +
+            "json_schema is stricter but only OpenAI + Ollama >= 0.5.7 honour it. " +
+            "none sends no response_format flag — the prompt alone steers the model."
+        )
+        .addDropdown((d) =>
+          d
+            .addOptions({
+              json_object: "json_object (recommended)",
+              json_schema: "json_schema (strict)",
+              none: "none",
+            })
+            .setValue(ai.responseFormat)
+            .onChange(async (v) => {
+              ai.responseFormat = v as "json_object" | "json_schema" | "none";
+              await this.plugin.saveSettings();
+            })
+        );
+
+      new Setting(a)
+        .setName("Stream responses (SSE)")
+        .setDesc(
+          "Stream tokens as the model generates instead of waiting for the full reply. " +
+            "Required when the connection goes through Tailscale / a VPN / a load balancer that kills idle HTTP connections, " +
+            "because streaming keeps bytes flowing so the connection never goes idle."
+        )
+        .addToggle((t) =>
+          t.setValue(ai.stream).onChange(async (v) => {
+            ai.stream = v;
+            await this.plugin.saveSettings();
+          })
+        );
+
+      new Setting(a)
+        .setName("Suppress thinking trace")
+        .setDesc(
+          "Append /no_think to the system prompt so qwen3-style reasoning models skip the long thought trace " +
+            "that otherwise eats the completion-token budget. Harmless to non-thinking models."
+        )
+        .addToggle((t) =>
+          t.setValue(ai.suppressThinking).onChange(async (v) => {
+            ai.suppressThinking = v;
+            await this.plugin.saveSettings();
+          })
+        );
     });
   }
 
