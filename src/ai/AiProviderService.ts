@@ -207,7 +207,15 @@ export class AiProviderService {
               { role: "user", content: userPrompt },
             ],
             temperature: s.temperature,
-            max_tokens: s.maxOutputTokens,
+            // GPT-5 family on /v1/chat/completions rejects `max_tokens`
+            // with HTTP 400 (unsupported_parameter) and demands the
+            // newer `max_completion_tokens`. Ollama's OpenAI-compat
+            // layer + third-party proxies (vLLM, LiteLLM) still expect
+            // the classic name, so gate by active provider rather than
+            // blanket-swapping.
+            ...(provider === "openai"
+              ? { max_completion_tokens: s.maxOutputTokens }
+              : { max_tokens: s.maxOutputTokens }),
             ...(responseFormat ? { response_format: responseFormat } : {}),
           };
 
