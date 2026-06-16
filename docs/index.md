@@ -17,8 +17,8 @@ the whole tree from here.
 - [OpenAI setup, privacy, and cost](./openai-setup.md) — pasting an API
   key, what gets sent, what the monthly bill looks like.
 - [Ollama tips: picking a model and getting good output](./ollama-tips.md)
-  — why a 7B model misses target words sometimes, when to bump repair
-  iterations, when to enable "Send known words."
+  — practical minimum is `gemma4:e4b`, recommended is `gemma4:12b`;
+  when to bump repair iterations, when to enable "Send known words."
 - [Story generation, end to end](./story-generation.md) — what Smart
   Story actually does, how the repair loop validates, the YAML
   frontmatter on generated notes.

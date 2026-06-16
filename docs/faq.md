@@ -7,13 +7,16 @@ when there's more to say.
 
 Two common causes:
 
-1. **The model is too small for the task.** Smaller Ollama models (7B and
-   below) often miss one or two of the required target words even when
-   the prompt explicitly lists them. The plugin has a built-in
-   **repair loop** that asks the model to fix its draft; bumping
-   **Max repair iterations** to 4 or 5 gives it more attempts. If even
-   then the model can't include every word, switch to a stronger model
-   (Qwen2.5 14B or larger, Llama 3.1 70B, or use OpenAI).
+1. **The model is too small for the task.** Sub-4B Ollama models often
+   miss one or two of the required target words even when the prompt
+   explicitly lists them. The plugin has a built-in **repair loop** that
+   asks the model to fix its draft; bumping **Max repair iterations** to
+   4 or 5 gives it more attempts. If even then the model can't include
+   every word, switch to a stronger model — `gemma4:e4b` is a practical
+   minimum, `gemma4:12b` is the recommended sweet spot if your hardware
+   can handle it, or use OpenAI. See
+   [Ollama tips](./ollama-tips.md#model-choice-matters-a-lot) for the
+   full model table.
 2. **Too many target words at once.** The default is 12. With 20+ target
    words in one ~400-character story, even strong models struggle to
    thread every one of them naturally. Lower the **Default due count**

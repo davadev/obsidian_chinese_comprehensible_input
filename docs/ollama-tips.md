@@ -15,15 +15,21 @@ ceiling, or generate noticeably more complicated Chinese than asked.
 
 Rough guide:
 
-| Model class | Behaviour |
-|-------------|-----------|
-| 7B (qwen2.5:7b, llama3.1:8b) | Fastest. Misses target words; uses higher-HSK vocabulary than asked. Fine for casual reading practice, mediocre for graded stories. |
-| 14B (qwen2.5:14b, qwen2.5-coder:14b) | Sweet spot for an average desktop. Reliably uses 9 of 10 target words. Grading is okay. |
-| 32B+ (qwen2.5:32b, llama3.1:70b) | Near-OpenAI quality on instruction following. Slow on consumer hardware. |
-| Cloud (OpenAI GPT-5.4 mini) | See [OpenAI setup](./openai-setup.md) — best output, ~$0.21/month at one story/day. |
+| Model | Hardware | Behaviour |
+|-------|----------|-----------|
+| `gemma4:e4b` (~4B class) | Modest GPU / Apple Silicon with 8 GB+ | **Practical minimum.** Moderate output: instruction following is okay, occasionally drops a target word. Fine for daily practice when you don't have heavy hardware. |
+| `gemma4:12b` | Decent GPU / Apple Silicon M-series with 16 GB+ | **Recommended when your machine can handle it** — what the developer runs daily. Output is consistently graded, target words reliably included. |
+| `qwen2.5:14b`, `qwen2.5-coder:14b` | Same as above | Good Chinese-first alternative if Gemma doesn't fit your stack. |
+| `qwen2.5:32b`, `llama3.1:70b` | Strong workstation / multi-GPU | Near-OpenAI quality on instruction following. Slow on consumer hardware. |
+| Cloud (OpenAI GPT-5.4 mini) | n/a | See [OpenAI setup](./openai-setup.md) — best output, ~$0.21/month at one story/day. |
+
+Below `gemma4:e4b`-class (e.g. 1–3B models) the output gets noticeably
+worse — frequent missing target words, higher-HSK vocabulary than
+asked, occasional non-Chinese filler. Usable for casual reading
+practice but disappointing for graded stories.
 
 The **Chat model** field in advanced AI settings is where you set this
-(e.g. `qwen2.5:14b`).
+(e.g. `gemma4:e4b` or `gemma4:12b`).
 
 ## Repair iterations rescue weaker models
 
@@ -37,8 +43,8 @@ For small models, raise this. Defaults to 4; bumping to 6 or 8 gives
 weak models more attempts before giving up. The cost is generation time,
 not money (Ollama is free).
 
-For strong models (32B+ or OpenAI), 2 or 3 is usually enough — repair
-rarely fires.
+For strong models (`gemma4:12b` and up, or OpenAI), 2 or 3 is usually
+enough — repair rarely fires.
 
 ## "Send known words" helps beginners enormously
 
