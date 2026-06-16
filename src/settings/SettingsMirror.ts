@@ -200,8 +200,7 @@ export class SettingsMirror {
     // Re-render the open settings tab if it's ours, so absorbed values are
     // visible immediately rather than after a manual reopen.
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const setting = (this.plugin.app as any).setting;
+      const setting = this.plugin.app.setting;
       const active = setting?.activeTab;
       if (active && active.constructor?.name === "CciSettingsTab" && typeof active.display === "function") {
         active.display();

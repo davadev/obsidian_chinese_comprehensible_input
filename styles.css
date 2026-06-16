@@ -565,6 +565,21 @@
   color: var(--text-normal);
 }
 
+/* Stats word-detail overlay variant — fills the centre of the view. */
+.cci-popup-overlay {
+  position: fixed;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  bottom: 10%;
+  overflow: auto;
+  max-width: none;
+}
+
+.cci-fc-smart-preview-text {
+  white-space: pre-wrap;
+}
+
 .cci-popup-head {
   font-size: 1.4rem;
   font-weight: 700;

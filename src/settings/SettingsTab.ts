@@ -29,7 +29,7 @@ export class CciSettingsTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Chinese Comprehensible Input" });
+    new Setting(containerEl).setName("Chinese Comprehensible Input").setHeading();
 
     this.renderDataManagement(containerEl);
     this.renderDisplay(containerEl);
@@ -66,7 +66,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderDataManagement(c: HTMLElement) {
-    c.createEl("h3", { text: "Data Management" });
+    new Setting(c).setName("Data Management").setHeading();
     new Setting(c)
       .setDesc("Dashboard, per-note breakdown, flashcards, and the full word list.")
       .addButton((b) =>
@@ -75,7 +75,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderDictionary(c: HTMLElement) {
-    c.createEl("h3", { text: "Dictionary" });
+    new Setting(c).setName("Dictionary").setHeading();
     c.createEl("p", {
       cls: "setting-item-description",
       text:
@@ -159,7 +159,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderDisplay(c: HTMLElement) {
-    c.createEl("h3", { text: "Display" });
+    new Setting(c).setName("Display").setHeading();
     this.renderDocLink(
       c,
       "Display modes & colors guide",
@@ -309,7 +309,7 @@ export class CciSettingsTab extends PluginSettingTab {
         );
     }
 
-    c.createEl("h4", { text: "HSK level colors" });
+    new Setting(c).setName("HSK level colors").setHeading();
     c.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
@@ -376,7 +376,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderTokenizer(c: HTMLElement) {
-    c.createEl("h3", { text: "Tokenizer" });
+    new Setting(c).setName("Tokenizer").setHeading();
     this.renderDocLink(
       c,
       "Word states & marking guide",
@@ -408,7 +408,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderExposure(c: HTMLElement) {
-    c.createEl("h3", { text: "Exposure tracking" });
+    new Setting(c).setName("Exposure tracking").setHeading();
     this.renderDocLink(
       c,
       "Exposure tracking guide",
@@ -482,7 +482,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderSrs(c: HTMLElement) {
-    c.createEl("h3", { text: "Spaced repetition" });
+    new Setting(c).setName("Spaced repetition").setHeading();
     this.renderDocLink(
       c,
       "Spaced repetition guide",
@@ -528,7 +528,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderAi(c: HTMLElement) {
-    c.createEl("h3", { text: "AI provider" });
+    new Setting(c).setName("AI provider").setHeading();
     c.createEl("p", {
       cls: "setting-item-description",
       text:
@@ -820,7 +820,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderStory(c: HTMLElement) {
-    c.createEl("h3", { text: "Generated stories" });
+    new Setting(c).setName("Generated stories").setHeading();
     this.renderDocLink(
       c,
       "Story generation guide",
@@ -942,7 +942,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderData(c: HTMLElement) {
-    c.createEl("h3", { text: "Data" });
+    new Setting(c).setName("Data").setHeading();
 
     new Setting(c)
       .setName("Index vault")
@@ -1044,7 +1044,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderSync(c: HTMLElement) {
-    c.createEl("h3", { text: "Sync (remotely-save)" });
+    new Setting(c).setName("Sync (remotely-save)").setHeading();
     this.renderDocLink(
       c,
       "Vault-mirror sync guide",
@@ -1155,7 +1155,7 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     this.renderCollapsible(c, "Advanced sync ▾", (a) => {
-    a.createEl("h4", { text: "Conflict resolution priority" });
+    new Setting(a).setName("Conflict resolution priority").setHeading();
     a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
@@ -1187,7 +1187,7 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     // ----- Settings mirror (preferences sync) -----
-    a.createEl("h4", { text: "Settings sync between devices" });
+    new Setting(a).setName("Settings sync between devices").setHeading();
     a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
@@ -1249,7 +1249,7 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     // ----- Backup / Restore (one-shot export / import) -----
-    a.createEl("h4", { text: "Backup / restore settings" });
+    new Setting(a).setName("Backup / restore settings").setHeading();
     a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
@@ -1314,7 +1314,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderAbout(c: HTMLElement) {
-    c.createEl("h3", { text: "About / Licenses" });
+    new Setting(c).setName("About / Licenses").setHeading();
     this.renderDocLink(
       c,
       "Documentation index",

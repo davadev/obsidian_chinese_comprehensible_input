@@ -122,6 +122,12 @@ npm run check-release
 
 GitHub Actions runs the same validation set on every PR and on pushes to `main`: build, tests, coverage, and the release guard. Actual BRAT publishing stays manual so the tagged release assets and notes are reviewed before going live.
 
+Development policy:
+
+- Use a dedicated branch for each bugfix, feature, or release-prep change. Preferred prefixes: `fix/`, `feat/`, `release/`.
+- Merge changes to `main` through PRs after CI passes.
+- External PRs must be approved by the maintainer before merge.
+
 To install the dev build into a vault:
 1. Build: `npm run build`.
 2. Copy `manifest.json`, `main.js`, `styles.css` into `<vault>/.obsidian/plugins/chinese-comprehensible-input/`.
@@ -130,3 +136,15 @@ To install the dev build into a vault:
 ## Data
 
 A tiny seed dictionary is bundled for development. For real use, drop a CC-CEDICT shard at `<vault>/.cci-dictionary.json` (array of `{simplified, traditional, pinyin, definitions, hsk?}`). See `NOTICE.md` for license notes.
+
+## Privacy
+
+- No data leaves the device unless you configure an AI provider.
+- In OpenAI-compatible mode, story generation may send prompt text and target words to the provider you configured.
+- API keys are stored locally in Obsidian local storage and are not written to synced vault files.
+
+## Data storage
+
+- Settings, vocabulary state, SRS state, and exposure history are stored in the plugin's local Obsidian data blob.
+- If you enable the optional sync mirror, sanitized settings and vocabulary data are also written to JSON files inside your vault. API keys stay local.
+- The bundled dictionary is only a small seed set. Normal use expects a user-supplied CC-CEDICT shard at `<vault>/.cci-dictionary.json`.
