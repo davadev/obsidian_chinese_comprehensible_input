@@ -3,9 +3,12 @@
 ## Commands
 
 ```bash
-npm run dev          # watch-mode esbuild
-npm run build        # tsc --noEmit --skipLibCheck + production esbuild → main.js
-npm test             # vitest (src/tests/**/*.test.ts)
+npm run dev                              # watch-mode esbuild
+npm run build                            # tsc --noEmit --skipLibCheck + production esbuild → main.js
+npm test                                 # vitest (src/tests/**/*.test.ts)
+npm run check-release                    # pre-release validator — REQUIRED before tagging
+npm run check-release -- --tag 0.X.Y     # also checks tag matches manifest.version
+npm run check-release -- --with-build    # also runs `npm run build` + `npm test`
 ```
 
 Build order: always run `npm run build` (includes type-check). No separate lint step.
@@ -29,16 +32,42 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 - **Frontmatter is stripped at the view boundary.** The editor never sees `---` blocks — handled in `splitFrontmatter()` in `ChineseTextFileView.ts`.
 - **Display mode** is read from `plugin.settings.defaultDisplayMode` at decoration build time — switching mode calls `onChange()` → `handleToolbarChange()` → `redecorate()`, no editor rebuild.
 - **Color visibility** is gated by `showKnownColor` (default off), `showPartialColor` (default on), `showUnknownColor` (default on) — check these if colors seem missing.
-- **Every fix MUST be released with BRAT artifacts immediately.** The user tests via BRAT, so any fix must be tagged + released with `main.js`, `manifest.json`, `styles.css` — no exceptions. Do not leave a fix un-released.
+- **Every fix MUST be released with BRAT artifacts immediately.** The user tests via BRAT, so any fix must be tagged + released with `main.js`, `manifest.json`, `styles.css` — no exceptions. Do not leave a fix un-released. **Always start with `npm run check-release`; never skip it.** That script catches missing artifacts (the 0.1.56–0.1.59 iPad regression that shipped without `styles.css` would have failed it) and version skew between `manifest.json` / `package.json` / `versions.json`.
 
 ## Release Process
 
+0. **Run `npm run check-release`. Must report `0 failed` before you tag.** Re-run after every version bump and after `npm run build` so the new `main.js` size is re-checked. If anything fails, fix it before tagging — never bypass. WARN-level findings (yellow `!`) are non-blocking but worth a look.
 1. Bump `version` in `manifest.json`, `package.json`, and add entry to `versions.json`.
 2. `npm run build` → produces `main.js`.
 3. Commit all changes, tag `0.1.XX`.
-4. `gh release create 0.1.XX --title "0.1.XX — description" --notes "..." main.js manifest.json styles.css`
+4. `npm run check-release -- --tag 0.1.XX --with-build` — final guard that the tag matches the manifest version and that build + tests still pass. Must report `0 failed`.
+5. `gh release create 0.1.XX --title "0.1.XX — description" --notes "..." main.js manifest.json styles.css`
 
 BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
+
+CI form: drop `npm run check-release -- --with-build` into a workflow step before `gh release create`. The script auto-picks the tag from `GITHUB_REF_NAME` / `GITHUB_REF`, so no extra wiring is needed.
+
+### What `check-release` covers
+
+Mechanical guards (FAIL blocks release):
+
+- All five required artifacts exist: `manifest.json`, `main.js`, `versions.json`, `README.md`, `LICENSE`.
+- `styles.css` present iff source declares any `cci-` class (catches the 0.1.56–0.1.59 iPad regression).
+- Every JSON file parses; `manifest.json` has `id`, `name`, `version`, `minAppVersion`, `description`, `author`, `isDesktopOnly`.
+- `manifest.version` equals `package.json.version` AND is listed in `versions.json`.
+- When `--tag` (or `GITHUB_REF_NAME`) is given, it equals `manifest.version`.
+- `manifest.fundingUrl`, when set, points to a known financial-support service (GitHub Sponsors, Ko-fi, Buy Me a Coffee, Patreon, OpenCollective, Liberapay, PayPal, Stripe).
+- No hardcoded user paths in source (`/Users/foo/...`, `/home/foo/...`, `C:\Users\foo\...`).
+- If `isDesktopOnly !== true`, source must not import Node-only modules (`fs`, `path`, `child_process`, `os`, `electron`).
+- `package.json` defines `build` and `test` scripts; with `--with-build`, they actually run and pass.
+
+Heuristic guards (WARN — review but don't block):
+
+- README.md mentions purpose / usage / settings / limitations.
+- `console.log` count in `src/` ≤ 30 (over the threshold suggests ungated debug output).
+- External network usage (`fetch` / `requestUrl`) is documented in README or `docs/`.
+- Files that call `adapter.read/write/exists/mkdir/list/append/remove/rename` also use `normalizePath()` somewhere in the file.
+- No stray distributable cruft at repo root (orphan `.ts`, `.bak`, `.DS_Store`, `main.js.map`). `*.config.{ts,js,mjs}` is allowlisted.
 
 Commit convention: `0.1.XX — short description`.
 

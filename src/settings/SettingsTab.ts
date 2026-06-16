@@ -52,6 +52,19 @@ export class CciSettingsTab extends PluginSettingTab {
     fn(details);
   }
 
+  /** Insert a "Read the guide →" row that links to a markdown file in
+   *  the repo's docs/ folder. Pattern reused across most sections so
+   *  users can dive deeper without bloating the in-app help text. */
+  private renderDocLink(c: HTMLElement, name: string, blurb: string, docFile: string): void {
+    const help = new Setting(c).setName(name);
+    help.descEl.createSpan({ text: blurb + " " });
+    help.descEl.createEl("a", {
+      text: "Read the guide on GitHub →",
+      href: `https://github.com/davadev/obsidian_chinese_comprehensible_input/blob/main/docs/${docFile}`,
+      attr: { target: "_blank", rel: "noopener" },
+    });
+  }
+
   private renderDataManagement(c: HTMLElement) {
     c.createEl("h3", { text: "Data Management" });
     new Setting(c)
@@ -147,6 +160,12 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderDisplay(c: HTMLElement) {
     c.createEl("h3", { text: "Display" });
+    this.renderDocLink(
+      c,
+      "Display modes & colors guide",
+      "Two-line vs three-line, pinyin styles, what each color toggle controls.",
+      "display-modes.md"
+    );
     new Setting(c)
       .setName("Default display mode")
       .setDesc(
@@ -358,6 +377,12 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderTokenizer(c: HTMLElement) {
     c.createEl("h3", { text: "Tokenizer" });
+    this.renderDocLink(
+      c,
+      "Word states & marking guide",
+      "What new / partial / known / unknown / ignored mean and how to mark words from the reading view.",
+      "word-states.md"
+    );
     this.renderCollapsible(c, "Advanced tokenizer ▾", (a) => {
       new Setting(a).setName("Engine").addDropdown((d) => {
         d.addOption("lattice", "Dictionary lattice (recommended)");
@@ -384,6 +409,12 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderExposure(c: HTMLElement) {
     c.createEl("h3", { text: "Exposure tracking" });
+    this.renderDocLink(
+      c,
+      "Exposure tracking guide",
+      "What counts as 'seeing' a word, the dedup rules, and how exposure pushes status changes.",
+      "exposure.md"
+    );
     this.renderCollapsible(c, "Advanced exposure ▾", (a) => {
       new Setting(a)
         .setName("Minimum visible time (ms)")
@@ -452,6 +483,12 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderSrs(c: HTMLElement) {
     c.createEl("h3", { text: "Spaced repetition" });
+    this.renderDocLink(
+      c,
+      "Spaced repetition guide",
+      "How reviews get scheduled in this plugin and which knobs to touch first.",
+      "srs.md"
+    );
     this.renderCollapsible(c, "Advanced SRS ▾", (a) => {
       new Setting(a).setName("Review known words occasionally").addToggle((t) =>
         t.setValue(this.plugin.settings.srs.scheduleKnownOccasionally).onChange(async (v) => {
@@ -647,6 +684,12 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderOllama(c: HTMLElement) {
     const ai = this.plugin.settings.ai.ollama;
+    this.renderDocLink(
+      c,
+      "Ollama tips & model choice",
+      "Picking a model (7B vs 14B vs 32B), bumping repair iterations for weaker models, and when to send known words.",
+      "ollama-tips.md"
+    );
     new Setting(c).setName("Base URL").addText((t) =>
       t.setValue(ai.baseUrl).onChange(async (v) => {
         ai.baseUrl = v;
@@ -778,6 +821,12 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderStory(c: HTMLElement) {
     c.createEl("h3", { text: "Generated stories" });
+    this.renderDocLink(
+      c,
+      "Story generation guide",
+      "What Smart Story does end-to-end, the repair loop, and which knobs help when results disappoint.",
+      "story-generation.md"
+    );
 
     new Setting(c)
       .setName("Auto-generate a daily story")
@@ -995,6 +1044,18 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderSync(c: HTMLElement) {
     c.createEl("h3", { text: "Sync (remotely-save)" });
+    this.renderDocLink(
+      c,
+      "Vault-mirror sync guide",
+      "Why this exists for users who don't sync .obsidian/, vocab vs settings mirror, and what's filtered out.",
+      "sync-mirror.md"
+    );
+    this.renderDocLink(
+      c,
+      "Conflict resolution guide",
+      "How the priority list resolves two-device disagreements on word status.",
+      "conflicts.md"
+    );
     c.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
@@ -1253,6 +1314,18 @@ export class CciSettingsTab extends PluginSettingTab {
 
   private renderAbout(c: HTMLElement) {
     c.createEl("h3", { text: "About / Licenses" });
+    this.renderDocLink(
+      c,
+      "Documentation index",
+      "Browse the full set of user guides on GitHub: FAQ, AI tips, SRS, sync, word states, and more.",
+      "index.md"
+    );
+    this.renderDocLink(
+      c,
+      "Frequently asked questions",
+      "Quick answers to the top issues users hit.",
+      "faq.md"
+    );
     const ul = c.createEl("ul");
     ul.createEl("li", { text: "Dictionary: CC-CEDICT (CC BY-SA 4.0)" });
     ul.createEl("li", { text: "HSK overlay: Complete HSK Vocabulary (MIT)" });

@@ -127,3 +127,12 @@ Open the Stats view (left ribbon "中" icon → Flashcards tab) and click
 
 If something fails, check the error notice and the developer console
 (Cmd-Option-I on macOS). The most common cause is a typo in the key.
+
+---
+
+## See also
+
+- [Documentation index](./index.md)
+- [Frequently asked questions](./faq.md)
+- [Ollama tips (the alternative provider)](./ollama-tips.md)
+- [Story generation, end to end](./story-generation.md)

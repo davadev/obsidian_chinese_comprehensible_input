@@ -77,6 +77,27 @@ By combining comprehensible input, AI-generated content, vocabulary tracking, an
 
 See `PR.md` for the full product spec and `NOTICE.md` for license notes (CC-CEDICT, HSK).
 
+## Documentation
+
+Detailed guides live in [`docs/`](./docs/index.md). Each settings section also links to the relevant page from inside Obsidian. Highlights:
+
+- [FAQ](./docs/faq.md) — top issues and where the fix is
+- [OpenAI setup, privacy, and cost](./docs/openai-setup.md)
+- [Ollama tips: model choice and getting good output](./docs/ollama-tips.md)
+- [Story generation, end to end](./docs/story-generation.md)
+- [Display modes & colors](./docs/display-modes.md)
+- [Word states (new / partial / known / unknown / ignored)](./docs/word-states.md)
+- [Exposure tracking](./docs/exposure.md)
+- [Spaced repetition](./docs/srs.md)
+- [Vault-mirror sync (for users who don't sync .obsidian/)](./docs/sync-mirror.md)
+- [Conflict resolution between devices](./docs/conflicts.md)
+
+### Limitations
+
+- Mobile + Ollama needs a reachable LAN/Tailscale host (`localhost` from the phone points at the phone). See [Ollama tips](./docs/ollama-tips.md#mobile-tailscale-tips).
+- OpenAI mode sends prompt + target words to OpenAI's servers — fine for most users, see [the privacy section](./docs/openai-setup.md#2-privacy--your-text-leaves-obsidian).
+- The bundled seed dictionary is tiny; real use needs CC-CEDICT (see Data below).
+
 ## Dev
 
 ```bash
