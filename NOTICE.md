@@ -4,8 +4,9 @@ This Obsidian plugin redistributes and/or relies on third-party data:
 
 ## CC-CEDICT
 - Source: https://www.mdbg.net/chinese/dictionary?page=cc-cedict
-- License: CC BY-SA 4.0 (most recent MDBG distribution). The older CC-CEDICT wiki references CC BY-SA 3.0; the build script pins the exact archive URL and download date.
-- Obligation: attribution + share-alike. Any modified/derived dictionary data shipped from this plugin must remain under CC BY-SA and credit CC-CEDICT.
+- License: CC BY-SA 4.0 (most recent MDBG distribution). The older CC-CEDICT wiki references CC BY-SA 3.0.
+- How it ships: the plugin does **not** bundle CC-CEDICT. The user can opt in via Settings → Dictionary → Download CC-CEDICT, which fetches the archive from MDBG at runtime (see the pinned URLs in `src/dictionary/DictionaryDownloader.ts`) into the user's vault.
+- Obligation: attribution + share-alike. Any modified/derived dictionary data shipped from this plugin must remain under CC BY-SA and credit CC-CEDICT. The seed dictionary in `src/dictionary/seedDictionary.ts` contains a few dozen hand-written single-character definitions and is not a CC-CEDICT extract.
 
 ## HSK 2.0 level data — glxxyz/hskhsk.com
 - Source: https://github.com/glxxyz/hskhsk.com  (path: `data/lists/HSK Official 2012 L{1..6}.txt`)
@@ -17,6 +18,3 @@ This Obsidian plugin redistributes and/or relies on third-party data:
 
 ## Plugin code
 - License: MIT (see LICENSE).
-
-## Release-blocker reminder
-Before publicly publishing this plugin with bundled dictionary data, verify the final attribution strategy. CC BY-SA share-alike obligations apply to the dictionary data even when the surrounding plugin code is MIT.

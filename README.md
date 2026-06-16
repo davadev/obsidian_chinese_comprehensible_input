@@ -75,7 +75,7 @@ Make Chinese learning feel more like reading and less like studying.
 
 By combining comprehensible input, AI-generated content, vocabulary tracking, and story-based spaced repetition, this plugin aims to make language acquisition both effective and enjoyable—even beyond the intermediate stages where traditional comprehensible-input tools begin to struggle.
 
-See `PR.md` for the full product spec and `NOTICE.md` for license notes (CC-CEDICT, HSK).
+See `NOTICE.md` for license notes (CC-CEDICT, HSK).
 
 ## Documentation
 
