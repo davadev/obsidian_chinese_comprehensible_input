@@ -22,16 +22,6 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 
 `npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. `vitest.config.ts` now tracks the unit-testable surface of the repo: pure logic modules stay inside coverage and the Obsidian runtime / DOM-heavy shells stay out until we add a dedicated jsdom + Obsidian harness. CI enforces the current thresholds, so raise them only after the new floor is proven stable locally.
 
-## Architecture
-
-- **Entrypoint:** `src/main.ts` — `CciPlugin extends Plugin`. Registers two views (`cci-chinese-view`, `cci-stats-view`) and all commands.
-- **Chinese view:** `src/view/ChineseTextFileView.ts` — owns a CodeMirror 6 `EditorView`. Strips YAML frontmatter before feeding text to CM6; prepends it on save.
-- **Decorations:** `src/editor/chineseDecorations.ts` — `ViewPlugin` that builds `Decoration.replace` (RubyWidget for 2-line/3-line) or `Decoration.mark` (color-only/popup-only). Uses a shared LRU token cache (`src/tokenizer/tokenCache.ts`).
-- **Tokenizer:** `src/tokenizer/TokenizerService.ts` — lattice-based (default) or `Intl.Segmenter`. Caches results in the shared module-level cache.
-- **Vocabulary:** `src/vocabulary/` — `WordRecord` store with axes-based color state (`src/vocabulary/axes.ts`). Persisted via Obsidian `loadData`/`saveData`.
-- **AI:** `src/ai/` — `StoryGenerator`, `AiProviderService` (OpenAI-compatible/Ollama). SSE streaming. Not initialized until user enables it in settings.
-- **Settings:** `src/settings/defaults.ts` — single `DEFAULT_SETTINGS` object. Schema version tracked in `constants.ts`.
-
 ## Critical Constraints
 
 - **Token cache pre-warm MUST happen before editor creation.** `onOpen()` must `await tokenizer.tokenize(body)` before `ensureEditor(body)` — otherwise decorations miss the first paint and annotations fail to render. (Fixed in 0.1.44; do not regress.)
@@ -63,27 +53,7 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 - BRAT testers who added the plugin via **Add Beta Plugin** can install and test immediately.  
 - Regular BRAT users do **not** auto-update to prereleases — their plugin stays on the last promoted stable release.  
 - After you manually verify the release works, promote it to stable with `gh release edit` above.  
-  Only then does it become the “latest” release that BRAT auto-update follows.
-
-### CI Expectations
-
-- `.github/workflows/ci.yml` is the minimum repo gate. It runs `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, and `npm run check-release`.
-- Keep release publishing manual. CI validates that the branch is healthy; the actual BRAT release still needs an intentional version bump, tag, and `gh release create` with the three release assets attached.
-- If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
-- The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
-
-### Branch Policy
-
-- Do not do routine bugfix / feature / release-prep work directly on `main`.
-- Start each change on a dedicated branch. Preferred prefixes: `fix/<slug>`, `feat/<slug>`, `release/<version>`.
-- Merge into `main` through a PR after CI passes.
-- Tag and publish releases only from reviewed, merged code.
-
-### PR Policy
-
-- PRs from outside contributors must be approved by Daniel before merge.
-- `CODEOWNERS` routes review requests to `@davadev`, but real enforcement still depends on GitHub branch protection.
-- Recommended GitHub settings for `main`: require a pull request, require at least one approval, and require review from code owners.
+  Only then does it become the "latest" release that BRAT auto-update follows.
 
 ### Release Checklist
 
@@ -106,42 +76,9 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
   `gh release edit 0.X.Y --prerelease=false`  
   This makes it the latest release — BRAT auto-update for regular users now picks it up.
 
-### What `check-release` covers
-
-Mechanical guards (FAIL blocks release):
-
-- All five required artifacts exist: `manifest.json`, `main.js`, `versions.json`, `README.md`, `LICENSE`.
-- `styles.css` present iff source declares any `cci-` class (catches the 0.1.56–0.1.59 iPad regression).
-- Every JSON file parses; `manifest.json` has `id`, `name`, `version`, `minAppVersion`, `description`, `author`, `isDesktopOnly`.
-- `manifest.version` equals `package.json.version` AND is listed in `versions.json`.
-- When `--tag` (or `GITHUB_REF_NAME`) is given, it equals `manifest.version`.
-- `manifest.fundingUrl`, when set, points to a known financial-support service (GitHub Sponsors, Ko-fi, Buy Me a Coffee, Patreon, OpenCollective, Liberapay, PayPal, Stripe).
-- No hardcoded user paths in source (`/Users/foo/...`, `/home/foo/...`, `C:\Users\foo\...`).
-- If `isDesktopOnly !== true`, source must not import Node-only modules (`fs`, `path`, `child_process`, `os`, `electron`).
-- `package.json` defines `build` and `test` scripts; with `--with-build`, they actually run and pass.
-
-Heuristic guards (WARN — review but don't block):
-
-- README.md mentions purpose / usage / settings / limitations.
-- `console.log` count in `src/` ≤ 30 (over the threshold suggests ungated debug output).
-- External network usage (`fetch` / `requestUrl`) is documented in README or `docs/`.
-- Files that call `adapter.read/write/exists/mkdir/list/append/remove/rename` also use `normalizePath()` somewhere in the file.
-- No stray distributable cruft at repo root (orphan `.ts`, `.bak`, `.DS_Store`, `main.js.map`). `*.config.{ts,js,mjs}` is allowlisted.
-
 Commit convention: `0.X.Y — short description`.
 
-## Key Files Quick Reference
+## Reference
 
-| Path | Purpose |
-|------|---------|
-| `src/main.ts` | Plugin lifecycle, command registration, view creation |
-| `src/view/ChineseTextFileView.ts` | CM6 editor host, toolbar wiring, `onOpen`/`setViewData` |
-| `src/view/ViewToolbar.ts` | Toolbar with display mode selector, marking buttons, overflow menu |
-| `src/editor/chineseDecorations.ts` | `RubyWidget` + `buildChineseDecorations` ViewPlugin |
-| `src/editor/wordInteractionPlugin.ts` | Click/long-press handler for popup and marking |
-| `src/tokenizer/TokenizerService.ts` | Tokenizer orchestration + shared cache |
-| `src/vocabulary/axes.ts` | `colorOf()` and `axesFromStatus()` — maps word status to color |
-| `src/settings/types.ts` | All type definitions (`DisplayMode`, `ViewMode`, `CciSettings`) |
-| `src/settings/defaults.ts` | Default settings values |
-| `src/constants.ts` | Plugin ID, view type constants, folder defaults |
-| `styles.css` | All styling — no CSS-in-JS |
+- Architecture & key file index → [`docs/architecture.md`](./docs/architecture.md)
+- Release policies (CI expectations, branch/PR policy, check-release coverage) → [`docs/release-process.md`](./docs/release-process.md)
