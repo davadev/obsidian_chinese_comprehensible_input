@@ -40,6 +40,7 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 - **Display mode** is read from `plugin.settings.defaultDisplayMode` at decoration build time — switching mode calls `onChange()` → `handleToolbarChange()` → `redecorate()`, no editor rebuild.
 - **Color visibility** is gated by `showKnownColor` (default off), `showPartialColor` (default on), `showUnknownColor` (default on) — check these if colors seem missing.
 - **Every fix MUST be released with BRAT artifacts immediately.** The user tests via BRAT, so any fix must be tagged + released with `main.js`, `manifest.json`, `styles.css` — no exceptions. Do not leave a fix un-released. **Always start with `npm run check-release`; never skip it.** That script catches missing artifacts (the 0.1.56–0.1.59 iPad regression that shipped without `styles.css` would have failed it) and version skew between `manifest.json` / `package.json` / `versions.json`.
+- **Every release starts as prerelease — never assume stable unless the user explicitly says so.** The `gh release create` command must always use `--prerelease`. Only promote to stable (`gh release edit 0.X.Y --prerelease=false`) when the user explicitly instructs you to do so. The default assumption is always prerelease; stable is opt-in after manual verification.
 
 ## Release Process
 
@@ -49,9 +50,20 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts. Do not assume CI will catch something you can catch before tagging.
 4. Commit all changes, tag `0.X.Y`.
 5. `npm run check-release -- --tag 0.X.Y --with-build` — final guard that the tag matches the manifest version and that build + tests still pass. Must report `0 failed`.
-6. `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." main.js manifest.json styles.css`
+6. `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." --prerelease main.js manifest.json styles.css`
+
+7. **Promote to stable after manual testing.**  
+   Once you have tested the release in BRAT and confirmed it works:  
+   `gh release edit 0.X.Y --prerelease=false`  
+   This makes it the latest release — BRAT auto-update for regular users now picks it up.
 
 BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
+
+**Beta-first workflow.** Every release starts as a prerelease.  
+- BRAT testers who added the plugin via **Add Beta Plugin** can install and test immediately.  
+- Regular BRAT users do **not** auto-update to prereleases — their plugin stays on the last promoted stable release.  
+- After you manually verify the release works, promote it to stable with `gh release edit` above.  
+  Only then does it become the “latest” release that BRAT auto-update follows.
 
 ### CI Expectations
 
@@ -60,8 +72,22 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 - If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
 
+### Branch Policy
+
+- Do not do routine bugfix / feature / release-prep work directly on `main`.
+- Start each change on a dedicated branch. Preferred prefixes: `fix/<slug>`, `feat/<slug>`, `release/<version>`.
+- Merge into `main` through a PR after CI passes.
+- Tag and publish releases only from reviewed, merged code.
+
+### PR Policy
+
+- PRs from outside contributors must be approved by Daniel before merge.
+- `CODEOWNERS` routes review requests to `@davadev`, but real enforcement still depends on GitHub branch protection.
+- Recommended GitHub settings for `main`: require a pull request, require at least one approval, and require review from code owners.
+
 ### Release Checklist
 
+- Create a dedicated branch for the fix / feature / release prep
 - `npm run check-release`
 - Bump `manifest.json`, `package.json`, `versions.json`
 - `npm run build`
@@ -69,9 +95,16 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 - `npm run test:cov`
 - Confirm `main.js`, `manifest.json`, `styles.css` are present and updated
 - Commit with `0.X.Y — short description`
+- Open / update the PR and get it reviewed before merge
+- Merge to `main`
 - Tag `0.X.Y`
 - `npm run check-release -- --tag 0.X.Y --with-build`
-- `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." main.js manifest.json styles.css`
+- `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." --prerelease main.js manifest.json styles.css`
+
+- **Promote to stable after manual testing.**  
+  Once you have tested the release in BRAT and confirmed it works:  
+  `gh release edit 0.X.Y --prerelease=false`  
+  This makes it the latest release — BRAT auto-update for regular users now picks it up.
 
 ### What `check-release` covers
 
