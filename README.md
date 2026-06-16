@@ -1,11 +1,10 @@
 # Chinese Comprehensible Input — Obsidian Plugin
 
-<p align="center">
-  <img src="resources/desktop.png" alt="Chinese view on desktop" height="380" />
-  <img src="resources/mobile.png" alt="Chinese view on mobile" height="380" />
-</p>
+| Desktop | Mobile |
+| :---: | :---: |
+| <img src="resources/desktop.png" alt="Chinese view on desktop" height="420"> | <img src="resources/mobile.png" alt="Chinese view on mobile" height="420"> |
 
-<p align="center"><em>Desktop and mobile views of the demo note at <a href="resources/example.md">resources/example.md</a>.</em></p>
+<p align="center"><em>Both screenshots show the demo note at <a href="resources/example.md">resources/example.md</a>.</em></p>
 
 Turn any Chinese note in Obsidian into a learner-friendly comprehensible-input reading environment. Dictionary-aware tokenization, exposure tracking, SRS, and optional OpenAI-compatible AI story generation. Works on desktop and mobile (no Node/Electron at runtime).
 
