@@ -2,6 +2,7 @@ import { Platform } from "obsidian";
 import type CciPlugin from "../main";
 import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { axesFromStatus } from "../vocabulary/axes";
+import { promptAsync } from "./confirmInput";
 
 export class WordPopup {
   private el: HTMLElement | null = null;
@@ -11,7 +12,7 @@ export class WordPopup {
 
   open(surface: string, anchor: HTMLElement, _ev: Event): void {
     this.close();
-    (document.activeElement as HTMLElement | null)?.blur?.();
+    (activeDocument.activeElement as HTMLElement | null)?.blur?.();
     const rec = this.plugin.vocab.ensure(surface);
 
     if (this.plugin.settings.exposure.popupCountsAsExposure) {
@@ -20,12 +21,12 @@ export class WordPopup {
     }
     this.plugin.srs.applyPopupSignal(surface);
 
-    const el = document.createElement("div");
+    const el = activeDocument.createElement("div");
     el.className = "cci-popup";
     if (Platform.isMobile) el.classList.add("cci-bottom-sheet");
 
     this.renderInto(el, rec);
-    document.body.appendChild(el);
+    activeDocument.body.appendChild(el);
     this.position(el, anchor);
     this.el = el;
 
@@ -35,13 +36,13 @@ export class WordPopup {
       this.close();
     };
     window.setTimeout(() => {
-      if (this.outsideHandler) document.addEventListener("click", this.outsideHandler);
+      if (this.outsideHandler) activeDocument.addEventListener("click", this.outsideHandler);
     }, 0);
   }
 
   close(): void {
     if (this.outsideHandler) {
-      document.removeEventListener("click", this.outsideHandler);
+      activeDocument.removeEventListener("click", this.outsideHandler);
       this.outsideHandler = null;
     }
     if (this.el && this.el.parentElement) {
@@ -115,7 +116,7 @@ export class WordPopup {
       this.plugin.markWordIgnored(rec.surfaces[0]);
       this.refresh();
     });
-    this.action(actions, "Mnemonic…", () => this.openMnemonicPrompt(rec));
+    this.action(actions, "Mnemonic…", () => void this.openMnemonicPrompt(rec));
     this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
   }
 
@@ -201,12 +202,12 @@ export class WordPopup {
     const counts = days.map((d) => rec.dailySeenCounts[d] ?? 0);
     const max = Math.max(1, ...counts);
     const svgNs = "http://www.w3.org/2000/svg";
-    const svg = document.createElementNS(svgNs, "svg");
+    const svg = activeDocument.createElementNS(svgNs, "svg");
     svg.setAttribute("class", "cci-sparkline");
     svg.setAttribute("viewBox", `0 0 ${days.length * 10} 30`);
     counts.forEach((c, i) => {
       const h = Math.round((c / max) * 28);
-      const r = document.createElementNS(svgNs, "rect");
+      const r = activeDocument.createElementNS(svgNs, "rect");
       r.setAttribute("x", String(i * 10));
       r.setAttribute("y", String(30 - h));
       r.setAttribute("width", "8");
@@ -226,10 +227,10 @@ export class WordPopup {
     });
   }
 
-  private openMnemonicPrompt(rec: WordRecord) {
+  private async openMnemonicPrompt(rec: WordRecord): Promise<void> {
     const surface = rec.surfaces[0];
     const existing = rec.mnemonic?.text ?? "";
-    const text = window.prompt("Mnemonic for " + surface, existing);
+    const text = await promptAsync(this.plugin.app, "Mnemonic for " + surface, existing);
     if (text == null) return;
     this.plugin.vocab.updateMnemonic(surface, { text });
     this.refresh();

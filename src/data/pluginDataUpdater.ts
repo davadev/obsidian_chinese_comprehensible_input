@@ -1,4 +1,4 @@
-export type PluginDataBlob = Record<string, any>;
+export type PluginDataBlob = Record<string, unknown>;
 
 export type PluginDataMutation = (
   blob: PluginDataBlob

@@ -228,9 +228,9 @@ export class ViewToolbar {
   }
 
   private buildOverflowMenu(anchor: HTMLElement): HTMLElement {
-    const menu = document.createElement("div");
+    const menu = activeDocument.createElement("div");
     menu.className = "cci-overflow-menu";
-    document.body.appendChild(menu);
+    activeDocument.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
     menu.style.top = `${r.bottom + 4}px`;
     menu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
@@ -357,9 +357,9 @@ export class ViewToolbar {
     const off = (e: MouseEvent) => {
       if (e.target instanceof Node && menu.contains(e.target)) return;
       menu.remove();
-      document.removeEventListener("click", off);
+      activeDocument.removeEventListener("click", off);
     };
-    setTimeout(() => document.addEventListener("click", off), 0);
+    window.setTimeout(() => activeDocument.addEventListener("click", off), 0);
     return menu;
   }
 }

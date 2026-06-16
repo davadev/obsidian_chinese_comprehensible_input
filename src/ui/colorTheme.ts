@@ -8,7 +8,7 @@ import { CciSettings, CustomColors } from "../settings/types";
  * picker change takes effect live without restart.
  */
 export function applyCustomColors(settings: CciSettings): void {
-  const root = document.body;
+  const root = activeDocument.body;
   const c = settings.customColors;
   if (!c) return;
   root.style.setProperty("--cci-color-known", c.known);
@@ -62,7 +62,7 @@ export function deriveHskColorsFromAccent(): CustomColors["hsk"] {
 }
 
 function readAccentHex(): string | null {
-  const cs = getComputedStyle(document.body);
+  const cs = getComputedStyle(activeDocument.body);
   // Obsidian exposes the accent as `--interactive-accent` in hex form on
   // recent versions and as `--accent` / `--accent-h` etc. on older ones.
   const tryVars = ["--interactive-accent", "--text-accent", "--accent"];

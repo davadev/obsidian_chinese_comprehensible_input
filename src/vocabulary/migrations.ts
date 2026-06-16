@@ -1,5 +1,5 @@
 import { DATA_SCHEMA_VERSION } from "../constants";
-import { PersistedVocabData } from "./VocabularyTypes";
+import { PersistedVocabData, WordRecord } from "./VocabularyTypes";
 
 /**
  * Migrate persisted vocab data forward to the current schema version.
@@ -15,7 +15,7 @@ export function migrateVocab(raw: unknown): PersistedVocabData {
   if (v < 1) {
     data = {
       schemaVersion: 1,
-      words: (data.words as Record<string, any>) ?? {},
+      words: (data.words as Record<string, WordRecord>) ?? {},
     };
     v = 1;
   }

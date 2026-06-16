@@ -50,7 +50,7 @@ export async function indexVault(
     if (progress.scanned % 5 === 0) {
       onProgress?.(progress);
       // Yield to the UI so the editor stays responsive.
-      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => window.setTimeout(r, 0));
     }
   }
   onProgress?.(progress);
@@ -75,11 +75,11 @@ export async function indexVaultWithNotice(plugin: CciPlugin): Promise<void> {
     );
     plugin.settings.vaultIndexed = true;
     await plugin.saveSettings();
-    setTimeout(() => notice.hide(), 4000);
+    window.setTimeout(() => notice.hide(), 4000);
   } catch (err) {
     notice.setMessage(
       "Chinese plugin: indexing failed — " + (err as Error).message
     );
-    setTimeout(() => notice.hide(), 6000);
+    window.setTimeout(() => notice.hide(), 6000);
   }
 }

@@ -12,7 +12,15 @@ import {
   importSettings,
   SETTINGS_EXPORT_DEFAULT_PATH,
 } from "./SettingsIO";
-import type { AiProviderKind } from "./types";
+import type {
+  AiProviderKind,
+  ColorMode,
+  DisplayMode,
+  HskSource,
+  PinyinStyle,
+  TokenizerEngine,
+} from "./types";
+import type { TextComponent } from "obsidian";
 import {
   OPENAI_MODEL_DESC,
   OPENAI_MODEL_DISPLAY,
@@ -20,6 +28,7 @@ import {
   computeOpenAiCostUsd,
 } from "../ai/openaiProfile";
 import { loadApiKey, saveApiKey } from "../ai/secrets";
+import { confirmAsync } from "../ui/confirmInput";
 
 export class CciSettingsTab extends PluginSettingTab {
   constructor(app: App, private plugin: CciPlugin) {
@@ -134,8 +143,8 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       )
       .addButton((b) =>
-        b.setButtonText("Remove").setWarning().onClick(async () => {
-          if (!confirm("Delete the downloaded CC-CEDICT file from the vault?")) return;
+        b.setButtonText("Remove").setDestructive().onClick(async () => {
+          if (!(await confirmAsync(this.app, "Delete the downloaded CC-CEDICT file from the vault?"))) return;
           const path = normalizePath(this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json");
           try {
             if (await this.app.vault.adapter.exists(path)) {
@@ -176,7 +185,7 @@ export class CciSettingsTab extends PluginSettingTab {
         d.addOption("none", "None (no inline annotation)");
         d.setValue(this.plugin.settings.defaultDisplayMode);
         d.onChange(async (v) => {
-          this.plugin.settings.defaultDisplayMode = v as any;
+          this.plugin.settings.defaultDisplayMode = v as DisplayMode;
           await this.plugin.saveSettings();
         });
       });
@@ -191,7 +200,7 @@ export class CciSettingsTab extends PluginSettingTab {
         d.addOption("hsk", "By HSK level (1–7)");
         d.setValue(this.plugin.settings.colorMode);
         d.onChange(async (v) => {
-          this.plugin.settings.colorMode = v as any;
+          this.plugin.settings.colorMode = v as ColorMode;
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
           this.plugin.refreshStatsViews();
@@ -216,7 +225,7 @@ export class CciSettingsTab extends PluginSettingTab {
           d.addOption("none", "None");
           d.setValue(this.plugin.settings.pinyinStyle);
           d.onChange(async (v) => {
-            this.plugin.settings.pinyinStyle = v as any;
+            this.plugin.settings.pinyinStyle = v as PinyinStyle;
             await this.plugin.saveSettings();
           });
         });
@@ -227,7 +236,6 @@ export class CciSettingsTab extends PluginSettingTab {
           s
             .setLimits(14, 40, 1)
             .setValue(this.plugin.settings.readerFontPx ?? 22)
-            .setDynamicTooltip()
             .onChange(async (v) => {
               this.plugin.settings.readerFontPx = v;
               await this.plugin.saveSettings();
@@ -389,7 +397,7 @@ export class CciSettingsTab extends PluginSettingTab {
         d.addOption("experimental", "Experimental WASM (not bundled)");
         d.setValue(this.plugin.settings.tokenizerEngine);
         d.onChange(async (v) => {
-          this.plugin.settings.tokenizerEngine = v as any;
+          this.plugin.settings.tokenizerEngine = v as TokenizerEngine;
           await this.plugin.saveSettings();
         });
       });
@@ -399,7 +407,7 @@ export class CciSettingsTab extends PluginSettingTab {
         d.addOption("both", "Both");
         d.setValue(this.plugin.settings.hskSource);
         d.onChange(async (v) => {
-          this.plugin.settings.hskSource = v as any;
+          this.plugin.settings.hskSource = v as HskSource;
           await this.plugin.saveSettings();
         });
       });
@@ -855,7 +863,7 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     const folderSetting = new Setting(c).setName("Folder");
-    let folderInput: any = null;
+    let folderInput: TextComponent | null = null;
     folderSetting.addText((t) => {
       folderInput = t;
       t.setValue(this.plugin.settings.story.folder).onChange(async (v) => {
@@ -896,7 +904,7 @@ export class CciSettingsTab extends PluginSettingTab {
       d.addOption("dialogue", "Dialogue");
       d.setValue(this.plugin.settings.story.defaultStyle);
       d.onChange(async (v) => {
-        this.plugin.settings.story.defaultStyle = v as any;
+        this.plugin.settings.story.defaultStyle = v as "story" | "article" | "dialogue";
         await this.plugin.saveSettings();
       });
     });
@@ -1012,7 +1020,7 @@ export class CciSettingsTab extends PluginSettingTab {
       )
       .addButton((b) =>
         b.setButtonText("From file…").onClick(() => {
-          const input = document.createElement("input");
+          const input = activeDocument.createElement("input");
           input.type = "file";
           input.accept = ".json,application/json";
           input.addEventListener("change", async () => {
@@ -1033,8 +1041,8 @@ export class CciSettingsTab extends PluginSettingTab {
       .setName("Reset plugin data")
       .setDesc("Permanently deletes all word records and resets settings. Cannot be undone.")
       .addButton((b) =>
-        b.setButtonText("Reset").setWarning().onClick(async () => {
-          if (confirm("Really reset all plugin data?")) {
+        b.setButtonText("Reset").setDestructive().onClick(async () => {
+          if (await confirmAsync(this.app, "Really reset all plugin data?", "Reset")) {
             await this.plugin.vocab.resetAll();
             new Notice("Plugin data reset.");
           }
@@ -1081,9 +1089,9 @@ export class CciSettingsTab extends PluginSettingTab {
     const mirrorPathSetting = new Setting(c)
       .setName("Mirror file path")
       .setDesc(
-        `Default: ${VOCAB_MIRROR_PATH_DEFAULT}. Must be a regular vault path (not under .obsidian/) so remotely-save picks it up.`
+        `Default: ${VOCAB_MIRROR_PATH_DEFAULT}. Must be a regular vault path (not under ${this.app.vault.configDir}/) so remotely-save picks it up.`
       );
-    let mirrorPathInput: any = null;
+    let mirrorPathInput: TextComponent | null = null;
     mirrorPathSetting.addText((t) => {
       mirrorPathInput = t;
       t
@@ -1202,7 +1210,7 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
     const settingsMirrorPathSetting = new Setting(a).setName("Settings mirror file path");
-    let settingsMirrorPathInput: any = null;
+    let settingsMirrorPathInput: TextComponent | null = null;
     settingsMirrorPathSetting.addText((t) => {
       settingsMirrorPathInput = t;
       t
@@ -1256,7 +1264,7 @@ export class CciSettingsTab extends PluginSettingTab {
     });
     let exportPath = SETTINGS_EXPORT_DEFAULT_PATH;
     const exportSetting = new Setting(a).setName("Export path");
-    let exportPathInput: any = null;
+    let exportPathInput: TextComponent | null = null;
     exportSetting.addText((t) => {
       exportPathInput = t;
       t.setValue(exportPath).onChange((v) => {
@@ -1276,7 +1284,7 @@ export class CciSettingsTab extends PluginSettingTab {
 
     let importPath = SETTINGS_EXPORT_DEFAULT_PATH;
     const importSetting = new Setting(a).setName("Import path");
-    let importPathInput: any = null;
+    let importPathInput: TextComponent | null = null;
     importSetting.addText((t) => {
       importPathInput = t;
       t.setValue(importPath).onChange((v) => {
@@ -1292,12 +1300,12 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
     importSetting.addButton((b) =>
-      b.setButtonText("Import").setWarning().onClick(async () => {
+      b.setButtonText("Import").setDestructive().onClick(async () => {
         if (!importPath) {
           new Notice("Pick an import path first.");
           return;
         }
-        if (!confirm("Import settings from " + importPath + "? Your current settings will be overwritten where the file has values.")) return;
+        if (!(await confirmAsync(this.app, "Import settings from " + importPath + "? Your current settings will be overwritten where the file has values.", "Import"))) return;
         try {
           const { applied, skipped } = await importSettings(this.plugin, importPath);
           const skip = skipped.length ? ` (skipped sensitive: ${skipped.join(", ")})` : "";

@@ -3,6 +3,7 @@ import type CciPlugin from "../main";
 import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
 import { hasCjk } from "../dictionary/normalizeChinese";
+import { confirmAsync } from "./confirmInput";
 
 /**
  * Two modes:
@@ -187,7 +188,7 @@ export class EditDictionaryModal extends Modal {
   }
 
   private async handleDeleteCustom(): Promise<void> {
-    if (!confirm(`Delete custom word "${this.props.surface}"?`)) return;
+    if (!(await confirmAsync(this.app, `Delete custom word "${this.props.surface}"?`))) return;
     await this.plugin.deleteCustomWord(this.props.surface);
     new Notice("Custom word deleted.");
     this.close();

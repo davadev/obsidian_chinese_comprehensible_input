@@ -4,6 +4,7 @@ import path from "node:path";
 export default defineConfig({
   test: {
     include: ["src/tests/**/*.test.ts"],
+    setupFiles: ["src/tests/__mocks__/setup.ts"],
     coverage: {
       // v8 is faster and produces accurate line/branch numbers for our
       // TypeScript-via-esbuild build pipeline. Reporters: text in the

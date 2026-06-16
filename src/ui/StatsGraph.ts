@@ -11,12 +11,12 @@ export function renderDailyGraph(container: HTMLElement, dailyCounts: Record<str
   }
   const max = Math.max(1, ...values);
   const svgNs = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNs, "svg");
+  const svg = activeDocument.createElementNS(svgNs, "svg");
   svg.setAttribute("class", "cci-stats-graph");
   svg.setAttribute("viewBox", `0 0 ${days * 6} 80`);
   values.forEach((v, i) => {
     const h = Math.round((v / max) * 76);
-    const r = document.createElementNS(svgNs, "rect");
+    const r = activeDocument.createElementNS(svgNs, "rect");
     r.setAttribute("x", String(i * 6));
     r.setAttribute("y", String(80 - h));
     r.setAttribute("width", "4");
@@ -117,7 +117,7 @@ export function renderProgressArea(
   const y = (v: number) => padY + innerH - (v / maxVal) * innerH;
 
   const svgNs = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNs, "svg");
+  const svg = activeDocument.createElementNS(svgNs, "svg");
   svg.setAttribute("class", "cci-progress-graph");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("preserveAspectRatio", "none");
@@ -125,12 +125,12 @@ export function renderProgressArea(
   series.forEach((s, si) => {
     const pts = cumulative[si].map((v, i) => `${x(i)},${y(v)}`);
     const fillPts = [`${x(0)},${y(0)}`, ...pts, `${x(n - 1)},${y(0)}`];
-    const fill = document.createElementNS(svgNs, "polygon");
+    const fill = activeDocument.createElementNS(svgNs, "polygon");
     fill.setAttribute("points", fillPts.join(" "));
     fill.setAttribute("fill", s.color);
     fill.setAttribute("opacity", "0.22");
     svg.appendChild(fill);
-    const line = document.createElementNS(svgNs, "polyline");
+    const line = activeDocument.createElementNS(svgNs, "polyline");
     line.setAttribute("points", pts.join(" "));
     line.setAttribute("fill", "none");
     line.setAttribute("stroke", s.color);
@@ -139,12 +139,12 @@ export function renderProgressArea(
     svg.appendChild(line);
     // End-point dot with tooltip.
     const last = cumulative[si][n - 1];
-    const dot = document.createElementNS(svgNs, "circle");
+    const dot = activeDocument.createElementNS(svgNs, "circle");
     dot.setAttribute("cx", String(x(n - 1)));
     dot.setAttribute("cy", String(y(last)));
     dot.setAttribute("r", "2.5");
     dot.setAttribute("fill", s.color);
-    const t = document.createElementNS(svgNs, "title");
+    const t = activeDocument.createElementNS(svgNs, "title");
     t.textContent = `${s.label}: ${last}`;
     dot.appendChild(t);
     svg.appendChild(dot);
@@ -153,7 +153,7 @@ export function renderProgressArea(
   // Sparse x-axis tick labels: first, last, midpoint.
   const tickIdx = [0, Math.floor(n / 2), n - 1];
   for (const i of tickIdx) {
-    const t = document.createElementNS(svgNs, "text");
+    const t = activeDocument.createElementNS(svgNs, "text");
     t.setAttribute("x", String(x(i)));
     t.setAttribute("y", String(H - 2));
     t.setAttribute("text-anchor", "middle");
@@ -166,12 +166,12 @@ export function renderProgressArea(
 
   container.appendChild(svg);
 
-  const legend = document.createElement("div");
+  const legend = activeDocument.createElement("div");
   legend.className = "cci-progress-legend";
   series.forEach((s, si) => {
-    const item = document.createElement("span");
+    const item = activeDocument.createElement("span");
     item.className = "cci-progress-legend-item";
-    const swatch = document.createElement("span");
+    const swatch = activeDocument.createElement("span");
     swatch.className = "cci-progress-legend-swatch";
     swatch.style.background = s.color;
     item.appendChild(swatch);
@@ -202,21 +202,21 @@ export function renderProgressGraph(
   const W = n * cellW;
   const H = 100;
   const svgNs = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(svgNs, "svg");
+  const svg = activeDocument.createElementNS(svgNs, "svg");
   svg.setAttribute("class", "cci-progress-graph");
   svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("preserveAspectRatio", "none");
   series.forEach((s, si) => {
     s.data.forEach((d, i) => {
       const h = Math.round((d.count / maxVal) * (H - 14));
-      const r = document.createElementNS(svgNs, "rect");
+      const r = activeDocument.createElementNS(svgNs, "rect");
       r.setAttribute("x", String(i * cellW + si * barW + 1));
       r.setAttribute("y", String(H - 14 - h));
       r.setAttribute("width", String(barW));
       r.setAttribute("height", String(h));
       r.setAttribute("fill", s.color);
       r.setAttribute("opacity", "0.85");
-      const title = document.createElementNS(svgNs, "title");
+      const title = activeDocument.createElementNS(svgNs, "title");
       title.textContent = `${d.label} · ${s.label}: ${d.count}`;
       r.appendChild(title);
       svg.appendChild(r);
@@ -225,7 +225,7 @@ export function renderProgressGraph(
   // Sparse x-axis tick labels: first, last, midpoint.
   const tickIdx = [0, Math.floor(n / 2), n - 1];
   for (const i of tickIdx) {
-    const t = document.createElementNS(svgNs, "text");
+    const t = activeDocument.createElementNS(svgNs, "text");
     t.setAttribute("x", String(i * cellW + cellW / 2));
     t.setAttribute("y", String(H - 2));
     t.setAttribute("text-anchor", "middle");
@@ -238,12 +238,12 @@ export function renderProgressGraph(
   container.appendChild(svg);
 
   // Legend
-  const legend = document.createElement("div");
+  const legend = activeDocument.createElement("div");
   legend.className = "cci-progress-legend";
   for (const s of series) {
-    const item = document.createElement("span");
+    const item = activeDocument.createElement("span");
     item.className = "cci-progress-legend-item";
-    const swatch = document.createElement("span");
+    const swatch = activeDocument.createElement("span");
     swatch.className = "cci-progress-legend-swatch";
     swatch.style.background = s.color;
     item.appendChild(swatch);

@@ -12,11 +12,11 @@ describe("pluginDataUpdater", () => {
     );
 
     const first = update(async (blob) => {
-      blob.settings.theme = "dark";
+      (blob as any).settings.theme = "dark";
       await Promise.resolve();
     });
     const second = update((blob) => {
-      blob.vocab.words["学习"] = { seenCount: 1 };
+      (blob as any).vocab.words["学习"] = { seenCount: 1 };
     });
 
     await Promise.all([first, second]);

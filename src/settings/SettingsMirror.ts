@@ -188,9 +188,9 @@ export class SettingsMirror {
     rawContent: string,
     remoteUpdatedAt: string
   ): Promise<void> {
-    const next: CciSettings = JSON.parse(JSON.stringify(this.plugin.settings));
-    deepMerge(next, patch);
-    this.plugin.settings = { ...DEFAULT_SETTINGS, ...next };
+    const next = JSON.parse(JSON.stringify(this.plugin.settings)) as JsonRecord;
+    deepMerge(next, patch as JsonRecord);
+    this.plugin.settings = { ...DEFAULT_SETTINGS, ...(next as Partial<CciSettings>) };
     applyCustomColors(this.plugin.settings);
     this.appliedUpdatedAt = remoteUpdatedAt;
     this.lastWrittenHash = await hashString(rawContent);
@@ -248,14 +248,17 @@ export class SettingsMirror {
   }
 }
 
-function deepMerge(into: any, patch: any): void {
+type JsonRecord = Record<string, unknown>;
+
+function deepMerge(into: JsonRecord, patch: JsonRecord): void {
   for (const k of Object.keys(patch ?? {})) {
     const pv = patch[k];
     if (pv && typeof pv === "object" && !Array.isArray(pv)) {
-      if (!into[k] || typeof into[k] !== "object" || Array.isArray(into[k])) {
+      const existing = into[k];
+      if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
         into[k] = {};
       }
-      deepMerge(into[k], pv);
+      deepMerge(into[k] as JsonRecord, pv as JsonRecord);
     } else {
       into[k] = pv;
     }

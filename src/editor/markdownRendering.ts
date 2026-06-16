@@ -259,7 +259,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         excluded: ReturnType<typeof computeExcludedRanges>,
         items: Array<{ from: number; to: number; deco: Decoration }>
       ): void {
-        const re = /\[\[([^\]\|\n]+)(?:\|([^\]\n]+))?\]\]/g;
+        const re = /\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
         let m: RegExpExecArray | null;
         while ((m = re.exec(slice))) {
           const start = offset + m.index;
@@ -286,7 +286,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         excluded: ReturnType<typeof computeExcludedRanges>,
         items: Array<{ from: number; to: number; deco: Decoration }>
       ): void {
-        const re = /!\[\[([^\]\|\n]+)(?:\|([^\]\n]+))?\]\]/g;
+        const re = /!\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
         let m: RegExpExecArray | null;
         while ((m = re.exec(slice))) {
           const start = offset + m.index;
@@ -446,7 +446,7 @@ class CheckboxWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const el = document.createElement("span");
+    const el = activeDocument.createElement("span");
     const icon = TASK_ICON_MAP[this.char] ?? "square";
     el.className = `cci-md-task cci-md-task-${safeClassChar(this.char)}`;
     if (this.char === "x" || this.char === "X") el.classList.add("is-done");
@@ -474,7 +474,7 @@ function safeClassChar(c: string): string {
 
 class BulletWidget extends WidgetType {
   toDOM(): HTMLElement {
-    const el = document.createElement("span");
+    const el = activeDocument.createElement("span");
     el.className = "cci-md-bullet";
     el.textContent = "•";
     return el;
@@ -489,7 +489,7 @@ class BulletWidget extends WidgetType {
 
 class HrWidget extends WidgetType {
   toDOM(): HTMLElement {
-    const el = document.createElement("hr");
+    const el = activeDocument.createElement("hr");
     el.className = "cci-md-hr";
     return el;
   }
@@ -510,7 +510,7 @@ class WikilinkWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const el = document.createElement("span");
+    const el = activeDocument.createElement("span");
     el.className = "cci-md-wikilink";
     el.textContent = this.alias || this.target;
     el.setAttribute("title", `Open: ${this.target}`);
@@ -534,7 +534,7 @@ class EmbedWidget extends WidgetType {
     const file = resolveLinkpath(this.plugin, this.target);
     // Image / video / pdf — render via vault resource URL.
     if (file && isImageFile(file)) {
-      const img = document.createElement("img");
+      const img = activeDocument.createElement("img");
       img.className = "cci-md-embed-img";
       img.src = this.plugin.app.vault.getResourcePath(file);
       img.alt = this.target;
@@ -542,7 +542,7 @@ class EmbedWidget extends WidgetType {
     }
     // Note embed: clickable card that opens the note in the Chinese
     // view. Avoids the cost (and scope) of inline embed rendering.
-    const card = document.createElement("span");
+    const card = activeDocument.createElement("span");
     card.className = "cci-md-embed cci-md-embed-card";
     card.textContent = file ? file.basename : this.target;
     attachOpenInChineseView(card, this.plugin, this.target);
@@ -561,7 +561,7 @@ class ImgWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const img = document.createElement("img");
+    const img = activeDocument.createElement("img");
     img.className = "cci-md-embed-img";
     img.src = this.url;
     img.alt = "";
@@ -616,7 +616,7 @@ export function markdownLinkClickHandler(plugin: CciPlugin) {
   return EditorView.domEventHandlers({
     mousedown: (ev) => {
       if (!(ev.target instanceof HTMLElement)) return false;
-      const el = ev.target.closest(".cci-md-link") as HTMLElement | null;
+      const el = ev.target.closest(".cci-md-link");
       if (!el) return false;
       const href = el.getAttribute("data-cci-href");
       if (!href) return false;

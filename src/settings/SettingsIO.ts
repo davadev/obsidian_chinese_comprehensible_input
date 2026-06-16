@@ -28,36 +28,40 @@ const FILTER_OUT = {
   ] as const,
 };
 
+type JsonRecord = Record<string, unknown>;
+
 /** Drop a dotted-path key from a nested record. No-op when any segment is
  *  absent. Mutates the input. */
-function deleteDottedPath(obj: any, path: string): void {
+function deleteDottedPath(obj: unknown, path: string): void {
   const parts = path.split(".");
-  let cursor = obj;
+  let cursor: unknown = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     if (cursor == null || typeof cursor !== "object") return;
-    cursor = cursor[parts[i]];
+    cursor = (cursor as JsonRecord)[parts[i]];
   }
-  if (cursor && typeof cursor === "object") delete cursor[parts[parts.length - 1]];
+  if (cursor && typeof cursor === "object") {
+    delete (cursor as JsonRecord)[parts[parts.length - 1]];
+  }
 }
 
-function hasDottedPath(obj: any, path: string): boolean {
+function hasDottedPath(obj: unknown, path: string): boolean {
   const parts = path.split(".");
-  let cursor = obj;
+  let cursor: unknown = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     if (cursor == null || typeof cursor !== "object") return false;
-    cursor = cursor[parts[i]];
+    cursor = (cursor as JsonRecord)[parts[i]];
   }
-  return !!cursor && typeof cursor === "object" && parts[parts.length - 1] in cursor;
+  return !!cursor && typeof cursor === "object" && parts[parts.length - 1] in (cursor as JsonRecord);
 }
 
 /** Strip sensitive + device-local fields. Returns a fresh object so the
  *  caller can safely JSON.stringify it. */
 export function filterSettingsForSharing(s: CciSettings): Partial<CciSettings> {
-  const out: any = JSON.parse(JSON.stringify(s));
+  const out = JSON.parse(JSON.stringify(s)) as JsonRecord;
   for (const k of FILTER_OUT.top) delete out[k];
   if (out.ai) for (const k of FILTER_OUT.ai) deleteDottedPath(out, `ai.${k}`);
-  if (out.sync) for (const k of FILTER_OUT.sync) delete out.sync[k];
-  return out;
+  if (out.sync) for (const k of FILTER_OUT.sync) delete (out.sync as JsonRecord)[k];
+  return out as Partial<CciSettings>;
 }
 
 async function ensureFolder(plugin: CciPlugin, filePath: string): Promise<void> {
@@ -85,14 +89,15 @@ export async function exportSettings(plugin: CciPlugin, path: string): Promise<v
 }
 
 /** Deep-merge `patch` into `into` in place. Arrays are replaced, not merged. */
-function deepMerge(into: any, patch: any): void {
+function deepMerge(into: JsonRecord, patch: JsonRecord): void {
   for (const k of Object.keys(patch ?? {})) {
     const pv = patch[k];
     if (pv && typeof pv === "object" && !Array.isArray(pv)) {
-      if (!into[k] || typeof into[k] !== "object" || Array.isArray(into[k])) {
+      const existing = into[k];
+      if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
         into[k] = {};
       }
-      deepMerge(into[k], pv);
+      deepMerge(into[k] as JsonRecord, pv as JsonRecord);
     } else {
       into[k] = pv;
     }
@@ -108,25 +113,30 @@ export async function importSettings(
     throw new Error(`Settings file not found: ${norm}`);
   }
   const raw = await plugin.app.vault.adapter.read(norm);
-  const parsed = JSON.parse(raw);
+  const parsed = JSON.parse(raw) as unknown;
   // Accept either the wrapped export shape {settings: ...} or a bare partial.
-  const incoming: Partial<CciSettings> =
-    parsed && typeof parsed === "object" && "settings" in parsed && typeof parsed.settings === "object"
-      ? parsed.settings
-      : parsed;
+  const wrapped =
+    parsed && typeof parsed === "object" && "settings" in parsed && typeof (parsed as JsonRecord).settings === "object"
+      ? ((parsed as JsonRecord).settings as JsonRecord)
+      : (parsed as JsonRecord);
+  const incoming: JsonRecord = wrapped ?? {};
   // Apply the sensitive-key filter on the incoming side too, so a hand-
   // edited import file can't slip in credentials or device paths.
-  const safe = filterSettingsForSharing(incoming as CciSettings);
+  const safe = filterSettingsForSharing(incoming as unknown as CciSettings);
   const skipped: string[] = [];
-  for (const k of FILTER_OUT.top) if (k in (incoming as any)) skipped.push(k);
+  for (const k of FILTER_OUT.top) if (k in incoming) skipped.push(k);
   for (const k of FILTER_OUT.ai) if (hasDottedPath(incoming, `ai.${k}`)) skipped.push(`ai.${k}`);
-  for (const k of FILTER_OUT.sync)
-    if ((incoming as any).sync && k in (incoming as any).sync) skipped.push(`sync.${k}`);
+  const incomingSync = incoming.sync;
+  if (incomingSync && typeof incomingSync === "object") {
+    for (const k of FILTER_OUT.sync) {
+      if (k in (incomingSync as JsonRecord)) skipped.push(`sync.${k}`);
+    }
+  }
 
   // Start from current settings, deep-merge the safe patch on top.
-  const next: CciSettings = JSON.parse(JSON.stringify(plugin.settings));
-  deepMerge(next, safe);
-  plugin.settings = { ...DEFAULT_SETTINGS, ...next };
+  const next = JSON.parse(JSON.stringify(plugin.settings)) as JsonRecord;
+  deepMerge(next, safe as JsonRecord);
+  plugin.settings = { ...DEFAULT_SETTINGS, ...(next as Partial<CciSettings>) };
   applyCustomColors(plugin.settings);
   await plugin.saveSettings();
   plugin.refreshChineseViews();

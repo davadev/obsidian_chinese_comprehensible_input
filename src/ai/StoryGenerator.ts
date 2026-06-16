@@ -216,7 +216,7 @@ export class StoryGenerator {
   /** Delete the preview file if it still exists. */
   async deletePreview(preview: StoryPreview): Promise<void> {
     try {
-      await this.app.vault.delete(preview.file);
+      await this.app.fileManager.trashFile(preview.file);
     } catch {
       // ignore — already gone
     }
@@ -429,7 +429,7 @@ function shapeStory(partial: Partial<GeneratedStory>): GeneratedStory {
  * fallback when the model returned plain prose with no JSON wrapping.
  */
 function longestCjkRun(s: string): string {
-  const re = /[㐀-鿿豈-﫿，。！？、；：""''「」『』《》（）()…—\-—\s\n\r,.!?:;"'\[\]]+/g;
+  const re = /[㐀-鿿豈-﫿，。！？、；：""''「」『』《》（）()…—\-—\s\n\r,.!?:;"'[]]+/g;
   let best = "";
   let m: RegExpExecArray | null;
   while ((m = re.exec(s))) {

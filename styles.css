@@ -196,8 +196,7 @@
 .cci-view .cci-md-wikilink {
   color: var(--text-accent);
   cursor: pointer;
-  text-decoration: underline;
-  text-decoration-style: dotted;
+  text-decoration: underline dotted;
 }
 .cci-view .cci-md-link:hover,
 .cci-view .cci-md-wikilink:hover {
