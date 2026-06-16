@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Plugin, normalizePath } from "obsidian";
 import { DATA_SCHEMA_VERSION } from "../constants";
 import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
@@ -9,6 +9,12 @@ import { axesFromStatus, statusFromAxes } from "./axes";
 import { mergeStoresForSync } from "./syncMerge";
 import { CciSettings } from "../settings/types";
 import { DictionaryCustomWords, DictionaryOverrides } from "../dictionary/DictionaryTypes";
+
+type PluginDataBlob = Record<string, any>;
+
+type BlobUpdatingPlugin = Plugin & {
+  updateDataBlob?: (mutate: (blob: PluginDataBlob) => void | Promise<void>) => Promise<void>;
+};
 
 /**
  * Bridge from main.ts so the mirror payload also carries dictionary
@@ -63,6 +69,7 @@ export class VocabularyStore {
    *  circuit the 2.9 MB read when the file hasn't moved on disk. */
   private lastMirrorMtime: number | null = null;
   private dictBridge: DictionaryMirrorBridge | null = null;
+  private surfaceLookupCache = new Map<string, WordRecord | null>();
 
   /** Wire up the bridge after construction (avoids circular deps with CciPlugin). */
   setDictionaryMirrorBridge(bridge: DictionaryMirrorBridge): void {
@@ -81,12 +88,13 @@ export class VocabularyStore {
   mirrorPath(): string | null {
     const sync = this.getSettings().sync;
     if (!sync?.mirrorEnabled) return null;
-    return sync.mirrorPath || null;
+    return sync.mirrorPath ? normalizePath(sync.mirrorPath) : null;
   }
 
   async load(initialBlob: any): Promise<void> {
     const raw = initialBlob?.[this.namespace];
     this.data = migrateVocab(raw);
+    this.clearSurfaceLookupCache();
     this.loaded = true;
     this.dedupeOnLoad();
     // Mirror merge is intentionally NOT awaited here. iOS Files-provider I/O
@@ -206,6 +214,7 @@ export class VocabularyStore {
         : settings.exactTimestampRetentionLimit,
     });
     this.data = merged;
+    this.clearSurfaceLookupCache();
 
     if (this.dictBridge) {
       const remoteOv = envelope.dictionaryOverrides ?? {};
@@ -313,6 +322,7 @@ export class VocabularyStore {
     }
     if (mutated) {
       this.data.words = out;
+      this.clearSurfaceLookupCache();
       this.scheduleSave();
     }
   }
@@ -339,13 +349,23 @@ export class VocabularyStore {
    * dedupe has already run there will not be any.
    */
   bySurface(surface: string): WordRecord | undefined {
+    if (this.surfaceLookupCache.has(surface)) {
+      return this.surfaceLookupCache.get(surface) ?? undefined;
+    }
     const top = this.dict.lookup(surface)[0];
     const canonical = makeKey(top?.simplified ?? surface, top?.pinyin);
     const direct = this.data.words[canonical];
-    if (direct) return direct;
-    for (const r of Object.values(this.data.words)) {
-      if (r.surfaces.includes(surface)) return r;
+    if (direct) {
+      this.surfaceLookupCache.set(surface, direct);
+      return direct;
     }
+    for (const r of Object.values(this.data.words)) {
+      if (r.surfaces.includes(surface)) {
+        this.surfaceLookupCache.set(surface, r);
+        return r;
+      }
+    }
+    this.surfaceLookupCache.set(surface, null);
     return undefined;
   }
 
@@ -354,6 +374,7 @@ export class VocabularyStore {
     if (existing) {
       if (!existing.surfaces.includes(surface)) {
         existing.surfaces.push(surface);
+        this.clearSurfaceLookupCache();
         this.scheduleSave();
       }
       return existing;
@@ -379,6 +400,7 @@ export class VocabularyStore {
       updatedAt: now,
     };
     this.data.words[key] = rec;
+    this.clearSurfaceLookupCache();
     this.scheduleSave();
     return rec;
   }
@@ -518,12 +540,14 @@ export class VocabularyStore {
         added++;
       }
     }
+    this.clearSurfaceLookupCache();
     this.scheduleSave();
     return { added, updated };
   }
 
   async resetAll(): Promise<void> {
     this.data = { schemaVersion: DATA_SCHEMA_VERSION, words: {} };
+    this.clearSurfaceLookupCache();
     await this.flushSave();
   }
 
@@ -562,11 +586,22 @@ export class VocabularyStore {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
-    const blob = (await this.plugin.loadData()) ?? {};
-    blob[this.namespace] = this.data;
-    await this.plugin.saveData(blob);
+    const plugin = this.plugin as BlobUpdatingPlugin;
+    if (typeof plugin.updateDataBlob === "function") {
+      await plugin.updateDataBlob((blob) => {
+        blob[this.namespace] = this.data;
+      });
+    } else {
+      const blob = (await this.plugin.loadData()) ?? {};
+      blob[this.namespace] = this.data;
+      await this.plugin.saveData(blob);
+    }
     // Mirror write is decoupled and debounced — see scheduleMirrorWrite.
     this.scheduleMirrorWrite();
+  }
+
+  private clearSurfaceLookupCache(): void {
+    this.surfaceLookupCache.clear();
   }
 
   private scheduleMirrorWrite(): void {

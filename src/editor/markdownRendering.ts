@@ -26,27 +26,33 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      lastText = "";
+      lastExclusions: ReturnType<typeof computeExcludedRanges> = [];
 
       constructor(view: EditorView) {
-        this.decorations = this.build(view);
+        this.rememberDoc(view);
+        this.decorations = this.build(view, this.lastText, this.lastExclusions);
       }
 
       update(update: ViewUpdate) {
         const redecorate = update.transactions.some((tr) =>
           tr.effects.some((e) => e.is(cciRedecorateEffect))
         );
+        if (update.docChanged) this.rememberDoc(update.view);
         if (update.docChanged || update.viewportChanged || redecorate) {
-          this.decorations = this.build(update.view);
+          this.decorations = this.build(update.view, this.lastText, this.lastExclusions);
         }
       }
 
-      build(view: EditorView): DecorationSet {
+      build(
+        view: EditorView,
+        text: string,
+        excluded: ReturnType<typeof computeExcludedRanges>
+      ): DecorationSet {
         // Edit mode: leave raw syntax visible.
         if (plugin.activeViewMode() === "edit") return Decoration.none;
 
-        const text = view.state.doc.toString();
         const tree = syntaxTree(view.state);
-        const excluded = computeExcludedRanges(text);
 
         // Collect decorations into an array first so we can sort by
         // start position before handing them to RangeSetBuilder, which
@@ -100,6 +106,11 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           builder.add(from, to, deco);
         }
         return builder.finish();
+      }
+
+      rememberDoc(view: EditorView): void {
+        this.lastText = view.state.doc.toString();
+        this.lastExclusions = computeExcludedRanges(this.lastText);
       }
 
       handleNode(
@@ -617,9 +628,9 @@ export function markdownLinkClickHandler(plugin: CciPlugin) {
   });
 }
 
-function openHref(plugin: CciPlugin, href: string): void {
+export function openHref(plugin: CciPlugin, href: string): void {
   if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) {
-    window.open(href, "_blank");
+    window.open(href, "_blank", "noopener,noreferrer");
     return;
   }
   // Treat anything else as a vault-relative link.

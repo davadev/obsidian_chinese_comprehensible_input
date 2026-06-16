@@ -11,8 +11,8 @@ export interface VaultIndexProgress {
 /**
  * Walk every Markdown file in the vault, tokenize the Chinese spans, and
  * `recordExposure` each word-level CJK token. Chunked + yields to the UI so
- * a large vault does not freeze the editor. Idempotent — re-running it just
- * bumps exposure counters on the same canonical records.
+ * a large vault does not freeze the editor. Re-running it records exposures
+ * again on the same canonical records.
  */
 export async function indexVault(
   plugin: CciPlugin,
