@@ -83,10 +83,15 @@ By combining comprehensible input, AI-generated content, vocabulary tracking, an
 
 See `NOTICE.md` for license notes (CC-CEDICT, HSK).
 
+## Install
+
+The plugin is not in the official Obsidian community-plugin store yet. Install via **BRAT** (recommended) or manually — full step-by-step guide in [docs/install.md](./docs/install.md).
+
 ## Documentation
 
 Detailed guides live in [`docs/`](./docs/index.md). Each settings section also links to the relevant page from inside Obsidian. Highlights:
 
+- [Install (BRAT or manual)](./docs/install.md) — get the plugin into your vault
 - [FAQ](./docs/faq.md) — top issues and where the fix is
 - [OpenAI setup, privacy, and cost](./docs/openai-setup.md)
 - [Ollama tips: model choice and getting good output](./docs/ollama-tips.md)
