@@ -34,7 +34,7 @@ jobs:
         run: npm run test:cov
 
       - name: Run release guard
-        run: npm run check-release
+        run: env -u GITHUB_REF_NAME -u GITHUB_REF npm run check-release
 
       - name: Upload coverage artifact
         if: always()
