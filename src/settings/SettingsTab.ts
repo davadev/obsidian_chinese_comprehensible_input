@@ -29,7 +29,6 @@ export class CciSettingsTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    new Setting(containerEl).setName("Chinese Comprehensible Input").setHeading();
 
     this.renderDataManagement(containerEl);
     this.renderDisplay(containerEl);
@@ -1187,7 +1186,7 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     // ----- Settings mirror (preferences sync) -----
-    new Setting(a).setName("Settings sync between devices").setHeading();
+    new Setting(a).setName("Sync between devices").setHeading();
     a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
@@ -1249,7 +1248,7 @@ export class CciSettingsTab extends PluginSettingTab {
       );
 
     // ----- Backup / Restore (one-shot export / import) -----
-    new Setting(a).setName("Backup / restore settings").setHeading();
+    new Setting(a).setName("Backup / restore").setHeading();
     a.createEl("p", {
       cls: "cci-settings-section-desc",
       text:
