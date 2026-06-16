@@ -1,8 +1,8 @@
 # Chinese Comprehensible Input — Obsidian Plugin
 
 <p align="center">
-  <img src="resources/desktop.png" alt="Chinese view on desktop" width="49%" />
-  <img src="resources/mobile.png" alt="Chinese view on mobile" width="49%" />
+  <img src="resources/desktop.png" alt="Chinese view on desktop" height="380" />
+  <img src="resources/mobile.png" alt="Chinese view on mobile" height="380" />
 </p>
 
 <p align="center"><em>Desktop and mobile views of the demo note at <a href="resources/example.md">resources/example.md</a>.</em></p>
