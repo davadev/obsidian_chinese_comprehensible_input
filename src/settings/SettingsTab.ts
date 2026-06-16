@@ -555,6 +555,17 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   private renderOpenAi(c: HTMLElement) {
+    const help = new Setting(c).setName("OpenAI setup & cost guide");
+    help.descEl.createSpan({
+      text:
+        "What gets sent, what it costs, how to create an API key, and how to keep the bill under $1/month. ",
+    });
+    help.descEl.createEl("a", {
+      text: "Read the guide on GitHub →",
+      href: "https://github.com/davadev/obsidian_chinese_comprehensible_input/blob/main/docs/openai-setup.md",
+      attr: { target: "_blank", rel: "noopener" },
+    });
+
     new Setting(c)
       .setName("OpenAI API key")
       .setDesc(
