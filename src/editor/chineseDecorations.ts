@@ -53,6 +53,9 @@ export function buildChineseDecorations(plugin: CciPlugin) {
       lastTokens: Token[] = [];
       lastSourceVersion = -1;
       tokenPromise: Promise<void> | null = null;
+      lastText = "";
+      lastTextVersion = -1;
+      lastExclusions: ReturnType<typeof computeExcludedRanges> = [];
       /** Version (FNV hash) of the doc the in-flight tokenize was started for. */
       inFlightVersion: number | null = null;
 
@@ -64,10 +67,12 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // Eliminates the async race that caused the "open note → no
         // annotations until I switch the mode" bug.
         const text = view.state.doc.toString();
+        const version = hashText(text);
+        this.rememberDoc(text, version);
         const cached = getCachedTokens(text);
         if (cached) {
           this.lastTokens = cached;
-          this.lastSourceVersion = hashText(text);
+          this.lastSourceVersion = version;
           this.decorations = this.build(view, text, cached);
         } else {
           this.scheduleTokenize(view);
@@ -93,7 +98,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // re-stringifying / re-hashing the whole document. This is what was
         // causing visible lag on scroll-up for long notes.
         if (!update.docChanged && this.lastTokens.length > 0) {
-          this.decorations = this.build(update.view, update.view.state.doc.toString(), this.lastTokens);
+          this.decorations = this.build(update.view, this.lastText, this.lastTokens);
           return;
         }
         this.scheduleTokenize(update.view);
@@ -102,6 +107,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
       scheduleTokenize(view: EditorView) {
         const text = view.state.doc.toString();
         const version = hashText(text);
+        this.rememberDoc(text, version);
         if (version === this.lastSourceVersion && this.lastTokens.length > 0) {
           this.decorations = this.build(view, text, this.lastTokens);
           return;
@@ -160,7 +166,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
 
       build(view: EditorView, text: string, tokens: Token[]): DecorationSet {
         const settings = plugin.settings;
-        const exclusions = computeExcludedRanges(text);
+        const exclusions = this.lastText === text ? this.lastExclusions : computeExcludedRanges(text);
         const builder = new RangeSetBuilder<Decoration>();
         const ranges = view.visibleRanges;
         // Cache heading level per line so multi-token heading lines don't
@@ -190,6 +196,13 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           }
         }
         return builder.finish();
+      }
+
+      rememberDoc(text: string, version: number) {
+        if (version === this.lastTextVersion && text === this.lastText) return;
+        this.lastText = text;
+        this.lastTextVersion = version;
+        this.lastExclusions = computeExcludedRanges(text);
       }
 
       emitDecoration(
@@ -431,4 +444,3 @@ function formatPinyin(p: string, style: CciSettings["pinyinStyle"]): string {
   const { toneMarksToNumbers } = require("../dictionary/normalizeChinese");
   return toneMarksToNumbers(p);
 }
-

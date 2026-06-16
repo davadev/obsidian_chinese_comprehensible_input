@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting, Notice } from "obsidian";
+import { App, PluginSettingTab, Setting, Notice, normalizePath } from "obsidian";
 import type CciPlugin from "../main";
 import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 import { renderStatusPriorityList } from "./StatusPriorityList";
@@ -137,7 +137,7 @@ export class CciSettingsTab extends PluginSettingTab {
       .addButton((b) =>
         b.setButtonText("Remove").setWarning().onClick(async () => {
           if (!confirm("Delete the downloaded CC-CEDICT file from the vault?")) return;
-          const path = this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json";
+          const path = normalizePath(this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json");
           try {
             if (await this.app.vault.adapter.exists(path)) {
               await this.app.vault.adapter.remove(path);
@@ -948,10 +948,11 @@ export class CciSettingsTab extends PluginSettingTab {
       .setName("Index vault")
       .setDesc(
         "Scan every Markdown file for Chinese words and record exposures. " +
-          "Runs automatically once on first plugin load; use this to re-scan after large vault edits."
+          "Runs automatically once on first plugin load; use this to scan again after large vault edits. " +
+          "Scanning again records additional exposures for matching words."
       )
       .addButton((b) =>
-        b.setButtonText(this.plugin.settings.vaultIndexed ? "Reindex" : "Index now").onClick(async () => {
+        b.setButtonText(this.plugin.settings.vaultIndexed ? "Scan again" : "Index now").onClick(async () => {
           this.plugin.settings.vaultIndexed = false;
           await this.plugin.saveSettings();
           await indexVaultWithNotice(this.plugin);

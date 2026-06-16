@@ -555,7 +555,11 @@ export class AiProviderService {
     // iPhone. So we mirror similar-notes' "no signal" pattern for the
     // initial connect, then rely on the per-chunk read loop + the
     // user's own cancel for the long-running part.
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    const ac = new AbortController();
+    const timer =
+      s.timeoutMs && s.timeoutMs > 0
+        ? setTimeout(() => ac.abort(), s.timeoutMs)
+        : null;
     const bodyStr = JSON.stringify(body);
     try {
       dbg.step(`Issuing fetch… (body ${bodyStr.length} B, headers minimal)`);
@@ -569,6 +573,7 @@ export class AiProviderService {
         method: "POST",
         headers,
         body: bodyStr,
+        signal: ac.signal,
       });
       dbg.step(`HTTP ${res.status} ${res.statusText}. content-type=${res.headers.get("content-type") ?? "(missing)"}`);
       if (!res.ok) {

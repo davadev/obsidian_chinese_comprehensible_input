@@ -124,6 +124,18 @@ describe("VocabularyStore", () => {
     expect(rec.srs?.intervalDays).toBe(3);
   });
 
+  it("invalidates a cached miss when a later ensure creates that surface", async () => {
+    const { plugin } = makePlugin();
+    const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+    await store.load({ vocab: { schemaVersion: 1, words: {} } });
+
+    expect(store.bySurface("苹果")).toBeUndefined();
+
+    const rec = store.ensure("苹果");
+
+    expect(store.bySurface("苹果")).toBe(rec);
+  });
+
   it("imports data, bulk-marks new words, exports CSV, and resets", async () => {
     const { plugin } = makePlugin();
     const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
