@@ -12,14 +12,17 @@ per-note from the toolbar.
 
 ### Two-line
 
-Each word renders as Chinese on top, pinyin below. Ideal for reading
-with audio support — your eyes still see the characters first, pinyin
-underneath as a glance-fallback.
+Each word renders with pinyin on top and characters below. Standard
+ruby-text layout — your eye lands on the pinyin first and reads the
+chars right under it. Ideal for content where you want pronunciation
+support without losing the visual flow of the Chinese line.
 
 ### Three-line
 
-Chinese, pinyin, English meaning. Heavier visually but great for new
-vocabulary or unfamiliar content. Good while learning a new chapter.
+English meaning on top, pinyin in the middle, characters on the
+bottom. Heavier visually but great for new vocabulary or unfamiliar
+content. Good while learning a new chapter — the gloss row also
+pushes word boundaries apart so glosses don't overlap their neighbors.
 
 ### None
 
