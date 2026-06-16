@@ -430,17 +430,21 @@ export default class CciPlugin extends Plugin {
     }
   }
 
-  async onunload(): Promise<void> {
-    // Clean shutdown = we ran fine. Reset the crash counter eagerly so
-    // user-triggered toggles don't accumulate toward the threshold.
-    await this.resetCrashCounter();
-    await this.vocab.flushSave();
-    // Force-flush any pending debounced mirror write so we don't lose
-    // the tail of an exposure burst on quit.
-    await this.vocab.flushMirrorNow();
-    await this.settingsMirror?.flushNow().catch(() => {});
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_CHINESE);
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_STATS);
+  onunload(): void {
+    // Fire-and-forget the flush chain so Obsidian's void-returning Plugin
+    // signature is preserved. Detaching leaves is intentionally skipped:
+    // Obsidian's plugin lifecycle documentation forbids it because it
+    // resets the user's leaf placement on next enable.
+    void (async () => {
+      // Clean shutdown = we ran fine. Reset the crash counter eagerly so
+      // user-triggered toggles don't accumulate toward the threshold.
+      await this.resetCrashCounter();
+      await this.vocab.flushSave();
+      // Force-flush any pending debounced mirror write so we don't lose
+      // the tail of an exposure burst on quit.
+      await this.vocab.flushMirrorNow();
+      await this.settingsMirror?.flushNow().catch(() => {});
+    })();
   }
 
   /** Fingerprint of the shareable subset of settings at last save. Used
@@ -929,8 +933,7 @@ export default class CciPlugin extends Plugin {
   private async openStatsScoped(useScope: string): Promise<void> {
     // If the call originated from the Settings modal, close it so the
     // user actually sees the stats tab they just asked for.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const setting = (this.app as any)?.setting;
+    const setting = this.app.setting;
     if (setting && typeof setting.close === "function") {
       try { setting.close(); } catch { /* best effort */ }
     }

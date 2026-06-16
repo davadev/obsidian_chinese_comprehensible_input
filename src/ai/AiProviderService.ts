@@ -24,8 +24,6 @@ class DebugSession {
 
   step(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
-    // eslint-disable-next-line no-console
-    console.log(`[CCI AI ${elapsed}s] ${msg}`);
     if (this.notice) this.notice.setMessage(`[CCI AI +${elapsed}s] ${msg}`);
     if (this.enabled) this.lines.push(`- +${elapsed}s · ${msg}`);
   }
@@ -38,8 +36,6 @@ class DebugSession {
 
   done(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
-    // eslint-disable-next-line no-console
-    console.log(`[CCI AI ${elapsed}s] DONE — ${msg}`);
     if (this.notice) {
       this.notice.setMessage(`[CCI AI ${elapsed}s] ${msg}`);
       setTimeout(() => this.notice?.hide(), 4000);
@@ -51,8 +47,6 @@ class DebugSession {
 
   fail(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
-    // eslint-disable-next-line no-console
-    console.error(`[CCI AI ${elapsed}s] FAIL — ${msg}`);
     if (this.notice) {
       this.notice.setMessage(`[CCI AI ${elapsed}s] FAIL: ${msg}`);
       setTimeout(() => this.notice?.hide(), 8000);
@@ -80,9 +74,8 @@ class DebugSession {
         text += `## ${att.name}\n\n\`\`\`\n${att.content}\n\`\`\`\n\n`;
       }
       await adapter.write(path, text);
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("[CCI AI] failed to write debug log:", err);
+    } catch {
+      // swallowed: debug-log write is best-effort
     }
   }
 }
@@ -242,14 +235,6 @@ export class AiProviderService {
         }
       : baseBody;
 
-    // eslint-disable-next-line no-console
-    console.log(
-      "[CCI AI] POST", url,
-      "stream:", wantStream,
-      "platform:", Platform.isMobile ? "mobile" : "desktop",
-      "body:", body
-    );
-
     if (wantStream) {
       return s.endpointMode === "ollama"
         ? await this.chatJsonStreamOllama(url, body, s, provider)
@@ -277,8 +262,6 @@ export class AiProviderService {
       throw new Error(friendly);
     }
     dbg.step(`HTTP ${resp.status}. body length=${resp.text?.length ?? 0}.`);
-    // eslint-disable-next-line no-console
-    console.log("[CCI AI] HTTP", resp.status, "response text:", resp.text);
 
     if (resp.status < 200 || resp.status >= 300) {
       const msg = `AI provider HTTP ${resp.status}: ${resp.text.slice(0, 300) || "(empty body)"}`;
@@ -431,7 +414,7 @@ export class AiProviderService {
       let content = "";
       let chunkCount = 0;
       let firstByte = false;
-      // eslint-disable-next-line no-constant-condition
+      // eslint-disable-next-line no-constant-condition -- streaming reader loop; break is controlled by reader.read() returning done:true
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -595,7 +578,7 @@ export class AiProviderService {
       let chunkCount = 0;
       let bytesIn = 0;
       let firstByteLogged = false;
-      // eslint-disable-next-line no-constant-condition
+      // eslint-disable-next-line no-constant-condition -- streaming reader loop; break is controlled by reader.read() returning done:true
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;

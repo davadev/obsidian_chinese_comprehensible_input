@@ -197,6 +197,13 @@ try {
 } catch (e) {
   fail("package.json parses as JSON", e.message);
 }
+let pkgLock = null;
+try {
+  pkgLock = await readJson("package-lock.json");
+  pass("package-lock.json parses as JSON");
+} catch (e) {
+  fail("package-lock.json parses as JSON", e.message);
+}
 let versionsBlob = null;
 try {
   versionsBlob = await readJson("versions.json");
@@ -218,6 +225,39 @@ if (manifest) {
     pass("manifest.description is reasonably descriptive", `${manifest.description.length} chars`);
   }
 
+  if (typeof manifest.description === "string") {
+    const desc = manifest.description;
+    if (desc.length > 250) {
+      fail("manifest.description length", `${desc.length} chars — Obsidian requires 250 or fewer`);
+    } else {
+      pass("manifest.description length", `${desc.length} chars`);
+    }
+
+    if (/^this is a plugin\b/i.test(desc)) {
+      fail("manifest.description avoids banned boilerplate", 'should not start with "This is a plugin"');
+    } else {
+      pass("manifest.description avoids banned boilerplate");
+    }
+
+    if (/\p{Extended_Pictographic}/u.test(desc)) {
+      fail("manifest.description has no emoji", desc);
+    } else {
+      pass("manifest.description has no emoji");
+    }
+
+    if (/\.$/.test(desc)) {
+      pass("manifest.description ends with a period");
+    } else {
+      fail("manifest.description ends with a period", desc);
+    }
+
+    if (/^[A-Z0-9]/.test(desc)) {
+      pass("manifest.description starts with normal capitalization");
+    } else {
+      warn("manifest.description starts with normal capitalization", desc);
+    }
+  }
+
   if (typeof manifest.isDesktopOnly !== "boolean") {
     fail("manifest.isDesktopOnly is a boolean", `got ${typeof manifest.isDesktopOnly}`);
   } else {
@@ -228,6 +268,12 @@ if (manifest) {
     warn("manifest.id is kebab-case", `id="${manifest.id}" — Obsidian expects lowercase a-z, 0-9, hyphen`);
   } else {
     pass("manifest.id is kebab-case", manifest.id);
+  }
+
+  if (/obsidian/i.test(manifest.id || "")) {
+    fail("manifest.id does not contain obsidian", manifest.id);
+  } else {
+    pass("manifest.id does not contain obsidian", manifest.id);
   }
 
   if (manifest.authorUrl != null) {
@@ -275,6 +321,18 @@ if (manifest && pkg) {
     fail("manifest.version matches package.json.version", `manifest=${manifest.version}, package=${pkg.version}`);
   }
 }
+if (pkg && pkgLock) {
+  const rootLockVersion = pkgLock?.packages?.[""]?.version;
+  const topLevelVersion = pkgLock.version;
+  const mismatches = [];
+  if (topLevelVersion !== pkg.version) mismatches.push(`package-lock.version=${topLevelVersion}`);
+  if (rootLockVersion !== pkg.version) mismatches.push(`package-lock.packages[""].version=${rootLockVersion}`);
+  if (mismatches.length === 0) {
+    pass(`package-lock.json version matches package.json.version (${pkg.version})`);
+  } else {
+    fail("package-lock.json version matches package.json.version", `package.json.version=${pkg.version}; ${mismatches.join(", ")}`);
+  }
+}
 if (manifest && versionsBlob) {
   if (Object.prototype.hasOwnProperty.call(versionsBlob, manifest.version)) {
     pass(`manifest.version (${manifest.version}) listed in versions.json`);
@@ -308,7 +366,7 @@ if (readme) {
     purpose: /(purpose|overview|what (is|this)|introduction)\b/.test(lower) || readme.length > 800,
     usage: /(usage|how to use|getting started|use this|using)\b/.test(lower),
     settings: /(settings|configuration|configure|options)\b/.test(lower),
-    limitations: /(limitation|known issue|caveat|not supported|does not (work|support))\b/.test(lower),
+    limitations: /(limitations?|known issue|caveat|not supported|does not (work|support))\b/.test(lower),
   };
   const miss = Object.entries(sections)
     .filter(([, ok]) => !ok)

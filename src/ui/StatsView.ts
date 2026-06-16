@@ -773,7 +773,6 @@ export class StatsView extends ItemView {
         const preview = wrap.createDiv({ cls: "cci-fc-smart-preview" });
         preview.createEl("h4", { text: this.currentPreview.story.title || "Generated story" });
         const text = preview.createDiv({ cls: "cci-fc-smart-preview-text" });
-        text.style.whiteSpace = "pre-wrap";
         text.setText(this.currentPreview.story.textChinese);
       }
       const row = wrap.createDiv({ cls: "cci-fc-smart-actions" });
@@ -1068,13 +1067,7 @@ export class StatsView extends ItemView {
 
   private openDetail(r: WordRecord) {
     const root = this.containerEl.children[1] as HTMLElement;
-    const modal = root.createDiv({ cls: "cci-popup" });
-    modal.style.position = "fixed";
-    modal.style.top = "10%";
-    modal.style.left = "10%";
-    modal.style.right = "10%";
-    modal.style.bottom = "10%";
-    modal.style.overflow = "auto";
+    const modal = root.createDiv({ cls: "cci-popup cci-popup-overlay" });
     modal.createEl("h3", { text: `${r.simplified ?? r.surfaces[0]} (${r.pinyin ?? ""})` });
     modal.createEl("p", { text: (r.definitions ?? []).join("; ") });
     modal.createEl("p", { text: `Status: ${r.status} · HSK: ${(r.hsk?.levels ?? []).join("/")} · Seen: ${r.seenCount}` });

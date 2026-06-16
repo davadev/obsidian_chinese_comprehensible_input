@@ -361,11 +361,6 @@ export interface StoryPreview {
 }
 
 function parseStory(raw: string): GeneratedStory {
-  // Always log so the user/maintainer can see what the model returned
-  // when a fallback path triggers.
-  // eslint-disable-next-line no-console
-  console.log("[CCI Story] raw LLM response:", raw);
-
   if (!raw || raw.trim() === "") {
     throw new Error(
       "AI provider returned an empty response. Open Settings → AI provider → Test connection."

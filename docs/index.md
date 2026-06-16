@@ -11,6 +11,8 @@ the whole tree from here.
   plugin into your vault and keep it updated.
 - [Frequently asked questions](./faq.md) — the top issues users run
   into and where to find the fix in the rest of these docs.
+- [Community plugin submission](./community-plugin-submission.md) —
+  final release and submission checklist.
 - [README](../README.md) — what the plugin actually does, screenshots,
   install steps.
 
