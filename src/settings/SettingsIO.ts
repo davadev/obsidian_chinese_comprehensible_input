@@ -40,6 +40,16 @@ function deleteDottedPath(obj: any, path: string): void {
   if (cursor && typeof cursor === "object") delete cursor[parts[parts.length - 1]];
 }
 
+function hasDottedPath(obj: any, path: string): boolean {
+  const parts = path.split(".");
+  let cursor = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (cursor == null || typeof cursor !== "object") return false;
+    cursor = cursor[parts[i]];
+  }
+  return !!cursor && typeof cursor === "object" && parts[parts.length - 1] in cursor;
+}
+
 /** Strip sensitive + device-local fields. Returns a fresh object so the
  *  caller can safely JSON.stringify it. */
 export function filterSettingsForSharing(s: CciSettings): Partial<CciSettings> {
@@ -109,8 +119,7 @@ export async function importSettings(
   const safe = filterSettingsForSharing(incoming as CciSettings);
   const skipped: string[] = [];
   for (const k of FILTER_OUT.top) if (k in (incoming as any)) skipped.push(k);
-  for (const k of FILTER_OUT.ai)
-    if ((incoming as any).ai && k in (incoming as any).ai) skipped.push(`ai.${k}`);
+  for (const k of FILTER_OUT.ai) if (hasDottedPath(incoming, `ai.${k}`)) skipped.push(`ai.${k}`);
   for (const k of FILTER_OUT.sync)
     if ((incoming as any).sync && k in (incoming as any).sync) skipped.push(`sync.${k}`);
 

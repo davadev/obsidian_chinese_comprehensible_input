@@ -16,11 +16,11 @@ npm run check-release -- --with-build    # also runs `npm run build` + `npm test
 
 Build order: always run `npm run build` (includes type-check). No separate lint step.
 
-Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vitest.config.ts`). No CI workflow in repo — releases are manual.
+Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vitest.config.ts`). GitHub Actions runs build + test + coverage + `check-release` on every push to `main` and every PR. Releases are still intentionally manual so BRAT assets and notes are reviewed before publishing.
 
 ### Coverage targets
 
-`npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. The `thresholds` block in `vitest.config.ts` starts at 0 — bump each value upward as we add tests so CI catches regressions. Pure-DOM UI files (`src/ui/`, `src/view/`, `src/settings/SettingsTab.ts`, `src/editor/chineseDecorations.ts`) need a jsdom env + Obsidian wrappers to test meaningfully; prioritize pure-logic modules first (validators, tokenizers, store mergers, schedulers) where 100 % is realistic. Type-only modules are excluded in the config.
+`npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. `vitest.config.ts` now tracks the unit-testable surface of the repo: pure logic modules stay inside coverage and the Obsidian runtime / DOM-heavy shells stay out until we add a dedicated jsdom + Obsidian harness. CI enforces the current thresholds, so raise them only after the new floor is proven stable locally.
 
 ## Architecture
 
@@ -46,13 +46,32 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 0. **Run `npm run check-release`. Must report `0 failed` before you tag.** Re-run after every version bump and after `npm run build` so the new `main.js` size is re-checked. If anything fails, fix it before tagging — never bypass. WARN-level findings (yellow `!`) are non-blocking but worth a look.
 1. Bump `version` in `manifest.json`, `package.json`, and add entry to `versions.json`.
 2. `npm run build` → produces `main.js`.
-3. Commit all changes, tag `0.1.XX`.
-4. `npm run check-release -- --tag 0.1.XX --with-build` — final guard that the tag matches the manifest version and that build + tests still pass. Must report `0 failed`.
-5. `gh release create 0.1.XX --title "0.1.XX — description" --notes "..." main.js manifest.json styles.css`
+3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts. Do not assume CI will catch something you can catch before tagging.
+4. Commit all changes, tag `0.X.Y`.
+5. `npm run check-release -- --tag 0.X.Y --with-build` — final guard that the tag matches the manifest version and that build + tests still pass. Must report `0 failed`.
+6. `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." main.js manifest.json styles.css`
 
 BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 
-CI form: drop `npm run check-release -- --with-build` into a workflow step before `gh release create`. The script auto-picks the tag from `GITHUB_REF_NAME` / `GITHUB_REF`, so no extra wiring is needed.
+### CI Expectations
+
+- `.github/workflows/ci.yml` is the minimum repo gate. It runs `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, and `npm run check-release`.
+- Keep release publishing manual. CI validates that the branch is healthy; the actual BRAT release still needs an intentional version bump, tag, and `gh release create` with the three release assets attached.
+- If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
+- The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
+
+### Release Checklist
+
+- `npm run check-release`
+- Bump `manifest.json`, `package.json`, `versions.json`
+- `npm run build`
+- `npm test`
+- `npm run test:cov`
+- Confirm `main.js`, `manifest.json`, `styles.css` are present and updated
+- Commit with `0.X.Y — short description`
+- Tag `0.X.Y`
+- `npm run check-release -- --tag 0.X.Y --with-build`
+- `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." main.js manifest.json styles.css`
 
 ### What `check-release` covers
 
@@ -76,7 +95,7 @@ Heuristic guards (WARN — review but don't block):
 - Files that call `adapter.read/write/exists/mkdir/list/append/remove/rename` also use `normalizePath()` somewhere in the file.
 - No stray distributable cruft at repo root (orphan `.ts`, `.bak`, `.DS_Store`, `main.js.map`). `*.config.{ts,js,mjs}` is allowlisted.
 
-Commit convention: `0.1.XX — short description`.
+Commit convention: `0.X.Y — short description`.
 
 ## Key Files Quick Reference
 

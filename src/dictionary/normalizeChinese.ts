@@ -116,5 +116,6 @@ export function shortenDefinition(def: string, max = 40): string {
 }
 
 export function hasCjk(text: string): boolean {
+  CJK_RANGE_GLOBAL.lastIndex = 0;
   return CJK_RANGE_GLOBAL.test(text);
 }

@@ -1,11 +1,21 @@
-import { describe, it, expect } from "vitest";
-import { filterSettingsForSharing } from "../settings/SettingsIO";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { filterSettingsForSharing, exportSettings, importSettings } from "../settings/SettingsIO";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import { CciSettings } from "../settings/types";
 
 function cloneDefaults(): CciSettings {
   return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 }
+
+beforeEach(() => {
+  (globalThis as any).document = {
+    body: {
+      style: {
+        setProperty: vi.fn(),
+      },
+    },
+  };
+});
 
 describe("filterSettingsForSharing", () => {
   it("strips ai.ollama.apiKey + ai.usageLog but keeps ollama base URL + model + endpoint mode", () => {
@@ -91,5 +101,86 @@ describe("filterSettingsForSharing", () => {
   it("survives missing nested ai / sync objects without throwing", () => {
     const partial = { defaultDisplayMode: "none" } as any;
     expect(() => filterSettingsForSharing(partial)).not.toThrow();
+  });
+});
+
+describe("settings import/export", () => {
+  it("exportSettings writes a wrapped filtered payload", async () => {
+    const written = new Map<string, string>();
+    const plugin = {
+      settings: { ...cloneDefaults(), schemaVersion: 999, ai: { ...cloneDefaults().ai, usageLog: [{ ts: 1, provider: "openai", inputTokens: 1, cachedInputTokens: 0, outputTokens: 1 }] } },
+      app: {
+        vault: {
+          adapter: {
+            exists: vi.fn(async () => true),
+            mkdir: vi.fn(async () => {}),
+            write: vi.fn(async (path: string, content: string) => {
+              written.set(path, content);
+            }),
+          },
+        },
+      },
+    } as any;
+
+    await exportSettings(plugin, "Chinese Learning/export.json");
+    const payload = JSON.parse(written.get("Chinese Learning/export.json")!);
+    expect(payload.kind).toBe("cci-settings-export");
+    expect(payload.settings.schemaVersion).toBeUndefined();
+    expect(payload.settings.ai.usageLog).toBeUndefined();
+    expect(payload.settings.defaultDisplayMode).toBe(plugin.settings.defaultDisplayMode);
+  });
+
+  it("importSettings deep-merges safe settings and reports skipped keys", async () => {
+    const saveSettings = vi.fn(async () => {});
+    const refreshChineseViews = vi.fn();
+    const refreshStatsViews = vi.fn();
+    const plugin = {
+      settings: cloneDefaults(),
+      app: {
+        vault: {
+          adapter: {
+            exists: vi.fn(async () => true),
+            read: vi.fn(async () => JSON.stringify({
+              settings: {
+                defaultDisplayMode: "three-line",
+                customColors: { known: "#abcdef" },
+                ai: {
+                  usageLog: [{ ts: 1 }],
+                  ollama: { apiKey: "secret", chatModel: "qwen2.5:14b" },
+                },
+                sync: {
+                  mirrorEnabled: true,
+                  mirrorPath: "elsewhere.json",
+                  mirrorPollIntervalMinutes: 7,
+                },
+                schemaVersion: 999,
+              },
+            })),
+          },
+        },
+      },
+      saveSettings,
+      refreshChineseViews,
+      refreshStatsViews,
+    } as any;
+
+    const result = await importSettings(plugin, "Chinese Learning/import.json");
+    expect(plugin.settings.defaultDisplayMode).toBe("three-line");
+    expect(plugin.settings.customColors.known).toBe("#abcdef");
+    expect(plugin.settings.ai.ollama.chatModel).toBe("qwen2.5:14b");
+    expect(plugin.settings.ai.usageLog).toEqual([]);
+    expect(plugin.settings.sync.mirrorEnabled).toBe(false);
+    expect(plugin.settings.sync.mirrorPath).toBe(DEFAULT_SETTINGS.sync.mirrorPath);
+    expect(plugin.settings.sync.mirrorPollIntervalMinutes).toBe(7);
+    expect(result.skipped.sort()).toEqual([
+      "ai.ollama.apiKey",
+      "ai.usageLog",
+      "schemaVersion",
+      "sync.mirrorEnabled",
+      "sync.mirrorPath",
+    ]);
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    expect(refreshChineseViews).toHaveBeenCalledTimes(1);
+    expect(refreshStatsViews).toHaveBeenCalledTimes(1);
   });
 });

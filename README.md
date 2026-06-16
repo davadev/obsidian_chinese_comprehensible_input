@@ -116,7 +116,11 @@ npm install
 npm run dev        # watch build
 npm run build      # type-check + production bundle
 npm test           # vitest
+npm run test:cov   # coverage report + threshold enforcement
+npm run check-release
 ```
+
+GitHub Actions runs the same validation set on every PR and on pushes to `main`: build, tests, coverage, and the release guard. Actual BRAT publishing stays manual so the tagged release assets and notes are reviewed before going live.
 
 To install the dev build into a vault:
 1. Build: `npm run build`.

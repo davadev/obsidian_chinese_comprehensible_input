@@ -31,6 +31,14 @@ function stubTokenizer(): TokenizerService {
   } as unknown as TokenizerService;
 }
 
+function stubTokenizerWithTokens(tokens: Token[]): TokenizerService {
+  return {
+    async tokenize(): Promise<Token[]> {
+      return tokens;
+    },
+  } as unknown as TokenizerService;
+}
+
 const cfg: ValidatorConfig = { targetHsk: 0, lengthChars: 30, tooHardRatioCap: 0.15 };
 
 function story(textChinese: string): GeneratedStory {
@@ -112,5 +120,36 @@ describe("validateStory", () => {
     );
     expect(r.notes.length).toBeGreaterThan(0);
     expect(r.notes.some((n) => /Missing target/.test(n))).toBe(true);
+  });
+
+  it("flags too-hard non-target words above the HSK window", async () => {
+    const r = await validateStory(
+      story("苹果研究生"),
+      ["苹果"],
+      stubTokenizerWithTokens([
+        {
+          start: 0,
+          end: 2,
+          surface: "苹果",
+          isWord: true,
+          candidates: [],
+          selected: { simplified: "苹果", traditional: "蘋果", pinyin: "píng guǒ", definitions: [], hsk: { source: "2.0", levels: ["2"] } },
+          confidence: 1,
+        },
+        {
+          start: 2,
+          end: 5,
+          surface: "研究生",
+          isWord: true,
+          candidates: [],
+          selected: { simplified: "研究生", traditional: "研究生", pinyin: "yán jiū shēng", definitions: [], hsk: { source: "2.0", levels: ["6"] } },
+          confidence: 1,
+        },
+      ]),
+      { ...cfg, targetHsk: 3 }
+    );
+    expect(r.ok).toBe(true);
+    expect(r.tooHardWords).toEqual(["研究生"]);
+    expect(r.notes.some((n) => /too-hard words/i.test(n))).toBe(true);
   });
 });

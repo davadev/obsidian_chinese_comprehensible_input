@@ -65,6 +65,13 @@ describe("CJK detection", () => {
     expect(hasCjk("Hello 世界")).toBe(true);
   });
 
+  it("hasCjk is stable across repeated calls", () => {
+    expect(hasCjk("世界")).toBe(true);
+    expect(hasCjk("世界")).toBe(true);
+    expect(hasCjk("hello")).toBe(false);
+    expect(hasCjk("你好")).toBe(true);
+  });
+
   it("findCjkSpans returns contiguous CJK runs with offsets", () => {
     const spans = findCjkSpans("Hello 世界 foo 朋友!");
     expect(spans.length).toBe(2);

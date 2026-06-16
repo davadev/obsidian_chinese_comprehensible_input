@@ -16,7 +16,12 @@ export class Setting {
   addButton(_: any) { return this; }
 }
 export class Modal {}
-export class Notice { constructor(_: string) {} }
+export class Notice {
+  message: string;
+  constructor(message: string) { this.message = message; }
+  setMessage(message: string) { this.message = message; }
+  hide() {}
+}
 export class ItemView {}
 export class TextFileView {}
 export class WorkspaceLeaf {}

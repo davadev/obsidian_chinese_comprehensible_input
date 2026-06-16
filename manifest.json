@@ -1,7 +1,7 @@
 {
   "id": "chinese-comprehensible-input",
   "name": "Chinese Comprehensible Input",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "minAppVersion": "1.5.0",
   "description": "Turn Chinese notes into a learner-friendly comprehensible-input reading environment with dictionary-aware tokenization, exposure tracking, SRS, and optional AI-generated review stories.",
   "author": "Daniel Vavrik",
