@@ -29,6 +29,7 @@ import { WordPopup } from "./ui/WordPopup";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
+import { createQueuedDataBlobUpdater, PluginDataMutation } from "./data/pluginDataUpdater";
 
 export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
@@ -60,6 +61,14 @@ export default class CciPlugin extends Plugin {
   private crashResetTimer: number | null = null;
   private static CRASH_THRESHOLD = 5;
   private static CRASH_RESET_DELAY_MS = 30_000;
+  private readonly queuedDataBlobUpdate = createQueuedDataBlobUpdater(
+    () => this.loadData(),
+    (blob) => this.saveData(blob)
+  );
+
+  async updateDataBlob(mutate: PluginDataMutation): Promise<void> {
+    await this.queuedDataBlobUpdate(mutate);
+  }
 
   async onload(): Promise<void> {
     // Crash protection: if previous launches kept dying before the
@@ -389,8 +398,8 @@ export default class CciPlugin extends Plugin {
 
   /**
    * Auto-download the dictionary (if enabled + missing), then warm the
-   * tokenizer, then scan the vault once to seed vocabulary records. Idempotent
-   * — re-running it just re-records exposures on the canonical keys.
+   * tokenizer, then scan the vault once to seed vocabulary records.
+   * Re-running it records exposures again on the same canonical keys.
    */
   private async bootstrapVault(): Promise<void> {
     try {
@@ -455,12 +464,12 @@ export default class CciPlugin extends Plugin {
    *  accent derivation at first install (we don't want internal writes
    *  to mark the user as "touched" and start broadcasting defaults). */
   async saveSettingsSilently(opts: { markUserTouched?: boolean } = {}): Promise<void> {
-    const blob = (await this.loadData()) ?? {};
-    blob.settings = this.settings;
-    if (opts.markUserTouched) {
-      blob.__settingsTouchedAt = new Date().toISOString();
-    }
-    await this.saveData(blob);
+    await this.updateDataBlob((blob) => {
+      blob.settings = this.settings;
+      if (opts.markUserTouched) {
+        blob.__settingsTouchedAt = new Date().toISOString();
+      }
+    });
     applyCustomColors(this.settings);
   }
 
@@ -491,10 +500,10 @@ export default class CciPlugin extends Plugin {
   /** Persist dictionary overrides + custom words atomically. Also rewrites
    *  the vault mirror (if enabled) so other devices see the change. */
   private async saveDictionaryUserData(): Promise<void> {
-    const blob = (await this.loadData()) ?? {};
-    blob.dictionaryOverrides = this.dictionaryOverrides;
-    blob.dictionaryCustomWords = this.dictionaryCustomWords;
-    await this.saveData(blob);
+    await this.updateDataBlob((blob) => {
+      blob.dictionaryOverrides = this.dictionaryOverrides;
+      blob.dictionaryCustomWords = this.dictionaryCustomWords;
+    });
     // Force a mirror write so the envelope picks up the new dictionary
     // data even when no vocab change is pending.
     await this.vocab.flushSave();
@@ -531,10 +540,10 @@ export default class CciPlugin extends Plugin {
     // Persist WITHOUT triggering another mirror write loop — the mirror
     // hash will match what was just absorbed, so the watcher would no-op
     // anyway, but skip the redundant work.
-    const blob = (await this.loadData()) ?? {};
-    blob.dictionaryOverrides = this.dictionaryOverrides;
-    blob.dictionaryCustomWords = this.dictionaryCustomWords;
-    await this.saveData(blob);
+    await this.updateDataBlob((blob) => {
+      blob.dictionaryOverrides = this.dictionaryOverrides;
+      blob.dictionaryCustomWords = this.dictionaryCustomWords;
+    });
     await this.dictionary.reload();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
