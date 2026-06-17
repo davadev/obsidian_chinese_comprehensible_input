@@ -95,11 +95,9 @@ export class TokenizerService {
   }
 
   private async tokenizeIntl(text: string): Promise<Token[]> {
-    // @ts-ignore — Intl.Segmenter exists at runtime in modern browsers/Obsidian.
     const seg = new Intl.Segmenter("zh", { granularity: "word" });
     const out: Token[] = [];
-    // @ts-ignore
-    for (const s of seg.segment(text) as Iterable<{ segment: string; index: number; isWordLike?: boolean }>) {
+    for (const s of seg.segment(text)) {
       const start = s.index;
       const surface = s.segment;
       const end = start + surface.length;

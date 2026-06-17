@@ -233,4 +233,20 @@ export interface CciSettings {
   statsExcludeNew: boolean;
   /** Remembered Flashcards-tab mode. */
   flashcardsMode: "unclassified" | "due" | "smart";
+  /** Persisted Dashboard → Progress chart series toggles. Default: classified + known on. */
+  progressChartSeries: {
+    tracked: boolean;
+    classified: boolean;
+    known: boolean;
+    partial: boolean;
+    unknown: boolean;
+  };
+  /** Persisted Dashboard → HSK coverage bucket toggles. Default: known on. */
+  hskCoverageBuckets: {
+    known: boolean;
+    partial: boolean;
+    unknown: boolean;
+    new: boolean;
+    untracked: boolean;
+  };
 }

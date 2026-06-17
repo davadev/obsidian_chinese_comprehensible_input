@@ -59,23 +59,25 @@ export class GenerateStoryModal extends Modal {
 
     const actions = contentEl.createDiv();
     const gen = actions.createEl("button", { text: "Generate" });
-    gen.addEventListener("click", async () => {
-      gen.setText("Generating…");
-      gen.setAttribute("disabled", "true");
-      try {
-        await this.plugin.story.generateAndSave({
-          dueCount: this.dueCount,
-          lengthChars: this.lengthChars,
-          style: this.style,
-          targetHsk: this.targetHsk,
-          includeGlossary: this.includeGlossary,
-        });
-        this.close();
-      } catch (e) {
-        new Notice("Generation failed: " + (e as Error).message);
-        gen.setText("Generate");
-        gen.removeAttribute("disabled");
-      }
+    gen.addEventListener("click", () => {
+      void (async () => {
+        gen.setText("Generating…");
+        gen.setAttribute("disabled", "true");
+        try {
+          await this.plugin.story.generateAndSave({
+            dueCount: this.dueCount,
+            lengthChars: this.lengthChars,
+            style: this.style,
+            targetHsk: this.targetHsk,
+            includeGlossary: this.includeGlossary,
+          });
+          this.close();
+        } catch (e) {
+          new Notice("Generation failed: " + (e as Error).message);
+          gen.setText("Generate");
+          gen.removeAttribute("disabled");
+        }
+      })();
     });
     const cancel = actions.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());

@@ -1,4 +1,4 @@
-import { addIcon, MarkdownView, normalizePath, Notice, Platform, Plugin, TAbstractFile, TFile, WorkspaceLeaf } from "obsidian";
+import { addIcon, MarkdownView, normalizePath, Notice, Platform, Plugin, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from "obsidian";
 import { DEFAULT_SETTINGS } from "./settings/defaults";
 import { applyCustomColors, deriveHskColorsFromAccent } from "./ui/colorTheme";
 import {
@@ -29,7 +29,7 @@ import { WordPopup } from "./ui/WordPopup";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
-import { createQueuedDataBlobUpdater, PluginDataMutation } from "./data/pluginDataUpdater";
+import { createQueuedDataBlobUpdater, PluginDataBlob, PluginDataMutation } from "./data/pluginDataUpdater";
 
 export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
@@ -70,12 +70,20 @@ export default class CciPlugin extends Plugin {
     await this.queuedDataBlobUpdate(mutate);
   }
 
+  /** Typed wrapper around Obsidian's `loadData()`. Returning a real
+   *  `PluginDataBlob` shape stops the `any` taint from `loadData()` from
+   *  cascading the `no-unsafe-*` lint cluster through every reader. */
+  private async loadPluginData(): Promise<PluginDataBlob> {
+    const raw = (await this.loadData()) as PluginDataBlob | null;
+    return raw ?? {};
+  }
+
   async onload(): Promise<void> {
     // Crash protection: if previous launches kept dying before the
     // stability mark fired, auto-disable so the user can recover via
     // Community plugins instead of being stuck in a reload loop.
     try {
-      const probeBlob = (await this.loadData()) ?? {};
+      const probeBlob = await this.loadPluginData();
       if (probeBlob.__autoDisabled) {
         new Notice(
           "Chinese plugin auto-disabled after repeated crashes. Re-enable in Settings → Community plugins after addressing the cause.",
@@ -84,7 +92,6 @@ export default class CciPlugin extends Plugin {
         // Clear the flag so the next manual enable can run normally.
         probeBlob.__autoDisabled = false;
         await this.saveData(probeBlob);
-        // @ts-ignore - app.plugins is on Obsidian's runtime API.
         void this.app.plugins?.disablePlugin?.(this.manifest.id);
         return;
       }
@@ -97,7 +104,6 @@ export default class CciPlugin extends Plugin {
           `Chinese plugin auto-disabled: hit ${CciPlugin.CRASH_THRESHOLD} crashes in a row. Open Community plugins to re-enable.`,
           0
         );
-        // @ts-ignore
         void this.app.plugins?.disablePlugin?.(this.manifest.id);
         return;
       }
@@ -134,7 +140,7 @@ export default class CciPlugin extends Plugin {
 
   private async resetCrashCounter(): Promise<void> {
     try {
-      const blob = (await this.loadData()) ?? {};
+      const blob = await this.loadPluginData();
       if (blob.__crashCounter || blob.__autoDisabled) {
         blob.__crashCounter = 0;
         blob.__autoDisabled = false;
@@ -155,8 +161,8 @@ export default class CciPlugin extends Plugin {
     );
 
     // Keep onload light. Load just settings + small services.
-    const blob = (await this.loadData()) ?? {};
-    const rawSettings = (blob.settings as Partial<CciSettings> | undefined) ?? {};
+    const blob = await this.loadPluginData();
+    const rawSettings = blob.settings ?? {};
     // Run pre-merge migrations on the raw blob so legacy flat-shaped
     // ai.* fields (v1) get folded into ai.ollama.* before DEFAULT_SETTINGS
     // injects an empty ai.ollama and erases them.
@@ -215,8 +221,8 @@ export default class CciPlugin extends Plugin {
     // can tell whether a UI change actually altered a sync-eligible field.
     this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
 
-    this.dictionaryOverrides = (blob.dictionaryOverrides as DictionaryOverrides) ?? {};
-    this.dictionaryCustomWords = (blob.dictionaryCustomWords as DictionaryCustomWords) ?? {};
+    this.dictionaryOverrides = blob.dictionaryOverrides ?? {};
+    this.dictionaryCustomWords = blob.dictionaryCustomWords ?? {};
 
     this.dictionary = new DictionaryService(this.app);
     this.dictionary.setOverlay(
@@ -270,7 +276,7 @@ export default class CciPlugin extends Plugin {
     // so the ribbon (== bottom toolbar on mobile) stays as the entry point.
     if (Platform.isMobile) {
       this.addRibbonIcon("cci-zhong", "Open current note in Chinese Learning View", () => {
-        this.openCurrentInChineseView();
+        void this.openCurrentInChineseView();
       });
     }
 
@@ -330,6 +336,31 @@ export default class CciPlugin extends Plugin {
     this.registerInterval(autoStoryHandle);
   }
 
+  /** Wait between concluding "no story yet today" and actually generating
+   *  one, so a story written by another device in the same vault has
+   *  time to land via the user's sync backend (remotely-save, iCloud,
+   *  etc.). Without this, two devices that both hit `tickAutoStory`
+   *  near the configured target time would each produce a story. */
+  private static AUTO_STORY_SYNC_BUFFER_MS = 3 * 60_000;
+
+  /** Look in the configured story folder for any file whose basename
+   *  starts with `${today} - `. `commitPreviewAsNote` uses that exact
+   *  prefix, so a true result here means another device (or this device
+   *  on a prior tick) already generated today's story. Synced via the
+   *  vault, so it survives cross-device. */
+  private async todaysStoryExists(today: string): Promise<boolean> {
+    const folderPath = normalizePath(this.settings.story.folder);
+    const folder = this.app.vault.getAbstractFileByPath(folderPath);
+    if (!(folder instanceof TFolder)) return false;
+    const prefix = `${today} - `;
+    for (const child of folder.children) {
+      if (child instanceof TFile && child.basename.startsWith(prefix)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Periodic check that drives the "one auto-generated story per day"
    *  feature. Early-exits unless enabled, the configured local time has
    *  passed, today hasn't yet produced a story, and the 30-min retry
@@ -340,7 +371,7 @@ export default class CciPlugin extends Plugin {
     if (!s?.autoGenerateEnabled) return;
     const now = new Date();
     const today = localDateString(now);
-    let blob = (await this.loadData()) ?? {};
+    let blob = await this.loadPluginData();
     if (blob.__autoStoryLastSuccessDate === today) return;
 
     const target = parseHHMMToDate(s.autoGenerateTime, now);
@@ -351,12 +382,35 @@ export default class CciPlugin extends Plugin {
       : null;
     if (lastAtt && now.getTime() - lastAtt.getTime() < 30 * 60_000) return;
 
+    // Cross-device dedup: another device on the same vault may have
+    // already generated today's story. Local `__autoStoryLastSuccessDate`
+    // lives in data.json which is per-device, so it can't be trusted on
+    // its own. Vault file check is the source of truth.
+    if (await this.todaysStoryExists(today)) {
+      blob.__autoStoryLastSuccessDate = today;
+      await this.saveData(blob);
+      return;
+    }
+
     // Mark the attempt before kicking off, so generationInFlight guards
     // can't end up running this tick repeatedly inside the throttle window.
     blob.__autoStoryLastAttemptAt = now.toISOString();
     await this.saveData(blob);
 
     if (!this.settings.ai?.enabled) return;
+
+    // Sync buffer: pause briefly then re-check. Lets a story file written
+    // by another device arrive via remotely-save / iCloud before we
+    // duplicate the work.
+    await new Promise<void>((resolve) =>
+      window.setTimeout(resolve, CciPlugin.AUTO_STORY_SYNC_BUFFER_MS)
+    );
+    if (await this.todaysStoryExists(today)) {
+      blob = await this.loadPluginData();
+      blob.__autoStoryLastSuccessDate = today;
+      await this.saveData(blob);
+      return;
+    }
 
     try {
       const preview = await this.story.generatePreview({
@@ -367,7 +421,7 @@ export default class CciPlugin extends Plugin {
         includeGlossary: s.includeGlossary,
       });
       await this.story.commitPreviewAsNote(preview);
-      blob = (await this.loadData()) ?? {};
+      blob = await this.loadPluginData();
       blob.__autoStoryLastSuccessDate = today;
       await this.saveData(blob);
       new Notice("Daily Chinese story generated.");
@@ -497,7 +551,7 @@ export default class CciPlugin extends Plugin {
    *  by SettingsMirror to gate writes (fresh device must not overwrite
    *  a remote envelope it hasn't seen yet). */
   async hasUserTouchedSettings(): Promise<boolean> {
-    const blob = (await this.loadData()) ?? {};
+    const blob = await this.loadPluginData();
     return !!blob.__settingsTouchedAt;
   }
 
@@ -729,7 +783,8 @@ export default class CciPlugin extends Plugin {
     this.mirrorPollMode = this.chineseViewIsOpen() ? "fast" : "slow";
     const ms = this.syncPollerMs();
     if (!ms) return;
-    const handle = window.setInterval(async () => {
+    const handle = window.setInterval(() => {
+      void (async () => {
       if (this.settings.sync?.mirrorEnabled) {
         try {
           const changed = await this.vocab.absorbExternalMirrorChange();
@@ -753,6 +808,7 @@ export default class CciPlugin extends Plugin {
           console.error("CCI settings mirror poll failed", e);
         }
       }
+      })();
     }, ms);
     this.mirrorPollTimer = handle;
     this.registerInterval(handle);
@@ -939,7 +995,7 @@ export default class CciPlugin extends Plugin {
     }
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS);
     if (existing.length) {
-      this.app.workspace.revealLeaf(existing[0]);
+      void this.app.workspace.revealLeaf(existing[0]);
       this.app.workspace.setActiveLeaf(existing[0], { focus: true });
       const view = existing[0].view as StatsView;
       await view.setScope(useScope);
@@ -947,7 +1003,7 @@ export default class CciPlugin extends Plugin {
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: VIEW_TYPE_STATS });
-    this.app.workspace.revealLeaf(leaf);
+    void this.app.workspace.revealLeaf(leaf);
     this.app.workspace.setActiveLeaf(leaf, { focus: true });
     const view = leaf.view as StatsView;
     await view.setScope(useScope);

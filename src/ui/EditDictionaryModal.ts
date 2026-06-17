@@ -90,19 +90,19 @@ export class EditDictionaryModal extends Modal {
     const buttons = contentEl.createDiv({ cls: "cci-edit-dict-buttons" });
 
     const save = buttons.createEl("button", { text: "Save", cls: "mod-cta" });
-    save.addEventListener("click", () => this.handleSave(surfaceInput.value, tradInput.value, pinyinInput.value, defsArea.value, hskSel.value));
+    save.addEventListener("click", () => void this.handleSave(surfaceInput.value, tradInput.value, pinyinInput.value, defsArea.value, hskSel.value));
 
     const cancel = buttons.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
 
     if (this.props.mode === "override") {
       const reset = buttons.createEl("button", { text: "Reset to dictionary default" });
-      reset.addEventListener("click", () => this.handleResetOverride());
+      reset.addEventListener("click", () => void this.handleResetOverride());
     }
 
     if (this.props.mode === "custom" && this.props.isExistingCustom) {
       const del = buttons.createEl("button", { text: "Delete custom word", cls: "mod-warning" });
-      del.addEventListener("click", () => this.handleDeleteCustom());
+      del.addEventListener("click", () => void this.handleDeleteCustom());
     }
   }
 

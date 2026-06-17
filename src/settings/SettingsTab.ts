@@ -143,6 +143,7 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       )
       .addButton((b) =>
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
         b.setButtonText("Remove").setWarning().onClick(async () => {
           if (!(await confirmAsync(this.app, "Delete the downloaded CC-CEDICT file from the vault?"))) return;
           const path = normalizePath(this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json");
@@ -360,6 +361,7 @@ export class CciSettingsTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
           this.plugin.refreshStatsViews();
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
           this.display();
         })
       );
@@ -377,6 +379,7 @@ export class CciSettingsTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
           this.plugin.refreshStatsViews();
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
           this.display();
         })
       );
@@ -561,6 +564,7 @@ export class CciSettingsTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.ai.provider = v as AiProviderKind;
             await this.plugin.saveSettings();
+            // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
             this.display();
           })
       );
@@ -873,10 +877,12 @@ export class CciSettingsTab extends PluginSettingTab {
     });
     folderSetting.addButton((b) =>
       b.setButtonText("Browse").onClick(() => {
-        openVaultFolderPicker(this.app, this.plugin.settings.story.folder, async (path) => {
-          this.plugin.settings.story.folder = path;
-          await this.plugin.saveSettings();
-          if (folderInput?.setValue) folderInput.setValue(path);
+        openVaultFolderPicker(this.app, this.plugin.settings.story.folder, (path) => {
+          void (async () => {
+            this.plugin.settings.story.folder = path;
+            await this.plugin.saveSettings();
+            if (folderInput?.setValue) folderInput.setValue(path);
+          })();
         });
       })
     );
@@ -1023,7 +1029,8 @@ export class CciSettingsTab extends PluginSettingTab {
           const input = activeDocument.createElement("input");
           input.type = "file";
           input.accept = ".json,application/json";
-          input.addEventListener("change", async () => {
+          input.addEventListener("change", () => {
+            void (async () => {
             const file = input.files?.[0];
             if (!file) return;
             try {
@@ -1032,6 +1039,7 @@ export class CciSettingsTab extends PluginSettingTab {
             } catch (err) {
               new Notice("Import failed: " + (err as Error).message);
             }
+            })();
           });
           input.click();
         })
@@ -1041,6 +1049,7 @@ export class CciSettingsTab extends PluginSettingTab {
       .setName("Reset plugin data")
       .setDesc("Permanently deletes all word records and resets settings. Cannot be undone.")
       .addButton((b) =>
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
         b.setButtonText("Reset").setWarning().onClick(async () => {
           if (await confirmAsync(this.app, "Really reset all plugin data?", "Reset")) {
             await this.plugin.vocab.resetAll();
@@ -1112,13 +1121,15 @@ export class CciSettingsTab extends PluginSettingTab {
           this.app,
           this.plugin.settings.sync.mirrorPath,
           { extensions: ["json"] },
-          async (path) => {
+          (path) => {
+            void (async () => {
             this.plugin.settings.sync.mirrorPath = path;
             await this.plugin.saveSettings();
             if (mirrorPathInput?.setValue) mirrorPathInput.setValue(path);
             if (this.plugin.settings.sync.mirrorEnabled) {
               await this.plugin.refreshSyncMirror();
             }
+            })();
           }
         );
       })
@@ -1226,10 +1237,12 @@ export class CciSettingsTab extends PluginSettingTab {
           this.app,
           this.plugin.settings.sync.settingsMirrorPath,
           { extensions: ["json"] },
-          async (path) => {
-            this.plugin.settings.sync.settingsMirrorPath = path;
-            await this.plugin.saveSettings();
-            if (settingsMirrorPathInput?.setValue) settingsMirrorPathInput.setValue(path);
+          (path) => {
+            void (async () => {
+              this.plugin.settings.sync.settingsMirrorPath = path;
+              await this.plugin.saveSettings();
+              if (settingsMirrorPathInput?.setValue) settingsMirrorPathInput.setValue(path);
+            })();
           }
         );
       })
@@ -1300,6 +1313,7 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
     importSetting.addButton((b) =>
+      // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
       b.setButtonText("Import").setWarning().onClick(async () => {
         if (!importPath) {
           new Notice("Pick an import path first.");
@@ -1310,6 +1324,7 @@ export class CciSettingsTab extends PluginSettingTab {
           const { applied, skipped } = await importSettings(this.plugin, importPath);
           const skip = skipped.length ? ` (skipped sensitive: ${skipped.join(", ")})` : "";
           new Notice(`Imported ${applied} top-level keys${skip}.`);
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
           this.display();
         } catch (e) {
           new Notice("Import failed: " + (e as Error).message);

@@ -9,8 +9,7 @@ import { axesFromStatus, statusFromAxes } from "./axes";
 import { mergeStoresForSync } from "./syncMerge";
 import { CciSettings } from "../settings/types";
 import { DictionaryCustomWords, DictionaryOverrides } from "../dictionary/DictionaryTypes";
-
-type PluginDataBlob = Record<string, unknown>;
+import { PluginDataBlob } from "../data/pluginDataUpdater";
 
 type BlobUpdatingPlugin = Plugin & {
   updateDataBlob?: (mutate: (blob: PluginDataBlob) => void | Promise<void>) => Promise<void>;
@@ -593,7 +592,8 @@ export class VocabularyStore {
         blob[this.namespace] = this.data;
       });
     } else {
-      const blob = (await this.plugin.loadData()) ?? {};
+      const raw = (await this.plugin.loadData()) as PluginDataBlob | null;
+      const blob: PluginDataBlob = raw ?? {};
       blob[this.namespace] = this.data;
       await this.plugin.saveData(blob);
     }

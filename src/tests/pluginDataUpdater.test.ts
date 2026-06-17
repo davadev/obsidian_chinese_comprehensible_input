@@ -43,7 +43,7 @@ describe("pluginDataUpdater", () => {
     ).rejects.toThrow("boom");
 
     await update((blob) => {
-      blob.settings = { ok: true };
+      (blob as any).settings = { ok: true };
     });
 
     expect(state).toEqual({ settings: { ok: true } });

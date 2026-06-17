@@ -121,4 +121,18 @@ export const DEFAULT_SETTINGS: CciSettings = {
   autoDownloadDictionary: true,
   statsExcludeNew: true,
   flashcardsMode: "unclassified",
+  progressChartSeries: {
+    tracked: false,
+    classified: true,
+    known: true,
+    partial: false,
+    unknown: false,
+  },
+  hskCoverageBuckets: {
+    known: true,
+    partial: false,
+    unknown: false,
+    new: false,
+    untracked: false,
+  },
 };

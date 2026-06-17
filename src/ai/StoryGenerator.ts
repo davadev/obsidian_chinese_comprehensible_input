@@ -378,8 +378,16 @@ function parseStory(raw: string): GeneratedStory {
   const end = stripped.lastIndexOf("}");
   if (start >= 0 && end > start) {
     try {
-      const parsed = JSON.parse(stripped.slice(start, end + 1));
-      if (parsed && (typeof parsed.textChinese === "string" || typeof parsed.text === "string" || typeof parsed.content === "string")) {
+      const parsed = JSON.parse(stripped.slice(start, end + 1)) as
+        | (Partial<GeneratedStory> & { text?: string; content?: string })
+        | null
+        | undefined;
+      if (
+        parsed &&
+        (typeof parsed.textChinese === "string" ||
+          typeof parsed.text === "string" ||
+          typeof parsed.content === "string")
+      ) {
         return shapeStory(parsed);
       }
     } catch {
@@ -449,7 +457,7 @@ function salvageTextChinese(raw: string): string | null {
   const m = re.exec(raw);
   if (!m) return null;
   try {
-    return JSON.parse(`"${m[1]}"`);
+    return JSON.parse(`"${m[1]}"`) as string;
   } catch {
     return null;
   }

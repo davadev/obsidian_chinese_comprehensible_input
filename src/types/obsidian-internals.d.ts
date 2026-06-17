@@ -13,5 +13,9 @@ declare module "obsidian" {
           }
         | null;
     };
+    plugins?: {
+      disablePlugin?: (id: string) => Promise<void>;
+    };
   }
 }
+
