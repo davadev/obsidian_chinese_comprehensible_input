@@ -37,18 +37,16 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 
 ## Release Process
 
-0. **Run `npm run check-release -- --with-build`. Must report `0 failed` AND the embedded Obsidian-parity lint step must report `0 errors` before you tag.** That single command builds, tests, and lints. Re-run after every version bump so the new `main.js` size is re-checked. If anything fails, fix it before tagging — never bypass. WARN-level findings (yellow `!`) are non-blocking but worth a look. The lint step matches the cloud auto-review's rule set (`eslint-plugin-obsidianmd` + the relevant `@typescript-eslint` type-aware rules); see `eslint.config.mjs`. **A release with even one local lint Error will fail the Obsidian community-plugin auto-review and risk delisting the plugin.**
+The release pipeline is now **tag-driven** via `.github/workflows/release.yml`. Pushing a SemVer-shaped tag (`0.X.Y` for stable, `0.X.Y-rc.1` / `0.X.Y-beta.2` for prerelease) triggers an Ubuntu runner that re-runs `npm ci` → `npm run lint` → `npm run build` → `npm test` → `npm run check-release -- --tag $TAG --with-build`, then creates the GitHub Release atomically with `main.js`, `manifest.json`, `styles.css` attached. **A single lint Error aborts the pipeline — no release is created.** The dev never types `gh release create` by hand.
+
+0. **Run `npm run check-release -- --with-build` locally first.** Same gate the workflow uses; faster feedback. Must report `0 failed` AND the embedded Obsidian-parity lint step must report `0 errors`. WARN-level findings (yellow `!`) are non-blocking but worth a look. The lint step matches the cloud auto-review's rule set (`eslint-plugin-obsidianmd` + the relevant `@typescript-eslint` type-aware rules); see `eslint.config.mjs`. **A release with even one local lint Error will fail the Obsidian community-plugin auto-review and risk delisting the plugin.**
 1. Bump `version` in `manifest.json`, `package.json`, and add entry to `versions.json`.
 2. `npm run build` → produces `main.js`.
-3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts. Do not assume CI will catch something you can catch before tagging.
-4. Commit all changes, tag `0.X.Y`.
-5. `npm run check-release -- --tag 0.X.Y --with-build` — final guard that the tag matches the manifest version and that build + tests still pass. Must report `0 failed`.
-6. `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." --prerelease main.js manifest.json styles.css`
-
-7. **Promote to stable after manual testing.**  
-   Once you have tested the release in BRAT and confirmed it works:  
-   `gh release edit 0.X.Y --prerelease=false`  
-   This makes it the latest release — BRAT auto-update for regular users now picks it up.
+3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts.
+4. Commit all changes, open the PR, merge after CI green.
+5. **Push the SemVer tag** from `main`: `git tag 0.X.Y && git push origin 0.X.Y` (or `0.X.Y-rc.1` for a prerelease). The `Release` workflow takes it from there — watch the run on GitHub Actions. If lint / build / tests / check-release fail, the release is never created; delete the tag (`git push origin :0.X.Y`), fix, retag.
+6. **No manual `gh release create` step.** The workflow runs `gh release create … --latest` for bare SemVer tags and `gh release create … --prerelease` for suffixed tags. Release notes are auto-generated from PRs / commits since the previous tag — edit them in the GitHub UI after the fact if you want richer text.
+7. **Promotion to stable for already-prereleased tags** (legacy path, rare): `gh release edit 0.X.Y --prerelease=false --latest`.
 
 BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 
@@ -71,14 +69,10 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 - Commit with `0.X.Y — short description`
 - Open / update the PR and get it reviewed before merge
 - Merge to `main`
-- Tag `0.X.Y`
-- `npm run check-release -- --tag 0.X.Y --with-build`
-- `gh release create 0.X.Y --title "0.X.Y — description" --notes "..." --prerelease main.js manifest.json styles.css`
+- `git tag 0.X.Y` (stable) **or** `git tag 0.X.Y-rc.1` (prerelease)
+- `git push origin 0.X.Y` — the `Release` workflow re-runs lint / build / test / check-release on a clean Ubuntu runner, then creates the GitHub Release with `main.js`, `manifest.json`, `styles.css` attached. Watch the run on the Actions tab.
 
-- **Promote to stable after manual testing.**  
-  Once you have tested the release in BRAT and confirmed it works:  
-  `gh release edit 0.X.Y --prerelease=false`  
-  This makes it the latest release — BRAT auto-update for regular users now picks it up.
+If the workflow fails: delete the tag (`git push origin :0.X.Y && git tag -d 0.X.Y`), fix the issue on a branch, merge, retag, push. No partial release is left behind because the publish step runs last.
 
 Commit convention: `0.X.Y — short description`.
 
