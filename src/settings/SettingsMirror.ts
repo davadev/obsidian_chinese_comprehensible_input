@@ -120,7 +120,7 @@ export class SettingsMirror {
   private async applyEnvelope(content: string): Promise<boolean> {
     let parsed: SettingsMirrorEnvelope;
     try {
-      parsed = JSON.parse(content);
+      parsed = JSON.parse(content) as SettingsMirrorEnvelope;
     } catch (e) {
       console.warn("CCI settings mirror: invalid JSON", e);
       return false;
@@ -171,14 +171,16 @@ export class SettingsMirror {
     // True conflicts — surface the modal.
     return await new Promise<boolean>((resolve) => {
       this.conflictModalOpen = true;
-      new SettingsConflictModal(this.plugin.app, conflicts, async (choices) => {
-        this.conflictModalOpen = false;
-        const patch: Record<string, unknown> = { ...autoPatch };
-        for (const c of conflicts) {
-          if (choices.get(c.keyPath) === "remote") patch[c.keyPath] = c.remote;
-        }
-        await this.applyMerge(unflatten(patch), content, remoteUpdatedAt);
-        resolve(true);
+      new SettingsConflictModal(this.plugin.app, conflicts, (choices) => {
+        void (async () => {
+          this.conflictModalOpen = false;
+          const patch: Record<string, unknown> = { ...autoPatch };
+          for (const c of conflicts) {
+            if (choices.get(c.keyPath) === "remote") patch[c.keyPath] = c.remote;
+          }
+          await this.applyMerge(unflatten(patch), content, remoteUpdatedAt);
+          resolve(true);
+        })();
       }).open();
     });
   }

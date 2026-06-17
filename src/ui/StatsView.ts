@@ -36,22 +36,6 @@ export class StatsView extends ItemView {
   private smartGenerating = false;
   private currentPreview: StoryPreview | null = null;
   private chartStyle: "bars" | "area" = "area";
-  // Progress-chart series filter. Order matters for the legend.
-  private progressSeries: Record<ProgressSeriesId, boolean> = {
-    tracked: false,
-    classified: true,
-    known: true,
-    partial: false,
-    unknown: false,
-  };
-  // HSK coverage chart bucket filter.
-  private hskBuckets: Record<HskBucketId, boolean> = {
-    known: true,
-    partial: false,
-    unknown: false,
-    new: false,
-    untracked: false,
-  };
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
@@ -126,8 +110,8 @@ export class StatsView extends ItemView {
       o.value = v;
     }
     scopeSel.value = this.noteScope;
-    scopeSel.addEventListener("change", async () => {
-      await this.setScope(scopeSel.value);
+    scopeSel.addEventListener("change", () => {
+      void this.setScope(scopeSel.value);
     });
   }
 
@@ -163,10 +147,12 @@ export class StatsView extends ItemView {
     const toggleRow = root.createDiv({ cls: "cci-dash-toggle" });
     const cb = toggleRow.createEl("input", { type: "checkbox" });
     cb.checked = excludeNew;
-    cb.addEventListener("change", async () => {
-      this.plugin.settings.statsExcludeNew = cb.checked;
-      await this.plugin.saveSettings();
-      this.render();
+    cb.addEventListener("change", () => {
+      void (async () => {
+        this.plugin.settings.statsExcludeNew = cb.checked;
+        await this.plugin.saveSettings();
+        this.render();
+      })();
     });
     toggleRow.createSpan({
       text: ` Exclude unclassified ("new") words from %`,
@@ -212,13 +198,15 @@ export class StatsView extends ItemView {
         cls: "cci-dash-batch-btn",
         text: `Mark all ${counts.new} new words as Unknown`,
       });
-      btn.addEventListener("click", async () => {
-        if (!(await confirmAsync(this.plugin.app, `Mark ${counts.new} unclassified words as "unknown"? This can be reversed per-word.`, "Mark"))) return;
-        const n = this.plugin.vocab.markAllNewAs("unknown");
-        this.plugin.refreshChineseViews();
-        this.plugin.refreshStatsViews();
-        // refreshStatsViews re-renders this view, so just return.
-        void n;
+      btn.addEventListener("click", () => {
+        void (async () => {
+          if (!(await confirmAsync(this.plugin.app, `Mark ${counts.new} unclassified words as "unknown"? This can be reversed per-word.`, "Mark"))) return;
+          const n = this.plugin.vocab.markAllNewAs("unknown");
+          this.plugin.refreshChineseViews();
+          this.plugin.refreshStatsViews();
+          // refreshStatsViews re-renders this view, so just return.
+          void n;
+        })();
       });
     }
 
@@ -246,8 +234,8 @@ export class StatsView extends ItemView {
         const tr = body.createEl("tr");
         const noteTd = tr.createEl("td", { text: p });
         noteTd.addClass("cci-clickable");
-        noteTd.addEventListener("click", async () => {
-          await this.setScope(p);
+        noteTd.addEventListener("click", () => {
+          void this.setScope(p);
         });
         tr.createEl("td", { text: String(recs.length) });
         tr.createEl("td", { text: String(c.known) });
@@ -296,10 +284,13 @@ export class StatsView extends ItemView {
     for (const def of seriesDefs) {
       const lbl = filterRow.createEl("label", { cls: "cci-dash-progress-filter-item" });
       const cb = lbl.createEl("input", { type: "checkbox" });
-      cb.checked = this.progressSeries[def.id];
+      cb.checked = this.plugin.settings.progressChartSeries[def.id];
       cb.addEventListener("change", () => {
-        this.progressSeries[def.id] = cb.checked;
-        this.render();
+        void (async () => {
+          this.plugin.settings.progressChartSeries[def.id] = cb.checked;
+          await this.plugin.saveSettings();
+          this.render();
+        })();
       });
       const swatch = lbl.createSpan({ cls: "cci-dash-progress-filter-swatch" });
       swatch.style.background = def.color;
@@ -325,7 +316,7 @@ export class StatsView extends ItemView {
     };
 
     const activeSeries = seriesDefs
-      .filter((d) => this.progressSeries[d.id])
+      .filter((d) => this.plugin.settings.progressChartSeries[d.id])
       .map((d) => ({
         label: d.label,
         color: d.color,
@@ -380,10 +371,13 @@ export class StatsView extends ItemView {
     for (const def of defs) {
       const lbl = filter.createEl("label", { cls: "cci-dash-progress-filter-item" });
       const cb = lbl.createEl("input", { type: "checkbox" });
-      cb.checked = this.hskBuckets[def.id];
+      cb.checked = this.plugin.settings.hskCoverageBuckets[def.id];
       cb.addEventListener("change", () => {
-        this.hskBuckets[def.id] = cb.checked;
-        this.render();
+        void (async () => {
+          this.plugin.settings.hskCoverageBuckets[def.id] = cb.checked;
+          await this.plugin.saveSettings();
+          this.render();
+        })();
       });
       const swatch = lbl.createSpan({ cls: "cci-dash-progress-filter-swatch" });
       swatch.style.background = def.color;
@@ -417,7 +411,7 @@ export class StatsView extends ItemView {
       const segPct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
       let combinedPct = 0;
       for (const def of defs) {
-        if (!this.hskBuckets[def.id]) continue;
+        if (!this.plugin.settings.hskCoverageBuckets[def.id]) continue;
         const c = counts[def.id];
         if (c === 0) continue;
         const pct = segPct(c);
@@ -479,7 +473,8 @@ export class StatsView extends ItemView {
         attr: { title: opt.hint },
       });
       btn.textContent = opt.label;
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", () => {
+        void (async () => {
         if (this.plugin.settings.flashcardsMode === opt.id) return;
         this.plugin.settings.flashcardsMode = opt.id;
         await this.plugin.saveSettings();
@@ -488,6 +483,7 @@ export class StatsView extends ItemView {
         this.triagePartialAxes = null;
         if (opt.id === "smart") this.smartReady = null;
         this.render();
+        })();
       });
     }
   }
@@ -621,7 +617,7 @@ export class StatsView extends ItemView {
       a.addEventListener("click", (ev) => {
         ev.preventDefault();
         const f = this.plugin.app.vault.getAbstractFileByPath(ctx.notePath);
-        if (f instanceof TFile) this.plugin.app.workspace.openLinkText(ctx.notePath, "", false);
+        if (f instanceof TFile) void this.plugin.app.workspace.openLinkText(ctx.notePath, "", false);
       });
     });
 
@@ -778,26 +774,28 @@ export class StatsView extends ItemView {
       }
       const row = wrap.createDiv({ cls: "cci-fc-smart-actions" });
       const open = row.createEl("button", { cls: "cci-triage-act is-known", text: "Open preview" });
-      open.addEventListener("click", () => this.openInChineseView(previewFile));
+      open.addEventListener("click", () => void this.openInChineseView(previewFile));
       const save = row.createEl("button", { cls: "cci-triage-act is-partial", text: "Save as note" });
-      save.addEventListener("click", async () => {
-        await this.commitSavedPreview(previewFile);
+      save.addEventListener("click", () => {
+        void this.commitSavedPreview(previewFile);
       });
       const regen = row.createEl("button", {
         cls: "cci-triage-act is-known",
         text: this.smartGenerating ? "Generating…" : "Generate again",
       });
       if (this.smartGenerating) regen.setAttribute("disabled", "true");
-      regen.addEventListener("click", () => this.runSmartGenerate(true));
+      regen.addEventListener("click", () => void this.runSmartGenerate(true));
       const discard = row.createEl("button", { cls: "cci-triage-act is-ignored", text: "Discard" });
-      discard.addEventListener("click", async () => {
-        try {
-          await this.plugin.app.fileManager.trashFile(previewFile);
-        } catch {
-          // best-effort: file may already be gone
-        }
-        this.currentPreview = null;
-        this.render();
+      discard.addEventListener("click", () => {
+        void (async () => {
+          try {
+            await this.plugin.app.fileManager.trashFile(previewFile);
+          } catch {
+            // best-effort: file may already be gone
+          }
+          this.currentPreview = null;
+          this.render();
+        })();
       });
     } else {
       // 4. Initial Generate button.
@@ -813,7 +811,7 @@ export class StatsView extends ItemView {
           text: "No due words right now. Mark a few words via the popup, then come back.",
         });
       }
-      btn.addEventListener("click", () => this.runSmartGenerate(false));
+      btn.addEventListener("click", () => void this.runSmartGenerate(false));
     }
   }
 
@@ -899,7 +897,7 @@ export class StatsView extends ItemView {
     const key = rec.simplified ?? rec.surfaces[0] ?? rec.key;
     if (!key) return null;
     const cached = this.triageContextCache.get(key);
-    if (cached) return JSON.parse(cached);
+    if (cached) return JSON.parse(cached) as { sentence: string; matchStart: number; notePath: string };
     const surfaces = [
       key,
       ...rec.surfaces.filter((s) => s && s !== key),

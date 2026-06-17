@@ -462,7 +462,6 @@ export class AiProviderService {
       let content = "";
       let chunkCount = 0;
       let firstByte = false;
-      // eslint-disable-next-line no-constant-condition -- streaming reader loop; break is controlled by reader.read() returning done:true
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
@@ -626,7 +625,6 @@ export class AiProviderService {
       let chunkCount = 0;
       let bytesIn = 0;
       let firstByteLogged = false;
-      // eslint-disable-next-line no-constant-condition -- streaming reader loop; break is controlled by reader.read() returning done:true
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;

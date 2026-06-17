@@ -19,7 +19,7 @@ import type { AiProviderKind } from "../settings/types";
 const KEY_PREFIX = "cci-ai-apikey-";
 
 export function loadApiKey(app: App, provider: AiProviderKind): string {
-  const v = app.loadLocalStorage(KEY_PREFIX + provider);
+  const v: unknown = app.loadLocalStorage(KEY_PREFIX + provider);
   return typeof v === "string" ? v : "";
 }
 

@@ -36,8 +36,9 @@ export function putCachedTokens(text: string, tokens: Token[]): void {
   if (cache.has(k)) cache.delete(k); // move to MRU position
   cache.set(k, tokens);
   while (cache.size > MAX_ENTRIES) {
-    const oldest = cache.keys().next().value;
-    if (oldest === undefined) break;
+    const next = cache.keys().next();
+    if (next.done) break;
+    const oldest: number = next.value;
     cache.delete(oldest);
   }
 }

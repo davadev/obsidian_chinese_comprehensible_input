@@ -170,7 +170,7 @@ export class ChineseTextFileView extends TextFileView {
       top,
       () => this.handleToolbarChange(),
       () => this.editor?.state.doc.toString() ?? this.data ?? "",
-      (surface) => this.openAddCustomWord(surface)
+      (surface) => void this.openAddCustomWord(surface)
     );
     this.previewActionsEl = this.containerEl.children[1].createDiv({ cls: "cci-preview-actions" });
     this.refreshPreviewActions();
@@ -323,7 +323,8 @@ export class ChineseTextFileView extends TextFileView {
 
     host.createSpan({ cls: "cci-preview-actions-label", text: "Unsaved smart story preview" });
     const save = host.createEl("button", { text: "Save as note" });
-    save.addEventListener("click", async () => {
+    save.addEventListener("click", () => {
+      void (async () => {
       try {
         const saved = await this.plugin.story.commitPreviewAsNote({
           story: { textChinese: "", title: "", targetLevel: "", glossary: [], targetWordsUsed: [] },
@@ -338,20 +339,24 @@ export class ChineseTextFileView extends TextFileView {
       } catch (err) {
         new Notice("Save failed: " + (err as Error).message);
       }
+      })();
     });
 
     const discard = host.createEl("button", { text: "Discard" });
-    discard.addEventListener("click", async () => {
+    discard.addEventListener("click", () => {
+      void (async () => {
       try {
         await this.plugin.app.fileManager.trashFile(file);
       } catch {
         // best-effort: file may already be gone
       }
       await this.openSmartStories();
+      })();
     });
 
     const regen = host.createEl("button", { text: "Generate again" });
-    regen.addEventListener("click", async () => {
+    regen.addEventListener("click", () => {
+      void (async () => {
       regen.setAttribute("disabled", "true");
       regen.setText("Generating...");
       try {
@@ -377,6 +382,7 @@ export class ChineseTextFileView extends TextFileView {
         regen.setText("Generate again");
         regen.removeAttribute("disabled");
       }
+      })();
     });
 
     const back = host.createEl("button", { text: "Back to Smart stories" });

@@ -24,6 +24,7 @@ export function confirmAsync(app: App, message: string, confirmLabel = "Delete")
       .addButton((b) =>
         b
           .setButtonText(confirmLabel)
+          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
           .setWarning()
           .onClick(() => {
             answered = true;

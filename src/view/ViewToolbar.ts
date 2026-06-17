@@ -27,7 +27,7 @@ export class ViewToolbar {
   refresh(): void {
     this.updateActiveStates();
     this.updateBanner();
-    this.updateBadge();
+    void this.updateBadge();
   }
 
   private render() {
@@ -112,7 +112,8 @@ export class ViewToolbar {
         },
       });
       if (this.plugin.settings.colorMode === value) el.addClass("is-active");
-      el.addEventListener("click", async () => {
+      el.addEventListener("click", () => {
+        void (async () => {
         if (this.plugin.settings.colorMode === value) return;
         this.plugin.settings.colorMode = value;
         await this.plugin.saveSettings();
@@ -122,6 +123,7 @@ export class ViewToolbar {
           p.el.setAttribute("aria-pressed", String(active));
         }
         this.onChange();
+        })();
       });
       pills.push({ value, label, el });
     };
@@ -181,9 +183,9 @@ export class ViewToolbar {
         attr: { title: "Words in this note — tap for stats" },
       });
       this.statsEl.textContent = "Loading note stats...";
-      this.statsEl.addEventListener("click", () =>
-        this.plugin.openStatsForNote(this.plugin.currentNoteKey())
-      );
+      this.statsEl.addEventListener("click", () => {
+        void this.plugin.openStatsForNote(this.plugin.currentNoteKey());
+      });
       void this.updateBadge();
       return;
     }
@@ -240,9 +242,11 @@ export class ViewToolbar {
       const cb = item.createEl("input", { type: "checkbox" });
       cb.checked = get();
       item.createSpan({ text: label });
-      cb.addEventListener("change", async () => {
-        await set(cb.checked);
-        this.onChange();
+      cb.addEventListener("change", () => {
+        void (async () => {
+          await set(cb.checked);
+          this.onChange();
+        })();
       });
       item.addEventListener("click", (ev) => {
         if (ev.target !== cb) cb.click();
@@ -299,11 +303,13 @@ export class ViewToolbar {
       cb.name = "cci-display-mode";
       cb.checked = this.plugin.settings.defaultDisplayMode === value;
       item.createSpan({ text: label });
-      cb.addEventListener("change", async () => {
-        if (!cb.checked) return;
-        this.plugin.settings.defaultDisplayMode = value;
-        await this.plugin.saveSettings();
-        this.onChange();
+      cb.addEventListener("change", () => {
+        void (async () => {
+          if (!cb.checked) return;
+          this.plugin.settings.defaultDisplayMode = value;
+          await this.plugin.saveSettings();
+          this.onChange();
+        })();
       });
       item.addEventListener("click", (ev) => {
         if (ev.target !== cb) cb.click();
@@ -332,12 +338,14 @@ export class ViewToolbar {
     slider.step = "1";
     slider.value = String(this.plugin.settings.readerFontPx ?? 22);
     const sizeLabel = fontRow.createSpan({ cls: "cci-slider-value", text: `${slider.value}px` });
-    slider.addEventListener("input", async () => {
-      const px = parseInt(slider.value, 10);
-      this.plugin.settings.readerFontPx = px;
-      sizeLabel.setText(`${px}px`);
-      await this.plugin.saveSettings();
-      this.onChange();
+    slider.addEventListener("input", () => {
+      void (async () => {
+        const px = parseInt(slider.value, 10);
+        this.plugin.settings.readerFontPx = px;
+        sizeLabel.setText(`${px}px`);
+        await this.plugin.saveSettings();
+        this.onChange();
+      })();
     });
 
     const sep2 = menu.createDiv({ cls: "cci-overflow-sep" });
@@ -346,7 +354,7 @@ export class ViewToolbar {
     const stats = menu.createEl("button", { cls: "cci-overflow-btn", text: "Stats" });
     stats.addEventListener("click", () => {
       menu.remove();
-      this.plugin.openStatsView();
+      void this.plugin.openStatsView();
     });
     const story = menu.createEl("button", { cls: "cci-overflow-btn", text: "Generate story" });
     story.addEventListener("click", () => {
