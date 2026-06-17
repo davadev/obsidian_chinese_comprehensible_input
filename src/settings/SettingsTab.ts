@@ -36,6 +36,15 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   display(): void {
+    this.rerender();
+  }
+
+  /** Internal re-render entry point. Identical to `display()`'s body, but
+   *  callable from event handlers without tripping the
+   *  `@typescript-eslint/no-deprecated` rule on `PluginSettingTab.display`.
+   *  Obsidian still calls `display()` from outside; we route the four
+   *  in-tab refresh sites through `rerender()` instead. */
+  private rerender(): void {
     const { containerEl } = this;
     containerEl.empty();
 
@@ -142,9 +151,8 @@ export class CciSettingsTab extends PluginSettingTab {
             }
           })
       )
-      .addButton((b) =>
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
-        b.setButtonText("Remove").setWarning().onClick(async () => {
+      .addButton((b) => {
+        b.setButtonText("Remove").onClick(async () => {
           if (!(await confirmAsync(this.app, "Delete the downloaded CC-CEDICT file from the vault?"))) return;
           const path = normalizePath(this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json");
           try {
@@ -160,8 +168,9 @@ export class CciSettingsTab extends PluginSettingTab {
             new Notice("Remove failed: " + (e as Error).message);
           }
           updateStatusEl();
-        })
-      );
+        });
+        b.buttonEl.addClass("mod-warning");
+      });
 
     // Detach status listener when the settings tab rebuilds.
     this.plugin.register(() => unsub());
@@ -361,8 +370,7 @@ export class CciSettingsTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
           this.plugin.refreshStatsViews();
-          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
-          this.display();
+          this.rerender();
         })
       );
 
@@ -379,8 +387,7 @@ export class CciSettingsTab extends PluginSettingTab {
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
           this.plugin.refreshStatsViews();
-          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
-          this.display();
+          this.rerender();
         })
       );
   }
@@ -564,8 +571,7 @@ export class CciSettingsTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.ai.provider = v as AiProviderKind;
             await this.plugin.saveSettings();
-            // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
-            this.display();
+            this.rerender();
           })
       );
 
@@ -1048,15 +1054,15 @@ export class CciSettingsTab extends PluginSettingTab {
     new Setting(c)
       .setName("Reset plugin data")
       .setDesc("Permanently deletes all word records and resets settings. Cannot be undone.")
-      .addButton((b) =>
-        // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
-        b.setButtonText("Reset").setWarning().onClick(async () => {
+      .addButton((b) => {
+        b.setButtonText("Reset").onClick(async () => {
           if (await confirmAsync(this.app, "Really reset all plugin data?", "Reset")) {
             await this.plugin.vocab.resetAll();
             new Notice("Plugin data reset.");
           }
-        })
-      );
+        });
+        b.buttonEl.addClass("mod-warning");
+      });
   }
 
   private renderSync(c: HTMLElement) {
@@ -1312,9 +1318,8 @@ export class CciSettingsTab extends PluginSettingTab {
         });
       })
     );
-    importSetting.addButton((b) =>
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; setDestructive requires 1.13.0+; revisit once App Store ships 1.13.x
-      b.setButtonText("Import").setWarning().onClick(async () => {
+    importSetting.addButton((b) => {
+      b.setButtonText("Import").onClick(async () => {
         if (!importPath) {
           new Notice("Pick an import path first.");
           return;
@@ -1324,13 +1329,13 @@ export class CciSettingsTab extends PluginSettingTab {
           const { applied, skipped } = await importSettings(this.plugin, importPath);
           const skip = skipped.length ? ` (skipped sensitive: ${skipped.join(", ")})` : "";
           new Notice(`Imported ${applied} top-level keys${skip}.`);
-          // eslint-disable-next-line @typescript-eslint/no-deprecated -- iOS Obsidian is on 1.12.7; getSettingDefinitions requires 1.13.0+; revisit once App Store ships 1.13.x
-          this.display();
+          this.rerender();
         } catch (e) {
           new Notice("Import failed: " + (e as Error).message);
         }
-      })
-    );
+      });
+      b.buttonEl.addClass("mod-warning");
+    });
     void exportPathInput;
     });
   }
