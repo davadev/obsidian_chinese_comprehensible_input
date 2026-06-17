@@ -24,8 +24,7 @@ export function confirmAsync(app: App, message: string, confirmLabel = "Delete")
       .addButton((b) =>
         b
           .setButtonText(confirmLabel)
-          .setDestructive()
-          .setCta()
+          .setWarning()
           .onClick(() => {
             answered = true;
             resolve(true);
