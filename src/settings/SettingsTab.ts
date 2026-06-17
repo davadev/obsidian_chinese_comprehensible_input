@@ -143,7 +143,7 @@ export class CciSettingsTab extends PluginSettingTab {
           })
       )
       .addButton((b) =>
-        b.setButtonText("Remove").setDestructive().onClick(async () => {
+        b.setButtonText("Remove").setWarning().onClick(async () => {
           if (!(await confirmAsync(this.app, "Delete the downloaded CC-CEDICT file from the vault?"))) return;
           const path = normalizePath(this.plugin.settings.dictionarySource?.outputPath ?? ".cci-dictionary.json");
           try {
@@ -1041,7 +1041,7 @@ export class CciSettingsTab extends PluginSettingTab {
       .setName("Reset plugin data")
       .setDesc("Permanently deletes all word records and resets settings. Cannot be undone.")
       .addButton((b) =>
-        b.setButtonText("Reset").setDestructive().onClick(async () => {
+        b.setButtonText("Reset").setWarning().onClick(async () => {
           if (await confirmAsync(this.app, "Really reset all plugin data?", "Reset")) {
             await this.plugin.vocab.resetAll();
             new Notice("Plugin data reset.");
@@ -1300,7 +1300,7 @@ export class CciSettingsTab extends PluginSettingTab {
       })
     );
     importSetting.addButton((b) =>
-      b.setButtonText("Import").setDestructive().onClick(async () => {
+      b.setButtonText("Import").setWarning().onClick(async () => {
         if (!importPath) {
           new Notice("Pick an import path first.");
           return;
