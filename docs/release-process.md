@@ -2,7 +2,7 @@
 
 ## CI expectations
 
-- `.github/workflows/ci.yml` is the minimum repo gate. It runs `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, and `npm run check-release`.
+- `.github/workflows/ci.yml` is the minimum repo gate. It runs `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, `npm run lint`, and `npm run check-release -- --with-lint`.
 - Keep release publishing manual. CI validates that the branch is healthy; the actual BRAT release still needs an intentional version bump, tag, and `gh release create` with the three release assets attached.
 - If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
@@ -20,6 +20,17 @@
 - `CODEOWNERS` routes review requests to `@davadev`, but real enforcement still depends on GitHub branch protection.
 - Recommended GitHub settings for `main`: require a pull request, require at least one approval, and require review from code owners.
 
+## Lint parity with Obsidian's auto-review
+
+The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a slice of `@typescript-eslint`'s type-aware preset. `eslint.config.mjs` at the repo root mirrors that exact rule set, with severities tuned so the local output is line-for-line comparable to the cloud review:
+
+- `@typescript-eslint/no-explicit-any` — **Error**. Bare `any` blocks the cloud review and must block locally too.
+- `@typescript-eslint/no-unsafe-*` cluster, `no-floating-promises`, `no-misused-promises` — **Warning**. These are the long-standing notes about `loadData()` / LLM-response handling; they're tracked but don't block.
+- `@typescript-eslint/no-deprecated` — **Warning**. Matches the cloud's Recommendation tier (`setWarning` deprecation, `display` deprecation).
+- The obsidianmd `ui/sentence-case*` rules and a handful of `@typescript-eslint` Errors that the cloud lint doesn't emit are turned off so the local report doesn't add noise the auto-review wouldn't.
+
+**Running it locally is mandatory before tagging a release.** `npm run check-release -- --with-build` invokes lint as the last gate; a release with even one Error there will fail the cloud auto-review and risk delisting the plugin. Always run the lint step before `gh release create`.
+
 ## What `check-release` covers
 
 ### Mechanical guards (FAIL blocks release)
@@ -33,6 +44,7 @@
 - No hardcoded user paths in source (`/Users/foo/...`, `/home/foo/...`, `C:\Users\foo\...`).
 - If `isDesktopOnly !== true`, source must not import Node-only modules (`fs`, `path`, `child_process`, `os`, `electron`).
 - `package.json` defines `build` and `test` scripts; with `--with-build`, they actually run and pass.
+- With `--with-build` (or `--with-lint`), the Obsidian-parity lint step runs `npm run lint --format json` and counts Errors vs Warnings — Errors fail the release guard, Warnings are reported as non-blocking.
 
 ### Heuristic guards (WARN — review but don't block)
 

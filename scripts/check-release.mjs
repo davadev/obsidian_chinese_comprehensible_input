@@ -7,7 +7,8 @@
 // Invocation:
 //   node scripts/check-release.mjs
 //   node scripts/check-release.mjs --tag 0.2.4
-//   node scripts/check-release.mjs --with-build   # also runs npm build + test
+//   node scripts/check-release.mjs --with-build   # also runs npm build + test + lint
+//   node scripts/check-release.mjs --with-lint    # runs lint only (no build/test)
 //   node scripts/check-release.mjs --tag $GITHUB_REF_NAME --with-build
 //
 // No external deps — pure Node ESM. Node ≥ 18.
@@ -37,6 +38,9 @@ const tagFromEnv =
 const rawTag = tagFromCli || tagFromEnv;
 const tag = rawTag ? rawTag.replace(/^v/, "") : null;
 const runBuildAndTest = hasFlag("--with-build");
+// `--with-build` implies `--with-lint` so the release-readiness command
+// is one switch. Pass `--with-lint` alone to run lint without rebuilding.
+const runLint = hasFlag("--with-lint") || runBuildAndTest;
 
 // ---------- Reporting ----------
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -491,6 +495,67 @@ if (pkg) {
 
   if (typeof scripts.lint === "string") pass("lint script present", scripts.lint);
   else skip("lint script present", "optional");
+
+  if (runLint) {
+    if (typeof scripts.lint !== "string") {
+      skip("npm run lint passes (Obsidian-parity)", "no lint script defined");
+    } else {
+      console.log(c.gray("  → running npm run lint --format json (Obsidian-parity check)…"));
+      const r = spawnSync(
+        "npm",
+        ["run", "lint", "--silent", "--", "--format", "json"],
+        { cwd: ROOT, stdio: "pipe", encoding: "utf8", env: { ...process.env, FORCE_COLOR: "0" } }
+      );
+      // ESLint exits 1 on Errors and 0 otherwise. Either way, --format json
+      // writes a parseable JSON document to stdout.
+      let parsed = null;
+      try {
+        // strip non-JSON prefix npm may add (e.g. "> chinese-…@ lint …\n").
+        const start = r.stdout.indexOf("[");
+        const text = start >= 0 ? r.stdout.slice(start) : r.stdout;
+        parsed = JSON.parse(text);
+      } catch {
+        parsed = null;
+      }
+      if (!parsed) {
+        fail(
+          "npm run lint passes (Obsidian-parity)",
+          `could not parse ESLint --format json output. stderr tail: ${(r.stderr || "").trim().split("\n").slice(-3).join(" | ")}`
+        );
+      } else {
+        let errorCount = 0;
+        let warningCount = 0;
+        const sample = [];
+        for (const file of parsed) {
+          errorCount += file.errorCount ?? 0;
+          warningCount += file.warningCount ?? 0;
+          if (sample.length < 3) {
+            for (const m of file.messages ?? []) {
+              if (m.severity === 2 && sample.length < 3) {
+                sample.push(`${relative(ROOT, file.filePath)}:${m.line} ${m.ruleId ?? "(no rule)"}`);
+              }
+            }
+          }
+        }
+        if (errorCount === 0) {
+          pass(
+            "npm run lint passes (Obsidian-parity)",
+            warningCount === 0
+              ? "0 errors, 0 warnings"
+              : `0 errors, ${warningCount} warning${warningCount === 1 ? "" : "s"} (non-blocking)`
+          );
+        } else {
+          fail(
+            "npm run lint passes (Obsidian-parity)",
+            `${errorCount} error${errorCount === 1 ? "" : "s"}, ${warningCount} warning${warningCount === 1 ? "" : "s"}` +
+              (sample.length ? ` — e.g. ${sample.join("; ")}` : "")
+          );
+        }
+      }
+    }
+  } else {
+    skip("npm run lint passes (Obsidian-parity)", "pass --with-build or --with-lint to execute");
+  }
 
   if (runBuildAndTest) {
     for (const script of ["build", "test"]) {
