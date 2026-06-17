@@ -1055,7 +1055,7 @@ export class CciSettingsTab extends PluginSettingTab {
     this.renderDocLink(
       c,
       "Vault-mirror sync guide",
-      "Why this exists for users who don't sync .obsidian/, vocab vs settings mirror, and what's filtered out.",
+      `Why this exists for users who don't sync ${this.app.vault.configDir}/, vocab vs settings mirror, and what's filtered out.`,
       "sync-mirror.md"
     );
     this.renderDocLink(

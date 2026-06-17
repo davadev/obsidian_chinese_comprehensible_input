@@ -16,7 +16,7 @@ function nativeFetch(
   input: Parameters<typeof fetch>[0],
   init?: Parameters<typeof fetch>[1]
 ): ReturnType<typeof fetch> {
-  return (globalThis as typeof globalThis & { fetch: typeof fetch }).fetch(input, init);
+  return window.fetch(input, init);
 }
 
 class DebugSession {
