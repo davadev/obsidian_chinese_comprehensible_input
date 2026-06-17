@@ -9,12 +9,15 @@ npm test                                 # vitest (src/tests/**/*.test.ts)
 npm run test:cov                         # vitest run + v8 coverage report (terminal + coverage/index.html + lcov)
 npm run test:cov:open                    # same, then opens the HTML report in your browser
 npm run test:watch                       # vitest watch mode
+npm run lint                             # local mirror of Obsidian's community-plugin auto-review
+npm run lint:fix                         # apply autofixable rules in place
 npm run check-release                    # pre-release validator — REQUIRED before tagging
 npm run check-release -- --tag 0.X.Y     # also checks tag matches manifest.version
-npm run check-release -- --with-build    # also runs `npm run build` + `npm test`
+npm run check-release -- --with-build    # also runs `npm run build` + `npm test` + `npm run lint`
+npm run check-release -- --with-lint     # runs the Obsidian-parity lint only (no build/test)
 ```
 
-Build order: always run `npm run build` (includes type-check). No separate lint step.
+Build order: always run `npm run build` (includes type-check). Always run `npm run lint` before tagging — its config (`eslint.config.mjs`) mirrors the Obsidian community-plugin auto-review so 0 errors locally means the cloud review will also pass.
 
 Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vitest.config.ts`). GitHub Actions runs build + test + coverage + `check-release` on every push to `main` and every PR. Releases are still intentionally manual so BRAT assets and notes are reviewed before publishing.
 
@@ -34,7 +37,7 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 
 ## Release Process
 
-0. **Run `npm run check-release`. Must report `0 failed` before you tag.** Re-run after every version bump and after `npm run build` so the new `main.js` size is re-checked. If anything fails, fix it before tagging — never bypass. WARN-level findings (yellow `!`) are non-blocking but worth a look.
+0. **Run `npm run check-release -- --with-build`. Must report `0 failed` AND the embedded Obsidian-parity lint step must report `0 errors` before you tag.** That single command builds, tests, and lints. Re-run after every version bump so the new `main.js` size is re-checked. If anything fails, fix it before tagging — never bypass. WARN-level findings (yellow `!`) are non-blocking but worth a look. The lint step matches the cloud auto-review's rule set (`eslint-plugin-obsidianmd` + the relevant `@typescript-eslint` type-aware rules); see `eslint.config.mjs`. **A release with even one local lint Error will fail the Obsidian community-plugin auto-review and risk delisting the plugin.**
 1. Bump `version` in `manifest.json`, `package.json`, and add entry to `versions.json`.
 2. `npm run build` → produces `main.js`.
 3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts. Do not assume CI will catch something you can catch before tagging.
@@ -59,6 +62,7 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 
 - Create a dedicated branch for the fix / feature / release prep
 - `npm run check-release`
+- `npm run lint` — must report `0 errors` (warnings non-blocking)
 - Bump `manifest.json`, `package.json`, `versions.json`
 - `npm run build`
 - `npm test`

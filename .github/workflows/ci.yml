@@ -33,8 +33,11 @@ jobs:
       - name: Run coverage
         run: npm run test:cov
 
+      - name: Run lint (Obsidian-parity)
+        run: npm run lint
+
       - name: Run release guard
-        run: env -u GITHUB_REF_NAME -u GITHUB_REF npm run check-release
+        run: env -u GITHUB_REF_NAME -u GITHUB_REF npm run check-release -- --with-lint
 
       - name: Upload coverage artifact
         if: always()
