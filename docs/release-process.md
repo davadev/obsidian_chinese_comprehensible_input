@@ -2,8 +2,12 @@
 
 ## CI expectations
 
-- `.github/workflows/ci.yml` is the minimum repo gate. It runs `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, `npm run lint`, and `npm run check-release -- --with-lint`.
-- Keep release publishing manual. CI validates that the branch is healthy; the actual BRAT release still needs an intentional version bump, tag, and `gh release create` with the three release assets attached.
+Two workflows live in `.github/workflows/`:
+
+- **`ci.yml`** — runs on every push to `main` and every PR. Executes `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, `npm run lint`, and `npm run check-release -- --with-lint`. Gates merges.
+- **`release.yml`** — triggers on push of a SemVer-shaped tag (`0.3.4` for stable, `0.3.4-rc.1` for prerelease). Re-runs the whole verification chain (lint → build → test → check-release with `--tag $TAG --with-build`) on a clean Ubuntu runner. **A single lint Error aborts the workflow, so a broken release can never reach the directory.** On success, it creates the GitHub Release atomically with `main.js`, `manifest.json`, `styles.css` attached — auto-generated release notes from PRs / commits since the previous tag. Bare SemVer → `--latest`; tag with a `-` → `--prerelease`.
+
+Releases are tag-driven: the dev pushes the tag, the workflow handles the rest. No more typing `gh release create` from a laptop.
 - If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
 
@@ -29,7 +33,7 @@ The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a
 - `@typescript-eslint/no-deprecated` — **Warning**. Matches the cloud's Recommendation tier (`setWarning` deprecation, `display` deprecation).
 - The obsidianmd `ui/sentence-case*` rules and a handful of `@typescript-eslint` Errors that the cloud lint doesn't emit are turned off so the local report doesn't add noise the auto-review wouldn't.
 
-**Running it locally is mandatory before tagging a release.** `npm run check-release -- --with-build` invokes lint as the last gate; a release with even one Error there will fail the cloud auto-review and risk delisting the plugin. Always run the lint step before `gh release create`.
+**Running it locally is mandatory before tagging a release.** `npm run check-release -- --with-build` invokes lint as the last gate; a release with even one Error there will fail the cloud auto-review and risk delisting the plugin. The `release.yml` workflow re-runs the same gate on the runner after you push the tag, so a broken release is caught even if the local pass was skipped.
 
 ## What `check-release` covers
 
