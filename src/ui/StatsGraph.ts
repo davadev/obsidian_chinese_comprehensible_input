@@ -175,7 +175,7 @@ export function renderProgressArea(
     swatch.className = "cci-progress-legend-swatch";
     swatch.style.background = s.color;
     item.appendChild(swatch);
-    item.appendChild(document.createTextNode(`${s.label} (${cumulative[si][n - 1]})`));
+    item.appendChild(activeDocument.createTextNode(`${s.label} (${cumulative[si][n - 1]})`));
     legend.appendChild(item);
   });
   container.appendChild(legend);
@@ -248,7 +248,7 @@ export function renderProgressGraph(
     swatch.style.background = s.color;
     item.appendChild(swatch);
     const total = s.data.reduce((a, b) => a + b.count, 0);
-    item.appendChild(document.createTextNode(`${s.label} (${total})`));
+    item.appendChild(activeDocument.createTextNode(`${s.label} (${total})`));
     legend.appendChild(item);
   }
   container.appendChild(legend);
