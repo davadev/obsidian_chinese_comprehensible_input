@@ -252,6 +252,22 @@ export class CciSettingsTab extends PluginSettingTab {
             })
         );
       new Setting(a)
+        .setName("Top HSK comfort threshold (%)")
+        .setDesc(
+          "Status-bar 'Top HSK X' shows the highest level where you already know at least this % of the note's HSK 1..X vocabulary. Lower = looser (label climbs higher); higher = stricter."
+        )
+        .addSlider((s) =>
+          s
+            .setLimits(50, 90, 5)
+            .setValue(
+              Math.round((this.plugin.settings.topHskComfortThreshold ?? 0.67) * 100)
+            )
+            .onChange(async (v) => {
+              this.plugin.settings.topHskComfortThreshold = v / 100;
+              await this.plugin.saveSettings();
+            })
+        );
+      new Setting(a)
         .setName("Annotation density cap (%)")
         .setDesc("If more than this % of visible words are densely annotated, auto-degrade to popup-only.")
         .addText((t) => {
