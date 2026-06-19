@@ -616,6 +616,12 @@ export default class CciPlugin extends Plugin {
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
     this.refreshChineseViews();
+    // The 3-line ruby gloss reads from the cached token's `selected`
+    // field, which is captured at tokenize-time. A plain redecorate
+    // keeps the old definition until the cache is cleared. Mirror the
+    // setCustomWord path (see `forceRetokenizeViews()` below) so the
+    // ruby picks up the new first definition in the same paint.
+    this.forceRetokenizeViews();
     this.refreshStatsViews();
   }
 
@@ -624,6 +630,7 @@ export default class CciPlugin extends Plugin {
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
     this.refreshChineseViews();
+    this.forceRetokenizeViews();
     this.refreshStatsViews();
   }
 
