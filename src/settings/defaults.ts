@@ -118,6 +118,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   densityCapPercent: 35,
   mnemonicsFirst: false,
   readerFontPx: 22,
+  readerLineSpacing: 1.0,
   vaultIndexed: false,
   autoDownloadDictionary: true,
   statsExcludeNew: true,
