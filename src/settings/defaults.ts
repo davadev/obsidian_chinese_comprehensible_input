@@ -119,6 +119,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   mnemonicsFirst: false,
   readerFontPx: 22,
   readerLineSpacing: 1.0,
+  topHskComfortThreshold: 0.67,
   vaultIndexed: false,
   autoDownloadDictionary: true,
   statsExcludeNew: true,

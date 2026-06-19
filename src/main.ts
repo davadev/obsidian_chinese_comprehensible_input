@@ -1099,28 +1099,36 @@ export default class CciPlugin extends Plugin {
     const tokens = await this.tokenizer.tokenize(text);
     const counts = { total: 0, known: 0, partial: 0, unknown: 0, newCount: 0 };
     const hskCounts = new Map<string, number>();
+    const hskKnown = new Map<string, number>();
     for (const tok of tokens) {
       if (!tok.isWord || tok.candidates.length === 0) continue;
       counts.total++;
       const hsk = tok.selected?.hsk?.levels?.[0];
-      if (hsk) hskCounts.set(hsk, (hskCounts.get(hsk) ?? 0) + 1);
       const rec = this.vocab.bySurface(tok.surface);
       const status = rec?.status ?? "new";
       if (status === "ignored") {
         counts.total--; // don't count ignored
         continue;
       }
+      if (hsk) {
+        hskCounts.set(hsk, (hskCounts.get(hsk) ?? 0) + 1);
+        if (status === "known") hskKnown.set(hsk, (hskKnown.get(hsk) ?? 0) + 1);
+      }
       if (status === "new") counts.newCount++;
       else if (status === "known") counts.known++;
       else if (status === "unknown") counts.unknown++;
       else counts.partial++;
     }
+    const threshold = this.settings.topHskComfortThreshold ?? 0.67;
+    const MIN_SAMPLE = 5;
+    let cumTotal = 0;
+    let cumKnown = 0;
     let topHsk = "";
-    let topCount = 0;
-    for (const [hsk, count] of hskCounts) {
-      if (count > topCount) {
-        topHsk = hsk;
-        topCount = count;
+    for (const lvl of ["1", "2", "3", "4", "5", "6", "7"]) {
+      cumTotal += hskCounts.get(lvl) ?? 0;
+      cumKnown += hskKnown.get(lvl) ?? 0;
+      if (cumTotal >= MIN_SAMPLE && cumKnown / cumTotal >= threshold) {
+        topHsk = lvl;
       }
     }
     return { ...counts, topHsk };

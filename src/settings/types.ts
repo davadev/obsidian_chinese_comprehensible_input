@@ -232,6 +232,9 @@ export interface CciSettings {
   readerFontPx: number;
   /** Line-height multiplier for the Chinese view. 1.0 = current behavior. */
   readerLineSpacing: number;
+  /** Fraction (0..1) of cumulative known/total HSK vocabulary required for the
+   * status bar to surface a given HSK level as "Top HSK". Default 0.67. */
+  topHskComfortThreshold: number;
   /** Have we completed a full vault scan to seed the vocabulary store. */
   vaultIndexed: boolean;
   /** On first onload, silently download the dictionary if missing. */
