@@ -244,7 +244,7 @@ export class ChineseTextFileView extends TextFileView {
 
   applyReaderLineSpacing(): void {
     const root = this.containerEl.children[1] as HTMLElement;
-    const m = Math.max(0.6, Math.min(1.5, this.plugin.settings.readerLineSpacing ?? 1.0));
+    const m = Math.max(0.15, Math.min(1.5, this.plugin.settings.readerLineSpacing ?? 1.0));
     root.style.setProperty("--cci-line-spacing", String(m));
   }
 
