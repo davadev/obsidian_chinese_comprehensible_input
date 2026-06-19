@@ -621,6 +621,7 @@ export default class CciPlugin extends Plugin {
     // keeps the old definition until the cache is cleared. Mirror the
     // setCustomWord path (see `forceRetokenizeViews()` below) so the
     // ruby picks up the new first definition in the same paint.
+    clearTokenCache();
     this.forceRetokenizeViews();
     this.refreshStatsViews();
   }
@@ -630,6 +631,7 @@ export default class CciPlugin extends Plugin {
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
     this.refreshChineseViews();
+    clearTokenCache();
     this.forceRetokenizeViews();
     this.refreshStatsViews();
   }
