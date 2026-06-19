@@ -26,11 +26,12 @@
   height: 100%;
   width: 100%;
   --cci-reader-font: 22px;
+  --cci-line-spacing: 1;
 }
 
 .cci-view .cci-editor .cm-content {
   font-size: var(--cci-reader-font);
-  line-height: 1.85;
+  line-height: calc(1.85 * var(--cci-line-spacing));
 }
 
 
@@ -38,10 +39,10 @@
    annotated ones; the larger line-height keeps stacked pinyin/gloss inside
    the line box instead of pushing the next line down unevenly. */
 .cci-view[data-display="two-line"] .cci-editor .cm-content {
-  line-height: 2.4;
+  line-height: calc(2.4 * var(--cci-line-spacing));
 }
 .cci-view[data-display="three-line"] .cci-editor .cm-content {
-  line-height: 3.1;
+  line-height: calc(3.1 * var(--cci-line-spacing));
 }
 
 .cci-toolbar {

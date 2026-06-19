@@ -1,7 +1,7 @@
 {
   "id": "chinese-comprehensible-input",
   "name": "Chinese Comprehensible Input",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "minAppVersion": "1.8.7",
   "description": "Turn Chinese notes into a learner-friendly comprehensible-input reading environment with dictionary-aware tokenization, exposure tracking, SRS, and optional AI-generated review stories.",
   "author": "davadev",

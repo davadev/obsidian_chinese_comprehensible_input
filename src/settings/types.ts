@@ -230,6 +230,8 @@ export interface CciSettings {
   mnemonicsFirst: boolean;
   /** Base font size for the Chinese Learning view, in pixels. */
   readerFontPx: number;
+  /** Line-height multiplier for the Chinese view. 1.0 = current behavior. */
+  readerLineSpacing: number;
   /** Have we completed a full vault scan to seed the vocabulary store. */
   vaultIndexed: boolean;
   /** On first onload, silently download the dictionary if missing. */

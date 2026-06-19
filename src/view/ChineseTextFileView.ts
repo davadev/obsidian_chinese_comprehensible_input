@@ -162,6 +162,7 @@ export class ChineseTextFileView extends TextFileView {
     this.containerEl.children[1].empty();
     this.containerEl.children[1].addClass("cci-view");
     this.applyReaderFont();
+    this.applyReaderLineSpacing();
     this.applyDisplayAttr();
 
     const top = this.containerEl.children[1].createDiv({ cls: "cci-toolbar-wrap" });
@@ -217,6 +218,7 @@ export class ChineseTextFileView extends TextFileView {
       }
     }
     this.applyReaderFont();
+    this.applyReaderLineSpacing();
     this.applyDisplayAttr();
     this.redecorate();
     this.toolbar?.refresh();
@@ -238,6 +240,12 @@ export class ChineseTextFileView extends TextFileView {
     const root = this.containerEl.children[1] as HTMLElement;
     const px = Math.max(12, Math.min(48, this.plugin.settings.readerFontPx ?? 22));
     root.style.setProperty("--cci-reader-font", `${px}px`);
+  }
+
+  applyReaderLineSpacing(): void {
+    const root = this.containerEl.children[1] as HTMLElement;
+    const m = Math.max(0.6, Math.min(1.5, this.plugin.settings.readerLineSpacing ?? 1.0));
+    root.style.setProperty("--cci-line-spacing", String(m));
   }
 
   applyDisplayAttr(): void {
