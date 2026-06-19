@@ -189,8 +189,14 @@ export class WordPopup {
       });
       const key = makeKey(rawTop.simplified, rawTop.pinyin);
       const allowPinyin = !!this.plugin.settings.ai.enhanceCanRewritePinyin;
+      // Spread any prior override so manually-edited fields (traditional,
+      // hsk, notes, pinyin) survive an Enhance round-trip — without this,
+      // setDictionaryOverride replaces the whole record and silently
+      // drops everything except the AI-rewritten fields.
+      const existing = this.plugin.dictionaryOverrides[key];
       await this.plugin.setDictionaryOverride(key, {
-        pinyin: allowPinyin ? result.pinyin : undefined,
+        ...existing,
+        pinyin: allowPinyin && result.pinyin ? result.pinyin : existing?.pinyin,
         definitions: result.definitions,
         grammar: result.grammar,
         source: "ai",
