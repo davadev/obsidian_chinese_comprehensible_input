@@ -23,6 +23,7 @@ import { SrsScheduler } from "./srs/SrsScheduler";
 import { AiProviderService } from "./ai/AiProviderService";
 import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
+import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import { StatsView } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
@@ -42,6 +43,7 @@ export default class CciPlugin extends Plugin {
   srs!: SrsScheduler;
   ai!: AiProviderService;
   story!: StoryGenerator;
+  enhance!: EnhanceDictionaryService;
   popup!: WordPopup;
   /**
    * Per-entry dictionary overrides + user-added custom words. Live at
@@ -261,6 +263,7 @@ export default class CciPlugin extends Plugin {
       (entry) => this.recordAiUsage(entry)
     );
     this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings);
+    this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));
@@ -1029,8 +1032,8 @@ export default class CciPlugin extends Plugin {
     new GenerateStoryModal(this.app, this).open();
   }
 
-  openWordPopup(surface: string, target: HTMLElement, ev: Event): void {
-    this.popup.open(surface, target, ev);
+  openWordPopup(surface: string, target: HTMLElement, ev: Event, sentence?: string): void {
+    this.popup.open(surface, target, ev, sentence);
   }
 
   markWord(surface: string, status: WordStatus): void {

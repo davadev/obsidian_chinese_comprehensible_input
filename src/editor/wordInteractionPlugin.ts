@@ -1,8 +1,23 @@
 import { EditorView, ViewPlugin } from "@codemirror/view";
 import type CciPlugin from "../main";
+import { extractSentenceAround } from "../ui/StatsView";
 
 const LONG_PRESS_MS = 450;
 const LONG_PRESS_MOVE_TOL = 8;
+
+/** Pull the sentence containing the clicked `.cci-word` decoration so
+ *  the popup can pass it to the AI "Enhance" action. Boundaries follow
+ *  the same CJK + ASCII punctuation rules used by `StatsView`. Returns
+ *  empty string when the click maps to a position CM6 can't resolve. */
+function sentenceFor(view: EditorView, target: HTMLElement): string {
+  try {
+    const pos = view.posAtDOM(target);
+    if (pos < 0) return "";
+    return extractSentenceAround(view.state.doc.toString(), pos).text;
+  } catch {
+    return "";
+  }
+}
 
 /**
  * Word tap / long-press behavior, per view mode:
@@ -70,7 +85,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           this.longPressFired = true;
           // Always blur first so the on-screen keyboard goes away.
           (activeDocument.activeElement as HTMLElement | null)?.blur?.();
-          plugin.openWordPopup(this.pressedSurface, this.pressedTarget, ev);
+          plugin.openWordPopup(this.pressedSurface, this.pressedTarget, ev, sentenceFor(this.view, this.pressedTarget));
           this.pressedSurface = null;
           this.pressedTarget = null;
         }, LONG_PRESS_MS);
@@ -132,7 +147,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           ev.preventDefault();
           ev.stopPropagation();
           (activeDocument.activeElement as HTMLElement | null)?.blur?.();
-          plugin.openWordPopup(surface, target, ev);
+          plugin.openWordPopup(surface, target, ev, sentenceFor(this.view, target));
           return;
         }
         if (mode === "select-word") {
@@ -154,7 +169,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         const status = rec?.status ?? "new";
         if (status === "known" && !plugin.settings.knownWordPopups) return;
         (activeDocument.activeElement as HTMLElement | null)?.blur?.();
-        plugin.openWordPopup(surface, target, ev);
+        plugin.openWordPopup(surface, target, ev, sentenceFor(this.view, target));
       };
     }
   );

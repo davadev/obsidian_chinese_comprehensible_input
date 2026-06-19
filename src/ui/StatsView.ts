@@ -1130,7 +1130,7 @@ function bucketCounts(rows: WordRecord[]): {
  * 200 chars on each side so a punctuation-less paragraph does not blow
  * out the card.
  */
-function extractSentenceAround(text: string, matchOffset: number): { text: string; matchStart: number } {
+export function extractSentenceAround(text: string, matchOffset: number): { text: string; matchStart: number } {
   const BOUNDARY = /[。！？!?；;\n\r…]/;
   const MAX_BACK = 200;
   const MAX_FWD = 200;

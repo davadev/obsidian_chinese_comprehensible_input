@@ -154,6 +154,7 @@ export class DictionaryService {
         traditional: ov.traditional ?? e.traditional,
         definitions: ov.definitions ?? e.definitions,
         hsk: ov.hsk ?? e.hsk,
+        grammar: ov.grammar ?? e.grammar,
       });
     }
     return out;

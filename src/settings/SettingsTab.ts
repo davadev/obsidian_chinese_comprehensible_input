@@ -581,6 +581,20 @@ export class CciSettingsTab extends PluginSettingTab {
       this.renderOllama(c);
     }
 
+    new Setting(c)
+      .setName("Allow AI to rewrite pinyin when enhancing entries")
+      .setDesc(
+        "Off (default): the 'Enhance' button on the word popup only rewrites English definitions and the optional grammar note. " +
+          "On: the model may also propose a new pinyin reading when the sentence disambiguates a polyphone (e.g. 行 xíng vs háng). " +
+          "Pinyin in this plugin is canonical from CC-CEDICT, so leave this off unless you know what you're trading."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.ai.enhanceCanRewritePinyin).onChange(async (v) => {
+          this.plugin.settings.ai.enhanceCanRewritePinyin = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
     new Setting(c).setName("Test connection").addButton((b) => {
       b.setButtonText("Test").onClick(async () => {
         try {
