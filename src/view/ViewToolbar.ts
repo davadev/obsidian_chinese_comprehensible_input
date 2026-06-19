@@ -351,7 +351,7 @@ export class ViewToolbar {
     const lineRow = menu.createDiv({ cls: "cci-overflow-item cci-overflow-slider" });
     lineRow.createSpan({ text: "Line spacing" });
     const lineSlider = lineRow.createEl("input", { type: "range" });
-    lineSlider.min = "0.8";
+    lineSlider.min = "0.15";
     lineSlider.max = "1.2";
     lineSlider.step = "0.05";
     lineSlider.value = String(this.plugin.settings.readerLineSpacing ?? 1.0);
