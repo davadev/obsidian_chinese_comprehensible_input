@@ -348,6 +348,27 @@ export class ViewToolbar {
       })();
     });
 
+    const lineRow = menu.createDiv({ cls: "cci-overflow-item cci-overflow-slider" });
+    lineRow.createSpan({ text: "Line spacing" });
+    const lineSlider = lineRow.createEl("input", { type: "range" });
+    lineSlider.min = "0.8";
+    lineSlider.max = "1.2";
+    lineSlider.step = "0.05";
+    lineSlider.value = String(this.plugin.settings.readerLineSpacing ?? 1.0);
+    const lineLabel = lineRow.createSpan({
+      cls: "cci-slider-value",
+      text: `${Number(lineSlider.value).toFixed(2)}×`,
+    });
+    lineSlider.addEventListener("input", () => {
+      void (async () => {
+        const m = parseFloat(lineSlider.value);
+        this.plugin.settings.readerLineSpacing = m;
+        lineLabel.setText(`${m.toFixed(2)}×`);
+        await this.plugin.saveSettings();
+        this.onChange();
+      })();
+    });
+
     const sep2 = menu.createDiv({ cls: "cci-overflow-sep" });
     sep2.setAttr("role", "separator");
 

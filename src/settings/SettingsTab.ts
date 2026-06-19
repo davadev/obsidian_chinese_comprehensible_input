@@ -252,20 +252,6 @@ export class CciSettingsTab extends PluginSettingTab {
             })
         );
       new Setting(a)
-        .setName("Reader line spacing")
-        .setDesc(
-          "Multiplier applied to line-height in the Chinese Learning View. Lower = tighter (more text fits on screen). Widget content still grows the line so stacked pinyin/gloss do not overflow."
-        )
-        .addSlider((s) =>
-          s
-            .setLimits(0.8, 1.2, 0.05)
-            .setValue(this.plugin.settings.readerLineSpacing ?? 1.0)
-            .onChange(async (v) => {
-              this.plugin.settings.readerLineSpacing = v;
-              await this.plugin.saveSettings();
-            })
-        );
-      new Setting(a)
         .setName("Annotation density cap (%)")
         .setDesc("If more than this % of visible words are densely annotated, auto-degrade to popup-only.")
         .addText((t) => {
