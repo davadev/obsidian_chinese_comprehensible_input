@@ -1,7 +1,7 @@
 /**
  * Returns disjoint excluded `[start, end)` ranges in the source where annotations
  * should NOT be applied: YAML frontmatter, fenced code, inline code, math blocks,
- * link URLs, image embeds, HTML tags.
+ * link URLs, HTML tags.
  *
  * Light implementation — sufficient for V1 annotation gating. Greedy / line-based.
  */
@@ -32,9 +32,6 @@ export function computeExcludedRanges(text: string): Range[] {
 
   // Link URL part: [text](URL)
   pushInline(out, text, /\]\(([^)]*)\)/g, 1);
-
-  // Image embed: ![[...]]
-  pushInline(out, text, /!\[\[[^\]\n]+\]\]/g);
 
   // HTML tags
   pushInline(out, text, /<\/?[a-zA-Z][^>]*>/g);

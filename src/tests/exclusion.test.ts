@@ -24,4 +24,15 @@ describe("markdown exclusion ranges", () => {
     const codeStart = text.indexOf("代码");
     expect(isRangeExcluded(ranges, codeStart, codeStart + 2)).toBe(true);
   });
+
+  it("does NOT exclude image embeds — they own their replace decoration", () => {
+    // Regression guard for 0.3.7: previously `![[...]]` ranges were added
+    // to the exclusion set, which caused scanEmbeds to skip its own
+    // matches and the embed never rendered as an image.
+    const text = "前 ![[Pasted image 20260617210039.png]] 后";
+    const ranges = computeExcludedRanges(text);
+    const embedStart = text.indexOf("![[");
+    const embedEnd = text.indexOf("]]") + 2;
+    expect(isRangeExcluded(ranges, embedStart, embedEnd)).toBe(false);
+  });
 });
