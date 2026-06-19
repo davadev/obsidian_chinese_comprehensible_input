@@ -599,6 +599,14 @@
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
+.cci-popup-grammar {
+  margin-top: 0.4rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
 
 /* iOS Obsidian's mobile stylesheet sets -webkit-touch-callout: none on
    many descendants, which suppresses the long-press copy menu. Re-enable

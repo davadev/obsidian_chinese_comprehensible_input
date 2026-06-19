@@ -9,6 +9,10 @@ export interface DictionaryEntry {
   };
   frequencyRank?: number;
   pos?: string[];
+  /** Optional English grammar note. Only set when populated by an
+   *  override (manual or AI-enhanced); never present on raw CC-CEDICT
+   *  entries. Rendered below the definitions list in the word popup. */
+  grammar?: string;
 }
 
 export interface DictionaryManifest {
@@ -39,6 +43,14 @@ export interface DictionaryOverride {
   definitions?: string[];
   hsk?: { source: string; levels: string[] };
   notes?: string;
+  /** Optional English grammar note that the popup renders below the
+   *  definitions list when present. Populated by the AI "Enhance" flow
+   *  or by a future manual-edit field; absent on legacy overrides. */
+  grammar?: string;
+  /** How this override was produced. "user" = typed in EditDictionaryModal;
+   *  "ai" = produced by EnhanceDictionaryService. Optional for backward
+   *  compatibility with overrides written before this field existed. */
+  source?: "user" | "ai";
   updatedAt: string;
 }
 

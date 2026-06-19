@@ -1,18 +1,26 @@
-import { Platform } from "obsidian";
+import { Notice, Platform } from "obsidian";
 import type CciPlugin from "../main";
 import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { axesFromStatus } from "../vocabulary/axes";
 import { promptAsync } from "./confirmInput";
+import { DictionaryEntry } from "../dictionary/DictionaryTypes";
+import { makeKey } from "../dictionary/normalizeChinese";
 
 export class WordPopup {
   private el: HTMLElement | null = null;
   private outsideHandler: ((e: MouseEvent) => void) | null = null;
+  /** Sentence the clicked word was found in. Populated by the
+   *  wordInteractionPlugin so the AI "Enhance" action has context to
+   *  tune the rewritten dictionary entry. Empty when the click didn't
+   *  resolve to a sentence (e.g. lone word in a heading). */
+  private sentence = "";
 
   constructor(private plugin: CciPlugin) {}
 
-  open(surface: string, anchor: HTMLElement, _ev: Event): void {
+  open(surface: string, anchor: HTMLElement, _ev: Event, sentence?: string): void {
     this.close();
     (activeDocument.activeElement as HTMLElement | null)?.blur?.();
+    this.sentence = (sentence ?? "").trim();
     const rec = this.plugin.vocab.ensure(surface);
 
     if (this.plugin.settings.exposure.popupCountsAsExposure) {
@@ -91,6 +99,10 @@ export class WordPopup {
       defs.createEl("div", { text: `🧠 ${rec.mnemonic.text}` });
     }
     for (const d of dictTop?.definitions ?? rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
+    const grammar = dictTop?.grammar;
+    if (grammar) {
+      defs.createDiv({ cls: "cci-popup-grammar", text: `Grammar: ${grammar}` });
+    }
 
     // Knowledge checkboxes — the primary marking control.
     this.renderAxesCheckboxes(el, rec);
@@ -118,6 +130,85 @@ export class WordPopup {
     });
     this.action(actions, "Mnemonic…", () => void this.openMnemonicPrompt(rec));
     this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
+    this.maybeRenderEnhance(actions, rec);
+    this.maybeRenderRevert(actions, rec);
+  }
+
+  /** "Enhance" button — only shown when AI is enabled, a sentence was
+   *  captured at click time, and the word has a native dictionary entry
+   *  the override can attach to. Custom-only words are excluded because
+   *  their storage is the custom-word map, not the override map. */
+  private maybeRenderEnhance(parent: HTMLElement, rec: WordRecord): void {
+    if (!this.plugin.settings.ai.enabled) return;
+    if (!this.sentence) return;
+    const surface = rec.surfaces[0];
+    const raw = this.plugin.dictionary.lookupRaw(surface);
+    const rawTop = raw[0];
+    if (!rawTop) return;
+    const merged = this.plugin.dictionary.lookup(surface)[0] ?? rawTop;
+    const btn = parent.createEl("button", { text: "Enhance" });
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void this.runEnhance(btn, rawTop, merged, surface);
+    });
+  }
+
+  /** "Revert" button — only shown when an override exists for the top
+   *  native entry. Deletes the override so the next lookup falls back to
+   *  CC-CEDICT. Manual-edit overrides revert the same way. */
+  private maybeRenderRevert(parent: HTMLElement, rec: WordRecord): void {
+    const surface = rec.surfaces[0];
+    const raw = this.plugin.dictionary.lookupRaw(surface);
+    const rawTop = raw[0];
+    if (!rawTop) return;
+    const key = makeKey(rawTop.simplified, rawTop.pinyin);
+    if (!this.plugin.dictionaryOverrides[key]) return;
+    const btn = parent.createEl("button", { text: "Revert" });
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      void this.runRevert(key);
+    });
+  }
+
+  private async runEnhance(
+    btn: HTMLButtonElement,
+    rawTop: DictionaryEntry,
+    merged: DictionaryEntry,
+    surface: string
+  ): Promise<void> {
+    btn.disabled = true;
+    const originalLabel = btn.textContent ?? "Enhance";
+    btn.textContent = "Enhancing…";
+    try {
+      const result = await this.plugin.enhance.enhance({
+        surface,
+        pinyin: merged.pinyin ?? rawTop.pinyin,
+        traditional: merged.traditional ?? rawTop.traditional,
+        currentDefinitions: merged.definitions ?? rawTop.definitions ?? [],
+        sentence: this.sentence,
+      });
+      const key = makeKey(rawTop.simplified, rawTop.pinyin);
+      const allowPinyin = !!this.plugin.settings.ai.enhanceCanRewritePinyin;
+      await this.plugin.setDictionaryOverride(key, {
+        pinyin: allowPinyin ? result.pinyin : undefined,
+        definitions: result.definitions,
+        grammar: result.grammar,
+        source: "ai",
+        updatedAt: new Date().toISOString(),
+      });
+      new Notice("Dictionary entry enhanced.");
+      this.refresh();
+    } catch (err) {
+      new Notice(`Enhance failed: ${(err as Error).message}`);
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
+  }
+
+  private async runRevert(key: string): Promise<void> {
+    await this.plugin.deleteDictionaryOverride(key);
+    new Notice("Reverted to original dictionary entry.");
+    this.refresh();
   }
 
   private openDictionaryEditor(rec: WordRecord): void {

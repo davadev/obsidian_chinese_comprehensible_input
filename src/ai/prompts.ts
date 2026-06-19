@@ -83,3 +83,62 @@ export const STORY_SCHEMA = {
     textChinese: { type: "string" },
   },
 };
+
+/**
+ * System prompt for the "Enhance dictionary entry" feature on the word
+ * popup. The model rewrites a CC-CEDICT entry so the FIRST gloss best
+ * reflects the meaning the word carries in the supplied sentence,
+ * without cherry-picking a rare sense that happens to fit. Grammar field
+ * is only included when the word has notable grammar for a learner.
+ */
+export const ENHANCE_SYSTEM_PROMPT =
+  "You are a precise bilingual Chinese-English lexicographer. " +
+  "You rewrite a single CC-CEDICT-style dictionary entry so its FIRST definition reflects the meaning the word carries in the supplied sentence, without cherry-picking a rare or context-specific sense. " +
+  "Subsequent definitions list other common senses, ordered by general frequency. " +
+  "If — and only if — the word has notable grammar a learner needs (measure word, separable verb, aspect particle, classifier, resultative complement, etc.), include a short English grammar note. " +
+  "Otherwise omit the grammar field entirely. " +
+  "Output strict JSON only matching this shape: " +
+  "{\"definitions\":string[],\"grammar\"?:string}. " +
+  "Rules: definitions is required and contains at least one English gloss; do not invent rare senses just because the sentence is unusual; keep each definition under 80 chars; never include Chinese in the JSON values; no prose before or after; no markdown code fences.";
+
+/** Extra clause appended when the user has opted into letting the AI
+ *  rewrite pinyin (e.g. to disambiguate polyphone readings from
+ *  context). Off by default — see `ai.enhanceCanRewritePinyin`. */
+export const ENHANCE_PINYIN_CLAUSE =
+  " You MAY also return \"pinyin\": \"tone-marked pinyin\" if the sentence disambiguates a polyphone reading. Otherwise omit pinyin.";
+
+export function buildEnhanceUserPrompt(args: {
+  surface: string;
+  pinyin: string;
+  traditional?: string;
+  currentDefinitions: string[];
+  sentence: string;
+}): string {
+  const defsBlock = args.currentDefinitions.length
+    ? args.currentDefinitions.map((d) => `  - ${d}`).join("\n")
+    : "  (none)";
+  const trad =
+    args.traditional && args.traditional !== args.surface ? args.traditional : "(same)";
+  return (
+    `Word: ${args.surface}\n` +
+    `Pinyin: ${args.pinyin || "(unknown)"}\n` +
+    `Traditional: ${trad}\n` +
+    `Current dictionary entry (one per line):\n${defsBlock}\n` +
+    `Sentence the word appears in:\n  ${args.sentence}\n\n` +
+    `Rewrite the entry per the system rules. Reply with JSON only.`
+  );
+}
+
+export function buildEnhanceSchema(includePinyin: boolean): object {
+  const properties: Record<string, unknown> = {
+    definitions: { type: "array", items: { type: "string" }, minItems: 1 },
+    grammar: { type: "string" },
+  };
+  if (includePinyin) properties.pinyin = { type: "string" };
+  return {
+    type: "object",
+    required: ["definitions"],
+    additionalProperties: false,
+    properties,
+  };
+}

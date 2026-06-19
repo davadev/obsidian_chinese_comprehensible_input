@@ -124,6 +124,15 @@ export interface AiSettings {
    *  config is preserved verbatim so toggling is lossless. */
   provider: AiProviderKind;
   ollama: AiOllamaConfig;
+  /**
+   * Whether the "Enhance dictionary entry" popup action is allowed to
+   * rewrite the pinyin field. Off by default — pinyin in this plugin is
+   * canonical from CC-CEDICT and the model can hallucinate readings.
+   * When on, the schema accepts an optional `pinyin` field and the
+   * system prompt invites the model to fill it for polyphone
+   * disambiguation.
+   */
+  enhanceCanRewritePinyin: boolean;
   /** Append-only log of token-usage entries. Pruned to last 35 days. */
   usageLog: AiUsageEntry[];
   /**

@@ -89,6 +89,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
       suppressThinking: true,
       stream: true,
     },
+    enhanceCanRewritePinyin: false,
     usageLog: [],
     debug: false,
   },
