@@ -287,11 +287,12 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           if (isRangeExcluded(excluded, start, end)) continue;
           const target = m[1].trim();
           const alias = m[2]?.trim();
+          const formatMode = plugin.activeViewMode() === "format";
           items.push({
             from: start,
             to: end,
             deco: Decoration.replace({
-              widget: new WikilinkWidget(plugin, target, alias),
+              widget: new WikilinkWidget(plugin, target, alias, formatMode, end - start),
             }),
           });
         }
@@ -310,11 +311,12 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           const end = start + m[0].length;
           if (isRangeExcluded(excluded, start, end)) continue;
           const target = m[1].trim();
+          const formatMode = plugin.activeViewMode() === "format";
           items.push({
             from: start,
             to: end,
             deco: Decoration.replace({
-              widget: new EmbedWidget(plugin, target),
+              widget: new EmbedWidget(plugin, target, formatMode, end - start),
             }),
           });
         }
@@ -520,11 +522,21 @@ class HrWidget extends WidgetType {
   }
 }
 
+/** In format mode, mark a link widget as a clickable selection target spanning
+ *  the WHOLE link markup (so a highlight snaps over the entire link). */
+function markFormatTarget(el: HTMLElement, surface: string, docLen: number): void {
+  el.classList.add("cci-word");
+  el.setAttribute("data-cci-surface", surface);
+  el.setAttribute("data-cci-doclen", String(docLen));
+}
+
 class WikilinkWidget extends WidgetType {
   constructor(
     private plugin: CciPlugin,
     private target: string,
-    private alias?: string
+    private alias: string | undefined,
+    private formatMode = false,
+    private docLen = 0
   ) {
     super();
   }
@@ -534,10 +546,16 @@ class WikilinkWidget extends WidgetType {
     el.textContent = this.alias || this.target;
     el.setAttribute("title", `Open: ${this.target}`);
     attachOpenInChineseView(el, this.plugin, this.target);
+    if (this.formatMode) markFormatTarget(el, this.alias || this.target, this.docLen);
     return el;
   }
   eq(other: WikilinkWidget): boolean {
-    return other.target === this.target && other.alias === this.alias;
+    return (
+      other.target === this.target &&
+      other.alias === this.alias &&
+      other.formatMode === this.formatMode &&
+      other.docLen === this.docLen
+    );
   }
   ignoreEvent(): boolean {
     // True = editor stays out, widget's own listeners handle the click.
@@ -546,7 +564,12 @@ class WikilinkWidget extends WidgetType {
 }
 
 class EmbedWidget extends WidgetType {
-  constructor(private plugin: CciPlugin, private target: string) {
+  constructor(
+    private plugin: CciPlugin,
+    private target: string,
+    private formatMode = false,
+    private docLen = 0
+  ) {
     super();
   }
   toDOM(): HTMLElement {
@@ -557,6 +580,7 @@ class EmbedWidget extends WidgetType {
       img.className = "cci-md-embed-img";
       img.src = this.plugin.app.vault.getResourcePath(file);
       img.alt = this.target;
+      if (this.formatMode) markFormatTarget(img, this.target, this.docLen);
       return img;
     }
     // Note embed: clickable card that opens the note in the Chinese
@@ -565,10 +589,15 @@ class EmbedWidget extends WidgetType {
     card.className = "cci-md-embed cci-md-embed-card";
     card.textContent = file ? file.basename : this.target;
     attachOpenInChineseView(card, this.plugin, this.target);
+    if (this.formatMode) markFormatTarget(card, file ? file.basename : this.target, this.docLen);
     return card;
   }
   eq(other: EmbedWidget): boolean {
-    return other.target === this.target;
+    return (
+      other.target === this.target &&
+      other.formatMode === this.formatMode &&
+      other.docLen === this.docLen
+    );
   }
   ignoreEvent(): boolean {
     return true;

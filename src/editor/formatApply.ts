@@ -51,6 +51,16 @@ export interface FormatChange {
   insert: string;
 }
 
+/**
+ * Sort order CodeMirror requires: by `from`, and at the same position a
+ * zero-width insert before a replace (so e.g. a block prefix inserted at a line
+ * start sits before the inline wrap that starts there — adjacent, not
+ * overlapping).
+ */
+function byPos(a: FormatChange, b: FormatChange): number {
+  return a.from - b.from || (a.to - a.from) - (b.to - b.from);
+}
+
 /** A highlight is the plain `==` option or a colored `hl:<slug>` option. */
 export function isHighlight(id: string): boolean {
   return id === "highlight" || id.startsWith("hl:");
@@ -194,7 +204,7 @@ export function buildFormatChanges(
     changes.push(...blockPrefixChanges(doc, from, to, BLOCK_PREFIX[block], inline.length > 0));
   }
 
-  changes.sort((a, b) => a.from - b.from);
+  changes.sort(byPos);
   return changes;
 }
 
@@ -229,7 +239,7 @@ export function buildSetFormatChanges(
   const desired = block ? BLOCK_PREFIX[block] : "";
   changes.push(...blockPrefixChanges(doc, from, to, desired, inlinePresent));
 
-  changes.sort((a, b) => a.from - b.from);
+  changes.sort(byPos);
   return changes;
 }
 
@@ -308,16 +318,25 @@ export function buildRemoveFormatChanges(
   const desired = existing && !removeThisBlock ? existing : "";
   changes.push(...blockPrefixChanges(doc, from, to, desired, inlinePresent));
 
-  changes.sort((a, b) => a.from - b.from);
+  changes.sort(byPos);
   return changes;
 }
 
-/** Apply a sorted, non-overlapping `FormatChange[]` to a string (for guards/tests). */
+/**
+ * Apply a `FormatChange[]` to a string the way CodeMirror composes a change set:
+ * ascending by position (zero-width inserts before replaces at the same spot),
+ * accumulating left→right. Deterministic even when an insert and a replace share
+ * a `from` (e.g. a block prefix at a line start + the inline wrap there).
+ */
 export function applyChangesToString(doc: string, changes: FormatChange[]): string {
-  let out = doc;
-  for (const c of [...changes].sort((a, b) => b.from - a.from)) {
-    out = out.slice(0, c.from) + c.insert + out.slice(c.to);
+  const sorted = [...changes].sort(byPos);
+  let out = "";
+  let pos = 0;
+  for (const c of sorted) {
+    out += doc.slice(pos, c.from) + c.insert;
+    pos = c.to;
   }
+  out += doc.slice(pos);
   return out;
 }
 

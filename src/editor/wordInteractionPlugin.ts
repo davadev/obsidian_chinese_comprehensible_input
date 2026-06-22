@@ -122,9 +122,14 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         target: HTMLElement,
         surface: string
       ): { start: number; end: number } | null {
+        // doclen is the target's length in the DOCUMENT — equals surface length
+        // for words, but for a link widget it's the full `[[…]]`/`![[…]]`/
+        // `[text](url)` markup so the selection snaps over the whole link.
+        const docLen = Number(target.getAttribute("data-cci-doclen"));
+        const len = Number.isNaN(docLen) ? surface.length : docLen;
         try {
           const start = this.view.posAtDOM(target);
-          if (start >= 0) return { start, end: start + surface.length };
+          if (start >= 0) return { start, end: start + len };
         } catch {
           /* fall through to attributes */
         }
