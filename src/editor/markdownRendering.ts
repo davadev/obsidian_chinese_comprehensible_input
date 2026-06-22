@@ -613,6 +613,9 @@ function attachOpenInChineseView(
   const handler = (ev: Event) => {
     ev.preventDefault();
     ev.stopPropagation();
+    // Don't navigate while an interactive mode is active (format / mark-* /
+    // select) — the tap is a tool action, not a link follow.
+    if (plugin.isInteractiveMode()) return;
     const file = resolveLinkpath(plugin, target);
     if (file && file.extension === "md") {
       void plugin.openFileInChineseView(file);
@@ -641,6 +644,8 @@ export function markdownLinkClickHandler(plugin: CciPlugin) {
       if (!href) return false;
       ev.preventDefault();
       ev.stopPropagation();
+      // Suppress navigation during interactive modes (tap = tool action).
+      if (plugin.isInteractiveMode()) return true;
       openHref(plugin, href);
       return true;
     },
@@ -648,6 +653,8 @@ export function markdownLinkClickHandler(plugin: CciPlugin) {
 }
 
 export function openHref(plugin: CciPlugin, href: string): void {
+  // Defensive: never navigate while an interactive mode is active.
+  if (plugin.isInteractiveMode()) return;
   if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) {
     window.open(href, "_blank", "noopener,noreferrer");
     return;
