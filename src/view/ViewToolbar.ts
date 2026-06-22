@@ -25,6 +25,7 @@ const FORMAT_ORDER: FormatId[] = [
 export class ViewToolbar {
   private bannerEl: HTMLElement | null = null;
   private statsEl: HTMLElement | null = null;
+  private formatLabelEl: HTMLElement | null = null;
   private getDocText: () => string;
 
   constructor(
@@ -249,14 +250,21 @@ export class ViewToolbar {
     });
   }
 
+  private formatBannerText(): string {
+    const enabled = this.plugin.settings.enabledFormats;
+    const pending = this.plugin.pendingFormatStart != null;
+    const endHint = pending ? "tap the end word" : "tap start word, then end word";
+    if (enabled.length === 0) {
+      return `Formatting (remove) — ${endHint} to clear formatting`;
+    }
+    const names = enabled.map((f) => FORMAT_LABELS[f]).join(", ");
+    return `Formatting (${names}) — ${endHint}`;
+  }
+
   private renderFormatBanner() {
     if (!this.bannerEl) return;
     const banner = this.bannerEl.createDiv({ cls: "cci-banner is-format" });
-    const enabled = this.plugin.settings.enabledFormats;
-    const names = enabled.map((f) => FORMAT_LABELS[f]).join(", ") || "none selected";
-    const pending = this.plugin.pendingFormatStart != null;
-    const hint = pending ? "tap the end word" : "tap start word, then end word";
-    banner.createSpan({ text: `Formatting (${names}) — ${hint}` });
+    this.formatLabelEl = banner.createSpan({ text: this.formatBannerText() });
 
     const formatsBtn = banner.createEl("button", { text: "Formats ▾" });
     let menu: HTMLElement | null = null;
@@ -267,7 +275,9 @@ export class ViewToolbar {
         menu = null;
         return;
       }
-      menu = this.buildFormatMenu(formatsBtn);
+      menu = this.buildFormatMenu(formatsBtn, () => {
+        menu = null;
+      });
     });
 
     const exit = banner.createEl("button", { text: "Exit" });
@@ -277,7 +287,7 @@ export class ViewToolbar {
     });
   }
 
-  private buildFormatMenu(anchor: HTMLElement): HTMLElement {
+  private buildFormatMenu(anchor: HTMLElement, onClose: () => void): HTMLElement {
     const menu = activeDocument.createElement("div");
     menu.className = "cci-overflow-menu";
     activeDocument.body.appendChild(menu);
@@ -288,6 +298,7 @@ export class ViewToolbar {
     const close = () => {
       menu.remove();
       activeDocument.removeEventListener("click", onDocClick, true);
+      onClose();
     };
     const onDocClick = (ev: MouseEvent) => {
       if (!menu.contains(ev.target as Node) && ev.target !== anchor) close();
@@ -295,39 +306,44 @@ export class ViewToolbar {
     // Defer so the opening click doesn't immediately close it.
     window.setTimeout(() => activeDocument.addEventListener("click", onDocClick, true), 0);
 
-    const hint = menu.createDiv({ cls: "cci-overflow-hint" });
-    hint.setText("Formats to apply");
+    // Rebuild the rows in place after each toggle so conflict states refresh
+    // without destroying the menu (which would detach the anchor and reposition
+    // the popup at the top-left corner).
+    const populate = () => {
+      menu.empty();
+      const hint = menu.createDiv({ cls: "cci-overflow-hint" });
+      hint.setText("Formats to apply (none = remove)");
 
-    for (const id of FORMAT_ORDER) {
-      const enabled = this.plugin.settings.enabledFormats;
-      const item = menu.createDiv({ cls: "cci-overflow-item" });
-      const cb = item.createEl("input", { type: "checkbox" });
-      cb.checked = enabled.includes(id);
-      cb.disabled = conflictDisabled(id, enabled);
-      item.createSpan({ text: FORMAT_LABELS[id] });
-      if (cb.disabled) item.addClass("is-disabled");
-      const toggle = () => {
-        if (cb.disabled) return;
-        void (async () => {
-          const cur = this.plugin.settings.enabledFormats;
-          this.plugin.settings.enabledFormats = cb.checked
-            ? [...cur, id]
-            : cur.filter((f) => f !== id);
-          await this.plugin.saveSettings();
-          // Rebuild so conflict states + banner label refresh.
-          close();
-          this.updateBanner();
-          this.buildFormatMenu(anchor);
-        })();
-      };
-      cb.addEventListener("change", toggle);
-      item.addEventListener("click", (ev) => {
-        if (ev.target !== cb && !cb.disabled) {
-          cb.checked = !cb.checked;
-          toggle();
-        }
-      });
-    }
+      for (const id of FORMAT_ORDER) {
+        const enabled = this.plugin.settings.enabledFormats;
+        const item = menu.createDiv({ cls: "cci-overflow-item" });
+        const cb = item.createEl("input", { type: "checkbox" });
+        cb.checked = enabled.includes(id);
+        cb.disabled = conflictDisabled(id, enabled);
+        item.createSpan({ text: FORMAT_LABELS[id] });
+        if (cb.disabled) item.addClass("is-disabled");
+        const toggle = () => {
+          if (cb.disabled) return;
+          void (async () => {
+            const cur = this.plugin.settings.enabledFormats;
+            this.plugin.settings.enabledFormats = cb.checked
+              ? [...cur, id]
+              : cur.filter((f) => f !== id);
+            await this.plugin.saveSettings();
+            populate();
+            if (this.formatLabelEl) this.formatLabelEl.setText(this.formatBannerText());
+          })();
+        };
+        cb.addEventListener("change", toggle);
+        item.addEventListener("click", (ev) => {
+          if (ev.target !== cb && !cb.disabled) {
+            cb.checked = !cb.checked;
+            toggle();
+          }
+        });
+      }
+    };
+    populate();
     return menu;
   }
 

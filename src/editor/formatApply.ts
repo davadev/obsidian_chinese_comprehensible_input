@@ -145,3 +145,54 @@ export function buildFormatChanges(
   changes.sort((a, b) => a.from - b.from);
   return changes;
 }
+
+/** Characters that make up the inline delimiters we strip when unformatting. */
+const INLINE_DELIM_CHARS = new Set(["*", "=", "~", "`"]);
+
+/** Remove inline delimiter runs (`**` `*` `==` `~~` `` ` ``) from a slice. */
+function stripInlineDelims(s: string): string {
+  return s
+    .replace(/\*\*/g, "")
+    .replace(/==/g, "")
+    .replace(/~~/g, "")
+    .replace(/\*/g, "")
+    .replace(/`/g, "");
+}
+
+/**
+ * Build changes that strip markdown formatting from the span [from, to) — used
+ * when the formatting mode has nothing armed. Expands over delimiters that sit
+ * just outside the tapped words (so `==你好==` clears cleanly when 你 and 好 are
+ * tapped) and removes heading / quote line prefixes on covered lines.
+ */
+export function buildUnformatChanges(doc: string, from: number, to: number): FormatChange[] {
+  if (from > to) [from, to] = [to, from];
+
+  // Expand outward over adjacent inline delimiter characters.
+  let s = from;
+  let e = to;
+  while (s > 0 && INLINE_DELIM_CHARS.has(doc[s - 1])) s--;
+  while (e < doc.length && INLINE_DELIM_CHARS.has(doc[e])) e++;
+
+  const changes: FormatChange[] = [];
+  const region = doc.slice(s, e);
+  const cleaned = stripInlineDelims(region);
+  const hasInline = cleaned !== region;
+  if (hasInline) changes.push({ from: s, to: e, insert: cleaned });
+
+  // Block prefixes live at line starts (≤ from). Strip them, but when an inline
+  // change is present skip interior lines (ls > from) to avoid overlapping it.
+  let lineStart = doc.lastIndexOf("\n", from - 1) + 1;
+  const lineStarts: number[] = [lineStart];
+  for (let i = from; i < to; i++) if (doc[i] === "\n") lineStarts.push(i + 1);
+  for (const ls of lineStarts) {
+    if (hasInline && ls > from) continue;
+    const nl = doc.indexOf("\n", ls);
+    const lineEnd = nl === -1 ? doc.length : nl;
+    const m = /^(#{1,6}[ \t]+|>[ \t]?)/.exec(doc.slice(ls, lineEnd));
+    if (m) changes.push({ from: ls, to: ls + m[1].length, insert: "" });
+  }
+
+  changes.sort((a, b) => a.from - b.from);
+  return changes;
+}

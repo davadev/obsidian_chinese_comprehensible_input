@@ -936,10 +936,11 @@ export default class CciPlugin extends Plugin {
       .getLeavesOfType(VIEW_TYPE_CHINESE)
       .map((l) => l.view)
       .find((v): v is ChineseTextFileView => v instanceof ChineseTextFileView);
-    if (!view || formats.length === 0) {
+    if (!view) {
       this.refreshChineseViewToolbars();
       return;
     }
+    // Empty `formats` is intentional: it strips existing formatting from the span.
     view.applyFormatToRange(start, endPos, formats);
     this.refreshChineseViewToolbars();
   }

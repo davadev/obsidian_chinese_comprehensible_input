@@ -10,7 +10,7 @@ import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
-import { buildFormatChanges } from "../editor/formatApply";
+import { buildFormatChanges, buildUnformatChanges } from "../editor/formatApply";
 import type { FormatId } from "../settings/types";
 
 /**
@@ -505,7 +505,11 @@ export class ChineseTextFileView extends TextFileView {
   applyFormatToRange(from: number, to: number, formats: FormatId[]): void {
     if (!this.editor) return;
     const doc = this.editor.state.doc.toString();
-    const changes = buildFormatChanges(doc, from, to, formats);
+    // Nothing armed = strip existing formatting from the span.
+    const changes =
+      formats.length === 0
+        ? buildUnformatChanges(doc, from, to)
+        : buildFormatChanges(doc, from, to, formats);
     if (changes.length === 0) return;
     this.editor.dispatch({
       changes,
