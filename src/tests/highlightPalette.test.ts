@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { App } from "obsidian";
 import {
   DEFAULT_HIGHLIGHT_PALETTE,
+  findHighlightSpans,
   highlightColorForId,
   highlightWrap,
   parseMarkColor,
@@ -84,6 +85,42 @@ describe("resolveHighlightPalette", () => {
     const out = resolveHighlightPalette(app, DEFAULT_SETTINGS);
     expect(out.map((c) => c.slug)).toEqual(["sky", "lime"]);
     expect(out[0]).toMatchObject({ color: "#aaddff", source: "highlightr" });
+  });
+});
+
+describe("findHighlightSpans", () => {
+  const pink: HighlightColor = {
+    slug: "pink",
+    label: "Pink",
+    color: "#FFB8EBA6",
+    source: "default",
+  };
+
+  it("finds a plain == span with no color", () => {
+    const text = "我==爱学==中";
+    const spans = findHighlightSpans(text, []);
+    expect(spans).toHaveLength(1);
+    expect(text.slice(spans[0].contentFrom, spans[0].contentTo)).toBe("爱学");
+    expect(spans[0].color).toBeUndefined();
+  });
+
+  it("finds a colored <mark> span", () => {
+    const text = '前<mark style="background:#FFB8EBA6;">爱学</mark>后';
+    const spans = findHighlightSpans(text, []);
+    expect(spans).toHaveLength(1);
+    expect(text.slice(spans[0].contentFrom, spans[0].contentTo)).toBe("爱学");
+    expect(spans[0].color).toBe("#FFB8EBA6");
+  });
+
+  it("resolves hltr class marks via the palette", () => {
+    const text = '<mark class="hltr-pink">字</mark>';
+    const spans = findHighlightSpans(text, [pink]);
+    expect(spans[0].color).toBe("#FFB8EBA6");
+  });
+
+  it("ignores colorless marks and empty content", () => {
+    expect(findHighlightSpans("<mark>字</mark>", [])).toEqual([]);
+    expect(findHighlightSpans("<mark></mark>", [])).toEqual([]);
   });
 });
 

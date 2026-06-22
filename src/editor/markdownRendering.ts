@@ -13,7 +13,7 @@ import { setIcon, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { cciRedecorateEffect } from "./chineseDecorations";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
-import { parseMarkColor, resolveHighlightPalette, type HighlightColor } from "./highlightPalette";
+import { findHighlightSpans, resolveHighlightPalette, type HighlightColor } from "./highlightPalette";
 
 /**
  * Hide markdown syntax characters and turn links into clickable widgets
@@ -86,19 +86,16 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // directly.
           this.scanHr(slice, from, items);
 
-          // Obsidian/extended-markdown `==highlight==` is not parsed by
-          // lang-markdown — handle it with a regex pass like wikilinks.
-          this.scanHighlights(slice, from, excluded, items);
-
-          // Highlightr-style colored highlights: `<mark style="background:…">`
-          // and `<mark class="hltr-…">` (#21 phase 2).
-          this.scanColoredHighlights(slice, from, excluded, items, palette);
-
           // Things-theme style task checkboxes (`- [c]`). lang-markdown
           // only parses standard GFM `[ ]` / `[x]` so we scan for the
           // full alphabet of characters the user supports.
           this.scanTasks(slice, from, excluded, items);
         }
+
+        // Highlights (`==…==` and Highlightr `<mark …>`) — emitted once over the
+        // whole doc from the shared detector so the markdown renderer and the
+        // Chinese decorations agree on spans.
+        this.emitHighlights(text, excluded, items, palette);
 
         items.sort((a, b) => (a.from - b.from) || (a.to - b.to));
 
@@ -343,63 +340,24 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         }
       }
 
-      scanHighlights(
-        slice: string,
-        offset: number,
-        excluded: ReturnType<typeof computeExcludedRanges>,
-        items: Array<{ from: number; to: number; deco: Decoration }>
-      ): void {
-        // Match `==text==` with at least one non-whitespace character
-        // inside. Greedy across spaces but stops at newlines and `=`.
-        const re = /==([^=\n]+?)==/g;
-        let m: RegExpExecArray | null;
-        while ((m = re.exec(slice))) {
-          const start = offset + m.index;
-          const end = start + m[0].length;
-          if (isRangeExcluded(excluded, start, end)) continue;
-          const innerStart = start + 2;
-          const innerEnd = end - 2;
-          items.push({ from: start, to: innerStart, deco: HIDE });
-          items.push({
-            from: innerStart,
-            to: innerEnd,
-            deco: Decoration.mark({ class: "cci-md-highlight" }),
-          });
-          items.push({ from: innerEnd, to: end, deco: HIDE });
-        }
-      }
-
-      scanColoredHighlights(
-        slice: string,
-        offset: number,
+      emitHighlights(
+        text: string,
         excluded: ReturnType<typeof computeExcludedRanges>,
         items: Array<{ from: number; to: number; deco: Decoration }>,
         palette: HighlightColor[]
       ): void {
-        // `<mark …>text</mark>` — non-greedy inner, no nested marks.
-        const re = /<mark\b([^>]*)>([\s\S]*?)<\/mark>/gi;
-        let m: RegExpExecArray | null;
-        while ((m = re.exec(slice))) {
-          const start = offset + m.index;
-          const openLen = m[1].length + "<mark>".length; // `<mark` + attrs + `>`
-          const innerStart = start + openLen;
-          const innerEnd = innerStart + m[2].length;
-          const end = innerEnd + "</mark>".length;
-          if (m[2].length === 0) continue; // empty <mark></mark>
-          // Skip when the inner text sits in an excluded context (code, math…).
-          if (isRangeExcluded(excluded, innerStart, innerEnd)) continue;
-          const color = parseMarkColor(m[1], palette);
-          if (!color) continue;
-          items.push({ from: start, to: innerStart, deco: HIDE });
-          items.push({
-            from: innerStart,
-            to: innerEnd,
-            deco: Decoration.mark({
-              class: "cci-md-highlight cci-md-colored",
-              attributes: { style: `background-color:${color};` },
-            }),
-          });
-          items.push({ from: innerEnd, to: end, deco: HIDE });
+        for (const span of findHighlightSpans(text, palette)) {
+          // Skip when the content sits in an excluded context (code, math…).
+          if (isRangeExcluded(excluded, span.contentFrom, span.contentTo)) continue;
+          const deco = span.color
+            ? Decoration.mark({
+                class: "cci-md-highlight cci-md-colored",
+                attributes: { style: `background-color:${span.color};` },
+              })
+            : Decoration.mark({ class: "cci-md-highlight" });
+          items.push({ from: span.openFrom, to: span.contentFrom, deco: HIDE });
+          items.push({ from: span.contentFrom, to: span.contentTo, deco });
+          items.push({ from: span.contentTo, to: span.closeTo, deco: HIDE });
         }
       }
 

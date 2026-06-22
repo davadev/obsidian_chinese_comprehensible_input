@@ -18,6 +18,7 @@ import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes
 import { CciSettings, DisplayMode } from "../settings/types";
 import { hasCjk, shortenDefinition, toneMarksToNumbers } from "../dictionary/normalizeChinese";
 import { axesFromStatus, colorClassKey, ColorClassKey, colorOf } from "../vocabulary/axes";
+import { DEFAULT_HIGHLIGHT_BG, findHighlightSpans, resolveHighlightPalette } from "./highlightPalette";
 
 /**
  * Symbol passed via ViewPlugin's compartment-side facet to share the plugin instance.
@@ -169,6 +170,21 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const exclusions = this.lastText === text ? this.lastExclusions : computeExcludedRanges(text);
         const builder = new RangeSetBuilder<Decoration>();
         const ranges = view.visibleRanges;
+        // Highlight spans so annotated (ruby) words can tint their characters —
+        // a Decoration.mark background is otherwise dropped under the replace
+        // widget. Plain-mark words still get the background from the markdown
+        // renderer's overlay.
+        const palette = resolveHighlightPalette(plugin.app, settings);
+        const highlightSpans = findHighlightSpans(text, palette);
+        const highlightBgAt = (tok: Token): string | undefined => {
+          for (const s of highlightSpans) {
+            if (s.openFrom > tok.start) break; // spans sorted by openFrom
+            if (tok.start >= s.contentFrom && tok.end <= s.contentTo) {
+              return s.color ?? DEFAULT_HIGHLIGHT_BG;
+            }
+          }
+          return undefined;
+        };
         // Cache heading level per line so multi-token heading lines don't
         // re-parse. Computed lazily on first hit.
         const headingByLine = new Map<number, number>();
@@ -192,7 +208,14 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             if (tok.start >= range.to) break;
             if (!tok.isWord || tok.candidates.length === 0) continue;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
-            this.emitDecoration(builder, tok, settings, plugin, headingLevelAt(tok.start));
+            this.emitDecoration(
+              builder,
+              tok,
+              settings,
+              plugin,
+              headingLevelAt(tok.start),
+              highlightBgAt(tok)
+            );
           }
         }
         return builder.finish();
@@ -210,7 +233,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         tok: Token,
         settings: CciSettings,
         plugin: CciPlugin,
-        headingLevel: number
+        headingLevel: number,
+        highlightBg: string | undefined
       ) {
         const rec = plugin.vocab.bySurface(tok.surface);
         const statusColor: ColorState = colorOf(rec);
@@ -219,14 +243,15 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const colorKey = colorClassKey(rec, settings.colorMode, settings.hskSource);
 
         const editMode = plugin.activeViewMode() === "edit";
-        // Format mode wraps spans by tapping the start/end word, so words must
-        // stay as plain clickable marks (not ruby widgets) and expose their
-        // document offsets.
+        // Format mode taps the start/end word, so words must be clickable and
+        // expose their document offsets — but the ruby annotations should stay
+        // visible, so we keep the display mode and add the offsets to the ruby
+        // widget (and to the fallback mark below) rather than forcing plain text.
         const formatMode = plugin.activeViewMode() === "format";
         // In edit mode we must NOT replace text with widgets; otherwise typing
         // and cursor placement break. Force "none" so only a mark decoration
-        // is applied — characters stay editable. Format mode does the same.
-        const mode = editMode || formatMode ? "none" : settings.defaultDisplayMode;
+        // is applied — characters stay editable.
+        const mode = editMode ? "none" : settings.defaultDisplayMode;
 
         const showColor = colorShouldShow(colorKey, settings);
 
@@ -245,7 +270,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
                 mode,
                 settings,
                 headingLevel,
-                showColor ? colorKey : undefined
+                showColor ? colorKey : undefined,
+                highlightBg
               ),
               inclusive: false,
             })
@@ -309,6 +335,8 @@ class RubyWidget extends WidgetType {
   private readonly def: string;
   private readonly showPinyin: boolean;
   private readonly showGloss: boolean;
+  private readonly start: number;
+  private readonly end: number;
 
   constructor(
     private surface: string,
@@ -317,9 +345,12 @@ class RubyWidget extends WidgetType {
     private mode: DisplayMode,
     private settings: CciSettings,
     private headingLevel: number = 0,
-    colorKey?: ColorClassKey
+    colorKey?: ColorClassKey,
+    private highlightBg?: string
   ) {
     super();
+    this.start = tok.start;
+    this.end = tok.end;
     this.color = colorOf(rec);
     this.colorKey = colorKey ?? "";
     this.axes = rec?.axes ?? axesFromStatus(rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
@@ -343,7 +374,8 @@ class RubyWidget extends WidgetType {
       other.axes.meaning === this.axes.meaning &&
       other.pinyin === this.pinyin &&
       other.def === this.def &&
-      other.headingLevel === this.headingLevel
+      other.headingLevel === this.headingLevel &&
+      other.highlightBg === this.highlightBg
     );
   }
 
@@ -374,6 +406,8 @@ class RubyWidget extends WidgetType {
     const colorCls = this.colorKey ? ` cci-color-${this.colorKey}` : "";
     stack.className = `cci-stack cci-word${colorCls}${headingCls}`;
     stack.setAttribute("data-cci-surface", this.surface);
+    stack.setAttribute("data-cci-start", String(this.start));
+    stack.setAttribute("data-cci-end", String(this.end));
     if (this.colorKey) stack.setAttribute("data-cci-color", this.colorKey);
 
     if (this.showGloss && this.def) {
@@ -390,13 +424,20 @@ class RubyWidget extends WidgetType {
     const syllables = formattedPinyin ? formattedPinyin.split(/\s+/).filter(Boolean) : [];
     const perChar = this.showPinyin && syllables.length === chars.length;
 
+    // Highlight the characters only — pinyin/gloss stay un-tinted (#21).
+    const charsCls = this.highlightBg ? "cci-stack-chars cci-stack-chars-hl" : "cci-stack-chars";
+    const tintChars = (c: HTMLElement) => {
+      if (this.highlightBg) c.style.backgroundColor = this.highlightBg;
+    };
+
     if (perChar) {
       for (let i = 0; i < chars.length; i++) {
         const cell = cells.createSpan({ cls: "cci-stack-cell" });
         const p = cell.createSpan({ cls: "cci-stack-pinyin" });
         p.textContent = syllables[i];
-        const c = cell.createSpan({ cls: "cci-stack-chars" });
+        const c = cell.createSpan({ cls: charsCls });
         c.textContent = chars[i];
+        tintChars(c);
       }
     } else {
       // Pinyin syllable count doesn't match char count → fall back to a
@@ -406,8 +447,9 @@ class RubyWidget extends WidgetType {
         const p = cell.createSpan({ cls: "cci-stack-pinyin cci-stack-pinyin-word" });
         p.textContent = formattedPinyin;
       }
-      const c = cell.createSpan({ cls: "cci-stack-chars" });
+      const c = cell.createSpan({ cls: charsCls });
       c.textContent = this.surface;
+      tintChars(c);
     }
 
     return stack;
