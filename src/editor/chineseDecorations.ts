@@ -283,16 +283,23 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           "data-cci-start": String(tok.start),
           "data-cci-end": String(tok.end),
         };
+        // In ruby modes the markdown renderer does NOT tint highlight content
+        // (it would overlap the ruby widgets), so mark-rendered words tint here.
+        const rubyMode = mode === "two-line" || mode === "three-line";
+        const hlAttrs: Record<string, string> =
+          highlightBg && rubyMode ? { style: `background-color:${highlightBg};` } : {};
+        const hlClass = highlightBg && rubyMode ? " cci-md-highlight" : "";
         if (showColor) {
           builder.add(
             tok.start,
             tok.end,
             Decoration.mark({
-              class: `cci-word cci-color-${colorKey}`,
+              class: `cci-word cci-color-${colorKey}${hlClass}`,
               attributes: {
                 "data-cci-surface": tok.surface,
                 "data-cci-color": colorKey,
                 ...posAttrs,
+                ...hlAttrs,
               },
             })
           );
@@ -304,8 +311,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             tok.start,
             tok.end,
             Decoration.mark({
-              class: "cci-word",
-              attributes: { "data-cci-surface": tok.surface, ...posAttrs },
+              class: `cci-word${hlClass}`,
+              attributes: { "data-cci-surface": tok.surface, ...posAttrs, ...hlAttrs },
             })
           );
         }

@@ -257,3 +257,34 @@ export function buildUnformatChanges(doc: string, from: number, to: number): For
   // Clearing everything is exactly "set to no formats".
   return buildSetFormatChanges(doc, from, to, []);
 }
+
+/** Apply a sorted, non-overlapping `FormatChange[]` to a string (for guards/tests). */
+export function applyChangesToString(doc: string, changes: FormatChange[]): string {
+  let out = doc;
+  for (const c of [...changes].sort((a, b) => b.from - a.from)) {
+    out = out.slice(0, c.from) + c.insert + out.slice(c.to);
+  }
+  return out;
+}
+
+/**
+ * The note's actual content with all markdown formatting removed: inline
+ * delimiters / `<mark>` tags and leading heading/quote prefixes. Formatting
+ * edits must never change this — used by `formattingPreservesContent` as a
+ * data-loss guard before any formatting transaction is dispatched.
+ */
+export function formattingPlainText(s: string): string {
+  return s
+    .split("\n")
+    .map((line) => stripInlineDelims(line.replace(/^(\s*)(?:#{1,6}[ \t]+|>[ \t]?)+/, "$1")))
+    .join("\n");
+}
+
+/**
+ * True when applying `changes` only adds/removes markup — never alters the
+ * underlying content. A formatting op that fails this would lose text and must
+ * be aborted.
+ */
+export function formattingPreservesContent(doc: string, changes: FormatChange[]): boolean {
+  return formattingPlainText(applyChangesToString(doc, changes)) === formattingPlainText(doc);
+}

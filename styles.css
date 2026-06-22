@@ -227,7 +227,11 @@
   background: var(--text-highlight-bg, rgba(255, 208, 0, 0.45));
   color: var(--text-normal);
   border-radius: 2px;
-  padding: 0 0.1em;
+  padding: 0.08em 0.1em;
+  /* Cover the full glyph height on larger lines (e.g. sub-headings) and keep
+     the background continuous across wrapped lines. */
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /* Things-theme style task checkboxes. The widget is a span containing a
@@ -345,7 +349,9 @@
 }
 .cci-stack-chars-hl {
   border-radius: 2px;
-  padding: 0 0.1em;
+  padding: 0.05em 0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 .cci-format-swatch {
   display: inline-block;
