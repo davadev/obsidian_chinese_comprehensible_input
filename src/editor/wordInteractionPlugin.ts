@@ -116,34 +116,37 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         }
       }
 
-      /** [start, end) for a tapped `.cci-word` in format mode. Prefers the baked
-       *  `data-cci-start/-end` — they are EXACT for per-character non-word marks,
-       *  whole-word marks, ruby widgets and whole-link widgets. (`posAtDOM`
-       *  resolves a tiny per-char mark to the enclosing line, not the glyph, so it
-       *  mis-positions the boundary.) The two taps of one selection happen with no
-       *  doc edit between them, so the attributes are current. Falls back to
-       *  `posAtDOM + doclen` only when the attributes are missing. */
+      /** [start, end) for a tapped `.cci-word` in format mode. The POSITION must
+       *  come from the live view (`posAtDOM`): the baked `data-cci-start/-end`
+       *  attribute strings are NOT remapped when CM6 shifts decorations through a
+       *  doc change, so right after a previous highlight they hold stale offsets
+       *  until the async re-tokenize rebuilds — using them there mis-places the
+       *  range and trips the data-loss guard. The LENGTH (`end − start`) is
+       *  shift-invariant, so we take only that from the attributes. Falls back to
+       *  the raw attributes only if `posAtDOM` can't resolve. */
       private formatSpanFor(
         target: HTMLElement,
         surface: string
       ): { start: number; end: number } | null {
         const aStart = Number(target.getAttribute("data-cci-start"));
         const aEnd = Number(target.getAttribute("data-cci-end"));
-        if (!Number.isNaN(aStart) && !Number.isNaN(aEnd)) {
-          return { start: aStart, end: aEnd };
-        }
+        const attrsOk = !Number.isNaN(aStart) && !Number.isNaN(aEnd);
         // doclen is the target's length in the DOCUMENT — equals surface length
         // for words, but for a link widget it's the full `[[…]]`/`![[…]]`/
         // `[text](url)` markup so the selection snaps over the whole link.
         const docLen = Number(target.getAttribute("data-cci-doclen"));
-        const len = Number.isNaN(docLen) ? surface.length : docLen;
+        const len = attrsOk
+          ? aEnd - aStart
+          : Number.isNaN(docLen)
+          ? surface.length
+          : docLen;
         try {
           const start = this.view.posAtDOM(target);
           if (start >= 0) return { start, end: start + len };
         } catch {
-          /* no resolvable position */
+          /* fall through to raw attributes */
         }
-        return null;
+        return attrsOk ? { start: aStart, end: aEnd } : null;
       }
 
       onClick = (ev: MouseEvent) => {

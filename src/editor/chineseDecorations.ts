@@ -266,24 +266,55 @@ export function buildChineseDecorations(plugin: CciPlugin) {
                 if (!/\S/.test(ch)) continue; // skip whitespace / newlines
                 if (inHiddenDelimiter(cs, ce)) continue; // skip hidden markup
                 const bg = rubyMode ? charBg(cs, ce) : undefined;
-                if (!formatMode && !bg) continue; // nothing to emit
-                const attributes: Record<string, string> = {};
-                let cls = "";
-                if (formatMode) {
-                  // Clickable selection boundary (only in format mode — otherwise
-                  // a tap on a digit would open a word popup).
-                  cls = "cci-word";
-                  attributes["data-cci-surface"] = ch;
-                  attributes["data-cci-start"] = String(cs);
-                  attributes["data-cci-end"] = String(ce);
-                  attributes["data-cci-doclen"] = String(ch.length);
-                }
                 if (bg) {
-                  // 1em tint cell matching the ruby char's `.cci-stack-chars`.
-                  cls = (cls ? cls + " " : "") + "cci-md-hl-cell";
-                  attributes["style"] = `background-color:${bg};`;
+                  // Render a highlighted non-word glyph through the SAME widget as
+                  // a ruby character so the tint band is pixel-identical (and
+                  // scales with the heading level). The empty-candidate fake token
+                  // means RubyWidget draws no pinyin/gloss — just the char in
+                  // `.cci-stack-chars-hl`. It still carries `cci-word` + the data
+                  // offsets, so it stays a clickable selection boundary.
+                  const ftok: Token = {
+                    start: cs,
+                    end: ce,
+                    surface: ch,
+                    isWord: false,
+                    candidates: [],
+                    confidence: 1,
+                  };
+                  builder.add(
+                    cs,
+                    ce,
+                    Decoration.replace({
+                      widget: new RubyWidget(
+                        ch,
+                        ftok,
+                        undefined,
+                        settings.defaultDisplayMode,
+                        settings,
+                        headingLevelAt(cs),
+                        undefined,
+                        bg
+                      ),
+                      inclusive: false,
+                    })
+                  );
+                } else if (formatMode) {
+                  // Not highlighted — a plain clickable selection boundary (only
+                  // in format mode; otherwise a tap on a digit would open a popup).
+                  builder.add(
+                    cs,
+                    ce,
+                    Decoration.mark({
+                      class: "cci-word",
+                      attributes: {
+                        "data-cci-surface": ch,
+                        "data-cci-start": String(cs),
+                        "data-cci-end": String(ce),
+                        "data-cci-doclen": String(ch.length),
+                      },
+                    })
+                  );
                 }
-                builder.add(cs, ce, Decoration.mark({ class: cls, attributes }));
               }
               continue;
             }
