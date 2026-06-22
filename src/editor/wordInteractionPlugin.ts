@@ -188,7 +188,7 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           const span = this.formatSpanFor(target, surface);
           if (!span) return;
           if (plugin.pendingFormatStart == null) {
-            plugin.beginFormatRange(span.start);
+            plugin.beginFormatRange(span.start, surface);
           } else {
             plugin.applyFormatRange(span.end);
           }

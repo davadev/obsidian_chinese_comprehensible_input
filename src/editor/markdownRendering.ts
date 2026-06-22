@@ -13,7 +13,12 @@ import { setIcon, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { cciRedecorateEffect } from "./chineseDecorations";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
-import { findHighlightSpans, resolveHighlightPalette, type HighlightSpan } from "./highlightPalette";
+import {
+  DEFAULT_HIGHLIGHT_BG,
+  findHighlightSpans,
+  resolveHighlightPalette,
+  type HighlightSpan,
+} from "./highlightPalette";
 
 /**
  * Hide markdown syntax characters and turn links into clickable widgets
@@ -77,6 +82,18 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         const dm = plugin.settings.defaultDisplayMode;
         const tintContent = dm !== "two-line" && dm !== "three-line";
 
+        // Background color for a link widget fully inside a highlight span — the
+        // content `Decoration.mark` can't tint a replaced widget, so the widget
+        // paints it itself (#21).
+        const bgForRange = (rFrom: number, rTo: number): string | undefined => {
+          for (const s of highlightSpans) {
+            if (rFrom >= s.contentFrom && rTo <= s.contentTo) {
+              return s.color ?? DEFAULT_HIGHLIGHT_BG;
+            }
+          }
+          return undefined;
+        };
+
         for (const { from, to } of view.visibleRanges) {
           tree.iterate({
             from,
@@ -90,8 +107,8 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // not produce nodes for these). Run embed first so its `!`
           // does not get stranded as a stray character.
           const slice = text.slice(from, to);
-          this.scanEmbeds(slice, from, excluded, items);
-          this.scanWikilinks(slice, from, excluded, items);
+          this.scanEmbeds(slice, from, excluded, items, bgForRange);
+          this.scanWikilinks(slice, from, excluded, items, bgForRange);
 
           // Horizontal rule lines: lang-markdown does not always emit
           // `HorizontalRule`, so detect `---` / `***` / `___` lines
@@ -274,7 +291,8 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         slice: string,
         offset: number,
         excluded: ReturnType<typeof computeExcludedRanges>,
-        items: Array<{ from: number; to: number; deco: Decoration }>
+        items: Array<{ from: number; to: number; deco: Decoration }>,
+        bgForRange: (from: number, to: number) => string | undefined
       ): void {
         const re = /\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
         let m: RegExpExecArray | null;
@@ -292,7 +310,15 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
             from: start,
             to: end,
             deco: Decoration.replace({
-              widget: new WikilinkWidget(plugin, target, alias, formatMode, start, end),
+              widget: new WikilinkWidget(
+                plugin,
+                target,
+                alias,
+                formatMode,
+                start,
+                end,
+                bgForRange(start, end)
+              ),
             }),
           });
         }
@@ -302,7 +328,8 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         slice: string,
         offset: number,
         excluded: ReturnType<typeof computeExcludedRanges>,
-        items: Array<{ from: number; to: number; deco: Decoration }>
+        items: Array<{ from: number; to: number; deco: Decoration }>,
+        bgForRange: (from: number, to: number) => string | undefined
       ): void {
         const re = /!\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g;
         let m: RegExpExecArray | null;
@@ -316,7 +343,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
             from: start,
             to: end,
             deco: Decoration.replace({
-              widget: new EmbedWidget(plugin, target, formatMode, start, end),
+              widget: new EmbedWidget(plugin, target, formatMode, start, end, bgForRange(start, end)),
             }),
           });
         }
@@ -534,6 +561,16 @@ function markFormatTarget(el: HTMLElement, surface: string, start: number, end: 
   el.setAttribute("data-cci-doclen", String(end - start));
 }
 
+/** Paint a link widget's own background when it sits inside a highlight span —
+ *  a content `Decoration.mark` can't reach a replaced widget. Inline only, so it
+ *  doesn't clash with the widget's `.cci-md-wikilink` / `.cci-md-embed-card`
+ *  rules (#21). */
+function tintHighlight(el: HTMLElement, bg: string | undefined): void {
+  if (!bg) return;
+  el.classList.add("cci-md-link-hl");
+  el.style.backgroundColor = bg;
+}
+
 class WikilinkWidget extends WidgetType {
   constructor(
     private plugin: CciPlugin,
@@ -541,7 +578,8 @@ class WikilinkWidget extends WidgetType {
     private alias: string | undefined,
     private formatMode = false,
     private docStart = 0,
-    private docEnd = 0
+    private docEnd = 0,
+    private highlightBg?: string
   ) {
     super();
   }
@@ -552,6 +590,7 @@ class WikilinkWidget extends WidgetType {
     el.setAttribute("title", `Open: ${this.target}`);
     attachOpenInChineseView(el, this.plugin, this.target);
     if (this.formatMode) markFormatTarget(el, this.alias || this.target, this.docStart, this.docEnd);
+    tintHighlight(el, this.highlightBg);
     return el;
   }
   eq(other: WikilinkWidget): boolean {
@@ -560,7 +599,8 @@ class WikilinkWidget extends WidgetType {
       other.alias === this.alias &&
       other.formatMode === this.formatMode &&
       other.docStart === this.docStart &&
-      other.docEnd === this.docEnd
+      other.docEnd === this.docEnd &&
+      other.highlightBg === this.highlightBg
     );
   }
   ignoreEvent(): boolean {
@@ -575,7 +615,8 @@ class EmbedWidget extends WidgetType {
     private target: string,
     private formatMode = false,
     private docStart = 0,
-    private docEnd = 0
+    private docEnd = 0,
+    private highlightBg?: string
   ) {
     super();
   }
@@ -588,6 +629,7 @@ class EmbedWidget extends WidgetType {
       img.src = this.plugin.app.vault.getResourcePath(file);
       img.alt = this.target;
       if (this.formatMode) markFormatTarget(img, this.target, this.docStart, this.docEnd);
+      tintHighlight(img, this.highlightBg);
       return img;
     }
     // Note embed: clickable card that opens the note in the Chinese
@@ -599,6 +641,7 @@ class EmbedWidget extends WidgetType {
     if (this.formatMode) {
       markFormatTarget(card, file ? file.basename : this.target, this.docStart, this.docEnd);
     }
+    tintHighlight(card, this.highlightBg);
     return card;
   }
   eq(other: EmbedWidget): boolean {
@@ -606,7 +649,8 @@ class EmbedWidget extends WidgetType {
       other.target === this.target &&
       other.formatMode === this.formatMode &&
       other.docStart === this.docStart &&
-      other.docEnd === this.docEnd
+      other.docEnd === this.docEnd &&
+      other.highlightBg === this.highlightBg
     );
   }
   ignoreEvent(): boolean {

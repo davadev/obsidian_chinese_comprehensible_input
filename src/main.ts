@@ -64,6 +64,8 @@ export default class CciPlugin extends Plugin {
   pendingCustomSurface = "";
   /** Document offset of the first tapped word while viewMode === "format". */
   pendingFormatStart: number | null = null;
+  /** Surface of that first tapped word, shown in the banner as feedback (#21). */
+  pendingFormatStartSurface: string | null = null;
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
   /** Counter timer that resets the persisted crash counter ~30s after
@@ -935,9 +937,11 @@ export default class CciPlugin extends Plugin {
     this.pendingCustomSurface = "";
   }
 
-  /** First tap in format mode: remember where the span starts. */
-  beginFormatRange(pos: number): void {
+  /** First tap in format mode: remember where the span starts (and the tapped
+   *  surface, so the banner can confirm which start was registered). */
+  beginFormatRange(pos: number, surface?: string): void {
     this.pendingFormatStart = pos;
+    this.pendingFormatStartSurface = surface ?? null;
     this.refreshChineseViewToolbars();
   }
 
@@ -945,6 +949,7 @@ export default class CciPlugin extends Plugin {
   applyFormatRange(endPos: number): void {
     const start = this.pendingFormatStart;
     this.pendingFormatStart = null;
+    this.pendingFormatStartSurface = null;
     if (start == null) {
       this.refreshChineseViewToolbars();
       return;
@@ -991,6 +996,7 @@ export default class CciPlugin extends Plugin {
     // Entering or leaving format mode drops any half-finished range.
     if (prev !== m && (prev === "format" || m === "format")) {
       this.pendingFormatStart = null;
+      this.pendingFormatStartSurface = null;
     }
     const editBoundaryCrossed = (prev === "edit") !== (m === "edit");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {

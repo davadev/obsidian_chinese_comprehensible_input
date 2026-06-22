@@ -195,6 +195,22 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           }
           return undefined;
         };
+        // Clipped intersection of [from, to) with a highlight span's content.
+        // Used for non-word runs: after wrapping a whole line the inserted `==`
+        // merges into the adjacent run (e.g. `==1. ` / `？==`), so a
+        // whole-token containment test misses them. Clipping tints the visible
+        // part; the hidden `==` portions paint nothing (they're replaced).
+        const highlightClip = (
+          from: number,
+          to: number
+        ): { from: number; to: number; color: string } | undefined => {
+          for (const s of highlightSpans) {
+            const a = Math.max(from, s.contentFrom);
+            const b = Math.min(to, s.contentTo);
+            if (a < b) return { from: a, to: b, color: s.color ?? DEFAULT_HIGHLIGHT_BG };
+          }
+          return undefined;
+        };
         // Cache heading level per line so multi-token heading lines don't
         // re-parse. Computed lazily on first hit.
         const headingByLine = new Map<number, number>();
@@ -230,25 +246,41 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             if (!tok.isWord || tok.candidates.length === 0) {
               // Non-word run (digits / latin / punctuation), skipping whitespace.
               if (!/\S/.test(tok.surface)) continue;
-              const hl = highlightBgAt(tok);
-              const needTint = rubyMode && hl !== undefined;
-              if (!formatMode && !needTint) continue;
-              const attributes: Record<string, string> = {};
-              let cls = "";
+              // In ruby modes the markdown renderer skips the content tint, so a
+              // highlighted non-word run is tinted here — clipped to the span so
+              // merged `==` delimiters don't drop the visible chars (#21).
+              const clip = rubyMode ? highlightClip(tok.start, tok.end) : undefined;
+              if (!formatMode && !clip) continue;
+              // Two marks, added in ascending `from` order so RangeSetBuilder
+              // stays sorted: (1) the whole-token clickable target, then (2) the
+              // clipped tint (clip.from >= tok.start).
               if (formatMode) {
                 // Clickable selection target (only in format mode — otherwise a
                 // tap on a digit would open a word popup).
-                cls = "cci-word";
-                attributes["data-cci-surface"] = tok.surface;
-                attributes["data-cci-start"] = String(tok.start);
-                attributes["data-cci-end"] = String(tok.end);
-                attributes["data-cci-doclen"] = String(tok.end - tok.start);
+                builder.add(
+                  tok.start,
+                  tok.end,
+                  Decoration.mark({
+                    class: "cci-word",
+                    attributes: {
+                      "data-cci-surface": tok.surface,
+                      "data-cci-start": String(tok.start),
+                      "data-cci-end": String(tok.end),
+                      "data-cci-doclen": String(tok.end - tok.start),
+                    },
+                  })
+                );
               }
-              if (needTint) {
-                cls = (cls ? cls + " " : "") + "cci-md-highlight";
-                attributes["style"] = `background-color:${hl};`;
+              if (clip) {
+                builder.add(
+                  clip.from,
+                  clip.to,
+                  Decoration.mark({
+                    class: "cci-md-highlight",
+                    attributes: { style: `background-color:${clip.color};` },
+                  })
+                );
               }
-              builder.add(tok.start, tok.end, Decoration.mark({ class: cls, attributes }));
               continue;
             }
             this.emitDecoration(
