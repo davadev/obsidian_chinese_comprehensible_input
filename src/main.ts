@@ -56,6 +56,8 @@ export default class CciPlugin extends Plugin {
   private viewMode: ViewMode = "read";
   /** Surface being assembled while viewMode === "select-word". */
   pendingCustomSurface = "";
+  /** Document offset of the first tapped word while viewMode === "format". */
+  pendingFormatStart: number | null = null;
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
 
   /** Counter timer that resets the persisted crash counter ~30s after
@@ -915,6 +917,42 @@ export default class CciPlugin extends Plugin {
     this.pendingCustomSurface = "";
   }
 
+  /** First tap in format mode: remember where the span starts. */
+  beginFormatRange(pos: number): void {
+    this.pendingFormatStart = pos;
+    this.refreshChineseViewToolbars();
+  }
+
+  /** Second tap in format mode: wrap [start, end) in the armed formats. */
+  applyFormatRange(endPos: number): void {
+    const start = this.pendingFormatStart;
+    this.pendingFormatStart = null;
+    if (start == null) {
+      this.refreshChineseViewToolbars();
+      return;
+    }
+    const formats = this.settings.enabledFormats;
+    const view = this.app.workspace
+      .getLeavesOfType(VIEW_TYPE_CHINESE)
+      .map((l) => l.view)
+      .find((v): v is ChineseTextFileView => v instanceof ChineseTextFileView);
+    if (!view || formats.length === 0) {
+      this.refreshChineseViewToolbars();
+      return;
+    }
+    view.applyFormatToRange(start, endPos, formats);
+    this.refreshChineseViewToolbars();
+  }
+
+  private refreshChineseViewToolbars(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
+      const v = leaf.view;
+      if (v instanceof ChineseTextFileView && typeof v.refreshToolbar === "function") {
+        try { v.refreshToolbar(); } catch (e) { console.warn("CCI refreshToolbar failed", e); }
+      }
+    }
+  }
+
   setActiveViewMode(m: ViewMode): void {
     const prev = this.viewMode;
     this.viewMode = m;
@@ -922,6 +960,10 @@ export default class CciPlugin extends Plugin {
     // surface so the next pass starts fresh.
     if (prev !== m && (prev === "select-word" || m === "select-word")) {
       this.pendingCustomSurface = "";
+    }
+    // Entering or leaving format mode drops any half-finished range.
+    if (prev !== m && (prev === "format" || m === "format")) {
+      this.pendingFormatStart = null;
     }
     const editBoundaryCrossed = (prev === "edit") !== (m === "edit");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {

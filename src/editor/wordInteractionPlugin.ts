@@ -156,6 +156,19 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           plugin.appendToCustomWordSelection(surface);
           return;
         }
+        if (mode === "format") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          const start = Number(target.getAttribute("data-cci-start"));
+          const end = Number(target.getAttribute("data-cci-end"));
+          if (Number.isNaN(start) || Number.isNaN(end)) return;
+          if (plugin.pendingFormatStart == null) {
+            plugin.beginFormatRange(start);
+          } else {
+            plugin.applyFormatRange(end);
+          }
+          return;
+        }
         if (mode === "edit") {
           // Let CM6 handle the click normally — do not open popup, do not
           // intercept caret placement.

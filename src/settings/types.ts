@@ -26,7 +26,25 @@ export type ViewMode =
   | "mark-unknown"
   | "mark-partial"
   /** Tap-to-collect chars/words into a single new custom-word surface. */
-  | "select-word";
+  | "select-word"
+  /** Tap a start word then an end word to wrap the span in markdown formatting. */
+  | "format";
+
+/**
+ * Markdown formats applied by the in-view formatting mode (#21 phase 1).
+ * Inline formats wrap the selected span; block formats prepend a line prefix.
+ * `code` is inline but mutually exclusive with the other inline formats.
+ */
+export type FormatId =
+  | "bold"
+  | "italic"
+  | "highlight"
+  | "strike"
+  | "code"
+  | "h1"
+  | "h2"
+  | "h3"
+  | "quote";
 export type PinyinStyle = "marks" | "numbers" | "none";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
 export type HskSource = "2.0" | "3.0" | "both";
@@ -189,6 +207,8 @@ export interface CciSettings {
   dictionarySource?: DictionarySourceMeta;
   defaultDisplayMode: DisplayMode;
   knownWordPopups: boolean;
+  /** Formats currently armed in the in-view formatting mode (#21). */
+  enabledFormats: FormatId[];
   showKnownColor: boolean;
   showPartialColor: boolean;
   showUnknownColor: boolean;

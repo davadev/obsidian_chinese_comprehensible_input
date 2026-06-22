@@ -47,6 +47,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   schemaVersion: DATA_SCHEMA_VERSION,
   defaultDisplayMode: "none",
   knownWordPopups: false,
+  enabledFormats: ["highlight"],
   showKnownColor: false,
   showPartialColor: true,
   showUnknownColor: true,
