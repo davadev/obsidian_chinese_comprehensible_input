@@ -247,14 +247,14 @@ export class ViewToolbar {
 
   private formatBannerText(): string {
     const enabled = this.plugin.settings.enabledFormats;
-    const exact = this.plugin.settings.formatExactMode;
+    const reverse = this.plugin.settings.formatReverseMode;
     const pending = this.plugin.pendingFormatStart != null;
     const endHint = pending ? "tap the end word" : "tap start word, then end word";
     if (enabled.length === 0) {
       return `Formatting (clear) — ${endHint} to remove all formatting`;
     }
     const names = enabled.map((f) => this.formatLabel(f)).join(", ");
-    const verb = exact ? "set (unchecked removed)" : "add";
+    const verb = reverse ? "remove the selected formatting" : "add formatting";
     return `Formatting (${names}) — ${endHint} to ${verb}`;
   }
 
@@ -309,14 +309,15 @@ export class ViewToolbar {
     const populate = () => {
       menu.empty();
 
-      // Add / exact-mode toggle at the top.
+      // Add / reverse-mode toggle at the top.
+      const reverse = this.plugin.settings.formatReverseMode;
       const modeItem = menu.createDiv({ cls: "cci-overflow-item" });
       const modeCb = modeItem.createEl("input", { type: "checkbox" });
-      modeCb.checked = this.plugin.settings.formatExactMode;
-      modeItem.createSpan({ text: "Exact mode (replace span)" });
+      modeCb.checked = reverse;
+      modeItem.createSpan({ text: "Reverse mode (remove selected)" });
       const toggleMode = () => {
         void (async () => {
-          this.plugin.settings.formatExactMode = modeCb.checked;
+          this.plugin.settings.formatReverseMode = modeCb.checked;
           await this.plugin.saveSettings();
           populate();
           if (this.formatLabelEl) this.formatLabelEl.setText(this.formatBannerText());
@@ -331,7 +332,7 @@ export class ViewToolbar {
       });
 
       const hint = menu.createDiv({ cls: "cci-overflow-hint" });
-      hint.setText("Formats to apply (none = remove)");
+      hint.setText(reverse ? "Formats to remove" : "Formats to apply (none = remove)");
 
       const options = orderedFormatOptions(this.plugin.app, this.plugin.settings, false);
       for (const opt of options) {
@@ -340,7 +341,8 @@ export class ViewToolbar {
         const item = menu.createDiv({ cls: "cci-overflow-item" });
         const cb = item.createEl("input", { type: "checkbox" });
         cb.checked = enabled.includes(id);
-        cb.disabled = conflictDisabled(id, enabled);
+        // No conflict gating in reverse mode — you can remove several at once.
+        cb.disabled = reverse ? false : conflictDisabled(id, enabled);
         if (opt.color) {
           const sw = item.createSpan({ cls: "cci-format-swatch" });
           sw.style.background = opt.color;

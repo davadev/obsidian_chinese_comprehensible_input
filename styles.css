@@ -226,10 +226,11 @@
 .cci-view .cci-md-highlight {
   background: var(--text-highlight-bg, rgba(255, 208, 0, 0.45));
   color: var(--text-normal);
+  /* Identical to .cci-stack-chars-hl so annotated and plain words highlight at
+     the same height. em padding ⇒ the box scales with the character size, so a
+     sub-heading glyph gets a proportionally taller highlight. */
   border-radius: 2px;
-  padding: 0.08em 0.1em;
-  /* Cover the full glyph height on larger lines (e.g. sub-headings) and keep
-     the background continuous across wrapped lines. */
+  padding: 0.1em 0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -348,8 +349,9 @@
   cursor: not-allowed;
 }
 .cci-stack-chars-hl {
+  /* Keep identical to .cci-md-highlight (see note there). */
   border-radius: 2px;
-  padding: 0.05em 0.1em;
+  padding: 0.1em 0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }

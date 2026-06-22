@@ -12,7 +12,7 @@ import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
 import {
   buildFormatChanges,
-  buildSetFormatChanges,
+  buildRemoveFormatChanges,
   buildUnformatChanges,
   formattingPreservesContent,
 } from "../editor/formatApply";
@@ -521,16 +521,16 @@ export class ChineseTextFileView extends TextFileView {
     to: number,
     formats: string[],
     hlWrap?: HighlightWrap,
-    exact = false
+    reverse = false
   ): void {
     if (!this.editor) return;
     const doc = this.editor.state.doc.toString();
-    // Nothing armed = strip existing formatting. Otherwise add or set-exact.
+    // Nothing armed = clear all. Otherwise add (default) or reverse (remove).
     const changes =
       formats.length === 0
         ? buildUnformatChanges(doc, from, to)
-        : exact
-        ? buildSetFormatChanges(doc, from, to, formats, hlWrap)
+        : reverse
+        ? buildRemoveFormatChanges(doc, from, to, formats)
         : buildFormatChanges(doc, from, to, formats, hlWrap);
     if (changes.length === 0) return;
     // Data-loss guard: a formatting edit must only add/remove markup, never
