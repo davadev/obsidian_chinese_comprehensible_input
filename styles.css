@@ -368,17 +368,26 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
-.cci-stack-chars-hl {
-  /* Horizontal padding only: this is a block cell (line-height: 1) so its
-     background already fills the full glyph height. Vertical padding here would
-     grow the block and, on an H1 char (1.7em), push the ruby stack past the
-     fixed .cm-content line-height — overflowing the line box and making CM6
-     paint the line twice. */
-  border-radius: 2px;
-  padding: 0 0.1em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+/* Highlight is ONE continuous band per annotated word, not a per-char tint:
+   the gradient fills the whole stack width (so it covers gloss/pinyin overhang
+   in 2-/3-line mode) and is anchored to the stack's bottom — the chars row — so
+   the strip stays one baseline-aligned height across no-pinyin and
+   pinyin/gloss words. margin:0 lets neighbouring highlighted stacks abut with no
+   gap. Color comes from the inline `--cci-hl` custom property. */
+.cci-view .cci-stack-hl {
+  margin-left: 0;
+  margin-right: 0;
+  background-image: linear-gradient(var(--cci-hl), var(--cci-hl));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1em;
 }
+/* Heading chars are scaled (see .cci-stack-h{n} .cci-stack-chars below), so the
+   band height must match. */
+.cci-view .cci-stack-h1.cci-stack-hl { background-size: 100% 1.7em; }
+.cci-view .cci-stack-h2.cci-stack-hl { background-size: 100% 1.45em; }
+.cci-view .cci-stack-h3.cci-stack-hl { background-size: 100% 1.25em; }
+.cci-view .cci-stack-h4.cci-stack-hl { background-size: 100% 1.1em; }
 /* A link widget (wikilink / embed) sitting inside a highlight paints its own
    background inline (dynamic color); this just rounds the corners. */
 .cci-view .cci-md-link-hl {
