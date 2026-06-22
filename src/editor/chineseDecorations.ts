@@ -233,6 +233,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
                       "data-cci-surface": tok.surface,
                       "data-cci-start": String(tok.start),
                       "data-cci-end": String(tok.end),
+                      "data-cci-doclen": String(tok.end - tok.start),
                     },
                   })
                 );
@@ -313,6 +314,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const posAttrs = {
           "data-cci-start": String(tok.start),
           "data-cci-end": String(tok.end),
+          "data-cci-doclen": String(tok.end - tok.start),
         };
         // In ruby modes the markdown renderer does NOT tint highlight content
         // (it would overlap the ruby widgets), so mark-rendered words tint here.
@@ -446,6 +448,7 @@ class RubyWidget extends WidgetType {
     stack.setAttribute("data-cci-surface", this.surface);
     stack.setAttribute("data-cci-start", String(this.start));
     stack.setAttribute("data-cci-end", String(this.end));
+    stack.setAttribute("data-cci-doclen", String(this.end - this.start));
     if (this.colorKey) stack.setAttribute("data-cci-color", this.colorKey);
 
     if (this.showGloss && this.def) {

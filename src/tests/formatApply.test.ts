@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyChangesToString,
   buildFormatChanges,
   buildRemoveFormatChanges,
   buildSetFormatChanges,
@@ -10,14 +11,8 @@ import {
   formattingPreservesContent,
 } from "../editor/formatApply";
 
-/** Apply a change list to a doc the way CodeMirror would (descending order). */
-function applyChanges(doc: string, changes: { from: number; to: number; insert: string }[]): string {
-  let out = doc;
-  for (const c of [...changes].sort((a, b) => b.from - a.from)) {
-    out = out.slice(0, c.from) + c.insert + out.slice(c.to);
-  }
-  return out;
-}
+/** Apply a change list to a doc the way CodeMirror composes it. */
+const applyChanges = applyChangesToString;
 
 describe("composeInline", () => {
   it("returns text unchanged with no inline format", () => {
@@ -215,6 +210,25 @@ describe("buildRemoveFormatChanges (reverse mode)", () => {
 
   it("empty remove set is a no-op", () => {
     expect(buildRemoveFormatChanges("==字==", 2, 3, [])).toEqual([]);
+  });
+});
+
+describe("inline + block at line start (guard regression)", () => {
+  it("highlight + heading on a line starting at col 0 composes valid markup", () => {
+    const doc = "1. 你好？";
+    const changes = buildFormatChanges(doc, 0, doc.length, ["highlight", "h1"]);
+    // Block prefix insert at 0 must order before the inline replace at 0.
+    expect(applyChangesToString(doc, changes)).toBe("# ==1. 你好？==");
+    expect(formattingPreservesContent(doc, changes)).toBe(true);
+  });
+
+  it("applyChangesToString composes an insert + replace sharing a position", () => {
+    const doc = "abc";
+    const changes = [
+      { from: 0, to: 3, insert: "==abc==" },
+      { from: 0, to: 0, insert: "# " },
+    ];
+    expect(applyChangesToString(doc, changes)).toBe("# ==abc==");
   });
 });
 
