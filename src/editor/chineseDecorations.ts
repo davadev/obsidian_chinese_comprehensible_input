@@ -534,7 +534,12 @@ class RubyWidget extends WidgetType {
     const stack = activeDocument.createElement("span");
     const headingCls = this.headingLevel > 0 ? ` cci-stack-h${this.headingLevel}` : "";
     const colorCls = this.colorKey ? ` cci-color-${this.colorKey}` : "";
-    stack.className = `cci-stack cci-word${colorCls}${headingCls}`;
+    // The highlight is ONE continuous band on the whole stack (anchored to the
+    // chars row, full width), not a per-char tint — so adjacent highlighted
+    // stacks abut with no gaps. CSS reads the color from `--cci-hl`.
+    const hlCls = this.highlightBg ? " cci-stack-hl" : "";
+    stack.className = `cci-stack cci-word${colorCls}${headingCls}${hlCls}`;
+    if (this.highlightBg) stack.style.setProperty("--cci-hl", this.highlightBg);
     stack.setAttribute("data-cci-surface", this.surface);
     stack.setAttribute("data-cci-start", String(this.start));
     stack.setAttribute("data-cci-end", String(this.end));
@@ -555,20 +560,15 @@ class RubyWidget extends WidgetType {
     const syllables = formattedPinyin ? formattedPinyin.split(/\s+/).filter(Boolean) : [];
     const perChar = this.showPinyin && syllables.length === chars.length;
 
-    // Highlight the characters only — pinyin/gloss stay un-tinted (#21).
-    const charsCls = this.highlightBg ? "cci-stack-chars cci-stack-chars-hl" : "cci-stack-chars";
-    const tintChars = (c: HTMLElement) => {
-      if (this.highlightBg) c.style.backgroundColor = this.highlightBg;
-    };
-
+    // Chars carry no per-cell tint — the `.cci-stack-hl` band on the stack does
+    // the highlighting (pinyin/gloss stay un-tinted, band sits on the chars row).
     if (perChar) {
       for (let i = 0; i < chars.length; i++) {
         const cell = cells.createSpan({ cls: "cci-stack-cell" });
         const p = cell.createSpan({ cls: "cci-stack-pinyin" });
         p.textContent = syllables[i];
-        const c = cell.createSpan({ cls: charsCls });
+        const c = cell.createSpan({ cls: "cci-stack-chars" });
         c.textContent = chars[i];
-        tintChars(c);
       }
     } else {
       // Pinyin syllable count doesn't match char count → fall back to a
@@ -578,9 +578,8 @@ class RubyWidget extends WidgetType {
         const p = cell.createSpan({ cls: "cci-stack-pinyin cci-stack-pinyin-word" });
         p.textContent = formattedPinyin;
       }
-      const c = cell.createSpan({ cls: charsCls });
+      const c = cell.createSpan({ cls: "cci-stack-chars" });
       c.textContent = this.surface;
-      tintChars(c);
     }
 
     return stack;
