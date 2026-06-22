@@ -336,6 +336,13 @@
 .cci-toolbar .cci-banner.is-partial {
   background: var(--color-yellow, #d4a72c);
 }
+.cci-toolbar .cci-banner.is-format {
+  background: var(--color-purple, #8957e5);
+}
+.cci-overflow-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .cci-toolbar .cci-banner button {
   height: 28px;
   padding: 0 0.6rem;

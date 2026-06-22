@@ -1,6 +1,20 @@
 import { Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
-import { ColorMode, DisplayMode, ViewMode } from "../settings/types";
+import { ColorMode, DisplayMode, FormatId, ViewMode } from "../settings/types";
+import { conflictDisabled, FORMAT_LABELS } from "../editor/formatApply";
+
+/** Order of formats shown in the picker dropdown (#21 phase 1). */
+const FORMAT_ORDER: FormatId[] = [
+  "bold",
+  "italic",
+  "highlight",
+  "strike",
+  "code",
+  "h1",
+  "h2",
+  "h3",
+  "quote",
+];
 
 /**
  * Compact toolbar.
@@ -49,6 +63,8 @@ export class ViewToolbar {
     if (this.onCommitCustomWord) {
       this.modeBtn(row, "square-plus", "Add custom word (tap chars)", "select-word");
     }
+
+    this.modeBtn(row, "highlighter", "Format (tap start + end word)", "format");
 
     this.colorModeSwitch(row);
 
@@ -212,6 +228,10 @@ export class ViewToolbar {
       });
       return;
     }
+    if (mode === "format") {
+      this.renderFormatBanner();
+      return;
+    }
     const cls =
       mode === "mark-known" ? "is-known" : mode === "mark-unknown" ? "is-unknown" : "is-partial";
     const label =
@@ -227,6 +247,88 @@ export class ViewToolbar {
       this.plugin.setActiveViewMode("read");
       this.refresh();
     });
+  }
+
+  private renderFormatBanner() {
+    if (!this.bannerEl) return;
+    const banner = this.bannerEl.createDiv({ cls: "cci-banner is-format" });
+    const enabled = this.plugin.settings.enabledFormats;
+    const names = enabled.map((f) => FORMAT_LABELS[f]).join(", ") || "none selected";
+    const pending = this.plugin.pendingFormatStart != null;
+    const hint = pending ? "tap the end word" : "tap start word, then end word";
+    banner.createSpan({ text: `Formatting (${names}) — ${hint}` });
+
+    const formatsBtn = banner.createEl("button", { text: "Formats ▾" });
+    let menu: HTMLElement | null = null;
+    formatsBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menu) {
+        menu.remove();
+        menu = null;
+        return;
+      }
+      menu = this.buildFormatMenu(formatsBtn);
+    });
+
+    const exit = banner.createEl("button", { text: "Exit" });
+    exit.addEventListener("click", () => {
+      this.plugin.setActiveViewMode("read");
+      this.refresh();
+    });
+  }
+
+  private buildFormatMenu(anchor: HTMLElement): HTMLElement {
+    const menu = activeDocument.createElement("div");
+    menu.className = "cci-overflow-menu";
+    activeDocument.body.appendChild(menu);
+    const r = anchor.getBoundingClientRect();
+    menu.style.top = `${r.bottom + 4}px`;
+    menu.style.left = `${Math.max(8, r.left)}px`;
+
+    const close = () => {
+      menu.remove();
+      activeDocument.removeEventListener("click", onDocClick, true);
+    };
+    const onDocClick = (ev: MouseEvent) => {
+      if (!menu.contains(ev.target as Node) && ev.target !== anchor) close();
+    };
+    // Defer so the opening click doesn't immediately close it.
+    window.setTimeout(() => activeDocument.addEventListener("click", onDocClick, true), 0);
+
+    const hint = menu.createDiv({ cls: "cci-overflow-hint" });
+    hint.setText("Formats to apply");
+
+    for (const id of FORMAT_ORDER) {
+      const enabled = this.plugin.settings.enabledFormats;
+      const item = menu.createDiv({ cls: "cci-overflow-item" });
+      const cb = item.createEl("input", { type: "checkbox" });
+      cb.checked = enabled.includes(id);
+      cb.disabled = conflictDisabled(id, enabled);
+      item.createSpan({ text: FORMAT_LABELS[id] });
+      if (cb.disabled) item.addClass("is-disabled");
+      const toggle = () => {
+        if (cb.disabled) return;
+        void (async () => {
+          const cur = this.plugin.settings.enabledFormats;
+          this.plugin.settings.enabledFormats = cb.checked
+            ? [...cur, id]
+            : cur.filter((f) => f !== id);
+          await this.plugin.saveSettings();
+          // Rebuild so conflict states + banner label refresh.
+          close();
+          this.updateBanner();
+          this.buildFormatMenu(anchor);
+        })();
+      };
+      cb.addEventListener("change", toggle);
+      item.addEventListener("click", (ev) => {
+        if (ev.target !== cb && !cb.disabled) {
+          cb.checked = !cb.checked;
+          toggle();
+        }
+      });
+    }
+    return menu;
   }
 
   private buildOverflowMenu(anchor: HTMLElement): HTMLElement {

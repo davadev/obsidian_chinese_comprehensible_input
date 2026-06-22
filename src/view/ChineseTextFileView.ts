@@ -10,6 +10,8 @@ import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
+import { buildFormatChanges } from "../editor/formatApply";
+import type { FormatId } from "../settings/types";
 
 /**
  * Markdown syntax highlighting tuned for the Chinese reader.
@@ -493,5 +495,21 @@ export class ChineseTextFileView extends TextFileView {
   forceRetokenize(): void {
     if (!this.editor) return;
     this.editor.dispatch({ effects: cciReTokenizeEffect.of(null) });
+  }
+
+  /**
+   * Format mode (#21): wrap [from, to) in the armed markdown formats. Dispatches
+   * a user-event-annotated transaction so the existing updateListener saves the
+   * file, and the Chinese/markdown decorations rebuild on the doc change.
+   */
+  applyFormatToRange(from: number, to: number, formats: FormatId[]): void {
+    if (!this.editor) return;
+    const doc = this.editor.state.doc.toString();
+    const changes = buildFormatChanges(doc, from, to, formats);
+    if (changes.length === 0) return;
+    this.editor.dispatch({
+      changes,
+      annotations: Transaction.userEvent.of("input.cci-format"),
+    });
   }
 }

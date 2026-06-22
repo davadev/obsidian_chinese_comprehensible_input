@@ -219,10 +219,14 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const colorKey = colorClassKey(rec, settings.colorMode, settings.hskSource);
 
         const editMode = plugin.activeViewMode() === "edit";
+        // Format mode wraps spans by tapping the start/end word, so words must
+        // stay as plain clickable marks (not ruby widgets) and expose their
+        // document offsets.
+        const formatMode = plugin.activeViewMode() === "format";
         // In edit mode we must NOT replace text with widgets; otherwise typing
         // and cursor placement break. Force "none" so only a mark decoration
-        // is applied — characters stay editable.
-        const mode = editMode ? "none" : settings.defaultDisplayMode;
+        // is applied — characters stay editable. Format mode does the same.
+        const mode = editMode || formatMode ? "none" : settings.defaultDisplayMode;
 
         const showColor = colorShouldShow(colorKey, settings);
 
@@ -249,6 +253,10 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           return;
         }
 
+        const posAttrs = {
+          "data-cci-start": String(tok.start),
+          "data-cci-end": String(tok.end),
+        };
         if (showColor) {
           builder.add(
             tok.start,
@@ -258,19 +266,20 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               attributes: {
                 "data-cci-surface": tok.surface,
                 "data-cci-color": colorKey,
+                ...posAttrs,
               },
             })
           );
-        } else if (statusColor === "known" && settings.knownWordPopups) {
-          // No tint, but make it clickable so the popup can open. Without
-          // this, wordInteractionPlugin's `.cci-word` lookup finds nothing
-          // and the knownWordPopups toggle has no observable effect.
+        } else if (formatMode || (statusColor === "known" && settings.knownWordPopups)) {
+          // No tint, but make it clickable: the popup can open (knownWordPopups)
+          // or the formatting mode can read the span offsets. Without this the
+          // `.cci-word` lookup in wordInteractionPlugin finds nothing.
           builder.add(
             tok.start,
             tok.end,
             Decoration.mark({
               class: "cci-word",
-              attributes: { "data-cci-surface": tok.surface },
+              attributes: { "data-cci-surface": tok.surface, ...posAttrs },
             })
           );
         }
