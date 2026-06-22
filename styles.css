@@ -349,9 +349,13 @@
   cursor: not-allowed;
 }
 .cci-stack-chars-hl {
-  /* Keep identical to .cci-md-highlight (see note there). */
+  /* Horizontal padding only: this is a block cell (line-height: 1) so its
+     background already fills the full glyph height. Vertical padding here would
+     grow the block and, on an H1 char (1.7em), push the ruby stack past the
+     fixed .cm-content line-height — overflowing the line box and making CM6
+     paint the line twice. */
   border-radius: 2px;
-  padding: 0.1em 0.1em;
+  padding: 0 0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
