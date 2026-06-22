@@ -51,6 +51,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   formatOrder: ["bold", "italic", "highlight", "strike", "code", "h1", "h2", "h3", "quote"],
   formatHidden: [],
   showHighlightColorsWithoutPlugin: false,
+  formatExactMode: false,
   showKnownColor: false,
   showPartialColor: true,
   showUnknownColor: true,

@@ -123,11 +123,53 @@ function coveredLineStarts(doc: string, from: number, to: number): number[] {
   return starts;
 }
 
+/** Existing heading / quote line prefix. */
+const EXISTING_BLOCK_RE = /^(#{1,6}[ \t]+|>[ \t]?)/;
+
 /**
- * Build the CodeMirror change list for applying `formats` to the span
- * [from, to) of `doc`. Inline formats replace the slice with its wrapped form;
- * block formats insert a prefix at each covered line start. Returns an empty
- * array when nothing applies or the range is empty.
+ * Set each covered line's block prefix to `desired` ("" to strip it), replacing
+ * any existing heading/quote prefix. When an inline replace covers [from,to)
+ * (`inlinePresent`), only the first line (start ≤ from) is touched so the
+ * zero-/small-width prefix edit can't overlap the inline change.
+ */
+function blockPrefixChanges(
+  doc: string,
+  from: number,
+  to: number,
+  desired: string,
+  inlinePresent: boolean
+): FormatChange[] {
+  const changes: FormatChange[] = [];
+  for (const ls of coveredLineStarts(doc, from, to)) {
+    if (inlinePresent && ls > from) continue;
+    const nl = doc.indexOf("\n", ls);
+    const lineEnd = nl === -1 ? doc.length : nl;
+    const existing = EXISTING_BLOCK_RE.exec(doc.slice(ls, lineEnd))?.[1] ?? "";
+    if (existing === desired) continue;
+    changes.push({ from: ls, to: ls + existing.length, insert: desired });
+  }
+  return changes;
+}
+
+/** Expand [from,to) over adjacent inline delimiters and a surrounding `<mark>`. */
+function expandFormattedRegion(doc: string, from: number, to: number): [number, number] {
+  let s = from;
+  let e = to;
+  while (s > 0 && INLINE_DELIM_CHARS.has(doc[s - 1])) s--;
+  while (e < doc.length && INLINE_DELIM_CHARS.has(doc[e])) e++;
+  const openMatch = /<mark\b[^>]*>$/i.exec(doc.slice(Math.max(0, s - 256), s));
+  if (openMatch) s -= openMatch[0].length;
+  const closeMatch = /^<\/mark>/i.exec(doc.slice(e, e + 8));
+  if (closeMatch) e += closeMatch[0].length;
+  return [s, e];
+}
+
+/**
+ * Add mode: additively apply `formats` to the span [from, to). Inline formats
+ * wrap the slice; a checked block format replaces any existing heading/quote
+ * prefix on the covered lines (so applying H2 over an H1 normalizes the level),
+ * while leaving the line prefix untouched when no block is checked. Returns an
+ * empty array when nothing applies or the range is empty.
  */
 export function buildFormatChanges(
   doc: string,
@@ -149,22 +191,44 @@ export function buildFormatChanges(
 
   const block = formats.find(isBlock);
   if (block) {
-    const prefix = BLOCK_PREFIX[block];
-    for (const ls of coveredLineStarts(doc, from, to)) {
-      // Skip if the line already starts with this exact prefix.
-      if (doc.startsWith(prefix, ls)) continue;
-      // A zero-width insert strictly inside the inline replace range would
-      // overlap it (CM forbids that). When inline is also applied, only prefix
-      // the first line (line start ≤ from); block formats are line-level so
-      // this matches the common single-line case.
-      if (inline.length > 0 && ls > from) continue;
-      changes.push({ from: ls, to: ls, insert: prefix });
-    }
+    changes.push(...blockPrefixChanges(doc, from, to, BLOCK_PREFIX[block], inline.length > 0));
   }
 
-  // CodeMirror requires changes sorted by `from` and non-overlapping. The
-  // inline change covers [from,to); block inserts are zero-width at line
-  // starts ≤ from or strictly inside the span — sort ascending by `from`.
+  changes.sort((a, b) => a.from - b.from);
+  return changes;
+}
+
+/**
+ * Exact mode: make the span [from, to) have *exactly* `formats`. Strips all
+ * existing inline formatting (and a surrounding `<mark>`) from the expanded
+ * region, re-wraps the core with the checked inline formats, and sets each
+ * covered line's block prefix to the checked block (or strips it when none is
+ * checked). Empty `formats` ⇒ clears everything.
+ */
+export function buildSetFormatChanges(
+  doc: string,
+  from: number,
+  to: number,
+  formats: string[],
+  hlWrap?: HighlightWrap
+): FormatChange[] {
+  if (from > to) [from, to] = [to, from];
+  if (from === to) return [];
+
+  const changes: FormatChange[] = [];
+
+  const [s, e] = expandFormattedRegion(doc, from, to);
+  const region = doc.slice(s, e);
+  const core = stripInlineDelims(region);
+  const inlineChecked = formats.filter(isInline);
+  const newInline = composeInline(core, inlineChecked, hlWrap);
+  const inlinePresent = newInline !== region;
+  if (inlinePresent) changes.push({ from: s, to: e, insert: newInline });
+
+  const block = formats.find(isBlock);
+  const desired = block ? BLOCK_PREFIX[block] : "";
+  changes.push(...blockPrefixChanges(doc, from, to, desired, inlinePresent));
+
   changes.sort((a, b) => a.from - b.from);
   return changes;
 }
@@ -190,38 +254,6 @@ function stripInlineDelims(s: string): string {
  * tapped) and removes heading / quote line prefixes on covered lines.
  */
 export function buildUnformatChanges(doc: string, from: number, to: number): FormatChange[] {
-  if (from > to) [from, to] = [to, from];
-
-  // Expand outward over adjacent inline delimiter characters.
-  let s = from;
-  let e = to;
-  while (s > 0 && INLINE_DELIM_CHARS.has(doc[s - 1])) s--;
-  while (e < doc.length && INLINE_DELIM_CHARS.has(doc[e])) e++;
-  // Swallow an immediately-preceding `<mark …>` and a following `</mark>`.
-  const openMatch = /<mark\b[^>]*>$/i.exec(doc.slice(Math.max(0, s - 256), s));
-  if (openMatch) s -= openMatch[0].length;
-  const closeMatch = /^<\/mark>/i.exec(doc.slice(e, e + 8));
-  if (closeMatch) e += closeMatch[0].length;
-
-  const changes: FormatChange[] = [];
-  const region = doc.slice(s, e);
-  const cleaned = stripInlineDelims(region);
-  const hasInline = cleaned !== region;
-  if (hasInline) changes.push({ from: s, to: e, insert: cleaned });
-
-  // Block prefixes live at line starts (≤ from). Strip them, but when an inline
-  // change is present skip interior lines (ls > from) to avoid overlapping it.
-  let lineStart = doc.lastIndexOf("\n", from - 1) + 1;
-  const lineStarts: number[] = [lineStart];
-  for (let i = from; i < to; i++) if (doc[i] === "\n") lineStarts.push(i + 1);
-  for (const ls of lineStarts) {
-    if (hasInline && ls > from) continue;
-    const nl = doc.indexOf("\n", ls);
-    const lineEnd = nl === -1 ? doc.length : nl;
-    const m = /^(#{1,6}[ \t]+|>[ \t]?)/.exec(doc.slice(ls, lineEnd));
-    if (m) changes.push({ from: ls, to: ls + m[1].length, insert: "" });
-  }
-
-  changes.sort((a, b) => a.from - b.from);
-  return changes;
+  // Clearing everything is exactly "set to no formats".
+  return buildSetFormatChanges(doc, from, to, []);
 }

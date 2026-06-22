@@ -224,6 +224,8 @@ export interface CciSettings {
   formatHidden: string[];
   /** Expose Highlightr color options even when the plugin is not installed. */
   showHighlightColorsWithoutPlugin: boolean;
+  /** Format apply mode: false = add (additive), true = exact (replace span). */
+  formatExactMode: boolean;
   showKnownColor: boolean;
   showPartialColor: boolean;
   showUnknownColor: boolean;
