@@ -350,12 +350,16 @@ if (manifest && versionsBlob) {
 
 // === Tag comparison ===
 if (tag && manifest) {
-  if (manifest.version === tag) {
+  // Prerelease tags (e.g. 0.4.0-rc.1, 0.4.0-beta.2) carry the base version in
+  // manifest.json — strip the suffix before comparing so the beta-first flow
+  // works. Bare SemVer tags compare unchanged.
+  const baseTag = tag.replace(/-(?:rc|beta|alpha)\.\d+$/, "");
+  if (manifest.version === baseTag) {
     pass(`manifest.version (${manifest.version}) matches release tag ${rawTag}`);
   } else {
     fail(
       "manifest.version matches release tag",
-      `manifest=${manifest.version}, tag=${tag}` + (rawTag !== tag ? ` (raw=${rawTag})` : "")
+      `manifest=${manifest.version}, tag=${tag}` + (baseTag !== tag ? ` (base=${baseTag})` : "")
     );
   }
 } else {
