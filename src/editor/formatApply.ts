@@ -258,6 +258,60 @@ export function buildUnformatChanges(doc: string, from: number, to: number): For
   return buildSetFormatChanges(doc, from, to, []);
 }
 
+/**
+ * Reverse mode: remove *only* the checked `remove` formats from the span,
+ * leaving the rest intact. Detects which formats are present, recomputes the
+ * remaining set, and rebuilds — preserving a kept colored highlight's exact
+ * `<mark>` wrapper. Empty `remove` ⇒ no change.
+ */
+export function buildRemoveFormatChanges(
+  doc: string,
+  from: number,
+  to: number,
+  remove: string[]
+): FormatChange[] {
+  if (from > to) [from, to] = [to, from];
+  if (from === to || remove.length === 0) return [];
+
+  const [s, e] = expandFormattedRegion(doc, from, to);
+  const region = doc.slice(s, e);
+  const core = stripInlineDelims(region);
+
+  const removeHighlight = remove.some(isHighlight);
+  const removeHeading = remove.includes("h1") || remove.includes("h2") || remove.includes("h3");
+
+  // Detect present inline formats; capture a kept highlight's exact wrapper.
+  const markOpen = /<mark\b[^>]*>/i.exec(region);
+  const hlPresent = !!markOpen || region.includes("==");
+  const hlWrap: HighlightWrap = markOpen
+    ? { open: markOpen[0], close: "</mark>" }
+    : { open: "==", close: "==" };
+  const remaining: string[] = [];
+  if (region.includes("**") && !remove.includes("bold")) remaining.push("bold");
+  if (region.replace(/\*\*/g, "").includes("*") && !remove.includes("italic")) remaining.push("italic");
+  if (region.includes("~~") && !remove.includes("strike")) remaining.push("strike");
+  if (region.includes("`") && !remove.includes("code")) remaining.push("code");
+  if (hlPresent && !removeHighlight) remaining.push("highlight");
+
+  const changes: FormatChange[] = [];
+  const newInline = composeInline(core, remaining, hlWrap);
+  const inlinePresent = newInline !== region;
+  if (inlinePresent) changes.push({ from: s, to: e, insert: newInline });
+
+  // Block: keep the existing line prefix unless its kind is being removed.
+  const firstLs = doc.lastIndexOf("\n", from - 1) + 1;
+  const nl = doc.indexOf("\n", firstLs);
+  const existing = EXISTING_BLOCK_RE.exec(doc.slice(firstLs, nl === -1 ? doc.length : nl))?.[1] ?? "";
+  const isHeading = /^#{1,6}/.test(existing);
+  const isQuote = existing.startsWith(">");
+  const removeThisBlock = (isHeading && removeHeading) || (isQuote && remove.includes("quote"));
+  const desired = existing && !removeThisBlock ? existing : "";
+  changes.push(...blockPrefixChanges(doc, from, to, desired, inlinePresent));
+
+  changes.sort((a, b) => a.from - b.from);
+  return changes;
+}
+
 /** Apply a sorted, non-overlapping `FormatChange[]` to a string (for guards/tests). */
 export function applyChangesToString(doc: string, changes: FormatChange[]): string {
   let out = doc;

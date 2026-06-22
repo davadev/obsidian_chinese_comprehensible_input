@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildFormatChanges,
+  buildRemoveFormatChanges,
   buildSetFormatChanges,
   buildUnformatChanges,
   composeInline,
@@ -188,6 +189,32 @@ describe("buildFormatChanges (add mode)", () => {
     const inner = doc.indexOf("标题");
     const out = applyChanges(doc, buildFormatChanges(doc, inner, inner + 2, ["bold"]));
     expect(out).toBe("## **标题**");
+  });
+});
+
+describe("buildRemoveFormatChanges (reverse mode)", () => {
+  it("removes the highlight, keeps the heading", () => {
+    const doc = "### ==标题==";
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildRemoveFormatChanges(doc, inner, inner + 2, ["highlight"]));
+    expect(out).toBe("### 标题");
+  });
+
+  it("removes the heading, keeps a colored highlight verbatim", () => {
+    const doc = '### <mark style="background:#FFB8EBA6;">标题</mark>';
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildRemoveFormatChanges(doc, inner, inner + 2, ["h3"]));
+    expect(out).toBe('<mark style="background:#FFB8EBA6;">标题</mark>');
+  });
+
+  it("removes bold but keeps the highlight", () => {
+    const doc = "==**字**==";
+    const out = applyChanges(doc, buildRemoveFormatChanges(doc, 4, 5, ["bold"]));
+    expect(out).toBe("==字==");
+  });
+
+  it("empty remove set is a no-op", () => {
+    expect(buildRemoveFormatChanges("==字==", 2, 3, [])).toEqual([]);
   });
 });
 
