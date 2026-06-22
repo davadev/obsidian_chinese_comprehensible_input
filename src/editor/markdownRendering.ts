@@ -292,7 +292,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
             from: start,
             to: end,
             deco: Decoration.replace({
-              widget: new WikilinkWidget(plugin, target, alias, formatMode, end - start),
+              widget: new WikilinkWidget(plugin, target, alias, formatMode, start, end),
             }),
           });
         }
@@ -316,7 +316,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
             from: start,
             to: end,
             deco: Decoration.replace({
-              widget: new EmbedWidget(plugin, target, formatMode, end - start),
+              widget: new EmbedWidget(plugin, target, formatMode, start, end),
             }),
           });
         }
@@ -523,11 +523,15 @@ class HrWidget extends WidgetType {
 }
 
 /** In format mode, mark a link widget as a clickable selection target spanning
- *  the WHOLE link markup (so a highlight snaps over the entire link). */
-function markFormatTarget(el: HTMLElement, surface: string, docLen: number): void {
+ *  the WHOLE link markup (so a highlight snaps over the entire link). The doc
+ *  start/end are baked in as a fallback for when posAtDOM can't resolve the
+ *  widget. */
+function markFormatTarget(el: HTMLElement, surface: string, start: number, end: number): void {
   el.classList.add("cci-word");
   el.setAttribute("data-cci-surface", surface);
-  el.setAttribute("data-cci-doclen", String(docLen));
+  el.setAttribute("data-cci-start", String(start));
+  el.setAttribute("data-cci-end", String(end));
+  el.setAttribute("data-cci-doclen", String(end - start));
 }
 
 class WikilinkWidget extends WidgetType {
@@ -536,7 +540,8 @@ class WikilinkWidget extends WidgetType {
     private target: string,
     private alias: string | undefined,
     private formatMode = false,
-    private docLen = 0
+    private docStart = 0,
+    private docEnd = 0
   ) {
     super();
   }
@@ -546,7 +551,7 @@ class WikilinkWidget extends WidgetType {
     el.textContent = this.alias || this.target;
     el.setAttribute("title", `Open: ${this.target}`);
     attachOpenInChineseView(el, this.plugin, this.target);
-    if (this.formatMode) markFormatTarget(el, this.alias || this.target, this.docLen);
+    if (this.formatMode) markFormatTarget(el, this.alias || this.target, this.docStart, this.docEnd);
     return el;
   }
   eq(other: WikilinkWidget): boolean {
@@ -554,7 +559,8 @@ class WikilinkWidget extends WidgetType {
       other.target === this.target &&
       other.alias === this.alias &&
       other.formatMode === this.formatMode &&
-      other.docLen === this.docLen
+      other.docStart === this.docStart &&
+      other.docEnd === this.docEnd
     );
   }
   ignoreEvent(): boolean {
@@ -568,7 +574,8 @@ class EmbedWidget extends WidgetType {
     private plugin: CciPlugin,
     private target: string,
     private formatMode = false,
-    private docLen = 0
+    private docStart = 0,
+    private docEnd = 0
   ) {
     super();
   }
@@ -580,7 +587,7 @@ class EmbedWidget extends WidgetType {
       img.className = "cci-md-embed-img";
       img.src = this.plugin.app.vault.getResourcePath(file);
       img.alt = this.target;
-      if (this.formatMode) markFormatTarget(img, this.target, this.docLen);
+      if (this.formatMode) markFormatTarget(img, this.target, this.docStart, this.docEnd);
       return img;
     }
     // Note embed: clickable card that opens the note in the Chinese
@@ -589,14 +596,17 @@ class EmbedWidget extends WidgetType {
     card.className = "cci-md-embed cci-md-embed-card";
     card.textContent = file ? file.basename : this.target;
     attachOpenInChineseView(card, this.plugin, this.target);
-    if (this.formatMode) markFormatTarget(card, file ? file.basename : this.target, this.docLen);
+    if (this.formatMode) {
+      markFormatTarget(card, file ? file.basename : this.target, this.docStart, this.docEnd);
+    }
     return card;
   }
   eq(other: EmbedWidget): boolean {
     return (
       other.target === this.target &&
       other.formatMode === this.formatMode &&
-      other.docLen === this.docLen
+      other.docStart === this.docStart &&
+      other.docEnd === this.docEnd
     );
   }
   ignoreEvent(): boolean {
@@ -640,11 +650,12 @@ function attachOpenInChineseView(
   target: string
 ): void {
   const handler = (ev: Event) => {
+    // In an interactive mode the tap is a tool action (e.g. picking a format
+    // selection boundary). Bail BEFORE preventDefault — calling it on iOS
+    // touchstart swallows the click so the format handler never fires.
+    if (plugin.isInteractiveMode()) return;
     ev.preventDefault();
     ev.stopPropagation();
-    // Don't navigate while an interactive mode is active (format / mark-* /
-    // select) — the tap is a tool action, not a link follow.
-    if (plugin.isInteractiveMode()) return;
     const file = resolveLinkpath(plugin, target);
     if (file && file.extension === "md") {
       void plugin.openFileInChineseView(file);
@@ -671,10 +682,11 @@ export function markdownLinkClickHandler(plugin: CciPlugin) {
       if (!el) return false;
       const href = el.getAttribute("data-cci-href");
       if (!href) return false;
+      // In interactive modes let the click flow to the format handler — don't
+      // consume or preventDefault (which would swallow the tap).
+      if (plugin.isInteractiveMode()) return false;
       ev.preventDefault();
       ev.stopPropagation();
-      // Suppress navigation during interactive modes (tap = tool action).
-      if (plugin.isInteractiveMode()) return true;
       openHref(plugin, href);
       return true;
     },

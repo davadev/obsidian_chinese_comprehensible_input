@@ -211,6 +211,20 @@ describe("buildRemoveFormatChanges (reverse mode)", () => {
   it("empty remove set is a no-op", () => {
     expect(buildRemoveFormatChanges("==字==", 2, 3, [])).toEqual([]);
   });
+
+  it("removes a highlight when an INNER character is tapped", () => {
+    const doc = "==你好世界==";
+    const m = doc.indexOf("好"); // a middle char, not adjacent to the ==
+    const out = applyChanges(doc, buildRemoveFormatChanges(doc, m, m + 1, ["highlight"]));
+    expect(out).toBe("你好世界");
+  });
+
+  it("removes a colored <mark> when an inner character is tapped", () => {
+    const doc = '前<mark style="background:#FFB8EBA6;">你好世界</mark>后';
+    const m = doc.indexOf("好");
+    const out = applyChanges(doc, buildRemoveFormatChanges(doc, m, m + 1, ["highlight"]));
+    expect(out).toBe("前你好世界后");
+  });
 });
 
 describe("inline + block at line start (guard regression)", () => {

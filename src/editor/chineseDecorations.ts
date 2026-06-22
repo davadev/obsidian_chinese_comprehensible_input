@@ -215,29 +215,40 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // In format mode every visible character should be a valid tap target
         // (start/end of a selection), not just tokenized Chinese words.
         const formatMode = plugin.activeViewMode() === "format";
+        // In ruby modes the markdown renderer skips the highlight content tint
+        // (it would overlap the ruby widgets), so non-word runs inside a
+        // highlight must be tinted here too — otherwise digits/punctuation in a
+        // highlighted span render with no background.
+        const rubyMode =
+          settings.defaultDisplayMode === "two-line" ||
+          settings.defaultDisplayMode === "three-line";
         for (const range of ranges) {
           for (const tok of tokens) {
             if (tok.end <= range.from) continue;
             if (tok.start >= range.to) break;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
             if (!tok.isWord || tok.candidates.length === 0) {
-              // Non-word run (digits / latin / punctuation): clickable in format
-              // mode only, skipping pure whitespace.
-              if (formatMode && /\S/.test(tok.surface)) {
-                builder.add(
-                  tok.start,
-                  tok.end,
-                  Decoration.mark({
-                    class: "cci-word",
-                    attributes: {
-                      "data-cci-surface": tok.surface,
-                      "data-cci-start": String(tok.start),
-                      "data-cci-end": String(tok.end),
-                      "data-cci-doclen": String(tok.end - tok.start),
-                    },
-                  })
-                );
+              // Non-word run (digits / latin / punctuation), skipping whitespace.
+              if (!/\S/.test(tok.surface)) continue;
+              const hl = highlightBgAt(tok);
+              const needTint = rubyMode && hl !== undefined;
+              if (!formatMode && !needTint) continue;
+              const attributes: Record<string, string> = {};
+              let cls = "";
+              if (formatMode) {
+                // Clickable selection target (only in format mode — otherwise a
+                // tap on a digit would open a word popup).
+                cls = "cci-word";
+                attributes["data-cci-surface"] = tok.surface;
+                attributes["data-cci-start"] = String(tok.start);
+                attributes["data-cci-end"] = String(tok.end);
+                attributes["data-cci-doclen"] = String(tok.end - tok.start);
               }
+              if (needTint) {
+                cls = (cls ? cls + " " : "") + "cci-md-highlight";
+                attributes["style"] = `background-color:${hl};`;
+              }
+              builder.add(tok.start, tok.end, Decoration.mark({ class: cls, attributes }));
               continue;
             }
             this.emitDecoration(
