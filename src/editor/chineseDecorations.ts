@@ -370,7 +370,12 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // is applied — characters stay editable.
         const mode = editMode ? "none" : settings.defaultDisplayMode;
 
-        const showColor = colorShouldShow(colorKey, settings);
+        // Priority when a word is BOTH status/HSK-colored AND highlighted: the
+        // user setting decides which one shows (default: the highlight wins).
+        const statusWouldShow = colorShouldShow(colorKey, settings);
+        const both = statusWouldShow && highlightBg !== undefined;
+        const showColor = both ? !settings.highlightOverridesStatus : statusWouldShow;
+        const effHl = both && !settings.highlightOverridesStatus ? undefined : highlightBg;
 
         // A highlighted word ALWAYS takes the ruby path (even a known/no-pinyin
         // word) so its tint uses the tight `.cci-stack-chars-hl` band, matching
@@ -378,7 +383,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // when the word's axes say so, so a known word still shows just the char.
         const wantsRuby =
           (mode === "two-line" || mode === "three-line") &&
-          (statusColor !== "known" || highlightBg !== undefined);
+          (statusColor !== "known" || effHl !== undefined);
 
         if (wantsRuby) {
           builder.add(
@@ -393,7 +398,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
                 settings,
                 headingLevel,
                 showColor ? colorKey : undefined,
-                highlightBg
+                effHl
               ),
               inclusive: false,
             })
@@ -410,8 +415,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // (it would overlap the ruby widgets), so mark-rendered words tint here.
         const rubyMode = mode === "two-line" || mode === "three-line";
         const hlAttrs: Record<string, string> =
-          highlightBg && rubyMode ? { style: `background-color:${highlightBg};` } : {};
-        const hlClass = highlightBg && rubyMode ? " cci-md-highlight" : "";
+          effHl && rubyMode ? { style: `background-color:${effHl};` } : {};
+        const hlClass = effHl && rubyMode ? " cci-md-highlight" : "";
         if (showColor) {
           builder.add(
             tok.start,
@@ -426,7 +431,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               },
             })
           );
-        } else if (formatMode || (statusColor === "known" && settings.knownWordPopups)) {
+        } else if (effHl !== undefined || formatMode || (statusColor === "known" && settings.knownWordPopups)) {
           // No tint, but make it clickable: the popup can open (knownWordPopups)
           // or the formatting mode can read the span offsets. Without this the
           // `.cci-word` lookup in wordInteractionPlugin finds nothing.

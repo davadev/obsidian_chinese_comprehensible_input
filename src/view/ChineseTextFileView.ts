@@ -1,4 +1,4 @@
-import { Notice, TextFileView, WorkspaceLeaf } from "obsidian";
+import { Notice, Platform, TextFileView, WorkspaceLeaf } from "obsidian";
 import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
@@ -462,6 +462,20 @@ export class ChineseTextFileView extends TextFileView {
     this.editor = new EditorView({
       state,
       parent: this.editorContainer,
+    });
+
+    // iOS: a tap in a non-edit mode can leave `contentDOM` focused (no keyboard,
+    // since the view is read-only there). The first tap on a header action like
+    // "Edit in Markdown" is then swallowed dismissing that focus, so it takes two
+    // taps. Keep the editor unfocused outside edit mode — only the caret/keyboard
+    // focus is dropped; CM keeps selection in its state and scroll is independent,
+    // so no positions are lost. Mobile-only so desktop text selection is intact.
+    this.editor.contentDOM.addEventListener("focusin", () => {
+      if (!Platform.isMobile) return;
+      if (this.plugin.activeViewMode() === "edit") return;
+      window.setTimeout(() => {
+        if (this.plugin.activeViewMode() !== "edit") this.editor?.contentDOM.blur();
+      }, 0);
     });
   }
 
