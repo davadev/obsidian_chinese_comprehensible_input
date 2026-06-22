@@ -11,7 +11,7 @@ import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } fro
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
 import { buildFormatChanges, buildUnformatChanges } from "../editor/formatApply";
-import type { FormatId } from "../settings/types";
+import type { HighlightWrap } from "../editor/highlightPalette";
 
 /**
  * Markdown syntax highlighting tuned for the Chinese reader.
@@ -502,14 +502,19 @@ export class ChineseTextFileView extends TextFileView {
    * a user-event-annotated transaction so the existing updateListener saves the
    * file, and the Chinese/markdown decorations rebuild on the doc change.
    */
-  applyFormatToRange(from: number, to: number, formats: FormatId[]): void {
+  applyFormatToRange(
+    from: number,
+    to: number,
+    formats: string[],
+    hlWrap?: HighlightWrap
+  ): void {
     if (!this.editor) return;
     const doc = this.editor.state.doc.toString();
     // Nothing armed = strip existing formatting from the span.
     const changes =
       formats.length === 0
         ? buildUnformatChanges(doc, from, to)
-        : buildFormatChanges(doc, from, to, formats);
+        : buildFormatChanges(doc, from, to, formats, hlWrap);
     if (changes.length === 0) return;
     this.editor.dispatch({
       changes,

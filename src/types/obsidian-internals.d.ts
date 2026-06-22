@@ -15,6 +15,9 @@ declare module "obsidian" {
     };
     plugins?: {
       disablePlugin?: (id: string) => Promise<void>;
+      enabledPlugins?: Set<string>;
+      plugins?: Record<string, { settings?: unknown } | undefined>;
+      getPlugin?: (id: string) => { settings?: unknown } | null;
     };
   }
 }

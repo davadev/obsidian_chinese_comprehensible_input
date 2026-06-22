@@ -1,4 +1,5 @@
 import type { FormatId } from "../settings/types";
+import type { HighlightWrap } from "./highlightPalette";
 
 /**
  * Pure formatting logic for the in-view formatting mode (#21 phase 1).
@@ -17,13 +18,12 @@ import type { FormatId } from "../settings/types";
 export const INLINE_FORMATS: readonly FormatId[] = ["bold", "italic", "highlight", "strike"];
 export const BLOCK_FORMATS: readonly FormatId[] = ["h1", "h2", "h3", "quote"];
 
-/** Delimiters wrapped around the span. Listed inner→outer; applied in order. */
-const INLINE_DELIM: Record<string, string> = {
-  bold: "**",
-  italic: "*",
-  highlight: "==",
-  strike: "~~",
-};
+/** Non-highlight inline delimiters nested inner→outer around the span. */
+const NESTED_INLINE: ReadonlyArray<{ id: FormatId; delim: string }> = [
+  { id: "bold", delim: "**" },
+  { id: "italic", delim: "*" },
+  { id: "strike", delim: "~~" },
+];
 
 /** Line-start prefixes for block formats. */
 const BLOCK_PREFIX: Record<string, string> = {
@@ -51,8 +51,23 @@ export interface FormatChange {
   insert: string;
 }
 
-function isInline(id: FormatId): boolean {
-  return id === "code" || INLINE_FORMATS.includes(id);
+/** A highlight is the plain `==` option or a colored `hl:<slug>` option. */
+export function isHighlight(id: string): boolean {
+  return id === "highlight" || id.startsWith("hl:");
+}
+
+function isBlock(id: string): boolean {
+  return (BLOCK_FORMATS as readonly string[]).includes(id);
+}
+
+function isInline(id: string): boolean {
+  return (
+    id === "code" ||
+    id === "bold" ||
+    id === "italic" ||
+    id === "strike" ||
+    isHighlight(id)
+  );
 }
 
 /**
@@ -60,32 +75,39 @@ function isInline(id: FormatId): boolean {
  * checkboxes are greyed out. `id` itself being enabled never counts as a
  * conflict (so an armed box stays toggleable).
  */
-export function conflictDisabled(id: FormatId, enabled: FormatId[]): boolean {
+export function conflictDisabled(id: string, enabled: string[]): boolean {
   if (enabled.includes(id)) return false;
   const others = enabled;
   if (id === "code") {
     // code is exclusive with every other inline format
     return others.some((o) => isInline(o));
   }
-  if (INLINE_FORMATS.includes(id)) {
+  if (isHighlight(id)) {
+    // one highlight at a time, and never alongside code
+    return others.includes("code") || others.some((o) => isHighlight(o));
+  }
+  if (id === "bold" || id === "italic" || id === "strike") {
     return others.includes("code");
   }
   // block: only one block prefix at a time
-  return others.some((o) => BLOCK_FORMATS.includes(o));
+  return others.some((o) => isBlock(o));
 }
 
 /**
  * Wrap `text` in the selected inline delimiters. `code` short-circuits to a
- * literal span. Returns `text` unchanged when no inline format is selected.
+ * literal span. Bold/italic/strike nest inner→outer; a highlight wraps
+ * outermost using `hlWrap` (colored `<mark>` when given, plain `==` otherwise).
+ * Returns `text` unchanged when no inline format is selected.
  */
-export function composeInline(text: string, formats: FormatId[]): string {
+export function composeInline(text: string, formats: string[], hlWrap?: HighlightWrap): string {
   if (formats.includes("code")) return "`" + text + "`";
   let out = text;
-  for (const id of INLINE_FORMATS) {
-    if (formats.includes(id)) {
-      const d = INLINE_DELIM[id];
-      out = d + out + d;
-    }
+  for (const { id, delim } of NESTED_INLINE) {
+    if (formats.includes(id)) out = delim + out + delim;
+  }
+  if (formats.some(isHighlight)) {
+    const w = hlWrap ?? { open: "==", close: "==" };
+    out = w.open + out + w.close;
   }
   return out;
 }
@@ -111,7 +133,8 @@ export function buildFormatChanges(
   doc: string,
   from: number,
   to: number,
-  formats: FormatId[]
+  formats: string[],
+  hlWrap?: HighlightWrap
 ): FormatChange[] {
   if (from > to) [from, to] = [to, from];
   if (from === to || formats.length === 0) return [];
@@ -121,10 +144,10 @@ export function buildFormatChanges(
   const inline = formats.filter(isInline);
   if (inline.length > 0) {
     const slice = doc.slice(from, to);
-    changes.push({ from, to, insert: composeInline(slice, inline) });
+    changes.push({ from, to, insert: composeInline(slice, inline, hlWrap) });
   }
 
-  const block = formats.find((f) => BLOCK_FORMATS.includes(f));
+  const block = formats.find(isBlock);
   if (block) {
     const prefix = BLOCK_PREFIX[block];
     for (const ls of coveredLineStarts(doc, from, to)) {
@@ -149,9 +172,10 @@ export function buildFormatChanges(
 /** Characters that make up the inline delimiters we strip when unformatting. */
 const INLINE_DELIM_CHARS = new Set(["*", "=", "~", "`"]);
 
-/** Remove inline delimiter runs (`**` `*` `==` `~~` `` ` ``) from a slice. */
+/** Remove inline delimiters (`**` `*` `==` `~~` `` ` ``) and `<mark>` tags. */
 function stripInlineDelims(s: string): string {
   return s
+    .replace(/<\/?mark\b[^>]*>/gi, "")
     .replace(/\*\*/g, "")
     .replace(/==/g, "")
     .replace(/~~/g, "")
@@ -173,6 +197,11 @@ export function buildUnformatChanges(doc: string, from: number, to: number): For
   let e = to;
   while (s > 0 && INLINE_DELIM_CHARS.has(doc[s - 1])) s--;
   while (e < doc.length && INLINE_DELIM_CHARS.has(doc[e])) e++;
+  // Swallow an immediately-preceding `<mark …>` and a following `</mark>`.
+  const openMatch = /<mark\b[^>]*>$/i.exec(doc.slice(Math.max(0, s - 256), s));
+  if (openMatch) s -= openMatch[0].length;
+  const closeMatch = /^<\/mark>/i.exec(doc.slice(e, e + 8));
+  if (closeMatch) e += closeMatch[0].length;
 
   const changes: FormatChange[] = [];
   const region = doc.slice(s, e);
