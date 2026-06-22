@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildFormatChanges,
+  buildSetFormatChanges,
   buildUnformatChanges,
   composeInline,
   conflictDisabled,
@@ -133,6 +134,58 @@ describe("buildUnformatChanges", () => {
     const inner = doc.indexOf("你好");
     const changes = buildUnformatChanges(doc, inner, inner + 2);
     expect(applyChanges(doc, changes)).toBe("你好");
+  });
+});
+
+describe("buildSetFormatChanges (exact mode)", () => {
+  it("keeps H3, drops the highlight", () => {
+    const doc = "### ==标题==";
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildSetFormatChanges(doc, inner, inner + 2, ["h3"]));
+    expect(out).toBe("### 标题");
+  });
+
+  it("drops H3, keeps the highlight", () => {
+    const doc = "### ==标题==";
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildSetFormatChanges(doc, inner, inner + 2, ["highlight"]));
+    expect(out).toBe("==标题==");
+  });
+
+  it("replaces highlight with bold over highlighted text", () => {
+    const doc = "==字==";
+    const out = applyChanges(doc, buildSetFormatChanges(doc, 2, 3, ["bold"]));
+    expect(out).toBe("**字**");
+  });
+
+  it("empty formats clears everything", () => {
+    const doc = "### ==字==";
+    const inner = doc.indexOf("字");
+    const out = applyChanges(doc, buildSetFormatChanges(doc, inner, inner + 1, []));
+    expect(out).toBe("字");
+  });
+});
+
+describe("buildFormatChanges (add mode)", () => {
+  it("adds a highlight over a heading, keeping the heading", () => {
+    const doc = "### 标题";
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildFormatChanges(doc, inner, inner + 2, ["highlight"]));
+    expect(out).toBe("### ==标题==");
+  });
+
+  it("replaces the heading level instead of stacking prefixes", () => {
+    const doc = "# 标题";
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildFormatChanges(doc, inner, inner + 2, ["h2"]));
+    expect(out).toBe("## 标题");
+  });
+
+  it("leaves an existing heading untouched when no block is checked", () => {
+    const doc = "## 标题";
+    const inner = doc.indexOf("标题");
+    const out = applyChanges(doc, buildFormatChanges(doc, inner, inner + 2, ["bold"]));
+    expect(out).toBe("## **标题**");
   });
 });
 

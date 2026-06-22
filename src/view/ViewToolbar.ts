@@ -247,13 +247,15 @@ export class ViewToolbar {
 
   private formatBannerText(): string {
     const enabled = this.plugin.settings.enabledFormats;
+    const exact = this.plugin.settings.formatExactMode;
     const pending = this.plugin.pendingFormatStart != null;
     const endHint = pending ? "tap the end word" : "tap start word, then end word";
     if (enabled.length === 0) {
-      return `Formatting (remove) — ${endHint} to clear formatting`;
+      return `Formatting (clear) — ${endHint} to remove all formatting`;
     }
     const names = enabled.map((f) => this.formatLabel(f)).join(", ");
-    return `Formatting (${names}) — ${endHint}`;
+    const verb = exact ? "set (unchecked removed)" : "add";
+    return `Formatting (${names}) — ${endHint} to ${verb}`;
   }
 
   private renderFormatBanner() {
@@ -306,6 +308,28 @@ export class ViewToolbar {
     // the popup at the top-left corner).
     const populate = () => {
       menu.empty();
+
+      // Add / exact-mode toggle at the top.
+      const modeItem = menu.createDiv({ cls: "cci-overflow-item" });
+      const modeCb = modeItem.createEl("input", { type: "checkbox" });
+      modeCb.checked = this.plugin.settings.formatExactMode;
+      modeItem.createSpan({ text: "Exact mode (replace span)" });
+      const toggleMode = () => {
+        void (async () => {
+          this.plugin.settings.formatExactMode = modeCb.checked;
+          await this.plugin.saveSettings();
+          populate();
+          if (this.formatLabelEl) this.formatLabelEl.setText(this.formatBannerText());
+        })();
+      };
+      modeCb.addEventListener("change", toggleMode);
+      modeItem.addEventListener("click", (ev) => {
+        if (ev.target !== modeCb) {
+          modeCb.checked = !modeCb.checked;
+          toggleMode();
+        }
+      });
+
       const hint = menu.createDiv({ cls: "cci-overflow-hint" });
       hint.setText("Formats to apply (none = remove)");
 

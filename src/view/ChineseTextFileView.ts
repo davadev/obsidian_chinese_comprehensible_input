@@ -10,7 +10,7 @@ import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
-import { buildFormatChanges, buildUnformatChanges } from "../editor/formatApply";
+import { buildFormatChanges, buildSetFormatChanges, buildUnformatChanges } from "../editor/formatApply";
 import type { HighlightWrap } from "../editor/highlightPalette";
 
 /**
@@ -506,14 +506,17 @@ export class ChineseTextFileView extends TextFileView {
     from: number,
     to: number,
     formats: string[],
-    hlWrap?: HighlightWrap
+    hlWrap?: HighlightWrap,
+    exact = false
   ): void {
     if (!this.editor) return;
     const doc = this.editor.state.doc.toString();
-    // Nothing armed = strip existing formatting from the span.
+    // Nothing armed = strip existing formatting. Otherwise add or set-exact.
     const changes =
       formats.length === 0
         ? buildUnformatChanges(doc, from, to)
+        : exact
+        ? buildSetFormatChanges(doc, from, to, formats, hlWrap)
         : buildFormatChanges(doc, from, to, formats, hlWrap);
     if (changes.length === 0) return;
     this.editor.dispatch({

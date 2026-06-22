@@ -955,7 +955,7 @@ export default class CciPlugin extends Plugin {
       if (hc) hlWrap = highlightWrap(hc, this.app);
     }
     // Empty `formats` is intentional: it strips existing formatting from the span.
-    view.applyFormatToRange(start, endPos, formats, hlWrap);
+    view.applyFormatToRange(start, endPos, formats, hlWrap, this.settings.formatExactMode);
     this.refreshChineseViewToolbars();
   }
 

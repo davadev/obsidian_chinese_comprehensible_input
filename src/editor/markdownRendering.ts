@@ -13,7 +13,7 @@ import { setIcon, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { cciRedecorateEffect } from "./chineseDecorations";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
-import { findHighlightSpans, resolveHighlightPalette, type HighlightColor } from "./highlightPalette";
+import { findHighlightSpans, resolveHighlightPalette, type HighlightSpan } from "./highlightPalette";
 
 /**
  * Hide markdown syntax characters and turn links into clickable widgets
@@ -64,6 +64,11 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         // Resolve the Highlightr palette once per build so `<mark class="hltr-…">`
         // class names map to colors (inline `<mark style>` is self-describing).
         const palette = resolveHighlightPalette(plugin.app, plugin.settings);
+        // Highlight spans computed once over the whole doc, but emitted only for
+        // those fully inside a visible range — a ViewPlugin must NOT provide
+        // `replace`/layout decorations (the hidden delimiters) off-screen or CM6
+        // mis-measures the viewport and duplicates lines.
+        const highlightSpans = findHighlightSpans(text, palette);
 
         for (const { from, to } of view.visibleRanges) {
           tree.iterate({
@@ -90,12 +95,11 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // only parses standard GFM `[ ]` / `[x]` so we scan for the
           // full alphabet of characters the user supports.
           this.scanTasks(slice, from, excluded, items);
-        }
 
-        // Highlights (`==…==` and Highlightr `<mark …>`) — emitted once over the
-        // whole doc from the shared detector so the markdown renderer and the
-        // Chinese decorations agree on spans.
-        this.emitHighlights(text, excluded, items, palette);
+          // Highlights (`==…==` and Highlightr `<mark …>`) fully inside this
+          // visible range.
+          this.emitHighlights(highlightSpans, from, to, excluded, items);
+        }
 
         items.sort((a, b) => (a.from - b.from) || (a.to - b.to));
 
@@ -341,12 +345,15 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
       }
 
       emitHighlights(
-        text: string,
+        spans: HighlightSpan[],
+        rangeFrom: number,
+        rangeTo: number,
         excluded: ReturnType<typeof computeExcludedRanges>,
-        items: Array<{ from: number; to: number; deco: Decoration }>,
-        palette: HighlightColor[]
+        items: Array<{ from: number; to: number; deco: Decoration }>
       ): void {
-        for (const span of findHighlightSpans(text, palette)) {
+        for (const span of spans) {
+          // Only spans fully within the visible range (no off-screen replaces).
+          if (span.openFrom < rangeFrom || span.closeTo > rangeTo) continue;
           // Skip when the content sits in an excluded context (code, math…).
           if (isRangeExcluded(excluded, span.contentFrom, span.contentTo)) continue;
           const deco = span.color
