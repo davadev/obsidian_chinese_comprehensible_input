@@ -372,8 +372,13 @@ export function buildChineseDecorations(plugin: CciPlugin) {
 
         const showColor = colorShouldShow(colorKey, settings);
 
+        // A highlighted word ALWAYS takes the ruby path (even a known/no-pinyin
+        // word) so its tint uses the tight `.cci-stack-chars-hl` band, matching
+        // pinyin words and non-word glyphs. RubyWidget suppresses the pinyin row
+        // when the word's axes say so, so a known word still shows just the char.
         const wantsRuby =
-          (mode === "two-line" || mode === "three-line") && statusColor !== "known";
+          (mode === "two-line" || mode === "three-line") &&
+          (statusColor !== "known" || highlightBg !== undefined);
 
         if (wantsRuby) {
           builder.add(

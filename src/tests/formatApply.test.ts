@@ -44,6 +44,20 @@ describe("composeInline", () => {
   it("plain highlight ignores hlWrap and uses ==", () => {
     expect(composeInline("你好", ["highlight"])).toBe("==你好==");
   });
+
+  it("colored <mark> highlight leaves a wikilink/embed bare so it stays linkable", () => {
+    const wrap = { open: '<mark style="background:#BBFABBA6;">', close: "</mark>" };
+    expect(composeInline("前 [[note]] 后", ["hl:green"], wrap)).toBe(
+      '<mark style="background:#BBFABBA6;">前 </mark>[[note]]<mark style="background:#BBFABBA6;"> 后</mark>'
+    );
+    // No `<mark>` wraps the link syntax itself.
+    expect(composeInline("![[img.png]]", ["hl:green"], wrap)).toBe("![[img.png]]");
+  });
+
+  it("== highlight and bold leave a link whole (Obsidian parses links inside them)", () => {
+    expect(composeInline("前[[note]]后", ["highlight"])).toBe("==前[[note]]后==");
+    expect(composeInline("前[[note]]后", ["bold"])).toBe("**前[[note]]后**");
+  });
 });
 
 describe("buildFormatChanges", () => {

@@ -110,6 +110,38 @@ export function conflictDisabled(id: string, enabled: string[]): boolean {
  * Returns `text` unchanged when no inline format is selected.
  */
 export function composeInline(text: string, formats: string[], hlWrap?: HighlightWrap): string {
+  // A colored `<mark …>` is raw HTML; Obsidian does NOT parse a wikilink/embed/
+  // md-link inside it, so wrapping a link in `<mark>` breaks it in the native
+  // view. Split around links: wrap each link-free segment, leave the link bare
+  // (it keeps working everywhere). `==` highlights and bold/italic are left whole
+  // — Obsidian parses links inside those.
+  if (
+    formats.some(isHighlight) &&
+    hlWrap?.open.startsWith("<mark") &&
+    new RegExp(LINK_RE).test(text)
+  ) {
+    const re = new RegExp(LINK_RE);
+    let out = "";
+    let last = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text))) {
+      const before = text.slice(last, m.index);
+      if (before) out += composeInlineCore(before, formats, hlWrap);
+      out += m[0]; // link, verbatim
+      last = m.index + m[0].length;
+    }
+    const tail = text.slice(last);
+    if (tail) out += composeInlineCore(tail, formats, hlWrap);
+    return out;
+  }
+  return composeInlineCore(text, formats, hlWrap);
+}
+
+/** Wikilink / embed / markdown link. Recreate per use — `g` flag keeps state. */
+const LINK_RE = /!?\[\[[^\]\n]*\]\]|\[[^\]\n]*\]\([^)\n]*\)/g;
+
+/** Nest inline delimiters inner→outer, highlight outermost. */
+function composeInlineCore(text: string, formats: string[], hlWrap?: HighlightWrap): string {
   if (formats.includes("code")) return "`" + text + "`";
   let out = text;
   for (const { id, delim } of NESTED_INLINE) {
