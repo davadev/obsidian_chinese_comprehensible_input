@@ -171,9 +171,12 @@ function blockPrefixChanges(
 function expandFormattedRegion(doc: string, from: number, to: number): [number, number] {
   let s = from;
   let e = to;
-  // Enclosing highlight span (covers the "tapped a middle character" case).
+  // Any highlight the selection OVERLAPS is grown to its whole `<mark>…</mark>` /
+  // `==…==`. Overlap (not full-containment) so a revert that covers the open tag
+  // but stops mid-content still removes BOTH delimiters — otherwise the `</mark>`
+  // outside the range is left orphaned.
   for (const span of findHighlightSpans(doc, [])) {
-    if (span.contentFrom <= from && to <= span.contentTo) {
+    if (from < span.closeTo && to > span.openFrom) {
       s = Math.min(s, span.openFrom);
       e = Math.max(e, span.closeTo);
     }

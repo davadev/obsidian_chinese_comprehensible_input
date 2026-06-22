@@ -252,7 +252,6 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           for (const tok of tokens) {
             if (tok.end <= range.from) continue;
             if (tok.start >= range.to) break;
-            if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
             if (!tok.isWord || tok.candidates.length === 0) {
               // Non-word run — render one glyph at a time so each is an exact tap
               // target (format mode) and its own 1em tint cell (ruby mode). A
@@ -264,7 +263,11 @@ export function buildChineseDecorations(plugin: CciPlugin) {
                 const ce = off + ch.length; // UTF-16 doc offsets
                 off = ce;
                 if (!/\S/.test(ch)) continue; // skip whitespace / newlines
-                if (inHiddenDelimiter(cs, ce)) continue; // skip hidden markup
+                // Per-char exclusion: skips the `<mark …>`/`</mark>` tag chars,
+                // code, math — but NOT the content glyph next to a tag. (Testing
+                // the whole token would drop `1.`/`？` for an embedded `<mark>`.)
+                if (isRangeExcluded(exclusions, cs, ce)) continue;
+                if (inHiddenDelimiter(cs, ce)) continue; // also hides `==` delimiters
                 const bg = rubyMode ? charBg(cs, ce) : undefined;
                 if (bg) {
                   // Render a highlighted non-word glyph through the SAME widget as
@@ -318,6 +321,10 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               }
               continue;
             }
+            // Word token: exclude only if the whole word sits in an excluded
+            // range (code / math / a link URL) — a CJK word never contains the
+            // adjacent `<mark>` tag, so this stays a clean whole-token test.
+            if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
             this.emitDecoration(
               builder,
               tok,
