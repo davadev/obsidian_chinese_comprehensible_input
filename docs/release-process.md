@@ -8,6 +8,15 @@ Two workflows live in `.github/workflows/`:
 - **`release.yml`** — triggers on push of a SemVer-shaped tag (`0.3.4` for stable, `0.3.4-rc.1` for prerelease). Re-runs the whole verification chain (lint → build → test → check-release with `--tag $TAG --with-build`) on a clean Ubuntu runner. **A single lint Error aborts the workflow, so a broken release can never reach the directory.** On success, it creates the GitHub Release atomically with `main.js`, `manifest.json`, `styles.css` attached — auto-generated release notes from PRs / commits since the previous tag. Bare SemVer → `--latest`; tag with a `-` → `--prerelease`.
 
 Releases are tag-driven: the dev pushes the tag, the workflow handles the rest. No more typing `gh release create` from a laptop.
+
+## Iterative prerelease loop (the default while building a feature)
+
+The normal cadence is to ship every round of changes as a **prerelease** and only cut a stable release when the user confirms the feature is done:
+
+- Keep `manifest.json` / `package.json` / `versions.json` pinned at the TARGET version `0.X.Y`. Bump them **once**, on the first `-rc.1` of a new target; never on subsequent rcs.
+- Each iteration: branch → PR → CI green → merge to `main` → `git tag 0.X.Y-rc.N && git push` (the rc number increments: `-rc.1`, `-rc.2`, …). The workflow publishes it as a `--prerelease`.
+- **Why prereleases are the right vehicle:** a prerelease is installable immediately by BRAT "Add Beta Plugin" testers, but Obsidian's official plugin checker and the community store only recognize a release tagged EXACTLY `0.X.Y`. So every `-rc.N` is testable by the user with zero risk to the public listing — it is never offered in the store. (`check-release` strips the `-rc.N` suffix when matching the tag against `manifest.version`, which is why the manifest correctly stays at `0.X.Y`.)
+- **Promotion to stable** happens only on the user's explicit go-ahead: tag the bare `0.X.Y` (no manifest change — it is already `0.X.Y`) and push. The workflow publishes it as `--latest`; that bare-`0.X.Y` release is the one the Obsidian checker / store finally pick up.
 - If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
 

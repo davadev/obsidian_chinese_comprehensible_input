@@ -34,17 +34,18 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 - **Color visibility** is gated by `showKnownColor` (default off), `showPartialColor` (default on), `showUnknownColor` (default on) — check these if colors seem missing.
 - **Every fix MUST be released with BRAT artifacts immediately.** The user tests via BRAT, so any fix must be tagged + released with `main.js`, `manifest.json`, `styles.css` — no exceptions. Do not leave a fix un-released. **Always start with `npm run check-release`; never skip it.** That script catches missing artifacts (the 0.1.56–0.1.59 iPad regression that shipped without `styles.css` would have failed it) and version skew between `manifest.json` / `package.json` / `versions.json`.
 - **Every release starts as prerelease — never assume stable unless the user explicitly says so.** The `gh release create` command must always use `--prerelease`. Only promote to stable (`gh release edit 0.X.Y --prerelease=false`) when the user explicitly instructs you to do so. The default assumption is always prerelease; stable is opt-in after manual verification.
+- **Iterate with `-rc.N` prereleases; DON'T bump the manifest per iteration.** This is the default loop while building a feature: keep `manifest.json` / `package.json` / `versions.json` at the TARGET version `0.X.Y` and ship each round of changes as a new prerelease tag `0.X.Y-rc.1`, `-rc.2`, `-rc.3`, … (only the rc suffix increments). Each iteration: branch → PR → CI green → merge to `main` → `git tag 0.X.Y-rc.N && git push`. The `Release` workflow publishes it as a **prerelease**. Why this is the correct loop: a prerelease is installable by BRAT "Add Beta Plugin" testers for immediate feedback, but Obsidian's official plugin checker and the community plugin store look for a release tagged EXACTLY `0.X.Y` — so prereleases are invisible to them. The user keeps testing each `-rc.N` via BRAT with zero risk to the public listing. `check-release` strips the `-rc.N` suffix when matching the tag to `manifest.version` (fixed in #25), so the manifest staying at `0.X.Y` is correct and required. Promote to stable ONLY when the user explicitly confirms the feature is done: tag the bare `0.X.Y` (no manifest change needed — it's already `0.X.Y`) and push, which the workflow publishes as `--latest` stable; that bare-`0.X.Y` release is what the Obsidian checker / store finally pick up.
 
 ## Release Process
 
 The release pipeline is now **tag-driven** via `.github/workflows/release.yml`. Pushing a SemVer-shaped tag (`0.X.Y` for stable, `0.X.Y-rc.1` / `0.X.Y-beta.2` for prerelease) triggers an Ubuntu runner that re-runs `npm ci` → `npm run lint` → `npm run build` → `npm test` → `npm run check-release -- --tag $TAG --with-build`, then creates the GitHub Release atomically with `main.js`, `manifest.json`, `styles.css` attached. **A single lint Error aborts the pipeline — no release is created.** The dev never types `gh release create` by hand.
 
 0. **Run `npm run check-release -- --with-build` locally first.** Same gate the workflow uses; faster feedback. Must report `0 failed` AND the embedded Obsidian-parity lint step must report `0 errors`. WARN-level findings (yellow `!`) are non-blocking but worth a look. The lint step matches the cloud auto-review's rule set (`eslint-plugin-obsidianmd` + the relevant `@typescript-eslint` type-aware rules); see `eslint.config.mjs`. **A release with even one local lint Error will fail the Obsidian community-plugin auto-review and risk delisting the plugin.**
-1. Bump `version` in `manifest.json`, `package.json`, and add entry to `versions.json`.
+1. Set the version. **Only when STARTING a new target `0.X.Y`** (the first `-rc.1` of a new feature): bump `version` in `manifest.json`, `package.json`, and add the entry to `versions.json`. **For every later `-rc.N` of the SAME target — and for the final stable promotion — do NOT touch these files;** the manifest stays at `0.X.Y` the whole time (see the rc-iteration constraint above). On a version bump also refresh `package-lock.json` (`npm install --package-lock-only`) or CI's version-skew check fails.
 2. `npm run build` → produces `main.js`.
 3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts.
 4. Commit all changes, open the PR, merge after CI green.
-5. **Push the SemVer tag** from `main`: `git tag 0.X.Y && git push origin 0.X.Y` (or `0.X.Y-rc.1` for a prerelease). The `Release` workflow takes it from there — watch the run on GitHub Actions. If lint / build / tests / check-release fail, the release is never created; delete the tag (`git push origin :0.X.Y`), fix, retag.
+5. **Push the SemVer tag** from `main`: `git tag 0.X.Y-rc.N && git push origin 0.X.Y-rc.N` while iterating (prerelease); `git tag 0.X.Y && git push origin 0.X.Y` only for the final stable promotion the user has approved. The `Release` workflow takes it from there — watch the run on GitHub Actions. If lint / build / tests / check-release fail, the release is never created; delete the tag (`git push origin :<tag> && git tag -d <tag>`), fix, retag.
 6. **No manual `gh release create` step.** The workflow runs `gh release create … --latest` for bare SemVer tags and `gh release create … --prerelease` for suffixed tags. Release notes are auto-generated from PRs / commits since the previous tag — edit them in the GitHub UI after the fact if you want richer text.
 7. **Promotion to stable for already-prereleased tags** (legacy path, rare): `gh release edit 0.X.Y --prerelease=false --latest`.
 
@@ -61,7 +62,7 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 - Create a dedicated branch for the fix / feature / release prep
 - `npm run check-release`
 - `npm run lint` — must report `0 errors` (warnings non-blocking)
-- Bump `manifest.json`, `package.json`, `versions.json`
+- Bump `manifest.json`, `package.json`, `versions.json` (+ `package-lock.json`) — **only for the first `-rc.1` of a NEW target `0.X.Y`; skip on every later `-rc.N` and on the stable promotion**
 - `npm run build`
 - `npm test`
 - `npm run test:cov`
@@ -69,8 +70,9 @@ BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
 - Commit with `0.X.Y — short description`
 - Open / update the PR and get it reviewed before merge
 - Merge to `main`
-- `git tag 0.X.Y` (stable) **or** `git tag 0.X.Y-rc.1` (prerelease)
-- `git push origin 0.X.Y` — the `Release` workflow re-runs lint / build / test / check-release on a clean Ubuntu runner, then creates the GitHub Release with `main.js`, `manifest.json`, `styles.css` attached. Watch the run on the Actions tab.
+- **Default (iterating):** `git tag 0.X.Y-rc.N` (next rc number) → prerelease for BRAT beta testing, invisible to the Obsidian checker/store
+- **Only on the user's explicit go-ahead:** `git tag 0.X.Y` → stable `--latest`, picked up by the Obsidian checker/store
+- `git push origin <tag>` — the `Release` workflow re-runs lint / build / test / check-release on a clean Ubuntu runner, then creates the GitHub Release with `main.js`, `manifest.json`, `styles.css` attached. Watch the run on the Actions tab.
 
 If the workflow fails: delete the tag (`git push origin :0.X.Y && git tag -d 0.X.Y`), fix the issue on a branch, merge, retag, push. No partial release is left behind because the publish step runs last.
 
