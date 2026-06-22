@@ -6,7 +6,7 @@ describe("markdownRendering openHref", () => {
     const open = vi.fn();
     (globalThis as any).window = { open };
 
-    openHref({} as any, "https://example.com");
+    openHref({ isInteractiveMode: () => false } as any, "https://example.com");
 
     expect(open).toHaveBeenCalledWith("https://example.com", "_blank", "noopener,noreferrer");
   });
@@ -16,6 +16,7 @@ describe("markdownRendering openHref", () => {
     const openFileInChineseView = vi.fn(async () => {});
     const openLinkText = vi.fn(async () => {});
     const plugin = {
+      isInteractiveMode: () => false,
       openFileInChineseView,
       app: {
         workspace: {
@@ -33,5 +34,16 @@ describe("markdownRendering openHref", () => {
 
     expect(openFileInChineseView).toHaveBeenCalledWith(file);
     expect(openLinkText).not.toHaveBeenCalled();
+  });
+
+  it("does not navigate while an interactive mode is active", () => {
+    const open = vi.fn();
+    (globalThis as any).window = { open };
+    const openFileInChineseView = vi.fn(async () => {});
+
+    openHref({ isInteractiveMode: () => true, openFileInChineseView } as any, "https://example.com");
+
+    expect(open).not.toHaveBeenCalled();
+    expect(openFileInChineseView).not.toHaveBeenCalled();
   });
 });

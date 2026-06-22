@@ -116,6 +116,24 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         }
       }
 
+      /** Live [start, end) for a tapped `.cci-word` in format mode. Prefers
+       *  `posAtDOM` (always current) and falls back to the data attributes. */
+      private formatSpanFor(
+        target: HTMLElement,
+        surface: string
+      ): { start: number; end: number } | null {
+        try {
+          const start = this.view.posAtDOM(target);
+          if (start >= 0) return { start, end: start + surface.length };
+        } catch {
+          /* fall through to attributes */
+        }
+        const aStart = Number(target.getAttribute("data-cci-start"));
+        const aEnd = Number(target.getAttribute("data-cci-end"));
+        if (Number.isNaN(aStart) || Number.isNaN(aEnd)) return null;
+        return { start: aStart, end: aEnd };
+      }
+
       onClick = (ev: MouseEvent) => {
         const target = (ev.target as HTMLElement | null)?.closest(".cci-word") as HTMLElement | null;
         if (!target) return;
@@ -159,13 +177,15 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         if (mode === "format") {
           ev.preventDefault();
           ev.stopPropagation();
-          const start = Number(target.getAttribute("data-cci-start"));
-          const end = Number(target.getAttribute("data-cci-end"));
-          if (Number.isNaN(start) || Number.isNaN(end)) return;
+          // Resolve offsets from the LIVE view, not the baked data attributes:
+          // those can be stale during the async re-tokenize window right after
+          // an edit, which would map the next apply to the wrong range.
+          const span = this.formatSpanFor(target, surface);
+          if (!span) return;
           if (plugin.pendingFormatStart == null) {
-            plugin.beginFormatRange(start);
+            plugin.beginFormatRange(span.start);
           } else {
-            plugin.applyFormatRange(end);
+            plugin.applyFormatRange(span.end);
           }
           return;
         }

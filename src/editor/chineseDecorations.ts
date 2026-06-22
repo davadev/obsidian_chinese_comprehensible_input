@@ -94,6 +94,16 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           return;
         }
         if (!update.docChanged && !update.viewportChanged && !redecorate) return;
+        // Keep the existing decoration set positionally valid across the edit.
+        // CM6 does NOT auto-map ViewPlugin decorations; without this, after a
+        // doc change (e.g. inserting a highlight's `==` / `<mark>`) our set
+        // stays at the OLD offsets until the async re-tokenize lands, while the
+        // markdown renderer rebuilds synchronously with the NEW offsets — the
+        // two disagree and CM6 paints the line twice (the highlight-duplication
+        // bug). Mapping shifts our ranges to match the new document immediately.
+        if (update.docChanged) {
+          this.decorations = this.decorations.map(update.changes);
+        }
         // Fast path: doc unchanged AND tokens already cached → rebuild
         // decorations directly against the (possibly new) viewport without
         // re-stringifying / re-hashing the whole document. This is what was
@@ -202,12 +212,33 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             return 0;
           }
         };
+        // In format mode every visible character should be a valid tap target
+        // (start/end of a selection), not just tokenized Chinese words.
+        const formatMode = plugin.activeViewMode() === "format";
         for (const range of ranges) {
           for (const tok of tokens) {
             if (tok.end <= range.from) continue;
             if (tok.start >= range.to) break;
-            if (!tok.isWord || tok.candidates.length === 0) continue;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
+            if (!tok.isWord || tok.candidates.length === 0) {
+              // Non-word run (digits / latin / punctuation): clickable in format
+              // mode only, skipping pure whitespace.
+              if (formatMode && /\S/.test(tok.surface)) {
+                builder.add(
+                  tok.start,
+                  tok.end,
+                  Decoration.mark({
+                    class: "cci-word",
+                    attributes: {
+                      "data-cci-surface": tok.surface,
+                      "data-cci-start": String(tok.start),
+                      "data-cci-end": String(tok.end),
+                    },
+                  })
+                );
+              }
+              continue;
+            }
             this.emitDecoration(
               builder,
               tok,

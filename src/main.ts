@@ -909,6 +909,18 @@ export default class CciPlugin extends Plugin {
     return this.viewMode;
   }
 
+  /** Modes where a tap is a tool action, so link-following must be suppressed. */
+  isInteractiveMode(): boolean {
+    const m = this.viewMode;
+    return (
+      m === "format" ||
+      m === "mark-known" ||
+      m === "mark-unknown" ||
+      m === "mark-partial" ||
+      m === "select-word"
+    );
+  }
+
   appendToCustomWordSelection(surface: string): void {
     this.pendingCustomSurface += surface;
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
