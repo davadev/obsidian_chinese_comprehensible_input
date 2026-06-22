@@ -249,13 +249,24 @@ export class ViewToolbar {
     const enabled = this.plugin.settings.enabledFormats;
     const reverse = this.plugin.settings.formatReverseMode;
     const pending = this.plugin.pendingFormatStart != null;
-    const endHint = pending ? "tap the end word" : "tap start word, then end word";
+    const verb =
+      enabled.length === 0
+        ? "remove all formatting"
+        : reverse
+        ? "remove the selected formatting"
+        : "add formatting";
+    // After the first tap, confirm WHICH start was registered so the user knows
+    // it took (no end preview — that would add a delay).
+    if (pending) {
+      const s = (this.plugin.pendingFormatStartSurface ?? "").trim();
+      const startNote = s ? `Start “${s}” selected` : "Start selected";
+      return `${startNote} — tap the end word to ${verb}`;
+    }
     if (enabled.length === 0) {
-      return `Formatting (clear) — ${endHint} to remove all formatting`;
+      return `Formatting (clear) — tap start word, then end word to ${verb}`;
     }
     const names = enabled.map((f) => this.formatLabel(f)).join(", ");
-    const verb = reverse ? "remove the selected formatting" : "add formatting";
-    return `Formatting (${names}) — ${endHint} to ${verb}`;
+    return `Formatting (${names}) — tap start word, then end word to ${verb}`;
   }
 
   private renderFormatBanner() {

@@ -226,11 +226,13 @@
 .cci-view .cci-md-highlight {
   background: var(--text-highlight-bg, rgba(255, 208, 0, 0.45));
   color: var(--text-normal);
-  /* Identical to .cci-stack-chars-hl so annotated and plain words highlight at
-     the same height. em padding ⇒ the box scales with the character size, so a
-     sub-heading glyph gets a proportionally taller highlight. */
+  /* Match .cci-stack-chars-hl exactly (horizontal padding only) so a plain
+     single-line highlight is the SAME height as an annotated two/three-line one.
+     No vertical padding: the inline background covers the font box, and because
+     padding is em-based it still scales with the glyph — a sub-heading char gets
+     a proportionally taller highlight that fully covers it. */
   border-radius: 2px;
-  padding: 0.1em 0.1em;
+  padding: 0 0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
 }
@@ -358,6 +360,11 @@
   padding: 0 0.1em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+}
+/* A link widget (wikilink / embed) sitting inside a highlight paints its own
+   background inline (dynamic color); this just rounds the corners. */
+.cci-view .cci-md-link-hl {
+  border-radius: 2px;
 }
 .cci-format-swatch {
   display: inline-block;
