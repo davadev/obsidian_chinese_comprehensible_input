@@ -343,6 +343,10 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.cci-stack-chars-hl {
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
 .cci-format-swatch {
   display: inline-block;
   width: 0.9em;

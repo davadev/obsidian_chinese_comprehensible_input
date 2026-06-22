@@ -132,6 +132,67 @@ export function highlightWrap(hc: HighlightColor, app: App): HighlightWrap {
   return { open: `<mark style="background:${hc.color};">`, close: "</mark>" };
 }
 
+/** Default `==…==` highlight background (matches `.cci-md-highlight` CSS). */
+export const DEFAULT_HIGHLIGHT_BG = "var(--text-highlight-bg, rgba(255, 208, 0, 0.45))";
+
+export interface HighlightSpan {
+  /** Start of the opening delimiter / `<mark …>` tag. */
+  openFrom: number;
+  /** Start of the highlighted content. */
+  contentFrom: number;
+  /** End of the highlighted content. */
+  contentTo: number;
+  /** End of the closing delimiter / `</mark>`. */
+  closeTo: number;
+  /** Resolved color for a colored `<mark>`; undefined = default `==`. */
+  color?: string;
+}
+
+/**
+ * Locate every highlight in `text`: extended-markdown `==…==` and Highlightr
+ * `<mark …>…</mark>`. Single source of truth shared by the markdown renderer
+ * (which hides delimiters + marks the content) and the Chinese decorations
+ * (which color the characters of annotated/ruby words). Overlapping spans are
+ * resolved by keeping the earlier one. Pure → unit tested.
+ */
+export function findHighlightSpans(text: string, palette: HighlightColor[]): HighlightSpan[] {
+  const spans: HighlightSpan[] = [];
+
+  const reEq = /==([^=\n]+?)==/g;
+  let m: RegExpExecArray | null;
+  while ((m = reEq.exec(text))) {
+    const openFrom = m.index;
+    spans.push({
+      openFrom,
+      contentFrom: openFrom + 2,
+      contentTo: openFrom + m[0].length - 2,
+      closeTo: openFrom + m[0].length,
+    });
+  }
+
+  const reMark = /<mark\b([^>]*)>([\s\S]*?)<\/mark>/gi;
+  while ((m = reMark.exec(text))) {
+    if (m[2].length === 0) continue;
+    const color = parseMarkColor(m[1], palette);
+    if (!color) continue;
+    const openFrom = m.index;
+    const contentFrom = openFrom + m[1].length + "<mark>".length;
+    const contentTo = contentFrom + m[2].length;
+    spans.push({ openFrom, contentFrom, contentTo, closeTo: contentTo + "</mark>".length, color });
+  }
+
+  spans.sort((a, b) => a.openFrom - b.openFrom);
+  // Drop spans that overlap an already-accepted one.
+  const out: HighlightSpan[] = [];
+  let lastClose = -1;
+  for (const s of spans) {
+    if (s.openFrom < lastClose) continue;
+    out.push(s);
+    lastClose = s.closeTo;
+  }
+  return out;
+}
+
 const COLOR_VALUE_RE =
   /^(#[0-9a-fA-F]{3,8}|rgba?\([\d.,\s%]+\)|[a-zA-Z]+)$/;
 
