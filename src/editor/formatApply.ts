@@ -1,5 +1,5 @@
 import type { FormatId } from "../settings/types";
-import type { HighlightWrap } from "./highlightPalette";
+import { findHighlightSpans, type HighlightWrap } from "./highlightPalette";
 
 /**
  * Pure formatting logic for the in-view formatting mode (#21 phase 1).
@@ -161,10 +161,23 @@ function blockPrefixChanges(
   return changes;
 }
 
-/** Expand [from,to) over adjacent inline delimiters and a surrounding `<mark>`. */
+/**
+ * Expand [from,to) to the full extent of any formatting that encloses it, so
+ * removal/exact works no matter which character inside a span is tapped:
+ *  - over adjacent inline delimiter chars and a directly-touching `<mark>`;
+ *  - to the whole `==…==` / `<mark>…</mark>` span when the selection sits inside
+ *    one (e.g. tapping a middle word of a highlighted phrase).
+ */
 function expandFormattedRegion(doc: string, from: number, to: number): [number, number] {
   let s = from;
   let e = to;
+  // Enclosing highlight span (covers the "tapped a middle character" case).
+  for (const span of findHighlightSpans(doc, [])) {
+    if (span.contentFrom <= from && to <= span.contentTo) {
+      s = Math.min(s, span.openFrom);
+      e = Math.max(e, span.closeTo);
+    }
+  }
   while (s > 0 && INLINE_DELIM_CHARS.has(doc[s - 1])) s--;
   while (e < doc.length && INLINE_DELIM_CHARS.has(doc[e])) e++;
   const openMatch = /<mark\b[^>]*>$/i.exec(doc.slice(Math.max(0, s - 256), s));
