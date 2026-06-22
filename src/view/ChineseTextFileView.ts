@@ -10,7 +10,12 @@ import { ViewToolbar } from "./ViewToolbar";
 import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
-import { buildFormatChanges, buildSetFormatChanges, buildUnformatChanges } from "../editor/formatApply";
+import {
+  buildFormatChanges,
+  buildSetFormatChanges,
+  buildUnformatChanges,
+  formattingPreservesContent,
+} from "../editor/formatApply";
 import type { HighlightWrap } from "../editor/highlightPalette";
 
 /**
@@ -198,6 +203,15 @@ export class ChineseTextFileView extends TextFileView {
     // Obsidian's Markdown view in edit mode. Matches the affordance position
     // of Obsidian's own read/edit toggle on MarkdownView.
     this.addAction("pencil", "Edit in Markdown", () => void this.openAsRegularMarkdown(true));
+
+    // One clean redecorate after the first paint settles. On startup (Obsidian
+    // restoring this note) the editor can paint before the tokenizer is warm,
+    // which left highlight + ruby decorations in a transient duplicated state
+    // until the view was reopened. This forces a stable rebuild of the
+    // decoration sets once layout has settled.
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => this.redecorate());
+    });
   }
 
   /**
@@ -519,6 +533,13 @@ export class ChineseTextFileView extends TextFileView {
         ? buildSetFormatChanges(doc, from, to, formats, hlWrap)
         : buildFormatChanges(doc, from, to, formats, hlWrap);
     if (changes.length === 0) return;
+    // Data-loss guard: a formatting edit must only add/remove markup, never
+    // alter the underlying text. If the guard trips, abort without writing.
+    if (!formattingPreservesContent(doc, changes)) {
+      new Notice("Formatting change aborted — it would have altered note content.");
+      console.warn("CCI format guard tripped", { from, to, formats, changes });
+      return;
+    }
     this.editor.dispatch({
       changes,
       annotations: Transaction.userEvent.of("input.cci-format"),

@@ -69,6 +69,13 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         // `replace`/layout decorations (the hidden delimiters) off-screen or CM6
         // mis-measures the viewport and duplicates lines.
         const highlightSpans = findHighlightSpans(text, palette);
+        // In ruby display modes the word is replaced by a widget; a content
+        // mark over that same range overlaps the widget and destabilizes the
+        // first paint (duplicated line). There, only hide the delimiters and let
+        // `chineseDecorations` tint the characters. In "none" mode we still emit
+        // the content mark so non-word text inside a highlight is tinted too.
+        const dm = plugin.settings.defaultDisplayMode;
+        const tintContent = dm !== "two-line" && dm !== "three-line";
 
         for (const { from, to } of view.visibleRanges) {
           tree.iterate({
@@ -98,7 +105,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
 
           // Highlights (`==…==` and Highlightr `<mark …>`) fully inside this
           // visible range.
-          this.emitHighlights(highlightSpans, from, to, excluded, items);
+          this.emitHighlights(highlightSpans, from, to, excluded, items, tintContent);
         }
 
         items.sort((a, b) => (a.from - b.from) || (a.to - b.to));
@@ -349,22 +356,26 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         rangeFrom: number,
         rangeTo: number,
         excluded: ReturnType<typeof computeExcludedRanges>,
-        items: Array<{ from: number; to: number; deco: Decoration }>
+        items: Array<{ from: number; to: number; deco: Decoration }>,
+        tintContent: boolean
       ): void {
         for (const span of spans) {
           // Only spans fully within the visible range (no off-screen replaces).
           if (span.openFrom < rangeFrom || span.closeTo > rangeTo) continue;
           // Skip when the content sits in an excluded context (code, math…).
           if (isRangeExcluded(excluded, span.contentFrom, span.contentTo)) continue;
+          // Always hide the delimiters / `<mark>` tags.
+          items.push({ from: span.openFrom, to: span.contentFrom, deco: HIDE });
+          items.push({ from: span.contentTo, to: span.closeTo, deco: HIDE });
+          // The content tint is emitted only in non-ruby modes (see build()).
+          if (!tintContent) continue;
           const deco = span.color
             ? Decoration.mark({
                 class: "cci-md-highlight cci-md-colored",
                 attributes: { style: `background-color:${span.color};` },
               })
             : Decoration.mark({ class: "cci-md-highlight" });
-          items.push({ from: span.openFrom, to: span.contentFrom, deco: HIDE });
           items.push({ from: span.contentFrom, to: span.contentTo, deco });
-          items.push({ from: span.contentTo, to: span.closeTo, deco: HIDE });
         }
       }
 

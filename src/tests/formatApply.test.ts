@@ -5,6 +5,8 @@ import {
   buildUnformatChanges,
   composeInline,
   conflictDisabled,
+  formattingPlainText,
+  formattingPreservesContent,
 } from "../editor/formatApply";
 
 /** Apply a change list to a doc the way CodeMirror would (descending order). */
@@ -186,6 +188,29 @@ describe("buildFormatChanges (add mode)", () => {
     const inner = doc.indexOf("标题");
     const out = applyChanges(doc, buildFormatChanges(doc, inner, inner + 2, ["bold"]));
     expect(out).toBe("## **标题**");
+  });
+});
+
+describe("formatting data-loss guard", () => {
+  it("plain text ignores markup", () => {
+    expect(formattingPlainText("### ==**你好**==")).toBe("你好");
+    expect(formattingPlainText("> 引用")).toBe("引用");
+    expect(formattingPlainText('<mark style="background:#fff;">字</mark>')).toBe("字");
+  });
+
+  it("real format builders preserve content", () => {
+    const doc = "我爱学中文。";
+    expect(formattingPreservesContent(doc, buildFormatChanges(doc, 1, 3, ["bold"]))).toBe(true);
+    expect(
+      formattingPreservesContent(doc, buildSetFormatChanges(doc, 1, 3, ["h2", "highlight"]))
+    ).toBe(true);
+    expect(formattingPreservesContent(doc, buildUnformatChanges(doc, 0, 6))).toBe(true);
+  });
+
+  it("flags a change that would delete content", () => {
+    const doc = "我爱学中文。";
+    // A bogus change that drops characters.
+    expect(formattingPreservesContent(doc, [{ from: 1, to: 4, insert: "X" }])).toBe(false);
   });
 });
 
