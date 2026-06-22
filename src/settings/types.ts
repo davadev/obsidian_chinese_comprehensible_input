@@ -226,6 +226,9 @@ export interface CciSettings {
   showHighlightColorsWithoutPlugin: boolean;
   /** Format apply mode: false = add (additive), true = reverse (remove selected). */
   formatReverseMode: boolean;
+  /** When a word has both a highlight and a status/HSK color, true = show the
+   *  highlight (hide the status color); false = keep the status color. */
+  highlightOverridesStatus: boolean;
   showKnownColor: boolean;
   showPartialColor: boolean;
   showUnknownColor: boolean;

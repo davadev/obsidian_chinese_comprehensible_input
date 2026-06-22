@@ -52,6 +52,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   formatHidden: [],
   showHighlightColorsWithoutPlugin: false,
   formatReverseMode: false,
+  highlightOverridesStatus: true,
   showKnownColor: false,
   showPartialColor: true,
   showUnknownColor: true,

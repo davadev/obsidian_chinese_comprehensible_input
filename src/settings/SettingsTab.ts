@@ -342,6 +342,20 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
+    new Setting(a)
+      .setName("Highlight overrides status / HSK colors")
+      .setDesc(
+        "When a word has both a highlight and a status/HSK color, show the highlight and hide " +
+          "the status color. Turn off to keep the status color and hide the highlight."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.highlightOverridesStatus).onChange(async (v) => {
+          this.plugin.settings.highlightOverridesStatus = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+        })
+      );
+
     new Setting(a).setDesc(
       "Drag to reorder the formatting picker, and untick to hide an option from it."
     );
