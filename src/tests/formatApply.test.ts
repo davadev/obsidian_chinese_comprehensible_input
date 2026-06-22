@@ -225,6 +225,17 @@ describe("buildRemoveFormatChanges (reverse mode)", () => {
     const out = applyChanges(doc, buildRemoveFormatChanges(doc, m, m + 1, ["highlight"]));
     expect(out).toBe("前你好世界后");
   });
+
+  it("leaves no orphan </mark> when the range only partially overlaps the span", () => {
+    // Range covers the open tag + first chars but stops before </mark>.
+    const doc = '<mark style="background:#BBFABBA6;">你好世界</mark>';
+    const from = 0;
+    const to = doc.indexOf("好"); // mid-content, before </mark>
+    const out = applyChanges(doc, buildRemoveFormatChanges(doc, from, to, ["highlight"]));
+    expect(out).toBe("你好世界");
+    expect(out).not.toContain("</mark>");
+    expect(out).not.toContain("<mark");
+  });
 });
 
 describe("inline + block at line start (guard regression)", () => {
