@@ -1,9 +1,19 @@
 import { describe, it, expect } from "vitest";
 import {
   buildFormatChanges,
+  buildUnformatChanges,
   composeInline,
   conflictDisabled,
 } from "../editor/formatApply";
+
+/** Apply a change list to a doc the way CodeMirror would (descending order). */
+function applyChanges(doc: string, changes: { from: number; to: number; insert: string }[]): string {
+  let out = doc;
+  for (const c of [...changes].sort((a, b) => b.from - a.from)) {
+    out = out.slice(0, c.from) + c.insert + out.slice(c.to);
+  }
+  return out;
+}
 
 describe("composeInline", () => {
   it("returns text unchanged with no inline format", () => {
@@ -73,6 +83,38 @@ describe("buildFormatChanges", () => {
       { from: 0, to: 0, insert: "# " },
       { from: 1, to: 3, insert: "**爱学**" },
     ]);
+  });
+});
+
+describe("buildUnformatChanges", () => {
+  it("strips highlight wrapping when inner words are tapped", () => {
+    // doc: 我==爱学==中  — tap 爱(idx3) start, 学 end (idx5); == sit outside.
+    const doc = "我==爱学==中";
+    // 我=0, ==1-2, 爱=3, 学=4, ==5-6, 中=7
+    const changes = buildUnformatChanges(doc, 3, 5);
+    expect(applyChanges(doc, changes)).toBe("我爱学中");
+  });
+
+  it("strips nested bold+highlight", () => {
+    const doc = "==**爱学**==";
+    const changes = buildUnformatChanges(doc, 4, 6);
+    expect(applyChanges(doc, changes)).toBe("爱学");
+  });
+
+  it("removes a heading prefix", () => {
+    const doc = "## 标题";
+    const changes = buildUnformatChanges(doc, 3, 5);
+    expect(applyChanges(doc, changes)).toBe("标题");
+  });
+
+  it("removes a quote prefix", () => {
+    const doc = "> 引用";
+    const changes = buildUnformatChanges(doc, 2, 4);
+    expect(applyChanges(doc, changes)).toBe("引用");
+  });
+
+  it("returns no changes for unformatted text", () => {
+    expect(buildUnformatChanges("纯文本", 0, 3)).toEqual([]);
   });
 });
 
