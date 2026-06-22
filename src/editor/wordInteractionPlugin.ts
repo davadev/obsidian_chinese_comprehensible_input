@@ -116,12 +116,22 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
         }
       }
 
-      /** Live [start, end) for a tapped `.cci-word` in format mode. Prefers
-       *  `posAtDOM` (always current) and falls back to the data attributes. */
+      /** [start, end) for a tapped `.cci-word` in format mode. Prefers the baked
+       *  `data-cci-start/-end` — they are EXACT for per-character non-word marks,
+       *  whole-word marks, ruby widgets and whole-link widgets. (`posAtDOM`
+       *  resolves a tiny per-char mark to the enclosing line, not the glyph, so it
+       *  mis-positions the boundary.) The two taps of one selection happen with no
+       *  doc edit between them, so the attributes are current. Falls back to
+       *  `posAtDOM + doclen` only when the attributes are missing. */
       private formatSpanFor(
         target: HTMLElement,
         surface: string
       ): { start: number; end: number } | null {
+        const aStart = Number(target.getAttribute("data-cci-start"));
+        const aEnd = Number(target.getAttribute("data-cci-end"));
+        if (!Number.isNaN(aStart) && !Number.isNaN(aEnd)) {
+          return { start: aStart, end: aEnd };
+        }
         // doclen is the target's length in the DOCUMENT — equals surface length
         // for words, but for a link widget it's the full `[[…]]`/`![[…]]`/
         // `[text](url)` markup so the selection snaps over the whole link.
@@ -131,12 +141,9 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
           const start = this.view.posAtDOM(target);
           if (start >= 0) return { start, end: start + len };
         } catch {
-          /* fall through to attributes */
+          /* no resolvable position */
         }
-        const aStart = Number(target.getAttribute("data-cci-start"));
-        const aEnd = Number(target.getAttribute("data-cci-end"));
-        if (Number.isNaN(aStart) || Number.isNaN(aEnd)) return null;
-        return { start: aStart, end: aEnd };
+        return null;
       }
 
       onClick = (ev: MouseEvent) => {

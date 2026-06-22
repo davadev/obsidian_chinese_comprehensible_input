@@ -344,7 +344,25 @@
   background: var(--color-yellow, #d4a72c);
 }
 .cci-toolbar .cci-banner.is-format {
-  background: var(--color-purple, #8957e5);
+  background: var(--color-blue, #2d7ff9);
+}
+.cci-toolbar .cci-banner.is-format.is-remove {
+  background: var(--color-red, #e5534b);
+}
+
+/* Tri-state highlighter button: blue = add, red = remove. Override the generic
+   .is-active accent background. */
+.cci-toolbar .cci-icon-btn.cci-format-add,
+.cci-toolbar .cci-icon-btn.cci-format-add.is-active {
+  background: var(--color-blue, #2d7ff9);
+  border-color: var(--color-blue, #2d7ff9);
+  color: var(--text-on-accent);
+}
+.cci-toolbar .cci-icon-btn.cci-format-remove,
+.cci-toolbar .cci-icon-btn.cci-format-remove.is-active {
+  background: var(--color-red, #e5534b);
+  border-color: var(--color-red, #e5534b);
+  color: var(--text-on-accent);
 }
 .cci-overflow-item.is-disabled {
   opacity: 0.45;
@@ -373,6 +391,11 @@
    inline-block still wraps freely. */
 .cci-view .cci-md-hl-cell {
   display: inline-block;
+  /* Explicit 1em content box (not the inherited inline-box height) so the band
+     is exactly as tall as the ruby char cell .cci-stack-chars (block,
+     line-height 1) — no extra padding above/below the glyph. */
+  height: 1em;
+  box-sizing: content-box;
   line-height: 1;
   vertical-align: baseline;
   border-radius: 2px;

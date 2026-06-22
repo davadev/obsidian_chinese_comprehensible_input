@@ -947,13 +947,17 @@ export default class CciPlugin extends Plugin {
 
   /** Second tap in format mode: wrap [start, end) in the armed formats. */
   applyFormatRange(endPos: number): void {
-    const start = this.pendingFormatStart;
+    const anchor = this.pendingFormatStart;
     this.pendingFormatStart = null;
     this.pendingFormatStartSurface = null;
-    if (start == null) {
+    if (anchor == null) {
       this.refreshChineseViewToolbars();
       return;
     }
+    // Normalize so tapping the end before the start (in document order) still
+    // produces a valid non-empty range.
+    const start = Math.min(anchor, endPos);
+    endPos = Math.max(anchor, endPos);
     const formats = this.settings.enabledFormats;
     const view = this.app.workspace
       .getLeavesOfType(VIEW_TYPE_CHINESE)
