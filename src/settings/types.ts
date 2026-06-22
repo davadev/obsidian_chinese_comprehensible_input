@@ -45,6 +45,15 @@ export type FormatId =
   | "h2"
   | "h3"
   | "quote";
+
+/**
+ * An entry in the formatting-mode option list. Either one of the fixed base
+ * formats (`FormatId`) or a colored highlight `hl:<slug>` (#21 phase 2), whose
+ * slug comes from a Highlightr color name (e.g. `hl:pink`). Stored as plain
+ * strings in settings so the dynamic color ids round-trip without a fixed union.
+ */
+export type FormatOptionId = FormatId | `hl:${string}`;
+
 export type PinyinStyle = "marks" | "numbers" | "none";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
 export type HskSource = "2.0" | "3.0" | "both";
@@ -208,7 +217,13 @@ export interface CciSettings {
   defaultDisplayMode: DisplayMode;
   knownWordPopups: boolean;
   /** Formats currently armed in the in-view formatting mode (#21). */
-  enabledFormats: FormatId[];
+  enabledFormats: string[];
+  /** Display order of formatting options (base ids + `hl:<slug>` colors). */
+  formatOrder: string[];
+  /** Formatting option ids hidden from the picker dropdown. */
+  formatHidden: string[];
+  /** Expose Highlightr color options even when the plugin is not installed. */
+  showHighlightColorsWithoutPlugin: boolean;
   showKnownColor: boolean;
   showPartialColor: boolean;
   showUnknownColor: boolean;

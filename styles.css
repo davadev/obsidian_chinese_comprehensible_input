@@ -343,6 +343,14 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+.cci-format-swatch {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 3px;
+  border: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
 .cci-toolbar .cci-banner button {
   height: 28px;
   padding: 0 0.6rem;

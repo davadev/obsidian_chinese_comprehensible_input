@@ -1,20 +1,8 @@
 import { Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
-import { ColorMode, DisplayMode, FormatId, ViewMode } from "../settings/types";
-import { conflictDisabled, FORMAT_LABELS } from "../editor/formatApply";
-
-/** Order of formats shown in the picker dropdown (#21 phase 1). */
-const FORMAT_ORDER: FormatId[] = [
-  "bold",
-  "italic",
-  "highlight",
-  "strike",
-  "code",
-  "h1",
-  "h2",
-  "h3",
-  "quote",
-];
+import { ColorMode, DisplayMode, ViewMode } from "../settings/types";
+import { conflictDisabled } from "../editor/formatApply";
+import { orderedFormatOptions } from "../editor/formatOptions";
 
 /**
  * Compact toolbar.
@@ -250,6 +238,13 @@ export class ViewToolbar {
     });
   }
 
+  private formatLabel(id: string): string {
+    const opt = orderedFormatOptions(this.plugin.app, this.plugin.settings, true).find(
+      (o) => o.id === id
+    );
+    return opt?.label ?? id;
+  }
+
   private formatBannerText(): string {
     const enabled = this.plugin.settings.enabledFormats;
     const pending = this.plugin.pendingFormatStart != null;
@@ -257,7 +252,7 @@ export class ViewToolbar {
     if (enabled.length === 0) {
       return `Formatting (remove) — ${endHint} to clear formatting`;
     }
-    const names = enabled.map((f) => FORMAT_LABELS[f]).join(", ");
+    const names = enabled.map((f) => this.formatLabel(f)).join(", ");
     return `Formatting (${names}) — ${endHint}`;
   }
 
@@ -314,13 +309,19 @@ export class ViewToolbar {
       const hint = menu.createDiv({ cls: "cci-overflow-hint" });
       hint.setText("Formats to apply (none = remove)");
 
-      for (const id of FORMAT_ORDER) {
+      const options = orderedFormatOptions(this.plugin.app, this.plugin.settings, false);
+      for (const opt of options) {
+        const id = opt.id;
         const enabled = this.plugin.settings.enabledFormats;
         const item = menu.createDiv({ cls: "cci-overflow-item" });
         const cb = item.createEl("input", { type: "checkbox" });
         cb.checked = enabled.includes(id);
         cb.disabled = conflictDisabled(id, enabled);
-        item.createSpan({ text: FORMAT_LABELS[id] });
+        if (opt.color) {
+          const sw = item.createSpan({ cls: "cci-format-swatch" });
+          sw.style.background = opt.color;
+        }
+        item.createSpan({ text: opt.label });
         if (cb.disabled) item.addClass("is-disabled");
         const toggle = () => {
           if (cb.disabled) return;

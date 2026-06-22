@@ -25,6 +25,12 @@ import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
+import {
+  highlightColorForId,
+  highlightWrap,
+  resolveHighlightPalette,
+  type HighlightWrap,
+} from "./editor/highlightPalette";
 import { StatsView } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
@@ -940,8 +946,16 @@ export default class CciPlugin extends Plugin {
       this.refreshChineseViewToolbars();
       return;
     }
+    // Resolve a colored-highlight wrap when an `hl:<slug>` option is armed.
+    let hlWrap: HighlightWrap | undefined;
+    const colorId = formats.find((f) => f.startsWith("hl:"));
+    if (colorId) {
+      const palette = resolveHighlightPalette(this.app, this.settings);
+      const hc = highlightColorForId(colorId, palette);
+      if (hc) hlWrap = highlightWrap(hc, this.app);
+    }
     // Empty `formats` is intentional: it strips existing formatting from the span.
-    view.applyFormatToRange(start, endPos, formats);
+    view.applyFormatToRange(start, endPos, formats, hlWrap);
     this.refreshChineseViewToolbars();
   }
 

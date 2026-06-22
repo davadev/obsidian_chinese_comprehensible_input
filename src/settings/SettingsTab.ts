@@ -2,7 +2,9 @@ import { App, PluginSettingTab, Setting, Notice, normalizePath } from "obsidian"
 import type CciPlugin from "../main";
 import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 import { renderStatusPriorityList } from "./StatusPriorityList";
-import { DEFAULT_CUSTOM_COLORS, DEFAULT_STATUS_PRIORITY } from "./defaults";
+import { renderFormatOptionsList } from "./FormatOptionsList";
+import { orderedFormatOptions } from "../editor/formatOptions";
+import { DEFAULT_CUSTOM_COLORS, DEFAULT_SETTINGS, DEFAULT_STATUS_PRIORITY } from "./defaults";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
@@ -317,7 +319,63 @@ export class CciSettingsTab extends PluginSettingTab {
           this.plugin.refreshChineseViews();
         })
       );
+      this.renderFormatOptions(a);
     });
+  }
+
+  private renderFormatOptions(a: HTMLElement) {
+    new Setting(a).setName("Formatting picker").setHeading();
+
+    new Setting(a)
+      .setName("Show highlight colors without Highlightr")
+      .setDesc(
+        "Expose highlight color options even when the Highlightr plugin is not installed. " +
+          "Colors render inside the Chinese view; install Highlightr to render them elsewhere " +
+          "and to customize the palette."
+      )
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.showHighlightColorsWithoutPlugin).onChange(async (v) => {
+          this.plugin.settings.showHighlightColorsWithoutPlugin = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+          this.rerender();
+        })
+      );
+
+    new Setting(a).setDesc(
+      "Drag to reorder the formatting picker, and untick to hide an option from it."
+    );
+
+    const listHost = a.createDiv();
+    const renderList = () => {
+      const options = orderedFormatOptions(this.plugin.app, this.plugin.settings, true);
+      const hidden = this.plugin.settings.formatHidden;
+      renderFormatOptionsList(listHost, {
+        rows: options.map((o) => ({
+          id: o.id,
+          label: o.label,
+          color: o.color,
+          visible: !hidden.includes(o.id),
+        })),
+        onChange: async (rows) => {
+          this.plugin.settings.formatOrder = rows.map((r) => r.id);
+          this.plugin.settings.formatHidden = rows.filter((r) => !r.visible).map((r) => r.id);
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+        },
+      });
+    };
+    renderList();
+
+    new Setting(a).addButton((b) =>
+      b.setButtonText("Reset order & visibility").onClick(async () => {
+        this.plugin.settings.formatOrder = [...DEFAULT_SETTINGS.formatOrder];
+        this.plugin.settings.formatHidden = [];
+        await this.plugin.saveSettings();
+        this.plugin.refreshChineseViews();
+        renderList();
+      })
+    );
   }
 
   private renderColorPickers(c: HTMLElement) {

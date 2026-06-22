@@ -13,6 +13,7 @@ import { setIcon, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { cciRedecorateEffect } from "./chineseDecorations";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
+import { parseMarkColor, resolveHighlightPalette, type HighlightColor } from "./highlightPalette";
 
 /**
  * Hide markdown syntax characters and turn links into clickable widgets
@@ -60,6 +61,10 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         const items: Array<{ from: number; to: number; deco: Decoration }> = [];
         const lineDecos: Array<{ from: number; to: number; deco: Decoration }> = [];
 
+        // Resolve the Highlightr palette once per build so `<mark class="hltr-…">`
+        // class names map to colors (inline `<mark style>` is self-describing).
+        const palette = resolveHighlightPalette(plugin.app, plugin.settings);
+
         for (const { from, to } of view.visibleRanges) {
           tree.iterate({
             from,
@@ -84,6 +89,10 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // Obsidian/extended-markdown `==highlight==` is not parsed by
           // lang-markdown — handle it with a regex pass like wikilinks.
           this.scanHighlights(slice, from, excluded, items);
+
+          // Highlightr-style colored highlights: `<mark style="background:…">`
+          // and `<mark class="hltr-…">` (#21 phase 2).
+          this.scanColoredHighlights(slice, from, excluded, items, palette);
 
           // Things-theme style task checkboxes (`- [c]`). lang-markdown
           // only parses standard GFM `[ ]` / `[x]` so we scan for the
@@ -355,6 +364,40 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
             from: innerStart,
             to: innerEnd,
             deco: Decoration.mark({ class: "cci-md-highlight" }),
+          });
+          items.push({ from: innerEnd, to: end, deco: HIDE });
+        }
+      }
+
+      scanColoredHighlights(
+        slice: string,
+        offset: number,
+        excluded: ReturnType<typeof computeExcludedRanges>,
+        items: Array<{ from: number; to: number; deco: Decoration }>,
+        palette: HighlightColor[]
+      ): void {
+        // `<mark …>text</mark>` — non-greedy inner, no nested marks.
+        const re = /<mark\b([^>]*)>([\s\S]*?)<\/mark>/gi;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(slice))) {
+          const start = offset + m.index;
+          const openLen = m[1].length + "<mark>".length; // `<mark` + attrs + `>`
+          const innerStart = start + openLen;
+          const innerEnd = innerStart + m[2].length;
+          const end = innerEnd + "</mark>".length;
+          if (m[2].length === 0) continue; // empty <mark></mark>
+          // Skip when the inner text sits in an excluded context (code, math…).
+          if (isRangeExcluded(excluded, innerStart, innerEnd)) continue;
+          const color = parseMarkColor(m[1], palette);
+          if (!color) continue;
+          items.push({ from: start, to: innerStart, deco: HIDE });
+          items.push({
+            from: innerStart,
+            to: innerEnd,
+            deco: Decoration.mark({
+              class: "cci-md-highlight cci-md-colored",
+              attributes: { style: `background-color:${color};` },
+            }),
           });
           items.push({ from: innerEnd, to: end, deco: HIDE });
         }

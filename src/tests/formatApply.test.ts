@@ -34,6 +34,17 @@ describe("composeInline", () => {
   it("code short-circuits and ignores other inline formats", () => {
     expect(composeInline("你好", ["code", "bold"])).toBe("`你好`");
   });
+
+  it("wraps a colored highlight outermost using hlWrap", () => {
+    const wrap = { open: '<mark style="background:#FFB8EBA6;">', close: "</mark>" };
+    expect(composeInline("你好", ["hl:pink", "bold"], wrap)).toBe(
+      '<mark style="background:#FFB8EBA6;">**你好**</mark>'
+    );
+  });
+
+  it("plain highlight ignores hlWrap and uses ==", () => {
+    expect(composeInline("你好", ["highlight"])).toBe("==你好==");
+  });
 });
 
 describe("buildFormatChanges", () => {
@@ -116,6 +127,13 @@ describe("buildUnformatChanges", () => {
   it("returns no changes for unformatted text", () => {
     expect(buildUnformatChanges("纯文本", 0, 3)).toEqual([]);
   });
+
+  it("strips a colored <mark> highlight", () => {
+    const doc = '<mark style="background:#FFB8EBA6;">你好</mark>';
+    const inner = doc.indexOf("你好");
+    const changes = buildUnformatChanges(doc, inner, inner + 2);
+    expect(applyChanges(doc, changes)).toBe("你好");
+  });
 });
 
 describe("conflictDisabled", () => {
@@ -139,6 +157,18 @@ describe("conflictDisabled", () => {
   it("allows one block format at a time", () => {
     expect(conflictDisabled("quote", ["h1"])).toBe(true);
     expect(conflictDisabled("h2", ["quote"])).toBe(true);
+  });
+
+  it("allows only one highlight variant at a time", () => {
+    expect(conflictDisabled("hl:pink", ["highlight"])).toBe(true);
+    expect(conflictDisabled("highlight", ["hl:pink"])).toBe(true);
+    expect(conflictDisabled("hl:red", ["hl:pink"])).toBe(true);
+  });
+
+  it("treats colored highlight as inline (combinable with bold, exclusive with code)", () => {
+    expect(conflictDisabled("hl:pink", ["bold"])).toBe(false);
+    expect(conflictDisabled("hl:pink", ["code"])).toBe(true);
+    expect(conflictDisabled("code", ["hl:pink"])).toBe(true);
   });
 
   it("allows inline + block together", () => {
