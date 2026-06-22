@@ -53,7 +53,7 @@ export class ViewToolbar {
       this.modeBtn(row, "square-plus", "Add custom word (tap chars)", "select-word");
     }
 
-    this.modeBtn(row, "highlighter", "Format (tap start + end word)", "format");
+    this.formatModeBtn(row);
 
     this.colorModeSwitch(row);
 
@@ -91,6 +91,53 @@ export class ViewToolbar {
       this.plugin.setActiveViewMode(cur === mode ? "read" : mode);
       this.refresh();
     });
+  }
+
+  /**
+   * Tri-state highlighter button (#21). Cycles:
+   *   off → BLUE (add formatting) → RED (reverse = remove selected) → off.
+   * Add/remove map to `settings.formatReverseMode`; the color is applied in
+   * `styleFormatBtn` (also re-run from `updateActiveStates` on every refresh).
+   */
+  private formatModeBtn(parent: HTMLElement): void {
+    const b = parent.createEl("button", {
+      cls: "clickable-icon cci-icon-btn cci-format-btn",
+      attr: { "data-mode": "format" },
+    });
+    setIcon(b, "highlighter");
+    this.styleFormatBtn(b);
+    b.addEventListener("click", () => {
+      void (async () => {
+        const inFormat = this.plugin.activeViewMode() === "format";
+        const reverse = this.plugin.settings.formatReverseMode;
+        if (!inFormat) {
+          this.plugin.settings.formatReverseMode = false;
+          await this.plugin.saveSettings();
+          this.plugin.setActiveViewMode("format"); // → BLUE
+        } else if (!reverse) {
+          this.plugin.settings.formatReverseMode = true;
+          await this.plugin.saveSettings();
+          this.refresh(); // → RED
+        } else {
+          this.plugin.setActiveViewMode("read"); // → off
+        }
+      })();
+    });
+  }
+
+  private styleFormatBtn(b: HTMLElement): void {
+    const inFormat = this.plugin.activeViewMode() === "format";
+    const reverse = this.plugin.settings.formatReverseMode;
+    b.toggleClass("is-active", inFormat);
+    b.toggleClass("cci-format-add", inFormat && !reverse);
+    b.toggleClass("cci-format-remove", inFormat && reverse);
+    const title = !inFormat
+      ? "Highlighter (tap start + end word)"
+      : reverse
+      ? "Highlighter: remove — tap to exit"
+      : "Highlighter: add — tap for remove mode";
+    b.setAttribute("aria-label", title);
+    b.setAttribute("title", title);
   }
 
   /**
@@ -141,6 +188,11 @@ export class ViewToolbar {
     const btns = this.container.querySelectorAll<HTMLButtonElement>(".cci-icon-btn[data-mode]");
     btns.forEach((b) => {
       const m = b.getAttribute("data-mode");
+      if (m === "format") {
+        // Tri-state colors (blue add / red remove) instead of plain is-active.
+        this.styleFormatBtn(b);
+        return;
+      }
       b.toggleClass("is-active", m === cur);
     });
   }
@@ -272,6 +324,8 @@ export class ViewToolbar {
   private renderFormatBanner() {
     if (!this.bannerEl) return;
     const banner = this.bannerEl.createDiv({ cls: "cci-banner is-format" });
+    // Color the banner red while in remove (reverse) mode to match the button.
+    banner.toggleClass("is-remove", this.plugin.settings.formatReverseMode);
     this.formatLabelEl = banner.createSpan({ text: this.formatBannerText() });
 
     const formatsBtn = banner.createEl("button", { text: "Formats ▾" });
@@ -320,28 +374,9 @@ export class ViewToolbar {
     const populate = () => {
       menu.empty();
 
-      // Add / reverse-mode toggle at the top.
+      // Add vs remove is chosen by the tri-state highlighter button (blue/red),
+      // not a checkbox here — this menu only arms WHICH formats are affected.
       const reverse = this.plugin.settings.formatReverseMode;
-      const modeItem = menu.createDiv({ cls: "cci-overflow-item" });
-      const modeCb = modeItem.createEl("input", { type: "checkbox" });
-      modeCb.checked = reverse;
-      modeItem.createSpan({ text: "Reverse mode (remove selected)" });
-      const toggleMode = () => {
-        void (async () => {
-          this.plugin.settings.formatReverseMode = modeCb.checked;
-          await this.plugin.saveSettings();
-          populate();
-          if (this.formatLabelEl) this.formatLabelEl.setText(this.formatBannerText());
-        })();
-      };
-      modeCb.addEventListener("change", toggleMode);
-      modeItem.addEventListener("click", (ev) => {
-        if (ev.target !== modeCb) {
-          modeCb.checked = !modeCb.checked;
-          toggleMode();
-        }
-      });
-
       const hint = menu.createDiv({ cls: "cci-overflow-hint" });
       hint.setText(reverse ? "Formats to remove" : "Formats to apply (none = remove)");
 
