@@ -195,21 +195,31 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           }
           return undefined;
         };
-        // Clipped intersection of [from, to) with a highlight span's content.
-        // Used for non-word runs: after wrapping a whole line the inserted `==`
-        // merges into the adjacent run (e.g. `==1. ` / `？==`), so a
-        // whole-token containment test misses them. Clipping tints the visible
-        // part; the hidden `==` portions paint nothing (they're replaced).
-        const highlightClip = (
-          from: number,
-          to: number
-        ): { from: number; to: number; color: string } | undefined => {
+        // Per-character helpers for non-word runs. A non-word token spans the
+        // whole gap between CJK spans (it can swallow newlines + an adjacent
+        // line's `1. `), so we render those runs one glyph at a time: each glyph
+        // is an exact tap target and its own 1em tint cell.
+        // Color for a single glyph fully inside a highlight span's content.
+        const charBg = (cs: number, ce: number): string | undefined => {
           for (const s of highlightSpans) {
-            const a = Math.max(from, s.contentFrom);
-            const b = Math.min(to, s.contentTo);
-            if (a < b) return { from: a, to: b, color: s.color ?? DEFAULT_HIGHLIGHT_BG };
+            if (s.openFrom > cs) break; // spans sorted by openFrom
+            if (cs >= s.contentFrom && ce <= s.contentTo) {
+              return s.color ?? DEFAULT_HIGHLIGHT_BG;
+            }
           }
           return undefined;
+        };
+        // True when [cs, ce) is the hidden markup of a highlight (`==` / `<mark…>`
+        // / `</mark>`) — the renderer replaces it, so we emit no mark there.
+        const inHiddenDelimiter = (cs: number, ce: number): boolean => {
+          for (const s of highlightSpans) {
+            if (s.openFrom > ce) break;
+            if ((cs >= s.openFrom && ce <= s.contentFrom) ||
+                (cs >= s.contentTo && ce <= s.closeTo)) {
+              return true;
+            }
+          }
+          return false;
         };
         // Cache heading level per line so multi-token heading lines don't
         // re-parse. Computed lazily on first hit.
@@ -244,42 +254,36 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             if (tok.start >= range.to) break;
             if (isRangeExcluded(exclusions, tok.start, tok.end)) continue;
             if (!tok.isWord || tok.candidates.length === 0) {
-              // Non-word run (digits / latin / punctuation), skipping whitespace.
-              if (!/\S/.test(tok.surface)) continue;
-              // In ruby modes the markdown renderer skips the content tint, so a
-              // highlighted non-word run is tinted here — clipped to the span so
-              // merged `==` delimiters don't drop the visible chars (#21).
-              const clip = rubyMode ? highlightClip(tok.start, tok.end) : undefined;
-              if (!formatMode && !clip) continue;
-              // Two marks, added in ascending `from` order so RangeSetBuilder
-              // stays sorted: (1) the whole-token clickable target, then (2) the
-              // clipped tint (clip.from >= tok.start).
-              if (formatMode) {
-                // Clickable selection target (only in format mode — otherwise a
-                // tap on a digit would open a word popup).
-                builder.add(
-                  tok.start,
-                  tok.end,
-                  Decoration.mark({
-                    class: "cci-word",
-                    attributes: {
-                      "data-cci-surface": tok.surface,
-                      "data-cci-start": String(tok.start),
-                      "data-cci-end": String(tok.end),
-                      "data-cci-doclen": String(tok.end - tok.start),
-                    },
-                  })
-                );
-              }
-              if (clip) {
-                builder.add(
-                  clip.from,
-                  clip.to,
-                  Decoration.mark({
-                    class: "cci-md-highlight",
-                    attributes: { style: `background-color:${clip.color};` },
-                  })
-                );
+              // Non-word run — render one glyph at a time so each is an exact tap
+              // target (format mode) and its own 1em tint cell (ruby mode). A
+              // coarse whole-token mark made `posAtDOM` resolve to the token
+              // start, breaking selection of `1.` / `？` (#21).
+              let off = tok.start;
+              for (const ch of Array.from(tok.surface)) {
+                const cs = off;
+                const ce = off + ch.length; // UTF-16 doc offsets
+                off = ce;
+                if (!/\S/.test(ch)) continue; // skip whitespace / newlines
+                if (inHiddenDelimiter(cs, ce)) continue; // skip hidden markup
+                const bg = rubyMode ? charBg(cs, ce) : undefined;
+                if (!formatMode && !bg) continue; // nothing to emit
+                const attributes: Record<string, string> = {};
+                let cls = "";
+                if (formatMode) {
+                  // Clickable selection boundary (only in format mode — otherwise
+                  // a tap on a digit would open a word popup).
+                  cls = "cci-word";
+                  attributes["data-cci-surface"] = ch;
+                  attributes["data-cci-start"] = String(cs);
+                  attributes["data-cci-end"] = String(ce);
+                  attributes["data-cci-doclen"] = String(ch.length);
+                }
+                if (bg) {
+                  // 1em tint cell matching the ruby char's `.cci-stack-chars`.
+                  cls = (cls ? cls + " " : "") + "cci-md-hl-cell";
+                  attributes["style"] = `background-color:${bg};`;
+                }
+                builder.add(cs, ce, Decoration.mark({ class: cls, attributes }));
               }
               continue;
             }

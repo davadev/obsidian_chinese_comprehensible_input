@@ -366,6 +366,20 @@
 .cci-view .cci-md-link-hl {
   border-radius: 2px;
 }
+/* Per-glyph highlight tint for non-word runs in ruby (two/three-line) modes.
+   inline-block + line-height:1 pins the background band to exactly 1em, matching
+   the annotated char cell (.cci-stack-chars), so highlighted punctuation/digits
+   are the SAME height as highlighted ruby characters. At char granularity the
+   inline-block still wraps freely. */
+.cci-view .cci-md-hl-cell {
+  display: inline-block;
+  line-height: 1;
+  vertical-align: baseline;
+  border-radius: 2px;
+  padding: 0 0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
 .cci-format-swatch {
   display: inline-block;
   width: 0.9em;
