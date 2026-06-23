@@ -326,6 +326,13 @@ export class CciSettingsTab extends PluginSettingTab {
   private renderFormatOptions(a: HTMLElement) {
     new Setting(a).setName("Formatting picker").setHeading();
 
+    this.renderDocLink(
+      a,
+      "Formatting & highlighting",
+      "Tap-to-format mode: the add/remove highlighter, colored highlights, and how they render.",
+      "formatting.md"
+    );
+
     new Setting(a)
       .setName("Show highlight colors without Highlightr")
       .setDesc(

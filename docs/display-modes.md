@@ -68,6 +68,14 @@ In **HSK color mode** the per-status toggles are inert; the per-HSK
 toggles (1–7) take over. Useful for picking a comfortable reading level
 visually.
 
+### Highlights vs. status colors
+
+A manual highlight (from the [formatting mode](./formatting.md)) and a status /
+HSK tint can land on the same word. **Settings → Formatting picker → "Highlight
+overrides status / HSK colors"** decides which wins: on (default) shows the
+highlight, off keeps the status color. See
+[Formatting and highlighting](./formatting.md).
+
 ### Custom colors
 
 You can override every status / HSK level color under **Custom

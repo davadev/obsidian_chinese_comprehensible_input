@@ -31,6 +31,9 @@ the whole tree from here.
 
 - [Display modes and colors](./display-modes.md) — two-line, three-line,
   none; pinyin styles; which color toggles control what.
+- [Formatting and highlighting](./formatting.md) — the tap-to-format mode:
+  the add/remove/off highlighter button, colored highlights + Highlightr,
+  reordering the picker, and how highlights render in the reader.
 - [Word states (new / partial / known / unknown / ignored)](./word-states.md)
   — the full status taxonomy, what each color means, how to mark words
   from the Chinese view.

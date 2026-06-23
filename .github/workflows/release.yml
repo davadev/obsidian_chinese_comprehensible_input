@@ -47,7 +47,9 @@ jobs:
         run: npm test
 
       - name: Run release guard
-        run: npm run check-release -- --tag "${GITHUB_REF_NAME}" --with-build
+        # --strict: any WARN finding blocks the release (no release ships with an
+        # outstanding warning).
+        run: npm run check-release -- --tag "${GITHUB_REF_NAME}" --with-build --strict
 
       # Cryptographic provenance for the exact built assets we upload below, so
       # users (and the Obsidian review) can verify they came from this repo's CI.
