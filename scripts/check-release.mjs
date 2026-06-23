@@ -186,6 +186,72 @@ if (cssUsage.used) {
   skip("styles.css present", "plugin appears not to use CSS");
 }
 
+// === Obsidian review-card parity (locally mirror what the cloud review flags) ===
+
+// CSS features Obsidian's review reports as only partially supported by its
+// bundled Chromium (the "CSS LINT" warnings). Curated — grows as we hit them.
+const CSS_PARTIAL_FEATURES = [
+  "box-decoration-break",
+  "-webkit-box-decoration-break",
+];
+{
+  const styles = (await readText("styles.css")) ?? "";
+  const lines = styles.split("\n");
+  const hits = [];
+  lines.forEach((line, i) => {
+    for (const feat of CSS_PARTIAL_FEATURES) {
+      if (line.includes(feat)) hits.push(`${feat} (styles.css:${i + 1})`);
+    }
+  });
+  if (hits.length === 0) {
+    pass("styles.css avoids CSS features Obsidian only partially supports");
+  } else {
+    warn(
+      "styles.css avoids CSS features Obsidian only partially supports",
+      hits.join(", ")
+    );
+  }
+}
+
+// Release workflow attests its assets (GitHub artifact attestations) — the
+// "missing attestations" RELEASES recommendation. Can't verify the attestation
+// itself locally, but we can ensure the step is wired so it never regresses.
+{
+  const wf = await readText(".github/workflows/release.yml");
+  if (wf == null) {
+    skip("release workflow attests build provenance", "release.yml not found");
+  } else if (/attest-build-provenance/.test(wf)) {
+    pass("release workflow attests build provenance");
+  } else {
+    warn(
+      "release workflow attests build provenance",
+      "add an actions/attest-build-provenance step so release assets are signed"
+    );
+  }
+}
+
+// Behavior capabilities the review discloses (BEHAVIOR section). Intentional and
+// user-initiated here — surfaced so the local report previews the cloud card, not
+// because they're defects.
+{
+  const files = await srcFiles();
+  const findAny = (re) =>
+    files.filter((f) => re.test(f.text)).map((f) => f.path);
+  const clip = findAny(/navigator\.clipboard\b/);
+  const enumerate = findAny(/\b(getMarkdownFiles|getAllLoadedFiles|getFiles)\s*\(/);
+  const notes = [];
+  if (clip.length) notes.push(`clipboard access (${clip.length} file${clip.length === 1 ? "" : "s"})`);
+  if (enumerate.length) notes.push(`vault enumeration (${enumerate.length} file${enumerate.length === 1 ? "" : "s"})`);
+  if (notes.length === 0) {
+    pass("behavior capabilities review preview");
+  } else {
+    warn(
+      "behavior capabilities review preview (intentional — disclosed)",
+      notes.join(", ")
+    );
+  }
+}
+
 // === JSON validity ===
 let manifest = null;
 try {

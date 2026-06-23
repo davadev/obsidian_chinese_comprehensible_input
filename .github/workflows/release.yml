@@ -15,6 +15,9 @@ on:
 
 permissions:
   contents: write
+  # Artifact attestations (Sigstore provenance for the release assets).
+  id-token: write
+  attestations: write
 
 jobs:
   publish:
@@ -45,6 +48,16 @@ jobs:
 
       - name: Run release guard
         run: npm run check-release -- --tag "${GITHUB_REF_NAME}" --with-build
+
+      # Cryptographic provenance for the exact built assets we upload below, so
+      # users (and the Obsidian review) can verify they came from this repo's CI.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            main.js
+            manifest.json
+            styles.css
 
       - name: Decide prerelease vs latest
         id: rel
