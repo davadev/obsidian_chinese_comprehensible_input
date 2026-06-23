@@ -97,6 +97,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [Ollama tips: model choice and getting good output](./docs/ollama-tips.md)
 - [Story generation, end to end](./docs/story-generation.md)
 - [Display modes & colors](./docs/display-modes.md)
+- [Formatting & highlighting](./docs/formatting.md) — tap-to-format mode, colored highlights, Highlightr support
 - [Word states (new / partial / known / unknown / ignored)](./docs/word-states.md)
 - [Exposure tracking](./docs/exposure.md)
 - [Spaced repetition](./docs/srs.md)
@@ -127,6 +128,8 @@ Development policy:
 - Use a dedicated branch for each bugfix, feature, or release-prep change. Preferred prefixes: `fix/`, `feat/`, `release/`.
 - Merge changes to `main` through PRs after CI passes.
 - External PRs must be approved by the maintainer before merge.
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for how to report bugs, suggest features, and open a PR (it's an issues-first project — please open an issue before a non-trivial PR).
 
 To install the dev build into a vault:
 1. Build: `npm run build`.

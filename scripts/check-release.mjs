@@ -41,6 +41,9 @@ const runBuildAndTest = hasFlag("--with-build");
 // `--with-build` implies `--with-lint` so the release-readiness command
 // is one switch. Pass `--with-lint` alone to run lint without rebuilding.
 const runLint = hasFlag("--with-lint") || runBuildAndTest;
+// `--strict` promotes WARN findings to release blockers — the release workflow
+// uses it so no release ever ships with an outstanding warning.
+const strict = hasFlag("--strict");
 
 // ---------- Reporting ----------
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
@@ -242,14 +245,13 @@ const CSS_PARTIAL_FEATURES = [
   const notes = [];
   if (clip.length) notes.push(`clipboard access (${clip.length} file${clip.length === 1 ? "" : "s"})`);
   if (enumerate.length) notes.push(`vault enumeration (${enumerate.length} file${enumerate.length === 1 ? "" : "s"})`);
-  if (notes.length === 0) {
-    pass("behavior capabilities review preview");
-  } else {
-    warn(
-      "behavior capabilities review preview (intentional — disclosed)",
-      notes.join(", ")
-    );
-  }
+  // Disclosed + intentional (vault-wide stats need enumeration; clipboard powers
+  // vocab export/import). A green note, not a warning — so it never blocks under
+  // --strict while still previewing the review's BEHAVIOR section.
+  pass(
+    "behavior capabilities (disclosed, intentional)",
+    notes.length ? notes.join(", ") : "none detected"
+  );
 }
 
 // === JSON validity ===
@@ -544,13 +546,20 @@ if (manifest) {
 // === Release assets: only expected distributable files ===
 {
   const dirEntries = await readdir(ROOT, { withFileTypes: true }).catch(() => []);
-  const strays = dirEntries
+  let strays = dirEntries
     .filter((e) => e.isFile())
     .map((e) => e.name)
     .filter((n) => /\.(ts|tsx)$/.test(n) || n === "main.js.map" || /\.bak$/.test(n) || /^\.DS_Store$/.test(n))
     // Allowlist root-level config files — vitest/esbuild/postcss configs
     // belong at root and aren't release artifacts.
     .filter((n) => !/\.config\.(ts|tsx|js|mjs|cjs)$/.test(n));
+  // Anything git already ignores can never ship (e.g. a local .DS_Store), so
+  // it's not "distributable" cruft — drop it before warning.
+  if (strays.length) {
+    const res = spawnSync("git", ["check-ignore", ...strays], { cwd: ROOT, encoding: "utf8" });
+    const ignored = new Set((res.stdout || "").split("\n").map((s) => s.trim()).filter(Boolean));
+    strays = strays.filter((n) => !ignored.has(n));
+  }
   if (strays.length === 0) pass("no stray distributable cruft at repo root");
   else warn("no stray distributable cruft at repo root", strays.join(", "));
 }
@@ -646,14 +655,18 @@ if (pkg) {
 
 // ---------- Summary ----------
 const total = results.pass + results.fail + results.warn + results.skip;
-const status =
-  results.fail === 0
-    ? c.green("ready to release.") + (results.warn ? c.yellow(` (${results.warn} warning${results.warn === 1 ? "" : "s"} — review but non-blocking)`) : "")
-    : c.red("DO NOT release.");
+// In --strict mode any warning blocks the release (the workflow uses it).
+const blocked = results.fail > 0 || (strict && results.warn > 0);
+const warnNote = results.warn
+  ? strict
+    ? c.red(` (${results.warn} warning${results.warn === 1 ? "" : "s"} — blocking under --strict)`)
+    : c.yellow(` (${results.warn} warning${results.warn === 1 ? "" : "s"} — review but non-blocking)`)
+  : "";
+const status = blocked ? c.red("DO NOT release.") : c.green("ready to release.") + warnNote;
 console.log("");
 console.log(
   c.bold(
     `${total} checks · ${results.pass} passed, ${results.fail} failed, ${results.warn} warned, ${results.skip} skipped — ${status}`
   )
 );
-process.exit(results.fail === 0 ? 0 : 1);
+process.exit(blocked ? 1 : 0);
