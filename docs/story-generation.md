@@ -7,6 +7,12 @@ which settings to touch when results aren't what you want.
 
 ## What it does
 
+<img src="../resources/screenshots/mobile-smart-story.png" alt="Smart story generation panel" width="320">
+
+*Flashcards → **Smart story**: the panel shows how many words are due today,
+the target HSK level (auto), length, the known-coverage threshold, and the
+repair-iteration cap, then **Generate story**.*
+
 When you click **Generate story** in the Flashcards tab (or wait for
 the daily auto-generator), the plugin:
 

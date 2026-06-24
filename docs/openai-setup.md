@@ -21,6 +21,19 @@ the cheapest current OpenAI model strong enough for graded Chinese
 generation. You don't get to pick a different model from the OpenAI side
 of the UI; if you want full control over model and prompts, run Ollama.
 
+A configured provider also unlocks **Enhance** on the word popup card: tap it
+to enrich a sparse dictionary entry with fuller senses and grammar info.
+
+<p>
+<img src="../resources/screenshots/mobile-enhance-before.png" alt="Sparse entry before Enhance" height="430">
+&nbsp;
+<img src="../resources/screenshots/mobile-enhance-annotated.png" alt="Annotated enriched entry after Enhance" height="430">
+</p>
+
+Before → after tapping **Enhance**: 1. a "Dictionary entry enhanced"
+confirmation, 2. enriched definitions + grammar replacing the bare
+"variant of…", and 3. a **Revert** button to undo it.
+
 ---
 
 ## 2. Privacy — your text leaves Obsidian

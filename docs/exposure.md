@@ -5,6 +5,15 @@ as an "exposure." Enough exposures + the right interactions (or lack of
 them) is what graduates a word from new → partial → known. This page
 explains what counts and the dedup rules.
 
+The payoff shows up in **Vocabulary stats** — the dashboard tiles, the
+cumulative progress chart, and per-HSK coverage over time:
+
+<p>
+<img src="../resources/screenshots/mobile-stats-dashboard.png" alt="Vocabulary stats dashboard" height="430">
+&nbsp;
+<img src="../resources/screenshots/mobile-stats-progress.png" alt="Progress chart and HSK coverage" height="430">
+</p>
+
 ## What is an exposure?
 
 The plugin watches the Chinese view and marks words as exposed when
