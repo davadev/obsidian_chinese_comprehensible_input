@@ -9,18 +9,18 @@ them.
 
 <img src="../resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar" width="620">
 
-1. **Edit** (read ↔ edit) · 2. **Known** · 3. **Unknown** · 4. **Partial** —
-   tap a word to set its status · 5. **Add custom word** · 6. **Highlighter**
-   ([formatting mode](./formatting.md)) · 7. **Status / HSK** color switch ·
-   8. **More** (the display menu) · 9. **Note status bar** — coverage %, top HSK.
+- **1 · Edit** (read ↔ edit) · **2 · Known** · **3 · Unknown** · **4 · Partial** — tap a word to set its status.
+- **5 · Add custom word** · **6 · Highlighter** ([formatting mode](./formatting.md)).
+- **7 · Status / HSK** color switch · **8 · More** (the display menu).
+- **9 · Note status bar** — coverage %, top HSK.
 
 The **More** menu holds the display controls:
 
 <img src="../resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
-1. Show / hide colors · 2. Display mode (2-line / 3-line / None) ·
-3. Known-word popups · 4. Font size · 5. Line spacing · 6. Stats ·
-7. Generate story.
+- **1 · Show / hide colors** · **2 · Display mode** (2-line / 3-line / None).
+- **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing**.
+- **6 · Stats** · **7 · Generate story**.
 
 ## Display modes
 

@@ -17,23 +17,23 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 
 <img src="resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar" width="620">
 
-1. **Edit** — toggle between read and edit (type Chinese with annotations off).
-2. **Known** · 3. **Unknown** · 4. **Partial** — tap a word to set its status.
-5. **Add custom word** — tap characters to build a dictionary entry.
-6. **Highlighter** — arm tap-to-format mode (see [Formatting](./docs/formatting.md)).
-7. **Status / HSK** — color words by learning status or by HSK level.
-8. **More** — the display menu (below).
-9. **Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
+- **1 · Edit** — toggle between read and edit (type Chinese with annotations off).
+- **2 · Known**, **3 · Unknown**, **4 · Partial** — tap a word to set its status.
+- **5 · Add custom word** — tap characters to build a dictionary entry.
+- **6 · Highlighter** — arm tap-to-format mode (see [Formatting](./docs/formatting.md)).
+- **7 · Status / HSK** — color words by learning status or by HSK level.
+- **8 · More** — the display menu (below).
+- **9 · Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
 
 ### Display menu (the "More" button)
 
 <img src="resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
-1. **Show / hide colors** — per-status (or per-HSK) tint toggles.
-2. **Display mode** — 2-line (pinyin), 3-line (pinyin + gloss), or None.
-3. **Known-word popups** — allow tapping words you already know.
-4. **Font size** · 5. **Line spacing** — reader sizing.
-6. **Stats** · 7. **Generate story** — open vocabulary stats / AI story generation.
+- **1 · Show / hide colors** — per-status (or per-HSK) tint toggles.
+- **2 · Display mode** — 2-line (pinyin), 3-line (pinyin + gloss), or None.
+- **3 · Known-word popups** — allow tapping words you already know.
+- **4 · Font size**, **5 · Line spacing** — reader sizing.
+- **6 · Stats**, **7 · Generate story** — open vocabulary stats / AI story generation.
 
 ### Colors & the 1–3 line stack (3-line mode)
 
