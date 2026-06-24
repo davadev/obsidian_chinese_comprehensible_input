@@ -1,13 +1,28 @@
-# Install via BRAT
+# Installing the plugin
 
-Chinese Comprehensible Input is not yet in the official Obsidian
-community-plugin store. For now, the cleanest install path is **BRAT**
-(Beta Reviewers Auto-update Tool) — it pulls the plugin straight from
-this repository's GitHub releases and keeps it up to date for you.
+Chinese Comprehensible Input is in the **official Obsidian community-plugin
+store**, so most users should install it from there. Use **BRAT** only if you
+want to test the latest beta (prerelease) builds before they're promoted to
+the store. Both paths work on desktop and mobile.
 
-Works on both desktop and mobile.
+## Option A — Community plugin store (recommended)
 
-## 1. Install BRAT
+1. Open Obsidian → **Settings** → **Community plugins**.
+2. If you've never used community plugins before, click **Turn on community
+   plugins** first.
+3. Click **Browse**, search for **Chinese Comprehensible Input**, and click
+   **Install**.
+4. Click **Enable**.
+
+That's it — Obsidian auto-updates store plugins. Jump to
+[First-run setup](#first-run-setup-inside-the-plugin) below.
+
+## Option B — BRAT (for beta builds)
+
+BRAT (Beta Reviewers Auto-update Tool) pulls the plugin straight from this
+repository's GitHub releases, including prereleases the store doesn't show yet.
+
+### 1. Install BRAT
 
 BRAT is itself a community plugin.
 
@@ -17,7 +32,7 @@ BRAT is itself a community plugin.
 3. Click **Browse**, search for **BRAT**, and install it.
 4. Back in Community plugins, enable **BRAT**.
 
-## 2. Add this plugin as a BRAT beta
+### 2. Add this plugin as a BRAT beta
 
 1. Open **Settings** → **BRAT** (it shows up as its own section once
    enabled).
@@ -32,9 +47,11 @@ BRAT is itself a community plugin.
 BRAT downloads the latest release (`main.js`, `manifest.json`,
 `styles.css`) into your vault's
 `.obsidian/plugins/chinese-comprehensible-input/` folder and asks
-Obsidian to load it.
+Obsidian to load it. BRAT then checks once at each Obsidian launch and
+re-pulls newer releases; to freeze a version, Settings → BRAT → your
+plugin entry → **Don't auto-update**.
 
-## 3. Confirm it's running
+## Confirm it's running
 
 - Open Settings → Community plugins. **Chinese Comprehensible Input**
   should appear in the list with its toggle on.
@@ -46,17 +63,7 @@ If you don't see the settings tab, try disabling and re-enabling the
 plugin from Community plugins; on mobile, fully quitting and reopening
 Obsidian once helps.
 
-## 4. Update to new versions
-
-BRAT checks once at Obsidian launch and re-pulls if there's a newer
-release. You can also force a check:
-
-- Settings → BRAT → **Check for updates to all beta plugins**.
-
-If you don't want auto-updates, BRAT lets you freeze a specific
-version: Settings → BRAT → click your plugin entry → **Don't auto-update**.
-
-## 5. First-run setup inside the plugin
+## First-run setup inside the plugin
 
 After install, take a minute to:
 
@@ -67,9 +74,13 @@ After install, take a minute to:
 3. If you want AI story generation, configure your provider — see
    [OpenAI setup](./openai-setup.md) or [Ollama tips](./ollama-tips.md).
 4. Open a Chinese-language note and switch its view to **Chinese
-   Learning** (the 中 icon in the right of the note header on desktop,
-   or the ribbon button on mobile). See [display modes](./display-modes.md)
-   for what the different view options do.
+   Learning** by tapping the **中** icon in the note header. See
+   [display modes](./display-modes.md) for what the different view
+   options do.
+
+   <img src="../resources/screenshots/mobile-open-view-annotated.png" alt="The 中 button opens the Chinese view" width="320">
+
+   1. From a normal note, tap **中** in the header to open the Chinese view.
 
 ## Troubleshooting
 

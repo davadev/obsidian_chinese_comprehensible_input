@@ -23,6 +23,14 @@ Every word in your vocabulary store has:
 The Flashcards tab → **Due** view shows everything whose due date has
 passed.
 
+<img src="../resources/screenshots/mobile-flashcards-annotated.png" alt="Annotated flashcard review" width="340">
+
+1. **Stats view** — Dashboard / Flashcards / Words.
+2. **Review queue** — Unclassified, **Due** (SRS), or Smart story.
+3. **Progress** through the queue (sorted by frequency) · Skip.
+4. **The card** — headword, times seen, Reveal pinyin, example sentence.
+5. **Grade** — Known / Partial / Unknown, or Ignore.
+
 ## What counts as a "review"
 
 Two things:

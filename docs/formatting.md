@@ -7,6 +7,13 @@ Markdown view, and any sync target). The headline use is **highlighting** for
 review, but the same mode applies bold, italic, strikethrough, inline code,
 headings, and block quotes.
 
+<img src="../resources/screenshots/mobile-formatting-annotated.png" alt="Annotated formatting mode" width="320">
+
+1. **Highlighter button** — blue = add (tap again → red remove → off).
+2. **Mode banner** — tap a start word then an end word; **Formats ▾** picks the
+   format / highlight color, **Exit** leaves.
+3. **The applied highlight** spanning the selected words.
+
 ## The highlighter button (add / remove / off)
 
 The highlighter icon in the view toolbar is a three-state toggle:
@@ -28,6 +35,16 @@ want armed:
 - **Highlight** (default), **Bold**, **Italic**, **Strikethrough**, **Inline
   code**, **Headings (H1–H3)**, **Quote**.
 - **Colored highlights** — one entry per color (see below).
+
+<p>
+<img src="../resources/screenshots/mobile-formatting-menu.png" alt="The Formats picker menu" height="380">
+&nbsp;
+<img src="../resources/screenshots/mobile-formatting-remove.png" alt="Remove (red) formatting mode" height="380">
+</p>
+
+*Left: the Formats picker (text formats plus nine highlight colors). Right: the
+red **remove** mode — the banner turns red and a tap-start/tap-end gesture strips
+the armed format(s) from the span.*
 
 Mutually exclusive choices are disabled automatically (e.g. you can't arm two
 heading levels at once). In **remove** mode (red button) the conflict gating is

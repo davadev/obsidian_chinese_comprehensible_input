@@ -1,12 +1,126 @@
 # Chinese Comprehensible Input — Obsidian Plugin
 
-| Desktop | Mobile |
+| Desktop — reading view | Mobile — word lookup |
 | :---: | :---: |
-| <img src="resources/desktop.png" alt="Chinese view on desktop" height="420"> | <img src="resources/mobile.png" alt="Chinese view on mobile" height="420"> |
+| <img src="resources/screenshots/desktop-reading-none.png" alt="Chinese reading view on desktop, words colored by status" height="430"> | <img src="resources/screenshots/mobile-reading-card.png" alt="Word popup card on mobile" height="460"> |
 
-<p align="center"><em>Both screenshots show the demo note at <a href="resources/example.md">resources/example.md</a>.</em></p>
+<p align="center"><em>The same note rendered for reading. A runnable demo lives at <a href="resources/example.md">resources/example.md</a>.</em></p>
 
 Turn any Chinese note in Obsidian into a learner-friendly comprehensible-input reading environment. Dictionary-aware tokenization, exposure tracking, SRS, and optional OpenAI-compatible AI story generation. Works on desktop and mobile (no Node/Electron at runtime).
+
+## Tour the interface
+
+A quick visual walkthrough. The green numbers on each screenshot map to the lists
+below; deeper explanations live in [`docs/`](./docs/index.md).
+
+### Reading toolbar (desktop)
+
+<img src="resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar" width="620">
+
+1. **Edit** — toggle between read and edit (type Chinese with annotations off).
+2. **Known** · 3. **Unknown** · 4. **Partial** — tap a word to set its status.
+5. **Add custom word** — tap characters to build a dictionary entry.
+6. **Highlighter** — arm tap-to-format mode (see [Formatting](./docs/formatting.md)).
+7. **Status / HSK** — color words by learning status or by HSK level.
+8. **More** — the display menu (below).
+9. **Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
+
+### Display menu (the "More" button)
+
+<img src="resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
+
+1. **Show / hide colors** — per-status (or per-HSK) tint toggles.
+2. **Display mode** — 2-line (pinyin), 3-line (pinyin + gloss), or None.
+3. **Known-word popups** — allow tapping words you already know.
+4. **Font size** · 5. **Line spacing** — reader sizing.
+6. **Stats** · 7. **Generate story** — open vocabulary stats / AI story generation.
+
+### Colors & the 1–3 line stack (3-line mode)
+
+<img src="resources/screenshots/desktop-three-line-annotated.png" alt="Annotated three-line view showing word states" width="620">
+
+A word's **status drives its color and how much help is shown**:
+
+1. **Known** (green) — characters only; you don't need help.
+2. **Partial** (yellow) — adds pinyin / meaning for a word you half-know.
+3. **New / untracked** (blue) — full gloss + pinyin + characters.
+4. **Unknown** (red) — full gloss + pinyin + characters, flagged for attention.
+
+### Open the Chinese view (mobile)
+
+<img src="resources/screenshots/mobile-open-view-annotated.png" alt="The 中 button opens the Chinese view" width="320">
+
+1. From a normal note, tap **中** in the header to open the Chinese view.
+
+### Word lookup card (mobile)
+
+<img src="resources/screenshots/mobile-reading-card-annotated.png" alt="Annotated word popup card" width="340">
+
+1. **Word, pinyin & meaning** — headword, reading, traditional form, definitions.
+2. **"I know"** — tick characters / pinyin / translation; this sets the word's status.
+3. **Per-word stats** — HSK, times seen, last seen, status, SRS due date.
+4. **Exposure history** — recent sightings driving spaced repetition.
+5. **Actions** — Ignore, add a Mnemonic, Edit, or **Enhance** (AI, see below).
+
+### Tap-to-format & highlights (mobile)
+
+<img src="resources/screenshots/mobile-formatting-annotated.png" alt="Annotated formatting mode" width="320">
+
+1. **Highlighter button** — blue = add formatting (tap again → red remove → off).
+2. **Mode banner** — tap a start word then an end word; **Formats ▾** picks the
+   format / highlight color, **Exit** leaves.
+3. **The applied highlight** spanning the selected words.
+
+<p>
+<img src="resources/screenshots/mobile-formatting-menu.png" alt="Formats menu" height="360">
+&nbsp;
+<img src="resources/screenshots/mobile-formatting-remove.png" alt="Remove (red) formatting mode" height="360">
+</p>
+
+<em>Left: the Formats menu (Bold, Italic, headings, quote, and nine highlight
+colors). Right: the red <strong>remove</strong> mode — tap a span to strip its
+formatting.</em> Full details in [Formatting & highlighting](./docs/formatting.md).
+
+### AI dictionary Enhance (mobile)
+
+A sparse dictionary entry can be enriched by your configured AI provider.
+
+<p>
+<img src="resources/screenshots/mobile-enhance-before.png" alt="Sparse entry before Enhance" height="430">
+&nbsp;
+<img src="resources/screenshots/mobile-enhance-annotated.png" alt="Annotated enriched entry after Enhance" height="430">
+</p>
+
+Left → right, before and after tapping **Enhance**:
+
+1. **"Dictionary entry enhanced"** confirmation.
+2. **Enriched definitions + grammar** — full senses replace the bare "variant of…".
+3. **Revert** — undo the enhancement.
+
+### Flashcard review (mobile)
+
+<img src="resources/screenshots/mobile-flashcards-annotated.png" alt="Annotated flashcard review" width="340">
+
+1. **Stats view** — Dashboard / Flashcards / Words.
+2. **Review queue** — Unclassified, Due (SRS), or Smart story.
+3. **Progress** through the queue (sorted by frequency) · Skip.
+4. **The card** — headword, times seen, Reveal pinyin, example sentence.
+5. **Grade** — Known / Partial / Unknown, or Ignore.
+
+### Vocabulary stats & Smart stories
+
+<p>
+<img src="resources/screenshots/mobile-stats-dashboard.png" alt="Vocabulary stats dashboard" height="430">
+&nbsp;
+<img src="resources/screenshots/mobile-stats-progress.png" alt="Vocabulary progress and HSK coverage" height="430">
+&nbsp;
+<img src="resources/screenshots/mobile-smart-story.png" alt="Smart story generation" height="430">
+</p>
+
+<em>Tracked / known / partial counts and a comfort-HSK level; cumulative progress
+and per-HSK coverage over time; and Smart-story generation that weaves your
+due words into a level-appropriate story.</em> See
+[Spaced repetition](./docs/srs.md) and [Story generation](./docs/story-generation.md).
 
 ## Why This Plugin Exists
 
@@ -85,7 +199,10 @@ See `NOTICE.md` for license notes (CC-CEDICT, HSK).
 
 ## Install
 
-The plugin is not in the official Obsidian community-plugin store yet. Install via **BRAT** (recommended) or manually — full step-by-step guide in [docs/install.md](./docs/install.md).
+Available in the **official Obsidian community-plugin store**: Settings →
+Community plugins → **Browse** → search **Chinese Comprehensible Input** →
+Install → Enable. To test the latest beta builds instead, install via **BRAT**.
+Full step-by-step guide (store, BRAT, or manual) in [docs/install.md](./docs/install.md).
 
 ## Documentation
 

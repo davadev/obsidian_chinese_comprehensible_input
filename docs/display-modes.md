@@ -5,6 +5,23 @@ The Chinese view can render the same note in several ways, ranging from
 and English." This page covers what each option does and how to mix
 them.
 
+## The toolbar
+
+<img src="../resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar" width="620">
+
+1. **Edit** (read ↔ edit) · 2. **Known** · 3. **Unknown** · 4. **Partial** —
+   tap a word to set its status · 5. **Add custom word** · 6. **Highlighter**
+   ([formatting mode](./formatting.md)) · 7. **Status / HSK** color switch ·
+   8. **More** (the display menu) · 9. **Note status bar** — coverage %, top HSK.
+
+The **More** menu holds the display controls:
+
+<img src="../resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
+
+1. Show / hide colors · 2. Display mode (2-line / 3-line / None) ·
+3. Known-word popups · 4. Font size · 5. Line spacing · 6. Stats ·
+7. Generate story.
+
 ## Display modes
 
 Set in display settings as **Default display mode** and switchable
@@ -54,6 +71,16 @@ plugin uses non-widget decorations during edit.
 Words get a colored tint based on **status** (default) or **HSK level**
 (if you switch to HSK color mode). The tint applies in two-line,
 three-line, and none modes — it's not display-mode-dependent.
+
+A word's status drives both its color and how much help is shown (here in
+3-line mode):
+
+<img src="../resources/screenshots/desktop-three-line-annotated.png" alt="Three-line view with words colored by status" width="620">
+
+1. **Known** (green) — characters only, no help.
+2. **Partial** (yellow) — adds pinyin / meaning for a half-known word.
+3. **New / untracked** (blue) — full gloss + pinyin + characters.
+4. **Unknown** (red) — full gloss + pinyin + characters, flagged for attention.
 
 ### Color toggles
 
