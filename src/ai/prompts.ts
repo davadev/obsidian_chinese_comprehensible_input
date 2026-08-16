@@ -227,9 +227,19 @@ export function buildMnemonicUserPrompt(
   );
 }
 
+/**
+ * Both properties are listed in `required` on purpose. When the user picks
+ * Response format = `json_schema`, `buildResponseFormat` sends this with
+ * `strict: true`, and strict mode rejects a schema whose
+ * `additionalProperties: false` object has a property missing from
+ * `required` — OpenAI enforces that, and so do the LiteLLM / vLLM proxies
+ * people put in front of local models, while Ollama's grammar conversion
+ * is lenient. Matches the shape the system prompt asks for; the parser
+ * still treats a missing or empty `story` as absent.
+ */
 export const MNEMONIC_SCHEMA = {
   type: "object",
-  required: ["mnemonic"],
+  required: ["mnemonic", "story"],
   additionalProperties: false,
   properties: {
     mnemonic: { type: "string" },

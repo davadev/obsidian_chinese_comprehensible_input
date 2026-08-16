@@ -213,8 +213,21 @@ describe("parseMnemonicResult", () => {
   });
 
   it("advertises a schema matching what the parser accepts", () => {
-    expect(MNEMONIC_SCHEMA.required).toEqual(["mnemonic"]);
     expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["mnemonic", "story"]);
     expect(MNEMONIC_SCHEMA.additionalProperties).toBe(false);
+  });
+
+  it("keeps the schema valid under json_schema strict mode", () => {
+    // strict: true (what buildResponseFormat sends) rejects an
+    // additionalProperties:false object with a property missing from
+    // `required` — OpenAI and the LiteLLM/vLLM proxies enforce it even
+    // though Ollama does not. Every property must be required.
+    expect([...MNEMONIC_SCHEMA.required].sort()).toEqual(
+      Object.keys(MNEMONIC_SCHEMA.properties).sort()
+    );
+  });
+
+  it("still accepts a response that omits story, as lenient providers send", () => {
+    expect(parseMnemonicResult('{"mnemonic":"📖✏️→🧠"}')).toEqual({ mnemonic: "📖✏️→🧠" });
   });
 });

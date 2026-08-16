@@ -634,6 +634,14 @@
   z-index: 400;
 }
 
+/* …but Obsidian deliberately stacks --layer-notice above --layer-modal, and
+   .notice-container is a plain body child, so lifting our modal to 400 would
+   otherwise bury every Notice raised while one is open (AI errors, the
+   persistent [CCI AI] debug notice). Keep Obsidian's relative order. */
+.notice-container {
+  z-index: 401;
+}
+
 .cci-mnemonic-modal .cci-mnemonic-field {
   margin-bottom: 1rem;
 }

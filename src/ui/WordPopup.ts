@@ -2,6 +2,7 @@ import { Notice, Platform } from "obsidian";
 import type CciPlugin from "../main";
 import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { axesFromStatus } from "../vocabulary/axes";
+import { clampGraphemes } from "../vocabulary/mnemonicText";
 import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
 
@@ -144,11 +145,14 @@ export class WordPopup {
 
     const wrap = parent.createDiv({ cls: "cci-popup-mnemonic" });
     const head = wrap.createDiv({ cls: "cci-popup-mnemonic-head" });
-    head.createSpan({
-      cls: "cci-popup-mnemonic-line",
-      text: line ? `🧠 ${line}` : "🧠 (story only)",
-    });
-    if (!story) return;
+    // With no emoji line — the state every pre-0.5.0 prose mnemonic lands in
+    // after the v3 migration — preview the story itself rather than a
+    // placeholder, so the user still recognises their own words.
+    const collapsed = line || clampGraphemes(story);
+    head.createSpan({ cls: "cci-popup-mnemonic-line", text: `🧠 ${collapsed}` });
+    // No toggle when the collapsed row is already the whole story — it would
+    // expand to identical text.
+    if (!story || collapsed === story) return;
 
     const body = wrap.createDiv({ cls: "cci-popup-mnemonic-story" });
     body.setText(story);

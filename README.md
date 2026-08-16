@@ -46,6 +46,11 @@ A word's **status drives its color and how much help is shown**:
 3. **New / untracked** (blue) — full gloss + pinyin + characters.
 4. **Unknown** (red) — full gloss + pinyin + characters, flagged for attention.
 
+Those are background tints. The **font** color of each of the three rows —
+characters, pinyin, English — is separately settable under **Settings → Display →
+Advanced display → Reader text colors** (off by default, so your theme stays in charge).
+See [Display modes & colors](./docs/display-modes.md).
+
 ### Open the Chinese view (mobile)
 
 <img src="resources/screenshots/mobile-open-view-annotated.png" alt="The 中 button opens the Chinese view" width="320">
