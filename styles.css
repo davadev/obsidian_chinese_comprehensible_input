@@ -625,7 +625,7 @@
 .cci-stack-h5 .cci-stack-chars { font-size: 1em;    font-weight: 700; }
 .cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--cci-text-chars, var(--text-muted)); }
 
-/* AI mnemonic preview modal (#49).
+/* AI mnemonic editor modal (#49).
    `.cci-popup` (100), `.cci-bottom-sheet` (200) and `.cci-overflow` (300)
    all sit above Obsidian's --layer-modal, so a modal opened from any of
    them would render underneath. Lift our own modal container clear of
@@ -634,6 +634,9 @@
   z-index: 400;
 }
 
+.cci-mnemonic-modal .cci-mnemonic-field {
+  margin-bottom: 1rem;
+}
 .cci-mnemonic-modal .cci-mnemonic-label {
   font-size: 0.8em;
   color: var(--text-muted);
@@ -641,36 +644,73 @@
   letter-spacing: 0.04em;
   margin-bottom: 0.2rem;
 }
-.cci-mnemonic-modal .cci-mnemonic-existing {
-  border-left: 3px solid var(--background-modifier-border);
-  padding-left: 0.6rem;
-  margin-bottom: 0.8rem;
-  color: var(--text-muted);
+.cci-mnemonic-modal .cci-mnemonic-hint {
+  font-size: 0.85em;
+  color: var(--text-faint);
+  margin-bottom: 0.4rem;
 }
-.cci-mnemonic-modal .cci-mnemonic-status {
-  padding: 0.8rem 0;
-  color: var(--text-muted);
+.cci-mnemonic-modal .cci-mnemonic-line-input {
+  width: 100%;
+  font-size: 1.3em;
+  line-height: 1.4;
 }
-.cci-mnemonic-modal .cci-mnemonic-error {
+.cci-mnemonic-modal .cci-mnemonic-counter {
+  font-size: 0.8em;
+  color: var(--text-faint);
+  text-align: right;
+  margin-top: 0.2rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-counter.is-over {
   color: var(--text-error);
 }
-.cci-mnemonic-modal .cci-mnemonic-result {
-  margin: 0.4rem 0 0.9rem;
-}
-.cci-mnemonic-modal .cci-mnemonic-text {
-  font-size: 1.05em;
+.cci-mnemonic-modal .cci-mnemonic-story-input {
+  width: 100%;
+  resize: vertical;
   line-height: 1.45;
-  margin-bottom: 0.8rem;
-}
-.cci-mnemonic-modal .cci-mnemonic-story {
-  line-height: 1.45;
-  color: var(--text-normal);
-  white-space: pre-wrap;
 }
 .cci-mnemonic-modal .cci-mnemonic-actions {
   display: flex;
   gap: 0.5rem;
-  justify-content: flex-end;
+  align-items: center;
+}
+.cci-mnemonic-modal .cci-mnemonic-actions-spacer {
+  flex: 1;
+}
+
+/* Mnemonic block on the word card. The emoji line is capped at two lines
+   so a long pre-0.5.0 prose mnemonic can never stretch the card; the
+   story is collapsed behind the toggle and scrolls when expanded. */
+.cci-popup-mnemonic {
+  margin: 0.15rem 0 0.4rem;
+}
+.cci-popup-mnemonic-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.cci-popup-mnemonic-line {
+  flex: 1;
+  max-height: 3em;
+  overflow: hidden;
+  line-height: 1.4;
+}
+.cci-popup-mnemonic-toggle {
+  flex: none;
+  padding: 0 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+.cci-popup-mnemonic-story {
+  margin-top: 0.3rem;
+  max-height: 9em;
+  overflow: auto;
+  font-size: 0.92em;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-wrap;
 }
 
 /* Popup */

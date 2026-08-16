@@ -52,9 +52,10 @@ each, plus at most the sentence you tapped it in:
 
 - **Enhance** — the word, its pinyin, its current dictionary definitions,
   and the sentence it appeared in.
-- **Mnemonic ✨** — the word, pinyin, traditional form, HSK level,
-  definitions, the sentence (when available), your existing mnemonic if
-  any, and your own prompt template. See [Mnemonics](./mnemonics.md).
+- **Mnemonic** — the word, pinyin, traditional form, HSK level,
+  definitions, the sentence (when available), whatever is currently in the
+  two mnemonic fields, and your own prompt template. Only sent when you
+  press "Generate with AI". See [Mnemonics](./mnemonics.md).
 
 OpenAI's API terms (as of writing) state that API requests are **not used
 to train OpenAI's models**, and data is retained briefly for abuse

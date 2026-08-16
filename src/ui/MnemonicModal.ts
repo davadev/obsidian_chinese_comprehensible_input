@@ -1,26 +1,37 @@
 import { App, Modal, Notice } from "obsidian";
 import type CciPlugin from "../main";
-import type { MnemonicInput, MnemonicResult } from "../ai/MnemonicService";
+import type { MnemonicInput } from "../ai/MnemonicService";
 import type { WordRecord } from "../vocabulary/VocabularyTypes";
+import {
+  MNEMONIC_LINE_MAX_GRAPHEMES,
+  clampGraphemes,
+  graphemeLength,
+} from "../vocabulary/mnemonicText";
+import { liftModal } from "./modalLayer";
 
 /**
- * Preview-then-accept flow for AI-generated mnemonics (#49).
+ * The one place a mnemonic is read, written, or generated (#49).
  *
- * Deliberately NOT write-on-arrival like the "Enhance" dictionary action:
- * a mnemonic is a personal memory hook the user may have written by hand,
- * so the generated text is shown first and only `Accept` persists it.
- * `Regenerate` re-runs the same prompt in place — mnemonic quality is
- * hit-or-miss by nature, and rerolling is the main interaction.
+ * A mnemonic has two halves: a short emoji line (`mnemonic.text`) that is
+ * shown on the word card — and is the candidate for a third annotation
+ * line in a future release, hence the length cap — and the story
+ * (`mnemonic.story`) that unpacks it.
+ *
+ * Both are plain editable fields. "Generate with AI" fills them in place
+ * rather than replacing them behind a preview, so the user can reroll,
+ * hand-edit the model's output, or ignore the AI entirely. Nothing is
+ * persisted until Save, so Cancel is always a clean escape.
  */
 export class MnemonicModal extends Modal {
-  private result: MnemonicResult | null = null;
   private busy = false;
-  private error: string | null = null;
   /** Bumps on every generate so a slow in-flight response from a previous
-   *  attempt can't overwrite a newer one (or a closed modal). */
+   *  attempt can't overwrite newer text (or a closed modal). */
   private runId = 0;
   private readonly surface: string;
-  private readonly existing: string;
+  private lineInput!: HTMLInputElement;
+  private storyInput!: HTMLTextAreaElement;
+  private counterEl!: HTMLElement;
+  private generateBtn: HTMLButtonElement | null = null;
 
   constructor(
     app: App,
@@ -30,66 +41,17 @@ export class MnemonicModal extends Modal {
   ) {
     super(app);
     this.surface = rec.surfaces[0];
-    this.existing = rec.mnemonic?.text ?? "";
   }
 
   onOpen(): void {
-    // The word popup and the mobile bottom sheet use hardcoded z-indexes
-    // that sit above Obsidian's --layer-modal, so lift our own modal
-    // container above them. The caller also closes the popup; this is the
-    // belt to that pair of braces (and covers the toolbar overflow menu).
-    this.containerEl.addClass("cci-modal-front");
+    liftModal(this);
     this.render();
-    void this.generate();
   }
 
   onClose(): void {
     // Invalidate any in-flight request so its .then() is a no-op.
     this.runId++;
     this.contentEl.empty();
-  }
-
-  private input(): MnemonicInput {
-    const dict = this.plugin.dictionary.lookup(this.surface)[0];
-    return {
-      surface: this.surface,
-      pinyin: dict?.pinyin ?? this.rec.pinyin,
-      traditional: dict?.traditional ?? this.rec.traditional,
-      definitions: dict?.definitions ?? this.rec.definitions ?? [],
-      sentence: this.sentence,
-      hskLevels: this.rec.hsk?.levels ?? [],
-      existing: this.existing,
-    };
-  }
-
-  private async generate(): Promise<void> {
-    const run = ++this.runId;
-    this.busy = true;
-    this.error = null;
-    this.render();
-    try {
-      const result = await this.plugin.mnemonic.generate(this.input());
-      if (run !== this.runId) return;
-      this.result = result;
-    } catch (err) {
-      if (run !== this.runId) return;
-      this.error = (err as Error).message;
-    } finally {
-      if (run === this.runId) {
-        this.busy = false;
-        this.render();
-      }
-    }
-  }
-
-  private accept(): void {
-    if (!this.result) return;
-    this.plugin.vocab.updateMnemonic(this.surface, {
-      text: this.result.mnemonic,
-      story: this.result.story,
-    });
-    new Notice("Mnemonic saved.");
-    this.close();
   }
 
   private render(): void {
@@ -103,43 +65,112 @@ export class MnemonicModal extends Modal {
       text: pinyin ? `${this.surface} (${pinyin})` : this.surface,
     });
 
-    if (this.existing) {
-      const prev = contentEl.createDiv({ cls: "cci-mnemonic-existing" });
-      prev.createDiv({
-        cls: "cci-mnemonic-label",
-        text: "Current mnemonic — Accept replaces it",
-      });
-      prev.createDiv({ text: this.existing });
-    }
+    const lineWrap = contentEl.createDiv({ cls: "cci-mnemonic-field" });
+    lineWrap.createDiv({ cls: "cci-mnemonic-label", text: "Emoji line" });
+    lineWrap.createDiv({
+      cls: "cci-mnemonic-hint",
+      text: "Shown on the word card. Keep it short and mostly emoji.",
+    });
+    this.lineInput = lineWrap.createEl("input", {
+      cls: "cci-mnemonic-line-input",
+      type: "text",
+    });
+    this.lineInput.value = this.rec.mnemonic?.text ?? "";
+    this.counterEl = lineWrap.createDiv({ cls: "cci-mnemonic-counter" });
+    this.lineInput.addEventListener("input", () => this.updateCounter());
+    this.updateCounter();
 
-    if (this.busy) {
-      contentEl.createDiv({ cls: "cci-mnemonic-status", text: "Generating…" });
-    } else if (this.error) {
-      contentEl.createDiv({
-        cls: "cci-mnemonic-status cci-mnemonic-error",
-        text: `Mnemonic failed: ${this.error}`,
-      });
-    } else if (this.result) {
-      const body = contentEl.createDiv({ cls: "cci-mnemonic-result" });
-      body.createDiv({ cls: "cci-mnemonic-text", text: `🧠 ${this.result.mnemonic}` });
-      if (this.result.story) {
-        body.createDiv({ cls: "cci-mnemonic-label", text: "Story" });
-        body.createDiv({ cls: "cci-mnemonic-story", text: this.result.story });
-      }
-    }
+    const storyWrap = contentEl.createDiv({ cls: "cci-mnemonic-field" });
+    storyWrap.createDiv({ cls: "cci-mnemonic-label", text: "Story" });
+    storyWrap.createDiv({
+      cls: "cci-mnemonic-hint",
+      text: "The longer explanation — components, tone, meaning. Shown when you expand the mnemonic on the card.",
+    });
+    this.storyInput = storyWrap.createEl("textarea", {
+      cls: "cci-mnemonic-story-input",
+    });
+    this.storyInput.rows = 6;
+    this.storyInput.value = this.rec.mnemonic?.story ?? "";
 
     const actions = contentEl.createDiv({ cls: "cci-mnemonic-actions" });
-    const accept = actions.createEl("button", { text: "Accept", cls: "mod-cta" });
-    accept.disabled = this.busy || !this.result;
-    accept.addEventListener("click", () => this.accept());
 
-    const regen = actions.createEl("button", {
-      text: this.error ? "Retry" : "Regenerate",
-    });
-    regen.disabled = this.busy;
-    regen.addEventListener("click", () => void this.generate());
+    if (this.plugin.settings.ai.enabled) {
+      const gen = actions.createEl("button", { text: "Generate with AI" });
+      gen.addEventListener("click", () => void this.generate());
+      this.generateBtn = gen;
+    }
+
+    // Pushes Cancel/Save to the right, leaving Generate on the left.
+    actions.createDiv({ cls: "cci-mnemonic-actions-spacer" });
 
     const cancel = actions.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
+
+    const save = actions.createEl("button", { text: "Save", cls: "mod-cta" });
+    save.addEventListener("click", () => this.save());
+  }
+
+  /** `n/40`, muted normally and flagged once the line is over the cap.
+   *  The cap is not enforced by truncating as the user types — that fights
+   *  the cursor — it is applied on save. */
+  private updateCounter(): void {
+    const used = graphemeLength(this.lineInput.value);
+    this.counterEl.setText(`${used}/${MNEMONIC_LINE_MAX_GRAPHEMES}`);
+    this.counterEl.toggleClass("is-over", used > MNEMONIC_LINE_MAX_GRAPHEMES);
+  }
+
+  private aiInput(): MnemonicInput {
+    const dict = this.plugin.dictionary.lookup(this.surface)[0];
+    return {
+      surface: this.surface,
+      pinyin: dict?.pinyin ?? this.rec.pinyin,
+      traditional: dict?.traditional ?? this.rec.traditional,
+      definitions: dict?.definitions ?? this.rec.definitions ?? [],
+      sentence: this.sentence,
+      hskLevels: this.rec.hsk?.levels ?? [],
+      // Send what is in the fields right now, not what is stored, so a
+      // reroll can build on an edit the user just made.
+      existing: this.lineInput.value,
+      existingStory: this.storyInput.value,
+    };
+  }
+
+  private async generate(): Promise<void> {
+    if (this.busy) return;
+    const run = ++this.runId;
+    this.setBusy(true);
+    try {
+      const result = await this.plugin.mnemonic.generate(this.aiInput());
+      if (run !== this.runId) return;
+      this.lineInput.value = result.mnemonic;
+      this.storyInput.value = result.story ?? "";
+      this.updateCounter();
+    } catch (err) {
+      if (run !== this.runId) return;
+      // Leave both fields untouched — a failed generation must never cost
+      // the user what they had typed.
+      new Notice(`Mnemonic failed: ${(err as Error).message}`);
+    } finally {
+      if (run === this.runId) this.setBusy(false);
+    }
+  }
+
+  private setBusy(busy: boolean): void {
+    this.busy = busy;
+    if (this.generateBtn) {
+      this.generateBtn.disabled = busy;
+      this.generateBtn.setText(busy ? "Generating…" : "Generate with AI");
+    }
+  }
+
+  private save(): void {
+    const text = clampGraphemes(this.lineInput.value.trim());
+    const story = this.storyInput.value.trim();
+    this.plugin.vocab.updateMnemonic(this.surface, {
+      text: text || undefined,
+      story: story || undefined,
+    });
+    new Notice(text || story ? "Mnemonic saved." : "Mnemonic cleared.");
+    this.close();
   }
 }

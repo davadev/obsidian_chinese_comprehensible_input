@@ -802,7 +802,7 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   /**
-   * User-editable prompt for the "Mnemonic ✨" popup action (#49). The
+   * User-editable prompt for the "Mnemonic" popup action (#49). The
    * system prompt (components + tone + meaning, JSON-only) is fixed —
    * this is the *user* half, where personal imagery, humour, or a memory
    * palace can be described. Collapsed by default: the AI section is
@@ -819,9 +819,10 @@ export class CciSettingsTab extends PluginSettingTab {
       a.createEl("p", {
         cls: "cci-settings-section-desc",
         text:
-          "Sent to the model when you tap \"Mnemonic ✨\" on a word. Personalise it — name the imagery you " +
+          "Sent to the model when you press \"Generate with AI\" in a word's Mnemonic editor. Personalise it — name the imagery you " +
           "remember best, the language you want it in, how rude or silly it may be. Placeholders: " +
-          "{word}, {pinyin}, {traditional}, {definitions}, {sentence}, {hsk}, {existing}. " +
+          "{word}, {pinyin}, {traditional}, {definitions}, {sentence}, {hsk}, {existing}, {existingStory}. " +
+          "The emoji-line rules live in the fixed system prompt, so your edits here keep them. " +
           "Leave it empty to fall back to the built-in prompt.",
       });
 

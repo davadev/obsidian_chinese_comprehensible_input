@@ -1,4 +1,5 @@
 import { App, Modal, Setting } from "obsidian";
+import { liftModal } from "./modalLayer";
 
 export interface SettingsConflict {
   keyPath: string;
@@ -27,6 +28,7 @@ export class SettingsConflictModal extends Modal {
   }
 
   onOpen() {
+    liftModal(this);
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "Settings sync conflict" });

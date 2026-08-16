@@ -7,6 +7,12 @@ import {
 } from "../ai/prompts";
 import type { AiProviderService } from "../ai/AiProviderService";
 import { MnemonicService, __testing } from "../ai/MnemonicService";
+import {
+  MNEMONIC_LINE_MAX_GRAPHEMES,
+  clampGraphemes,
+  graphemeLength,
+  isOverMnemonicLine,
+} from "../vocabulary/mnemonicText";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import type { CciSettings } from "../settings/types";
 
@@ -21,20 +27,21 @@ describe("buildMnemonicUserPrompt", () => {
     sentence: "我每天学习中文。",
     hskLevels: ["1"],
     existing: "old hook",
+    existingStory: "old story",
   };
 
   it("substitutes every supported placeholder", () => {
     const tpl =
-      "{word}|{pinyin}|{traditional}|{definitions}|{sentence}|{hsk}|{existing}";
+      "{word}|{pinyin}|{traditional}|{definitions}|{sentence}|{hsk}|{existing}|{existingStory}";
     expect(buildMnemonicUserPrompt(tpl, full)).toBe(
-      "学习|xué xí|學習|to study; to learn|我每天学习中文。|1|old hook"
+      "学习|xué xí|學習|to study; to learn|我每天学习中文。|1|old hook|old story"
     );
   });
 
   it("falls back to readable placeholders when fields are missing", () => {
-    const tpl = "{pinyin}|{definitions}|{sentence}|{hsk}|{existing}";
+    const tpl = "{pinyin}|{definitions}|{sentence}|{hsk}|{existing}|{existingStory}";
     expect(buildMnemonicUserPrompt(tpl, { surface: "囧" })).toBe(
-      "(unknown)|(none)|(none)|(not in HSK lists)|(none yet)"
+      "(unknown)|(none)|(none)|(not in HSK lists)|(none yet)|(none yet)"
     );
   });
 
@@ -64,10 +71,43 @@ describe("buildMnemonicUserPrompt", () => {
       "sentence",
       "hsk",
       "existing",
+      "existingStory",
     ]) {
       expect(DEFAULT_MNEMONIC_USER_TEMPLATE).toContain(`{${key}}`);
     }
     expect(DEFAULT_SETTINGS.ai.mnemonicPrompt).toBe(DEFAULT_MNEMONIC_USER_TEMPLATE);
+  });
+});
+
+describe("MNEMONIC_SYSTEM_PROMPT", () => {
+  it("asks for an emoji-first line, a story, and JSON only", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/emoji/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toContain(String(MNEMONIC_LINE_MAX_GRAPHEMES));
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/story/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no markdown code fences/i);
+  });
+});
+
+describe("mnemonic line length helpers", () => {
+  it("counts a ZWJ emoji sequence as one grapheme where Intl.Segmenter exists", () => {
+    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
+    // Node 18+ ships Intl.Segmenter; guard so the suite still passes if not.
+    const expected = typeof Intl.Segmenter === "function" ? 1 : 5;
+    expect(graphemeLength(family)).toBe(expected);
+  });
+
+  it("returns short strings untouched", () => {
+    expect(clampGraphemes("📖✏️→🧠")).toBe("📖✏️→🧠");
+    expect(isOverMnemonicLine("📖✏️→🧠")).toBe(false);
+  });
+
+  it("flags prose as over the line budget", () => {
+    expect(
+      isOverMnemonicLine(
+        "A child under a roof practises the same stroke again and again until it sticks."
+      )
+    ).toBe(true);
   });
 });
 
@@ -132,12 +172,28 @@ describe("parseMnemonicResult", () => {
     expect(parseMnemonicResult('{"mnemonic":"hook"}').story).toBeUndefined();
   });
 
-  it("clamps runaway output", () => {
+  it("clamps runaway output to the emoji-line budget", () => {
     const out = parseMnemonicResult(
       JSON.stringify({ mnemonic: "m".repeat(900), story: "s".repeat(2500) })
     );
-    expect(out.mnemonic).toHaveLength(600);
+    expect(graphemeLength(out.mnemonic)).toBe(MNEMONIC_LINE_MAX_GRAPHEMES);
     expect(out.story).toHaveLength(2000);
+  });
+
+  it("never cuts an emoji in half when clamping", () => {
+    // 45 astral-plane emoji: a naive slice(0, 40) would land mid-surrogate.
+    const out = parseMnemonicResult(JSON.stringify({ mnemonic: "\u{1F600}".repeat(45) }));
+    expect(graphemeLength(out.mnemonic)).toBe(MNEMONIC_LINE_MAX_GRAPHEMES);
+    expect(out.mnemonic).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    expect(Array.from(out.mnemonic).every((c) => c === "\u{1F600}")).toBe(true);
+  });
+
+  it("does not leave a dangling zero-width joiner after a cut", () => {
+    // Family emoji are ZWJ sequences; cutting between them must not leave
+    // the joiner trailing (it renders as a stray box).
+    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
+    const out = parseMnemonicResult(JSON.stringify({ mnemonic: family.repeat(50) }));
+    expect(out.mnemonic.endsWith("\u200D")).toBe(false);
   });
 
   it("throws when the mnemonic field is missing, empty, or not a string", () => {

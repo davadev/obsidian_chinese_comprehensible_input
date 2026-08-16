@@ -2,7 +2,6 @@ import { Notice, Platform } from "obsidian";
 import type CciPlugin from "../main";
 import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { axesFromStatus } from "../vocabulary/axes";
-import { promptAsync } from "./confirmInput";
 import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
 
@@ -95,14 +94,13 @@ export class WordPopup {
     }
 
     const defs = el.createDiv({ cls: "cci-popup-defs cci-popup-defs-scroll" });
-    if (this.plugin.settings.mnemonicsFirst && rec.mnemonic?.text) {
-      defs.createEl("div", { text: `🧠 ${rec.mnemonic.text}` });
-    }
+    if (this.plugin.settings.mnemonicsFirst) this.renderMnemonic(defs, rec);
     for (const d of dictTop?.definitions ?? rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
     const grammar = dictTop?.grammar;
     if (grammar) {
       defs.createDiv({ cls: "cci-popup-grammar", text: `Grammar: ${grammar}` });
     }
+    if (!this.plugin.settings.mnemonicsFirst) this.renderMnemonic(defs, rec);
 
     // Knowledge checkboxes — the primary marking control.
     this.renderAxesCheckboxes(el, rec);
@@ -128,34 +126,56 @@ export class WordPopup {
       this.plugin.markWordIgnored(rec.surfaces[0]);
       this.refresh();
     });
-    this.action(actions, "Mnemonic…", () => void this.openMnemonicPrompt(rec));
-    this.maybeRenderGenerateMnemonic(actions, rec);
+    this.action(actions, "Mnemonic", () => this.openMnemonicEditor(rec));
     this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
     this.maybeRenderEnhance(actions, rec);
     this.maybeRenderRevert(actions, rec);
   }
 
-  /** "Mnemonic ✨" button — AI-generated memory hook (#49). Unlike
-   *  Enhance this does NOT require a captured sentence (a mnemonic is
-   *  about the word itself; the sentence is passed as extra context when
-   *  we happen to have it) and it works for custom-only words, because
-   *  the result is stored on the WordRecord, not the dictionary override
-   *  map. Opens a preview modal — nothing is written until Accept.
-   *
-   *  The popup is closed as the modal opens, exactly like
-   *  `openDictionaryEditor`. That is not cosmetic: `.cci-popup` (and
-   *  `.cci-bottom-sheet` on mobile) carry z-indexes above Obsidian's
-   *  modal layer, so leaving the card up traps the modal behind it. */
-  private maybeRenderGenerateMnemonic(parent: HTMLElement, rec: WordRecord): void {
-    if (!this.plugin.settings.ai.enabled) return;
-    const btn = parent.createEl("button", { text: "Mnemonic ✨" });
-    btn.addEventListener("click", (e) => {
+  /** The word's mnemonic, as shown on the card: the short emoji line, plus
+   *  a `▾` that expands the story inline. Rendered above or below the
+   *  definitions depending on `mnemonicsFirst`. The line is CSS-clamped —
+   *  a pre-0.5.0 prose mnemonic that survived migration (because the
+   *  record already had a story) must not be able to stretch the card. */
+  private renderMnemonic(parent: HTMLElement, rec: WordRecord): void {
+    const line = rec.mnemonic?.text?.trim() ?? "";
+    const story = rec.mnemonic?.story?.trim() ?? "";
+    if (!line && !story) return;
+
+    const wrap = parent.createDiv({ cls: "cci-popup-mnemonic" });
+    const head = wrap.createDiv({ cls: "cci-popup-mnemonic-head" });
+    head.createSpan({
+      cls: "cci-popup-mnemonic-line",
+      text: line ? `🧠 ${line}` : "🧠 (story only)",
+    });
+    if (!story) return;
+
+    const body = wrap.createDiv({ cls: "cci-popup-mnemonic-story" });
+    body.setText(story);
+    body.hide();
+    const toggle = head.createEl("button", {
+      cls: "cci-popup-mnemonic-toggle",
+      text: "▾",
+      attr: { "aria-label": "Show story" },
+    });
+    toggle.addEventListener("click", (e) => {
       e.stopPropagation();
-      const sentence = this.sentence;
-      void import("./MnemonicModal").then(({ MnemonicModal }) => {
-        new MnemonicModal(this.plugin.app, this.plugin, rec, sentence).open();
-        this.close();
-      });
+      const showing = body.isShown();
+      body.toggle(!showing);
+      toggle.setText(showing ? "▾" : "▴");
+    });
+  }
+
+  /** The single Mnemonic action (#49): read, write, or generate, all in
+   *  one modal. The popup is closed as the modal opens, exactly like
+   *  `openDictionaryEditor` — that is not cosmetic: `.cci-popup` (and
+   *  `.cci-bottom-sheet` on mobile) carry z-indexes above Obsidian's modal
+   *  layer, so leaving the card up traps the modal behind it. */
+  private openMnemonicEditor(rec: WordRecord): void {
+    const sentence = this.sentence;
+    void import("./MnemonicModal").then(({ MnemonicModal }) => {
+      new MnemonicModal(this.plugin.app, this.plugin, rec, sentence).open();
+      this.close();
     });
   }
 
@@ -347,15 +367,6 @@ export class WordPopup {
       e.stopPropagation();
       fn();
     });
-  }
-
-  private async openMnemonicPrompt(rec: WordRecord): Promise<void> {
-    const surface = rec.surfaces[0];
-    const existing = rec.mnemonic?.text ?? "";
-    const text = await promptAsync(this.plugin.app, "Mnemonic for " + surface, existing);
-    if (text == null) return;
-    this.plugin.vocab.updateMnemonic(surface, { text });
-    this.refresh();
   }
 
   private refresh() {

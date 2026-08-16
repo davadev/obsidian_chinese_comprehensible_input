@@ -1,4 +1,5 @@
 import { App, Modal, Setting } from "obsidian";
+import { liftModal } from "./modalLayer";
 
 /**
  * Obsidian-Modal-backed replacement for native `confirm()`. Native confirm
@@ -12,6 +13,7 @@ export function confirmAsync(app: App, message: string, confirmLabel = "Delete")
   return new Promise((resolve) => {
     let answered = false;
     const modal = new Modal(app);
+    liftModal(modal);
     modal.contentEl.createEl("p", { text: message });
     new Setting(modal.contentEl)
       .addButton((b) =>
@@ -52,6 +54,7 @@ export function promptAsync(
   return new Promise((resolve) => {
     let answered = false;
     const modal = new Modal(app);
+    liftModal(modal);
     modal.contentEl.createEl("p", { text: message });
     let value = initial;
     new Setting(modal.contentEl).addText((t) => {
