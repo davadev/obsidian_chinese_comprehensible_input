@@ -29,7 +29,7 @@ export class WordPopup {
     }
     this.plugin.srs.applyPopupSignal(surface);
 
-    const el = activeDocument.createElement("div");
+    const el = createDiv();
     el.className = "cci-popup";
     if (Platform.isMobile) el.classList.add("cci-bottom-sheet");
 
@@ -96,7 +96,7 @@ export class WordPopup {
 
     const defs = el.createDiv({ cls: "cci-popup-defs cci-popup-defs-scroll" });
     if (this.plugin.settings.mnemonicsFirst) this.renderMnemonic(defs, rec);
-    for (const d of dictTop?.definitions ?? rec.definitions ?? []) defs.createEl("div", { text: `• ${d}` });
+    for (const d of dictTop?.definitions ?? rec.definitions ?? []) defs.createDiv({ text: `• ${d}` });
     const grammar = dictTop?.grammar;
     if (grammar) {
       defs.createDiv({ cls: "cci-popup-grammar", text: `Grammar: ${grammar}` });

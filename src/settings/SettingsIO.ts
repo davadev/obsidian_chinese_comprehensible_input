@@ -61,7 +61,7 @@ export function filterSettingsForSharing(s: CciSettings): Partial<CciSettings> {
   for (const k of FILTER_OUT.top) delete out[k];
   if (out.ai) for (const k of FILTER_OUT.ai) deleteDottedPath(out, `ai.${k}`);
   if (out.sync) for (const k of FILTER_OUT.sync) delete (out.sync as JsonRecord)[k];
-  return out as Partial<CciSettings>;
+  return out;
 }
 
 async function ensureFolder(plugin: CciPlugin, filePath: string): Promise<void> {
@@ -135,7 +135,7 @@ export async function importSettings(
 
   // Start from current settings, deep-merge the safe patch on top.
   const next = JSON.parse(JSON.stringify(plugin.settings)) as JsonRecord;
-  deepMerge(next, safe as JsonRecord);
+  deepMerge(next, safe);
   plugin.settings = { ...DEFAULT_SETTINGS, ...(next as Partial<CciSettings>) };
   applyCustomColors(plugin.settings);
   await plugin.saveSettings();

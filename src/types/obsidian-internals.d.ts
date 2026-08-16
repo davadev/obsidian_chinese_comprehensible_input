@@ -9,7 +9,8 @@ declare module "obsidian" {
       activeTab?:
         | {
             constructor?: { name?: string };
-            display?: () => void;
+            /** Declarative tabs (1.13+) re-render through update(), not display(). */
+            update?: () => void;
           }
         | null;
     };

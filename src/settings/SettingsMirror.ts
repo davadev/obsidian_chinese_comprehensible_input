@@ -191,7 +191,7 @@ export class SettingsMirror {
     remoteUpdatedAt: string
   ): Promise<void> {
     const next = JSON.parse(JSON.stringify(this.plugin.settings)) as JsonRecord;
-    deepMerge(next, patch as JsonRecord);
+    deepMerge(next, patch);
     this.plugin.settings = { ...DEFAULT_SETTINGS, ...(next as Partial<CciSettings>) };
     applyCustomColors(this.plugin.settings);
     this.appliedUpdatedAt = remoteUpdatedAt;
@@ -200,12 +200,14 @@ export class SettingsMirror {
     this.plugin.refreshChineseViews();
     this.plugin.refreshStatsViews();
     // Re-render the open settings tab if it's ours, so absorbed values are
-    // visible immediately rather than after a manual reopen.
+    // visible immediately rather than after a manual reopen. The tab is
+    // declarative since 0.5.1, so the entry point is update() — display()
+    // is never called by Obsidian for tabs that return definitions.
     try {
       const setting = this.plugin.app.setting;
       const active = setting?.activeTab;
-      if (active && active.constructor?.name === "CciSettingsTab" && typeof active.display === "function") {
-        active.display();
+      if (active && active.constructor?.name === "CciSettingsTab" && typeof active.update === "function") {
+        active.update();
       }
     } catch (e) {
       console.warn("CCI: settings-tab re-render failed", e);

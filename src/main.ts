@@ -216,7 +216,7 @@ export default class CciPlugin extends Plugin {
       ...(this.settings.customColors ?? {}),
       hsk: {
         ...DEFAULT_SETTINGS.customColors.hsk,
-        ...((this.settings.customColors?.hsk as Partial<CciSettings["customColors"]["hsk"]>) ?? {}),
+        ...((this.settings.customColors?.hsk) ?? {}),
       },
     };
     // Same deep-merge for the reader text colors (#22) so a blob written

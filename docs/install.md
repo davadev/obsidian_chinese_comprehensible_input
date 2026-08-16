@@ -1,5 +1,11 @@
 # Installing the plugin
 
+> **Requires Obsidian 1.13.0 or newer** (since plugin version 0.5.1). The
+> settings tab uses Obsidian's declarative settings API, which is what makes
+> every setting findable from Obsidian's own settings search. On an older
+> Obsidian, update the app first — the store will not offer the plugin, and
+> BRAT will not update an existing install.
+
 Chinese Comprehensible Input is in the **official Obsidian community-plugin
 store**, so most users should install it from there. Use **BRAT** only if you
 want to test the latest beta (prerelease) builds before they're promoted to

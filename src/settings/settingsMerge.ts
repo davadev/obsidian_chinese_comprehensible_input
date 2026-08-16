@@ -18,7 +18,7 @@ export function flatten(
     if (prefix) out[prefix] = obj;
     return out;
   }
-  for (const k of Object.keys(obj as Record<string, unknown>)) {
+  for (const k of Object.keys(obj)) {
     const next = prefix ? `${prefix}.${k}` : k;
     flatten((obj as Record<string, unknown>)[k], next, out);
   }

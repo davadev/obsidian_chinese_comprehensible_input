@@ -544,7 +544,7 @@ class RubyWidget extends WidgetType {
      * wider when its content is longer than the chars row, naturally
      * spacing words apart so glosses do not overlap their neighbors.
      */
-    const stack = activeDocument.createElement("span");
+    const stack = createSpan();
     const headingCls = this.headingLevel > 0 ? ` cci-stack-h${this.headingLevel}` : "";
     const colorCls = this.colorKey ? ` cci-color-${this.colorKey}` : "";
     // The highlight is ONE continuous band on the whole stack (anchored to the

@@ -16,13 +16,13 @@ export function migrateVocab(raw: unknown): PersistedVocabData {
   if (v < 1) {
     data = {
       schemaVersion: 1,
-      words: (data.words as Record<string, WordRecord>) ?? {},
+      words: (data.words) ?? {},
     };
     v = 1;
   }
 
   if (v < 3) {
-    splitLongMnemonics(data.words as Record<string, WordRecord> | undefined);
+    splitLongMnemonics(data.words);
     data.schemaVersion = 3;
     v = 3;
   }

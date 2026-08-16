@@ -350,7 +350,7 @@ export class ViewToolbar {
   }
 
   private buildFormatMenu(anchor: HTMLElement, onClose: () => void): HTMLElement {
-    const menu = activeDocument.createElement("div");
+    const menu = createDiv();
     menu.className = "cci-overflow-menu";
     activeDocument.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
@@ -421,7 +421,7 @@ export class ViewToolbar {
   }
 
   private buildOverflowMenu(anchor: HTMLElement): HTMLElement {
-    const menu = activeDocument.createElement("div");
+    const menu = createDiv();
     menu.className = "cci-overflow-menu";
     activeDocument.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();

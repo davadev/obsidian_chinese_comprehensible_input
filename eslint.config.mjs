@@ -58,7 +58,6 @@ export default tseslint.config(
       "obsidianmd/ui/sentence-case": "off",
       "obsidianmd/ui/sentence-case-json": "off",
       "obsidianmd/ui/sentence-case-locale-module": "off",
-      "@typescript-eslint/no-unnecessary-type-assertion": "off",
       "@typescript-eslint/no-base-to-string": "off",
       "@typescript-eslint/no-redundant-type-constituents": "off",
       "@typescript-eslint/restrict-template-expressions": "off",
