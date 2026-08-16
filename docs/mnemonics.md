@@ -42,10 +42,16 @@ because those are what learners actually forget:
    (rising), ↘️↗️ 3rd (dip then rise), ↘️ 4th (sharp drop), 〰️ neutral.
 3. **Meaning** — last, so recall runs image → meaning.
 
-Emoji come first; a word is allowed only where no emoji can carry the
-idea (grammar particles, abstract senses). The story then says which
-emoji stands for which component, names the tone cue, and lands on the
-English meaning.
+Emoji come first; an English word is allowed only where no emoji can
+carry the idea (grammar particles, abstract senses). The line never
+contains Chinese characters — the word itself is already shown right next
+to it, so repeating the hanzi would just eat the 40-character budget.
+
+The story then says which emoji stands for which component, names the
+tone cue, and lands on the English meaning. Whenever it mentions a
+Chinese character it gives the tone-marked pinyin alongside — 学 (xué),
+not a bare 学 — so it stays readable while you are still learning the
+characters.
 
 ## Personalising the prompt
 

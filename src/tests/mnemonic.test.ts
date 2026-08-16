@@ -87,6 +87,17 @@ describe("MNEMONIC_SYSTEM_PROMPT", () => {
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no markdown code fences/i);
   });
+
+  it("forbids Chinese characters in the emoji line", () => {
+    // The word is already displayed next to the line, so repeating the
+    // hanzi wastes the 40-grapheme budget.
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/NEVER put Chinese characters in this line/);
+  });
+
+  it("requires pinyin whenever the story names a character", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone-marked pinyin in parentheses/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/never leave a bare hanzi/i);
+  });
 });
 
 describe("mnemonic line length helpers", () => {
