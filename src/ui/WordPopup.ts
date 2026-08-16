@@ -129,9 +129,30 @@ export class WordPopup {
       this.refresh();
     });
     this.action(actions, "Mnemonic…", () => void this.openMnemonicPrompt(rec));
+    this.maybeRenderGenerateMnemonic(actions, rec);
     this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
     this.maybeRenderEnhance(actions, rec);
     this.maybeRenderRevert(actions, rec);
+  }
+
+  /** "Mnemonic ✨" button — AI-generated memory hook (#49). Unlike
+   *  Enhance this does NOT require a captured sentence (a mnemonic is
+   *  about the word itself; the sentence is passed as extra context when
+   *  we happen to have it) and it works for custom-only words, because
+   *  the result is stored on the WordRecord, not the dictionary override
+   *  map. Opens a preview modal — nothing is written until Accept. */
+  private maybeRenderGenerateMnemonic(parent: HTMLElement, rec: WordRecord): void {
+    if (!this.plugin.settings.ai.enabled) return;
+    const btn = parent.createEl("button", { text: "Mnemonic ✨" });
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const sentence = this.sentence;
+      void import("./MnemonicModal").then(({ MnemonicModal }) => {
+        new MnemonicModal(this.plugin.app, this.plugin, rec, sentence, () =>
+          this.refresh()
+        ).open();
+      });
+    });
   }
 
   /** "Enhance" button — only shown when AI is enabled, a sentence was

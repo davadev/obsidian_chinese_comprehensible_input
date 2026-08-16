@@ -4,14 +4,16 @@ import { applyCustomColors, deriveHskColorsFromAccent } from "../ui/colorTheme";
 
 describe("colorTheme", () => {
   const setProperty = vi.fn();
+  const removeProperty = vi.fn();
   let accent = "";
 
   beforeEach(() => {
     setProperty.mockReset();
+    removeProperty.mockReset();
     accent = "";
     (globalThis as any).document = {
       body: {
-        style: { setProperty },
+        style: { setProperty, removeProperty },
       },
     };
     (globalThis as any).getComputedStyle = vi.fn(() => ({
@@ -27,6 +29,25 @@ describe("colorTheme", () => {
     expect(setProperty).toHaveBeenCalledWith("--cci-color-new", DEFAULT_SETTINGS.customColors.new);
     expect(setProperty).toHaveBeenCalledWith("--cci-color-hsk-7", DEFAULT_SETTINGS.customColors.hsk["7"]);
     expect(setProperty).toHaveBeenCalledTimes(11);
+  });
+
+  it("applyCustomColors clears the text-color vars while the feature is off", () => {
+    applyCustomColors(DEFAULT_SETTINGS);
+    for (const v of ["--cci-text-chars", "--cci-text-pinyin", "--cci-text-gloss"]) {
+      expect(removeProperty).toHaveBeenCalledWith(v);
+      expect(setProperty).not.toHaveBeenCalledWith(v, expect.anything());
+    }
+  });
+
+  it("applyCustomColors writes the text-color vars when enabled", () => {
+    applyCustomColors({
+      ...DEFAULT_SETTINGS,
+      textColors: { enabled: true, chars: "#111111", pinyin: "#222222", gloss: "#333333" },
+    });
+    expect(setProperty).toHaveBeenCalledWith("--cci-text-chars", "#111111");
+    expect(setProperty).toHaveBeenCalledWith("--cci-text-pinyin", "#222222");
+    expect(setProperty).toHaveBeenCalledWith("--cci-text-gloss", "#333333");
+    expect(removeProperty).not.toHaveBeenCalled();
   });
 
   it("deriveHskColorsFromAccent falls back to built-in defaults when accent is unparseable", () => {

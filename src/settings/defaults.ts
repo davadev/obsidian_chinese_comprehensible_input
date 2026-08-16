@@ -1,9 +1,10 @@
-import { CciSettings, CustomColors } from "./types";
+import { CciSettings, CustomColors, TextColors } from "./types";
 import {
   DATA_SCHEMA_VERSION,
   GENERATED_NOTES_FOLDER_DEFAULT,
   VOCAB_MIRROR_PATH_DEFAULT,
 } from "../constants";
+import { DEFAULT_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
 
 /**
@@ -26,6 +27,21 @@ export const DEFAULT_CUSTOM_COLORS: CustomColors = {
     "6": "#586bdc",
     "7": "#9c4dc6",
   },
+};
+
+/**
+ * Reader font colors (#22). `enabled: false` is what keeps an upgrade
+ * visually identical — while off, `applyCustomColors` writes no
+ * `--cci-text-*` property and styles.css falls back to the theme's
+ * --text-normal / --text-muted / --text-faint. The hexes below are the
+ * "all black" starting point the issue asked for, used the moment the
+ * user flips the toggle on.
+ */
+export const DEFAULT_TEXT_COLORS: TextColors = {
+  enabled: false,
+  chars: "#000000",
+  pinyin: "#555555",
+  gloss: "#888888",
 };
 
 /**
@@ -60,6 +76,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   showHskColors: { "1": true, "2": true, "3": true, "4": true, "5": true, "6": true, "7": true },
   colorMode: "status",
   customColors: DEFAULT_CUSTOM_COLORS,
+  textColors: DEFAULT_TEXT_COLORS,
   pinyinStyle: "marks",
   hskSource: "both",
   tokenizerEngine: "lattice",
@@ -96,6 +113,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
       stream: true,
     },
     enhanceCanRewritePinyin: false,
+    mnemonicPrompt: DEFAULT_MNEMONIC_USER_TEMPLATE,
     usageLog: [],
     debug: false,
   },

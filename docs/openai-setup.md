@@ -47,6 +47,15 @@ Every story generation sends the following to OpenAI's servers:
   `Send known words` is on in Story settings — off by default).
 - On repair passes, the previous Chinese draft so the model can improve it.
 
+The two per-word AI actions on the word popup send much less — one word
+each, plus at most the sentence you tapped it in:
+
+- **Enhance** — the word, its pinyin, its current dictionary definitions,
+  and the sentence it appeared in.
+- **Mnemonic ✨** — the word, pinyin, traditional form, HSK level,
+  definitions, the sentence (when available), your existing mnemonic if
+  any, and your own prompt template. See [Mnemonics](./mnemonics.md).
+
 OpenAI's API terms (as of writing) state that API requests are **not used
 to train OpenAI's models**, and data is retained briefly for abuse
 monitoring before being deleted. Even so: this is a third-party service.

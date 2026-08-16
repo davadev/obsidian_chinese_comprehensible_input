@@ -24,6 +24,8 @@ the whole tree from here.
 - [Ollama tips: picking a model and getting good output](./ollama-tips.md)
   — practical minimum is `gemma4:e4b`, recommended is `gemma4:12b`;
   when to bump repair iterations, when to enable "Send known words."
+- [Mnemonics](./mnemonics.md) — hand-written and AI-generated memory
+  hooks, and how to personalise the mnemonic prompt.
 - [Story generation, end to end](./story-generation.md) — what Smart
   Story actually does, how the repair loop validates, the YAML
   frontmatter on generated notes.
@@ -35,6 +37,9 @@ the whole tree from here.
 - [Formatting and highlighting](./formatting.md) — the tap-to-format mode:
   the add/remove/off highlighter button, colored highlights + Highlightr,
   reordering the picker, and how highlights render in the reader.
+- [Themes and plugin compatibility](./compatibility.md) — Things-style
+  task checkboxes, Highlightr, sync tools, BRAT, and what other plugins
+  can and cannot do inside the Chinese view.
 - [Word states (new / partial / known / unknown / ignored)](./word-states.md)
   — the full status taxonomy, what each color means, how to mark words
   from the Chinese view.

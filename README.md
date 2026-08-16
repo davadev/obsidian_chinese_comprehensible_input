@@ -60,7 +60,7 @@ A word's **status drives its color and how much help is shown**:
 2. **"I know"** — tick characters / pinyin / translation; this sets the word's status.
 3. **Per-word stats** — HSK, times seen, last seen, status, SRS due date.
 4. **Exposure history** — recent sightings driving spaced repetition.
-5. **Actions** — Ignore, add a Mnemonic, Edit, or **Enhance** (AI, see below).
+5. **Actions** — Ignore, add a Mnemonic by hand, generate one with **Mnemonic ✨** (AI), Edit, or **Enhance** (AI, see below).
 
 ### Tap-to-format & highlights (mobile)
 
@@ -212,9 +212,11 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [FAQ](./docs/faq.md) — top issues and where the fix is
 - [OpenAI setup, privacy, and cost](./docs/openai-setup.md)
 - [Ollama tips: model choice and getting good output](./docs/ollama-tips.md)
+- [Mnemonics](./docs/mnemonics.md) — hand-written and AI-generated memory hooks, personalising the prompt
 - [Story generation, end to end](./docs/story-generation.md)
 - [Display modes & colors](./docs/display-modes.md)
 - [Formatting & highlighting](./docs/formatting.md) — tap-to-format mode, colored highlights, Highlightr support
+- [Themes & plugin compatibility](./docs/compatibility.md) — Things-style checkboxes, Highlightr, sync tools, and the limits inside the Chinese view
 - [Word states (new / partial / known / unknown / ignored)](./docs/word-states.md)
 - [Exposure tracking](./docs/exposure.md)
 - [Spaced repetition](./docs/srs.md)

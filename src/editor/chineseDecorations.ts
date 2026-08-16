@@ -431,9 +431,17 @@ export function buildChineseDecorations(plugin: CciPlugin) {
               },
             })
           );
-        } else if (effHl !== undefined || formatMode || (statusColor === "known" && settings.knownWordPopups)) {
-          // No tint, but make it clickable: the popup can open (knownWordPopups)
-          // or the formatting mode can read the span offsets. Without this the
+        } else if (
+          effHl !== undefined ||
+          formatMode ||
+          (statusColor === "known" && settings.knownWordPopups) ||
+          settings.textColors?.enabled
+        ) {
+          // No tint, but the mark still earns its place: it makes the word
+          // clickable (knownWordPopups), lets the formatting mode read the
+          // span offsets, and carries the custom character color (#22) —
+          // without it a color-hidden word would keep the theme's color
+          // while its neighbours turn black. Without any of those the
           // `.cci-word` lookup in wordInteractionPlugin finds nothing.
           builder.add(
             tok.start,

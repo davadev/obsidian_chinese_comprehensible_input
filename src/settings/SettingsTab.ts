@@ -4,7 +4,13 @@ import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 import { renderStatusPriorityList } from "./StatusPriorityList";
 import { renderFormatOptionsList } from "./FormatOptionsList";
 import { orderedFormatOptions } from "../editor/formatOptions";
-import { DEFAULT_CUSTOM_COLORS, DEFAULT_SETTINGS, DEFAULT_STATUS_PRIORITY } from "./defaults";
+import {
+  DEFAULT_CUSTOM_COLORS,
+  DEFAULT_SETTINGS,
+  DEFAULT_STATUS_PRIORITY,
+  DEFAULT_TEXT_COLORS,
+} from "./defaults";
+import { DEFAULT_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
@@ -319,8 +325,67 @@ export class CciSettingsTab extends PluginSettingTab {
           this.plugin.refreshChineseViews();
         })
       );
+      this.renderTextColors(a);
       this.renderFormatOptions(a);
     });
+  }
+
+  /**
+   * Reader font colors (#22). Separate from `renderColorPickers` on
+   * purpose: those set the status / HSK *background* tints, these set the
+   * *font* color of the three rows. Settings-only — the issue explicitly
+   * asks for no toolbar control, since it isn't changed often.
+   */
+  private renderTextColors(a: HTMLElement) {
+    new Setting(a).setName("Reader text colors").setHeading();
+    a.createEl("p", {
+      cls: "cci-settings-section-desc",
+      text:
+        "Font color for each row of the reader — Chinese characters, pinyin, and the English gloss. " +
+        "This is the text color, not the known/unknown/HSK background tint, so the two can be combined. " +
+        "While the toggle is off your theme decides all three (so dark themes keep working).",
+    });
+
+    new Setting(a)
+      .setName("Use custom text colors")
+      .setDesc("Off: follow the theme. On: use the three colors below.")
+      .addToggle((t) =>
+        t.setValue(this.plugin.settings.textColors.enabled).onChange(async (v) => {
+          this.plugin.settings.textColors.enabled = v;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+          this.rerender();
+        })
+      );
+
+    if (!this.plugin.settings.textColors.enabled) return;
+
+    const rows: Array<["chars" | "pinyin" | "gloss", string]> = [
+      ["chars", "Characters color"],
+      ["pinyin", "Pinyin color"],
+      ["gloss", "English translation color"],
+    ];
+    for (const [key, label] of rows) {
+      new Setting(a).setName(label).addColorPicker((p) =>
+        p.setValue(this.plugin.settings.textColors[key]).onChange(async (hex) => {
+          this.plugin.settings.textColors[key] = hex;
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+        })
+      );
+    }
+
+    new Setting(a)
+      .setName("Reset text colors")
+      .setDesc("Back to black characters with grey pinyin and translation.")
+      .addButton((b) =>
+        b.setButtonText("Reset").onClick(async () => {
+          this.plugin.settings.textColors = { ...DEFAULT_TEXT_COLORS, enabled: true };
+          await this.plugin.saveSettings();
+          this.plugin.refreshChineseViews();
+          this.rerender();
+        })
+      );
   }
 
   private renderFormatOptions(a: HTMLElement) {
@@ -331,6 +396,13 @@ export class CciSettingsTab extends PluginSettingTab {
       "Formatting & highlighting",
       "Tap-to-format mode: the add/remove highlighter, colored highlights, and how they render.",
       "formatting.md"
+    );
+
+    this.renderDocLink(
+      a,
+      "Themes & plugin compatibility",
+      "Things-style checkboxes, Highlightr, sync tools, and what other plugins can and cannot do inside the Chinese view.",
+      "compatibility.md"
     );
 
     new Setting(a)
@@ -690,6 +762,8 @@ export class CciSettingsTab extends PluginSettingTab {
         })
       );
 
+    this.renderMnemonicPrompt(c);
+
     new Setting(c).setName("Test connection").addButton((b) => {
       b.setButtonText("Test").onClick(async () => {
         try {
@@ -714,6 +788,52 @@ export class CciSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
         );
+    });
+  }
+
+  /**
+   * User-editable prompt for the "Mnemonic ✨" popup action (#49). The
+   * system prompt (components + tone + meaning, JSON-only) is fixed —
+   * this is the *user* half, where personal imagery, humour, or a memory
+   * palace can be described. Collapsed by default: the AI section is
+   * already long and most users never touch this.
+   */
+  private renderMnemonicPrompt(c: HTMLElement) {
+    this.renderCollapsible(c, "Mnemonic prompt ▾", (a) => {
+      this.renderDocLink(
+        a,
+        "Mnemonics",
+        "How the generated mnemonic is built (components, tone, meaning) and how to make it yours.",
+        "mnemonics.md"
+      );
+      a.createEl("p", {
+        cls: "cci-settings-section-desc",
+        text:
+          "Sent to the model when you tap \"Mnemonic ✨\" on a word. Personalise it — name the imagery you " +
+          "remember best, the language you want it in, how rude or silly it may be. Placeholders: " +
+          "{word}, {pinyin}, {traditional}, {definitions}, {sentence}, {hsk}, {existing}. " +
+          "Leave it empty to fall back to the built-in prompt.",
+      });
+
+      new Setting(a)
+        .setName("Prompt template")
+        .setClass("cci-settings-textarea")
+        .addTextArea((t) => {
+          t.setValue(this.plugin.settings.ai.mnemonicPrompt ?? "");
+          t.inputEl.rows = 10;
+          t.onChange(async (v) => {
+            this.plugin.settings.ai.mnemonicPrompt = v;
+            await this.plugin.saveSettings();
+          });
+        });
+
+      new Setting(a).addButton((b) =>
+        b.setButtonText("Reset to default prompt").onClick(async () => {
+          this.plugin.settings.ai.mnemonicPrompt = DEFAULT_MNEMONIC_USER_TEMPLATE;
+          await this.plugin.saveSettings();
+          this.rerender();
+        })
+      );
     });
   }
 
