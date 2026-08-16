@@ -110,6 +110,30 @@ colors**. The plugin derives a sensible default HSK palette from your
 Obsidian accent color on first install — most users never need to
 change this.
 
+### Reader text colors
+
+The status / HSK colors above are **background** tints. Separately, under
+**Settings → Display → Reader text colors**, you can set the **font**
+color of each of the three reader rows:
+
+| Row | What it colors |
+|---|---|
+| Characters | The Chinese characters, in every display mode |
+| Pinyin | The pinyin row in two-line / three-line mode |
+| English translation | The gloss row in three-line mode |
+
+The master toggle is **off by default**, and while it is off your theme
+decides all three colors (`--text-normal` / `--text-muted` /
+`--text-faint`) — which is what keeps dark themes readable. Turn it on
+and you get black characters with grey pinyin and grey translation, each
+adjustable with a color picker. Turning it back off restores the theme's
+colors immediately.
+
+This lives in settings only, not in the view toolbar: it's a "set it
+once" preference, unlike the display mode. Background tints, highlights,
+and text colors all combine, so a red-tinted unknown word can still have
+black characters.
+
 ## Behaviour toggles
 
 ### Known word popups

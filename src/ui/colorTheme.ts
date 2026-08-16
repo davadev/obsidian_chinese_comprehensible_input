@@ -9,6 +9,7 @@ import { CciSettings, CustomColors } from "../settings/types";
  */
 export function applyCustomColors(settings: CciSettings): void {
   const root = activeDocument.body;
+  applyTextColors(settings, root);
   const c = settings.customColors;
   if (!c) return;
   root.style.setProperty("--cci-color-known", c.known);
@@ -18,6 +19,26 @@ export function applyCustomColors(settings: CciSettings): void {
   for (const level of ["1", "2", "3", "4", "5", "6", "7"] as const) {
     root.style.setProperty(`--cci-color-hsk-${level}`, c.hsk[level]);
   }
+}
+
+/**
+ * Reader font colors (#22). When the feature is off the properties are
+ * REMOVED rather than set to a theme value — styles.css declares them as
+ * `var(--cci-text-chars, var(--text-normal))` etc., so an absent property
+ * is what hands control back to the active theme (including live theme /
+ * dark-mode switches). Setting them to a snapshot of the theme color
+ * would freeze the reader at whatever theme was active at save time.
+ */
+function applyTextColors(settings: CciSettings, root: HTMLElement): void {
+  const t = settings.textColors;
+  const vars = ["--cci-text-chars", "--cci-text-pinyin", "--cci-text-gloss"] as const;
+  if (!t?.enabled) {
+    for (const v of vars) root.style.removeProperty(v);
+    return;
+  }
+  root.style.setProperty("--cci-text-chars", t.chars);
+  root.style.setProperty("--cci-text-pinyin", t.pinyin);
+  root.style.setProperty("--cci-text-gloss", t.gloss);
 }
 
 /**

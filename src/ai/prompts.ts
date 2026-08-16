@@ -129,6 +129,94 @@ export function buildEnhanceUserPrompt(args: {
   );
 }
 
+/**
+ * System prompt for the AI mnemonic generator (#49). The model gets one
+ * word and returns a memory hook plus an optional longer story. The three
+ * things a mnemonic has to carry for this plugin's learners are the
+ * character components, the tone, and the meaning — the prompt names all
+ * three explicitly because models otherwise default to meaning-only.
+ */
+export const MNEMONIC_SYSTEM_PROMPT =
+  "You are an expert coach for Chinese character mnemonics for adult learners. " +
+  "You invent vivid, memorable mnemonics that make a Chinese word stick after one reading. " +
+  "A good mnemonic here does three things: " +
+  "(1) it breaks the characters into their real components or radicals and gives each one a concrete image, " +
+  "(2) it encodes the tone of every syllable with a consistent physical cue " +
+  "(1st = flat/steady/high, 2nd = rising/lifting up, 3rd = dipping down then up, 4th = sharp drop/striking down, neutral = light and quick), " +
+  "and (3) it lands on the English meaning as the punchline so recall runs image → meaning. " +
+  "Use concrete, sensory, slightly absurd imagery — absurd is memorable. Address the learner as \"you\". " +
+  "Never invent components a character does not have; if a component split is not helpful, say what the character actually looks like instead. " +
+  "Write in English; Chinese characters and pinyin may appear inline where they are the thing being remembered. " +
+  "Output strict JSON only matching this shape: " +
+  "{\"mnemonic\":string,\"story\"?:string}. " +
+  "Rules: mnemonic is required and is 1-3 sentences, self-contained, the thing the learner will reread on every review; " +
+  "story is optional and only worth including when a longer scene genuinely helps — a short paragraph, never more; " +
+  "no prose before or after the JSON; no markdown code fences.";
+
+/**
+ * Default user-prompt template for mnemonic generation. Users can rewrite
+ * this in Settings → AI provider → Mnemonic prompt to personalise the
+ * result (their own imagery, humour, language, memory palace, …).
+ */
+export const DEFAULT_MNEMONIC_USER_TEMPLATE =
+  "Word: {word}\n" +
+  "Pinyin: {pinyin}\n" +
+  "Traditional: {traditional}\n" +
+  "HSK level: {hsk}\n" +
+  "Meaning(s): {definitions}\n" +
+  "Sentence I met it in: {sentence}\n" +
+  "My current mnemonic (replace it with something better): {existing}\n\n" +
+  "Create one mnemonic for this word. Break down the character components, " +
+  "encode the tone of each syllable, and end on the meaning. Reply with JSON only.";
+
+export interface MnemonicPromptArgs {
+  surface: string;
+  pinyin?: string;
+  traditional?: string;
+  definitions?: string[];
+  sentence?: string;
+  hskLevels?: string[];
+  existing?: string;
+}
+
+/**
+ * Substitute the mnemonic placeholders in `template`. Unknown placeholders
+ * are left verbatim so a user's own `{foo}` text survives, and blank
+ * fields degrade to a readable "(none)" / "(unknown)" the way
+ * `buildEnhanceUserPrompt` does. An empty / whitespace-only template
+ * falls back to the built-in default.
+ */
+export function buildMnemonicUserPrompt(
+  template: string,
+  args: MnemonicPromptArgs
+): string {
+  const tpl = template.trim() ? template : DEFAULT_MNEMONIC_USER_TEMPLATE;
+  const trad =
+    args.traditional && args.traditional !== args.surface ? args.traditional : "(same)";
+  const values: Record<string, string> = {
+    word: args.surface,
+    pinyin: args.pinyin?.trim() || "(unknown)",
+    traditional: trad,
+    definitions: args.definitions?.filter((d) => d.trim()).join("; ") || "(none)",
+    sentence: args.sentence?.trim() || "(none)",
+    hsk: args.hskLevels?.length ? args.hskLevels.join("/") : "(not in HSK lists)",
+    existing: args.existing?.trim() || "(none yet)",
+  };
+  return tpl.replace(/\{(\w+)\}/g, (whole, key: string) =>
+    key in values ? values[key] : whole
+  );
+}
+
+export const MNEMONIC_SCHEMA = {
+  type: "object",
+  required: ["mnemonic"],
+  additionalProperties: false,
+  properties: {
+    mnemonic: { type: "string" },
+    story: { type: "string" },
+  },
+};
+
 export function buildEnhanceSchema(includePinyin: boolean): object {
   const properties: Record<string, unknown> = {
     definitions: { type: "array", items: { type: "string" }, minItems: 1 },

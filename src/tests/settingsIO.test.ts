@@ -12,6 +12,7 @@ beforeEach(() => {
     body: {
       style: {
         setProperty: vi.fn(),
+        removeProperty: vi.fn(),
       },
     },
   };

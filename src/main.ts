@@ -24,6 +24,7 @@ import { AiProviderService } from "./ai/AiProviderService";
 import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
+import { MnemonicService } from "./ai/MnemonicService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import {
   highlightColorForId,
@@ -50,6 +51,7 @@ export default class CciPlugin extends Plugin {
   ai!: AiProviderService;
   story!: StoryGenerator;
   enhance!: EnhanceDictionaryService;
+  mnemonic!: MnemonicService;
   popup!: WordPopup;
   /**
    * Per-entry dictionary overrides + user-added custom words. Live at
@@ -217,6 +219,13 @@ export default class CciPlugin extends Plugin {
         ...((this.settings.customColors?.hsk as Partial<CciSettings["customColors"]["hsk"]>) ?? {}),
       },
     };
+    // Same deep-merge for the reader text colors (#22) so a blob written
+    // before 0.5.0 — or a settings-mirror patch carrying only `enabled` —
+    // still ends up with all three hexes present.
+    this.settings.textColors = {
+      ...DEFAULT_SETTINGS.textColors,
+      ...(this.settings.textColors ?? {}),
+    };
     // First install: derive the HSK palette from the active Obsidian
     // accent color so the default looks intentional rather than rainbow.
     // Subsequent loads honor whatever the user has saved.
@@ -274,6 +283,7 @@ export default class CciPlugin extends Plugin {
     );
     this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings);
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
+    this.mnemonic = new MnemonicService(this.ai, () => this.settings);
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));

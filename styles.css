@@ -567,10 +567,13 @@
   user-select: none;
   margin: 0 1px;
 }
+/* The three reader rows honour the optional per-row font colors (#22).
+   While "Use custom text colors" is off the --cci-text-* properties are
+   absent and the fallback keeps the active theme's colors. */
 .cci-stack-gloss {
   display: block;
   font-size: 0.42em;
-  color: var(--text-faint);
+  color: var(--cci-text-gloss, var(--text-faint));
   white-space: nowrap;
   line-height: 1.1;
   margin-bottom: 0.45em;
@@ -590,7 +593,7 @@
 .cci-stack-pinyin {
   display: block;
   font-size: 0.5em;
-  color: var(--text-muted);
+  color: var(--cci-text-pinyin, var(--text-muted));
   white-space: nowrap;
   line-height: 1;
   margin-bottom: 0.15em;
@@ -601,8 +604,15 @@
 .cci-stack-chars {
   display: block;
   font-size: 1em;
-  color: var(--text-normal);
+  color: var(--cci-text-chars, var(--text-normal));
   line-height: 1;
+}
+
+/* Words that render as a plain mark instead of a ruby stack — display
+   mode "none", and known words in the ruby modes — take the same
+   character color so a note doesn't end up two-toned. */
+.cci-view .cci-word {
+  color: var(--cci-text-chars, inherit);
 }
 
 /* When the widget sits inside a Markdown heading line, scale the chars row
@@ -613,7 +623,47 @@
 .cci-stack-h3 .cci-stack-chars { font-size: 1.25em; font-weight: 700; }
 .cci-stack-h4 .cci-stack-chars { font-size: 1.1em;  font-weight: 700; }
 .cci-stack-h5 .cci-stack-chars { font-size: 1em;    font-weight: 700; }
-.cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--text-muted); }
+.cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--cci-text-chars, var(--text-muted)); }
+
+/* AI mnemonic preview modal (#49) */
+.cci-mnemonic-modal .cci-mnemonic-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-existing {
+  border-left: 3px solid var(--background-modifier-border);
+  padding-left: 0.6rem;
+  margin-bottom: 0.8rem;
+  color: var(--text-muted);
+}
+.cci-mnemonic-modal .cci-mnemonic-status {
+  padding: 0.8rem 0;
+  color: var(--text-muted);
+}
+.cci-mnemonic-modal .cci-mnemonic-error {
+  color: var(--text-error);
+}
+.cci-mnemonic-modal .cci-mnemonic-result {
+  margin: 0.4rem 0 0.9rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-text {
+  font-size: 1.05em;
+  line-height: 1.45;
+  margin-bottom: 0.8rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-story {
+  line-height: 1.45;
+  color: var(--text-normal);
+  white-space: pre-wrap;
+}
+.cci-mnemonic-modal .cci-mnemonic-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
 
 /* Popup */
 .cci-popup {
@@ -1511,6 +1561,24 @@
   color: var(--text-muted);
   font-size: 0.9em;
   margin: -6px 0 10px;
+}
+
+/* Multi-line prompt editors (mnemonic template). Stack the control under
+   the name so the textarea gets the full row width instead of the narrow
+   right-hand control column. */
+.cci-settings-textarea {
+  display: block;
+}
+.cci-settings-textarea .setting-item-control {
+  justify-content: flex-start;
+  padding-top: 6px;
+}
+.cci-settings-textarea textarea {
+  width: 100%;
+  min-height: 9em;
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+  resize: vertical;
 }
 
 /* OpenAI provider info + usage card. Mimics OpenAI's pricing-page card:

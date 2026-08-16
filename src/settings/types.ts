@@ -19,6 +19,22 @@ export interface CustomColors {
     "7": string;
   };
 }
+/**
+ * Per-row font colors for the reader (#22). Independent of the status /
+ * HSK buckets, which only paint backgrounds. `enabled` off means the
+ * active theme keeps control of text color — nothing is written to the
+ * CSS custom properties at all.
+ */
+export interface TextColors {
+  enabled: boolean;
+  /** Hex. Chinese characters row (and plain, un-annotated Chinese words). */
+  chars: string;
+  /** Hex. Pinyin row in two-line / three-line modes. */
+  pinyin: string;
+  /** Hex. English gloss row in three-line mode. */
+  gloss: string;
+}
+
 export type ViewMode =
   | "read"
   | "edit"
@@ -160,6 +176,14 @@ export interface AiSettings {
    * disambiguation.
    */
   enhanceCanRewritePinyin: boolean;
+  /**
+   * User-editable template for the "Mnemonic ✨" popup action (#49).
+   * Placeholders (`{word}`, `{pinyin}`, `{traditional}`, `{definitions}`,
+   * `{sentence}`, `{hsk}`, `{existing}`) are substituted by
+   * `buildMnemonicUserPrompt`. Empty string falls back to the built-in
+   * default template so a cleared textarea can never break generation.
+   */
+  mnemonicPrompt: string;
   /** Append-only log of token-usage entries. Pruned to last 35 days. */
   usageLog: AiUsageEntry[];
   /**
@@ -248,6 +272,9 @@ export interface CciSettings {
   colorMode: ColorMode;
   /** User-customizable colors per status bucket and HSK level. */
   customColors: CustomColors;
+  /** Font colors for the characters / pinyin / English rows (#22).
+   *  Settings-only — deliberately not exposed in the view toolbar. */
+  textColors: TextColors;
   /**
    * Marker bumped whenever the user explicitly resets HSK colors or on
    * very first install. When unset, the plugin populates the HSK palette

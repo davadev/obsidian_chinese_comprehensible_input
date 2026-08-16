@@ -1,0 +1,164 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  DEFAULT_MNEMONIC_USER_TEMPLATE,
+  MNEMONIC_SCHEMA,
+  MNEMONIC_SYSTEM_PROMPT,
+  buildMnemonicUserPrompt,
+} from "../ai/prompts";
+import type { AiProviderService } from "../ai/AiProviderService";
+import { MnemonicService, __testing } from "../ai/MnemonicService";
+import { DEFAULT_SETTINGS } from "../settings/defaults";
+import type { CciSettings } from "../settings/types";
+
+const { parseMnemonicResult } = __testing;
+
+describe("buildMnemonicUserPrompt", () => {
+  const full = {
+    surface: "学习",
+    pinyin: "xué xí",
+    traditional: "學習",
+    definitions: ["to study", "to learn"],
+    sentence: "我每天学习中文。",
+    hskLevels: ["1"],
+    existing: "old hook",
+  };
+
+  it("substitutes every supported placeholder", () => {
+    const tpl =
+      "{word}|{pinyin}|{traditional}|{definitions}|{sentence}|{hsk}|{existing}";
+    expect(buildMnemonicUserPrompt(tpl, full)).toBe(
+      "学习|xué xí|學習|to study; to learn|我每天学习中文。|1|old hook"
+    );
+  });
+
+  it("falls back to readable placeholders when fields are missing", () => {
+    const tpl = "{pinyin}|{definitions}|{sentence}|{hsk}|{existing}";
+    expect(buildMnemonicUserPrompt(tpl, { surface: "囧" })).toBe(
+      "(unknown)|(none)|(none)|(not in HSK lists)|(none yet)"
+    );
+  });
+
+  it("reports traditional as (same) when it matches the surface", () => {
+    expect(
+      buildMnemonicUserPrompt("{traditional}", { surface: "学", traditional: "学" })
+    ).toBe("(same)");
+  });
+
+  it("uses the built-in template when the user's template is blank", () => {
+    const out = buildMnemonicUserPrompt("   \n ", full);
+    expect(out).toBe(buildMnemonicUserPrompt(DEFAULT_MNEMONIC_USER_TEMPLATE, full));
+    expect(out).toContain("学习");
+    expect(out).not.toContain("{word}");
+  });
+
+  it("leaves unknown placeholders verbatim", () => {
+    expect(buildMnemonicUserPrompt("{word} {foo}", full)).toBe("学习 {foo}");
+  });
+
+  it("ships a default template exercising the documented placeholders", () => {
+    for (const key of [
+      "word",
+      "pinyin",
+      "traditional",
+      "definitions",
+      "sentence",
+      "hsk",
+      "existing",
+    ]) {
+      expect(DEFAULT_MNEMONIC_USER_TEMPLATE).toContain(`{${key}}`);
+    }
+    expect(DEFAULT_SETTINGS.ai.mnemonicPrompt).toBe(DEFAULT_MNEMONIC_USER_TEMPLATE);
+  });
+});
+
+describe("MnemonicService.generate", () => {
+  function serviceWith(reply: string, mnemonicPrompt: string) {
+    const chatJson = vi.fn().mockResolvedValue(reply);
+    const ai = { chatJson } as unknown as AiProviderService;
+    const settings = {
+      ...DEFAULT_SETTINGS,
+      ai: { ...DEFAULT_SETTINGS.ai, mnemonicPrompt },
+    } as CciSettings;
+    return { chatJson, service: new MnemonicService(ai, () => settings) };
+  }
+
+  const input = { surface: "猫", pinyin: "māo", definitions: ["cat"] };
+
+  it("sends the fixed system prompt, the user's template, and the schema", async () => {
+    const { chatJson, service } = serviceWith(
+      '{"mnemonic":"a flat high cat"}',
+      "Make a mnemonic for {word} ({pinyin})."
+    );
+    const out = await service.generate(input);
+
+    expect(out).toEqual({ mnemonic: "a flat high cat" });
+    expect(chatJson).toHaveBeenCalledWith(
+      MNEMONIC_SYSTEM_PROMPT,
+      "Make a mnemonic for 猫 (māo).",
+      "Mnemonic",
+      MNEMONIC_SCHEMA
+    );
+  });
+
+  it("falls back to the default template when the setting was cleared", async () => {
+    const { chatJson, service } = serviceWith('{"mnemonic":"hook"}', "");
+    await service.generate(input);
+    expect(chatJson.mock.calls[0][1]).toBe(
+      buildMnemonicUserPrompt(DEFAULT_MNEMONIC_USER_TEMPLATE, input)
+    );
+  });
+
+  it("propagates a parse failure as an Error the UI can show", async () => {
+    const { service } = serviceWith("sorry, no", DEFAULT_MNEMONIC_USER_TEMPLATE);
+    await expect(service.generate(input)).rejects.toThrow(/did not return/);
+  });
+});
+
+describe("parseMnemonicResult", () => {
+  it("parses a clean JSON object", () => {
+    const out = parseMnemonicResult('{"mnemonic":"hook","story":"a scene"}');
+    expect(out).toEqual({ mnemonic: "hook", story: "a scene" });
+  });
+
+  it("salvages JSON wrapped in prose and code fences", () => {
+    const raw = 'Sure! Here you go:\n```json\n{"mnemonic":"hook"}\n```\nHope that helps.';
+    expect(parseMnemonicResult(raw)).toEqual({ mnemonic: "hook" });
+  });
+
+  it("omits an empty or absent story", () => {
+    expect(parseMnemonicResult('{"mnemonic":"hook","story":"   "}')).toEqual({
+      mnemonic: "hook",
+    });
+    expect(parseMnemonicResult('{"mnemonic":"hook"}').story).toBeUndefined();
+  });
+
+  it("clamps runaway output", () => {
+    const out = parseMnemonicResult(
+      JSON.stringify({ mnemonic: "m".repeat(900), story: "s".repeat(2500) })
+    );
+    expect(out.mnemonic).toHaveLength(600);
+    expect(out.story).toHaveLength(2000);
+  });
+
+  it("throws when the mnemonic field is missing, empty, or not a string", () => {
+    expect(() => parseMnemonicResult('{"story":"only a story"}')).toThrow(/mnemonic/);
+    expect(() => parseMnemonicResult('{"mnemonic":"   "}')).toThrow(/mnemonic/);
+    expect(() => parseMnemonicResult('{"mnemonic":42}')).toThrow(/mnemonic/);
+  });
+
+  it("throws on responses with no JSON object at all", () => {
+    expect(() => parseMnemonicResult("I cannot do that.")).toThrow(/did not return/);
+  });
+
+  it("throws a readable error on malformed JSON", () => {
+    expect(() => parseMnemonicResult('{"mnemonic": "unterminated}')).toThrow(
+      /Could not parse AI JSON/
+    );
+  });
+
+  it("advertises a schema matching what the parser accepts", () => {
+    expect(MNEMONIC_SCHEMA.required).toEqual(["mnemonic"]);
+    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["mnemonic", "story"]);
+    expect(MNEMONIC_SCHEMA.additionalProperties).toBe(false);
+  });
+});
