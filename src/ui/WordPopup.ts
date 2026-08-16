@@ -140,7 +140,12 @@ export class WordPopup {
    *  about the word itself; the sentence is passed as extra context when
    *  we happen to have it) and it works for custom-only words, because
    *  the result is stored on the WordRecord, not the dictionary override
-   *  map. Opens a preview modal — nothing is written until Accept. */
+   *  map. Opens a preview modal — nothing is written until Accept.
+   *
+   *  The popup is closed as the modal opens, exactly like
+   *  `openDictionaryEditor`. That is not cosmetic: `.cci-popup` (and
+   *  `.cci-bottom-sheet` on mobile) carry z-indexes above Obsidian's
+   *  modal layer, so leaving the card up traps the modal behind it. */
   private maybeRenderGenerateMnemonic(parent: HTMLElement, rec: WordRecord): void {
     if (!this.plugin.settings.ai.enabled) return;
     const btn = parent.createEl("button", { text: "Mnemonic ✨" });
@@ -148,9 +153,8 @@ export class WordPopup {
       e.stopPropagation();
       const sentence = this.sentence;
       void import("./MnemonicModal").then(({ MnemonicModal }) => {
-        new MnemonicModal(this.plugin.app, this.plugin, rec, sentence, () =>
-          this.refresh()
-        ).open();
+        new MnemonicModal(this.plugin.app, this.plugin, rec, sentence).open();
+        this.close();
       });
     });
   }

@@ -625,7 +625,15 @@
 .cci-stack-h5 .cci-stack-chars { font-size: 1em;    font-weight: 700; }
 .cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--cci-text-chars, var(--text-muted)); }
 
-/* AI mnemonic preview modal (#49) */
+/* AI mnemonic preview modal (#49).
+   `.cci-popup` (100), `.cci-bottom-sheet` (200) and `.cci-overflow` (300)
+   all sit above Obsidian's --layer-modal, so a modal opened from any of
+   them would render underneath. Lift our own modal container clear of
+   the highest of them. Scoped to this plugin's modals only. */
+.modal-container.cci-modal-front {
+  z-index: 400;
+}
+
 .cci-mnemonic-modal .cci-mnemonic-label {
   font-size: 0.8em;
   color: var(--text-muted);
