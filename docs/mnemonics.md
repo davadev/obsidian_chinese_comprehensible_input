@@ -87,7 +87,8 @@ undo it.
 ## Seeing your mnemonics
 
 - **Word card** — the emoji line always shows; tap `▾` for the story.
-  **Settings → Display → "Show mnemonic before full definition"** decides
+  **Settings → Display → Advanced display → "Show mnemonic before full
+  definition"** decides
   whether the block sits above or below the definitions.
 - **Dashboard → Words** — open a word's detail card for both halves.
 

@@ -113,7 +113,7 @@ change this.
 ### Reader text colors
 
 The status / HSK colors above are **background** tints. Separately, under
-**Settings → Display → Reader text colors**, you can set the **font**
+**Settings → Display → Advanced display → Reader text colors**, you can set the **font**
 color of each of the three reader rows:
 
 | Row | What it colors |
