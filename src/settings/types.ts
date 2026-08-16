@@ -177,7 +177,7 @@ export interface AiSettings {
    */
   enhanceCanRewritePinyin: boolean;
   /**
-   * User-editable template for the "Mnemonic ✨" popup action (#49).
+   * User-editable template for the "Mnemonic" popup action (#49).
    * Placeholders (`{word}`, `{pinyin}`, `{traditional}`, `{definitions}`,
    * `{sentence}`, `{hsk}`, `{existing}`) are substituted by
    * `buildMnemonicUserPrompt`. Empty string falls back to the built-in

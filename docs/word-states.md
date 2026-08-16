@@ -38,9 +38,9 @@ Three ways, in increasing weight:
 
    1. **Word, pinyin & meaning** · 2. **"I know"** — tick characters / pinyin /
    translation to set the status · 3. **Per-word stats** (HSK, seen, last,
-   status, SRS due) · 4. **Exposure history** · 5. **Actions** — Ignore, add a
-   Mnemonic by hand, generate one with **Mnemonic ✨**, Edit, or **Enhance**
-   (the last two AI — see [OpenAI setup](./openai-setup.md)).
+   status, SRS due) · 4. **Exposure history** · 5. **Actions** — Ignore,
+   **Mnemonic** (write your own or generate — see [Mnemonics](./mnemonics.md)),
+   Edit, or **Enhance** (AI — see [OpenAI setup](./openai-setup.md)).
 2. **Marking modes in the toolbar.** Switch the view into Mark known /
    Mark unknown / Mark partial mode using the toolbar buttons. Now
    single-tapping any word sets it to that status. Switch back to

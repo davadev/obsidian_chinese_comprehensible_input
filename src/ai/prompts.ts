@@ -130,28 +130,43 @@ export function buildEnhanceUserPrompt(args: {
 }
 
 /**
- * System prompt for the AI mnemonic generator (#49). The model gets one
- * word and returns a memory hook plus an optional longer story. The three
- * things a mnemonic has to carry for this plugin's learners are the
- * character components, the tone, and the meaning — the prompt names all
- * three explicitly because models otherwise default to meaning-only.
+ * System prompt for the AI mnemonic generator (#49).
+ *
+ * Two outputs, with very different jobs:
+ *  - `mnemonic` is a compact EMOJI line. It is shown on the word card and
+ *    is the candidate for replacing the English gloss on a third line in a
+ *    future release, so it has to survive in a narrow column — hence the
+ *    hard length limit and the emoji-first rule. Emoji also happen to be
+ *    stickier than prose, which is the point of a mnemonic.
+ *  - `story` is the prose that unpacks the emoji line.
+ *
+ * The three things a mnemonic must carry for this plugin's learners are
+ * the character components, the tone, and the meaning — named explicitly
+ * because models otherwise default to meaning-only. These rules live in
+ * the SYSTEM prompt so users who customised their user template still get
+ * the emoji behaviour.
  */
 export const MNEMONIC_SYSTEM_PROMPT =
   "You are an expert coach for Chinese character mnemonics for adult learners. " +
-  "You invent vivid, memorable mnemonics that make a Chinese word stick after one reading. " +
-  "A good mnemonic here does three things: " +
-  "(1) it breaks the characters into their real components or radicals and gives each one a concrete image, " +
-  "(2) it encodes the tone of every syllable with a consistent physical cue " +
-  "(1st = flat/steady/high, 2nd = rising/lifting up, 3rd = dipping down then up, 4th = sharp drop/striking down, neutral = light and quick), " +
-  "and (3) it lands on the English meaning as the punchline so recall runs image → meaning. " +
-  "Use concrete, sensory, slightly absurd imagery — absurd is memorable. Address the learner as \"you\". " +
-  "Never invent components a character does not have; if a component split is not helpful, say what the character actually looks like instead. " +
-  "Write in English; Chinese characters and pinyin may appear inline where they are the thing being remembered. " +
+  "You return TWO things for one word: a compact emoji line, and a short story that explains it.\n" +
+  "\n" +
+  "\"mnemonic\" — the emoji line. Rules:\n" +
+  "- Mostly emoji. Use a word ONLY where no emoji can carry the idea (grammar particles, abstract senses); one or two words at most.\n" +
+  "- Hard limit: 40 characters. Shorter is better — it has to fit on a narrow line under the word.\n" +
+  "- No sentences, no explanation, no trailing punctuation. It is a picture strip, not a caption.\n" +
+  "- Encode all three of: the character components/radicals as images, the tone of each syllable, and the meaning.\n" +
+  "- Encode tone with a consistent cue: 1st = ➡️ or a flat/steady image, 2nd = ↗️ rising, 3rd = ↘️↗️ dipping then rising, 4th = ↘️ sharp drop, neutral = 〰️ light and quick.\n" +
+  "- Order the emoji so reading them left to right replays the story: components → tone → meaning.\n" +
+  "\n" +
+  "\"story\" — the prose that unpacks the line. Rules:\n" +
+  "- One short paragraph, plain English, second person (\"you\").\n" +
+  "- Say which emoji stands for which component, what the tone cue is, and finish on the English meaning as the punchline.\n" +
+  "- Concrete, sensory, slightly absurd imagery — absurd is memorable.\n" +
+  "- Never invent components a character does not have; if a split is not helpful, describe what the character actually looks like.\n" +
+  "\n" +
   "Output strict JSON only matching this shape: " +
-  "{\"mnemonic\":string,\"story\"?:string}. " +
-  "Rules: mnemonic is required and is 1-3 sentences, self-contained, the thing the learner will reread on every review; " +
-  "story is optional and only worth including when a longer scene genuinely helps — a short paragraph, never more; " +
-  "no prose before or after the JSON; no markdown code fences.";
+  "{\"mnemonic\":string,\"story\":string}. " +
+  "mnemonic is required. No prose before or after the JSON. No markdown code fences.";
 
 /**
  * Default user-prompt template for mnemonic generation. Users can rewrite
@@ -165,9 +180,10 @@ export const DEFAULT_MNEMONIC_USER_TEMPLATE =
   "HSK level: {hsk}\n" +
   "Meaning(s): {definitions}\n" +
   "Sentence I met it in: {sentence}\n" +
-  "My current mnemonic (replace it with something better): {existing}\n\n" +
-  "Create one mnemonic for this word. Break down the character components, " +
-  "encode the tone of each syllable, and end on the meaning. Reply with JSON only.";
+  "My current emoji line (replace it with something better): {existing}\n" +
+  "My current story: {existingStory}\n\n" +
+  "Give me the emoji line and the story for this word. Break down the character " +
+  "components, encode the tone of each syllable, and end on the meaning. Reply with JSON only.";
 
 export interface MnemonicPromptArgs {
   surface: string;
@@ -176,7 +192,10 @@ export interface MnemonicPromptArgs {
   definitions?: string[];
   sentence?: string;
   hskLevels?: string[];
+  /** The user's current emoji line, if any. */
   existing?: string;
+  /** The user's current story, if any. */
+  existingStory?: string;
 }
 
 /**
@@ -201,6 +220,7 @@ export function buildMnemonicUserPrompt(
     sentence: args.sentence?.trim() || "(none)",
     hsk: args.hskLevels?.length ? args.hskLevels.join("/") : "(not in HSK lists)",
     existing: args.existing?.trim() || "(none yet)",
+    existingStory: args.existingStory?.trim() || "(none yet)",
   };
   return tpl.replace(/\{(\w+)\}/g, (whole, key: string) =>
     key in values ? values[key] : whole

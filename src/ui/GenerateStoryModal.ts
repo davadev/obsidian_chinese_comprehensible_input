@@ -1,5 +1,6 @@
 import { App, Modal, Notice } from "obsidian";
 import type CciPlugin from "../main";
+import { liftModal } from "./modalLayer";
 
 export class GenerateStoryModal extends Modal {
   private dueCount: number;
@@ -17,6 +18,7 @@ export class GenerateStoryModal extends Modal {
   }
 
   onOpen(): void {
+    liftModal(this);
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h2", { text: "Generate Chinese Review Story" });

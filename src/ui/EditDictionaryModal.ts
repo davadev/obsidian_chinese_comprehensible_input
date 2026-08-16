@@ -4,6 +4,7 @@ import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
 import { hasCjk } from "../dictionary/normalizeChinese";
 import { confirmAsync } from "./confirmInput";
+import { liftModal } from "./modalLayer";
 
 /**
  * Two modes:
@@ -42,6 +43,7 @@ export class EditDictionaryModal extends Modal {
   }
 
   onOpen(): void {
+    liftModal(this);
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("cci-edit-dict-modal");

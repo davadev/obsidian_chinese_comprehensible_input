@@ -1077,6 +1077,9 @@ export class StatsView extends ItemView {
     modal.createEl("p", { text: (r.definitions ?? []).join("; ") });
     modal.createEl("p", { text: `Status: ${r.status} · HSK: ${(r.hsk?.levels ?? []).join("/")} · Seen: ${r.seenCount}` });
     if (r.mnemonic?.text) modal.createEl("p", { text: `🧠 ${r.mnemonic.text}` });
+    if (r.mnemonic?.story) {
+      modal.createEl("p", { cls: "cci-popup-mnemonic-story", text: r.mnemonic.story });
+    }
     const graph = modal.createDiv();
     renderDailyGraph(graph, r.dailySeenCounts);
     if (r.recentSeenAt.length) {

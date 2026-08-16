@@ -1,5 +1,6 @@
 import { AiProviderService } from "./AiProviderService";
 import { CciSettings } from "../settings/types";
+import { clampGraphemes } from "../vocabulary/mnemonicText";
 import {
   MNEMONIC_SCHEMA,
   MNEMONIC_SYSTEM_PROMPT,
@@ -10,17 +11,17 @@ import {
 export type MnemonicInput = MnemonicPromptArgs;
 
 export interface MnemonicResult {
-  /** The memory hook itself. Always present. */
+  /** The short emoji line. Always present. */
   mnemonic: string;
-  /** Optional longer scene the model volunteered. */
+  /** The prose that unpacks the emoji line. */
   story?: string;
 }
 
-/** Max chars kept from the model. The system prompt asks for 1-3
- *  sentences / one short paragraph — these are runaway guards, not the
- *  intended shape. Both fields are shown verbatim in the popup and the
- *  preview modal, so an unbounded response would wreck the layout. */
-const MNEMONIC_MAX_CHARS = 600;
+/** Runaway guard for the story. The system prompt asks for one short
+ *  paragraph; this only stops a model that ignores that from wrecking the
+ *  card layout. The emoji line is bounded by
+ *  `MNEMONIC_LINE_MAX_GRAPHEMES` instead — see `mnemonicText.ts` for why
+ *  it is counted in graphemes rather than chars. */
 const STORY_MAX_CHARS = 2000;
 
 /**
@@ -75,7 +76,7 @@ function parseMnemonicResult(raw: string): MnemonicResult {
   if (!mnemonic) {
     throw new Error("AI response is missing the required \"mnemonic\" text.");
   }
-  const result: MnemonicResult = { mnemonic: clamp(mnemonic, MNEMONIC_MAX_CHARS) };
+  const result: MnemonicResult = { mnemonic: clampGraphemes(mnemonic) };
   if (typeof obj.story === "string") {
     const story = obj.story.trim();
     if (story) result.story = clamp(story, STORY_MAX_CHARS);
