@@ -33,6 +33,19 @@ jobs:
       - name: Run coverage
         run: npm run test:cov
 
+      - name: Check the Obsidian lint plugin is current
+        # The cloud community-plugin review always runs the newest
+        # eslint-plugin-obsidianmd. `npm ci` pins ours to the lockfile, which
+        # keeps builds reproducible — so warn loudly (without failing the run)
+        # whenever a newer checker ships and our local mirror falls behind.
+        run: |
+          installed=$(node -p "require('eslint-plugin-obsidianmd/package.json').version")
+          latest=$(npm view eslint-plugin-obsidianmd version)
+          echo "eslint-plugin-obsidianmd installed=$installed latest=$latest"
+          if [ "$installed" != "$latest" ]; then
+            echo "::warning title=Obsidian checker outdated::eslint-plugin-obsidianmd $installed is installed but $latest is published. Bump it so local lint matches the community-plugin review."
+          fi
+
       - name: Run lint (Obsidian-parity)
         run: npm run lint
 

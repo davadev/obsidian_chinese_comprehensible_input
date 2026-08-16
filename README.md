@@ -204,6 +204,9 @@ See `NOTICE.md` for license notes (CC-CEDICT, HSK).
 
 ## Install
 
+**Requires Obsidian 1.13.0 or newer** (since 0.5.1 — the settings tab uses
+Obsidian's declarative settings API so every setting is searchable).
+
 Available in the **official Obsidian community-plugin store**: Settings →
 Community plugins → **Browse** → search **Chinese Comprehensible Input** →
 Install → Enable. To test the latest beta builds instead, install via **BRAT**.

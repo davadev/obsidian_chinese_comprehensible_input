@@ -5,7 +5,13 @@
  */
 export class App {}
 export class Plugin {}
-export class PluginSettingTab {}
+export class PluginSettingTab {
+  // Real Obsidian assigns both and exposes update() for declarative tabs;
+  // settingsCoverage.test.ts drives a real subclass through this.
+  constructor(public app: any, public plugin: any) {}
+  update() {}
+  refreshDomState() {}
+}
 export class Setting {
   constructor(_el: any) {}
   setName(_: string) { return this; }

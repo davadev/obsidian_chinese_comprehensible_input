@@ -737,7 +737,7 @@ export class AiProviderService {
     if (Platform.isMobile) {
       const reqPromise = (async () => {
         const r = await requestUrl({ ...p, throw: false });
-        return { status: r.status, text: r.text } as SimpleResponse;
+        return { status: r.status, text: r.text };
       })();
       if (!timeoutMs || timeoutMs <= 0) return reqPromise;
       return await Promise.race([reqPromise, this.timeoutGuard(timeoutMs)]);
@@ -754,7 +754,7 @@ export class AiProviderService {
     try {
       const res = await nativeFetch(p.url, {
         method: p.method ?? "GET",
-        headers: (p.headers as HeadersInit) ?? {},
+        headers: (p.headers) ?? {},
         body: typeof p.body === "string" ? p.body : undefined,
         signal: ac.signal,
       });

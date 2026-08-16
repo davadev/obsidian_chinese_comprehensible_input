@@ -66,7 +66,7 @@ function readHighlightrSettings(app: App): HighlightrSettings | null {
   const plugin = reg.plugins?.[HIGHLIGHTR_ID] ?? reg.getPlugin?.(HIGHLIGHTR_ID) ?? null;
   if (!plugin) return null;
   const settings = plugin.settings;
-  return settings && typeof settings === "object" ? (settings as HighlightrSettings) : null;
+  return settings && typeof settings === "object" ? (settings) : null;
 }
 
 /** Is the Highlightr plugin installed and enabled? */

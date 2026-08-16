@@ -40,7 +40,7 @@ export class SettingsConflictModal extends Modal {
     const list = contentEl.createDiv({ cls: "cci-conflict-list" });
     for (const c of this.conflicts) {
       const row = list.createDiv({ cls: "cci-conflict-row" });
-      row.createEl("div", { text: c.keyPath, cls: "cci-conflict-key" });
+      row.createDiv({ text: c.keyPath, cls: "cci-conflict-key" });
       const localBtn = row.createEl("button", { text: `Local: ${preview(c.local)}` });
       const remoteBtn = row.createEl("button", { text: `Remote: ${preview(c.remote)}` });
       const refresh = () => {

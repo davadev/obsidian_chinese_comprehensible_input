@@ -142,19 +142,6 @@ Default **off**. When off, long-pressing a known word does nothing —
 clean reading. Turn on if you sometimes want to refresh your memory on
 a word you "should" know.
 
-### New word behavior
-
-- **Subtle** (default): show new words with the subtle blue tint, no
-  inline annotation.
-- **Popup-only**: no tint, but tapping opens the popup.
-- **Annotate**: full pinyin + meaning inline (forces three-line for
-  these words).
-
-### Unknown word behavior
-
-- **Annotate** (default): unknown words get pinyin + meaning inline.
-- **Popup-only**: clean reading; tap to see info.
-
 ## See also
 
 - [Word states](./word-states.md) — what each status / color means.

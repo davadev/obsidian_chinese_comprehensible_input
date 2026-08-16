@@ -494,7 +494,7 @@ class CheckboxWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const el = activeDocument.createElement("span");
+    const el = createSpan();
     const icon = TASK_ICON_MAP[this.char] ?? "square";
     el.className = `cci-md-task cci-md-task-${safeClassChar(this.char)}`;
     if (this.char === "x" || this.char === "X") el.classList.add("is-done");
@@ -522,7 +522,7 @@ function safeClassChar(c: string): string {
 
 class BulletWidget extends WidgetType {
   toDOM(): HTMLElement {
-    const el = activeDocument.createElement("span");
+    const el = createSpan();
     el.className = "cci-md-bullet";
     el.textContent = "•";
     return el;
@@ -537,7 +537,7 @@ class BulletWidget extends WidgetType {
 
 class HrWidget extends WidgetType {
   toDOM(): HTMLElement {
-    const el = activeDocument.createElement("hr");
+    const el = createEl("hr");
     el.className = "cci-md-hr";
     return el;
   }
@@ -584,7 +584,7 @@ class WikilinkWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const el = activeDocument.createElement("span");
+    const el = createSpan();
     el.className = "cci-md-wikilink";
     el.textContent = this.alias || this.target;
     el.setAttribute("title", `Open: ${this.target}`);
@@ -624,7 +624,7 @@ class EmbedWidget extends WidgetType {
     const file = resolveLinkpath(this.plugin, this.target);
     // Image / video / pdf — render via vault resource URL.
     if (file && isImageFile(file)) {
-      const img = activeDocument.createElement("img");
+      const img = createEl("img");
       img.className = "cci-md-embed-img";
       img.src = this.plugin.app.vault.getResourcePath(file);
       img.alt = this.target;
@@ -634,7 +634,7 @@ class EmbedWidget extends WidgetType {
     }
     // Note embed: clickable card that opens the note in the Chinese
     // view. Avoids the cost (and scope) of inline embed rendering.
-    const card = activeDocument.createElement("span");
+    const card = createSpan();
     card.className = "cci-md-embed cci-md-embed-card";
     card.textContent = file ? file.basename : this.target;
     attachOpenInChineseView(card, this.plugin, this.target);
@@ -663,7 +663,7 @@ class ImgWidget extends WidgetType {
     super();
   }
   toDOM(): HTMLElement {
-    const img = activeDocument.createElement("img");
+    const img = createEl("img");
     img.className = "cci-md-embed-img";
     img.src = this.url;
     img.alt = "";

@@ -166,12 +166,12 @@ export function renderProgressArea(
 
   container.appendChild(svg);
 
-  const legend = activeDocument.createElement("div");
+  const legend = container.createDiv();
   legend.className = "cci-progress-legend";
   series.forEach((s, si) => {
-    const item = activeDocument.createElement("span");
+    const item = legend.createSpan();
     item.className = "cci-progress-legend-item";
-    const swatch = activeDocument.createElement("span");
+    const swatch = item.createSpan();
     swatch.className = "cci-progress-legend-swatch";
     swatch.style.background = s.color;
     item.appendChild(swatch);
@@ -238,12 +238,12 @@ export function renderProgressGraph(
   container.appendChild(svg);
 
   // Legend
-  const legend = activeDocument.createElement("div");
+  const legend = container.createDiv();
   legend.className = "cci-progress-legend";
   for (const s of series) {
-    const item = activeDocument.createElement("span");
+    const item = legend.createSpan();
     item.className = "cci-progress-legend-item";
-    const swatch = activeDocument.createElement("span");
+    const swatch = item.createSpan();
     swatch.className = "cci-progress-legend-swatch";
     swatch.style.background = s.color;
     item.appendChild(swatch);
