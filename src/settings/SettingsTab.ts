@@ -28,7 +28,7 @@ import type {
   PinyinStyle,
   TokenizerEngine,
 } from "./types";
-import type { TextComponent } from "obsidian";
+import type { ColorComponent, TextComponent, ToggleComponent } from "obsidian";
 import {
   OPENAI_MODEL_DESC,
   OPENAI_MODEL_DISPLAY,
@@ -343,36 +343,42 @@ export class CciSettingsTab extends PluginSettingTab {
       text:
         "Font color for each row of the reader — Chinese characters, pinyin, and the English gloss. " +
         "This is the text color, not the known/unknown/HSK background tint, so the two can be combined. " +
-        "While the toggle is off your theme decides all three (so dark themes keep working).",
+        "The three pickers below only take effect while the toggle is on; with it off your theme " +
+        "decides all three (so dark themes keep working).",
     });
 
+    let toggle: ToggleComponent | null = null;
     new Setting(a)
       .setName("Use custom text colors")
       .setDesc("Off: follow the theme. On: use the three colors below.")
-      .addToggle((t) =>
+      .addToggle((t) => {
+        toggle = t;
         t.setValue(this.plugin.settings.textColors.enabled).onChange(async (v) => {
           this.plugin.settings.textColors.enabled = v;
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
-          this.rerender();
-        })
-      );
+        });
+      });
 
-    if (!this.plugin.settings.textColors.enabled) return;
-
+    // Pickers stay rendered whatever the toggle says: hiding them made the
+    // feature undiscoverable (rc.1), and keeping the row count stable means
+    // the toggle no longer needs a rerender() that would collapse the
+    // enclosing "Advanced display" details element.
     const rows: Array<["chars" | "pinyin" | "gloss", string]> = [
       ["chars", "Characters color"],
       ["pinyin", "Pinyin color"],
       ["gloss", "English translation color"],
     ];
+    const pickers = new Map<"chars" | "pinyin" | "gloss", ColorComponent>();
     for (const [key, label] of rows) {
-      new Setting(a).setName(label).addColorPicker((p) =>
+      new Setting(a).setName(label).addColorPicker((p) => {
+        pickers.set(key, p);
         p.setValue(this.plugin.settings.textColors[key]).onChange(async (hex) => {
           this.plugin.settings.textColors[key] = hex;
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
-        })
-      );
+        });
+      });
     }
 
     new Setting(a)
@@ -383,7 +389,11 @@ export class CciSettingsTab extends PluginSettingTab {
           this.plugin.settings.textColors = { ...DEFAULT_TEXT_COLORS, enabled: true };
           await this.plugin.saveSettings();
           this.plugin.refreshChineseViews();
-          this.rerender();
+          // Push the new values straight into the live controls instead of
+          // rerender()ing the tab — a rerender would collapse the
+          // "Advanced display" details this section lives in.
+          toggle?.setValue(true);
+          for (const [key, p] of pickers) p.setValue(this.plugin.settings.textColors[key]);
         })
       );
   }

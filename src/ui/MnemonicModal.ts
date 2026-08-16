@@ -26,8 +26,7 @@ export class MnemonicModal extends Modal {
     app: App,
     private plugin: CciPlugin,
     private rec: WordRecord,
-    private sentence: string,
-    private onDone: () => void
+    private sentence: string
   ) {
     super(app);
     this.surface = rec.surfaces[0];
@@ -35,6 +34,11 @@ export class MnemonicModal extends Modal {
   }
 
   onOpen(): void {
+    // The word popup and the mobile bottom sheet use hardcoded z-indexes
+    // that sit above Obsidian's --layer-modal, so lift our own modal
+    // container above them. The caller also closes the popup; this is the
+    // belt to that pair of braces (and covers the toolbar overflow menu).
+    this.containerEl.addClass("cci-modal-front");
     this.render();
     void this.generate();
   }
@@ -86,7 +90,6 @@ export class MnemonicModal extends Modal {
     });
     new Notice("Mnemonic saved.");
     this.close();
-    this.onDone();
   }
 
   private render(): void {
