@@ -59,6 +59,9 @@ export default class CciPlugin extends Plugin {
    * redownload (which only rewrites .cci-dictionary.json).
    */
   dictionaryOverrides: DictionaryOverrides = {};
+  /** Last `scriptVariant` the reader was actually rebuilt for. Drives
+   *  {@link applyScriptSideEffects}; see that method for why. */
+  private lastAppliedScriptVariant: CciSettings["scriptVariant"] = "simplified";
   dictionaryCustomWords: DictionaryCustomWords = {};
 
   private viewMode: ViewMode = "read";
@@ -238,6 +241,11 @@ export default class CciPlugin extends Plugin {
       void this.saveSettingsSilently();
     }
     applyCustomColors(this.settings);
+    // The reader is about to be built for whatever script is stored, so
+    // record it as already applied — otherwise the first saveSettings()
+    // would see a change from the "simplified" field initialiser and
+    // re-tokenize for nothing.
+    this.lastAppliedScriptVariant = this.settings.scriptVariant;
     // Snapshot the initial filtered-settings fingerprint so saveSettings
     // can tell whether a UI change actually altered a sync-eligible field.
     this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
@@ -547,6 +555,44 @@ export default class CciPlugin extends Plugin {
    *  mark the device as touched and don't trigger a clobbering write. */
   private lastSharedFingerprint: string | null = null;
 
+  /**
+   * Re-tokenize when the script changed, wherever that change came from.
+   *
+   * Four paths can move `scriptVariant`: the settings tab, the reading
+   * view's overflow menu, `importSettings()`, and a remote `SettingsMirror`
+   * apply. The last two replace `this.settings` wholesale and then refresh
+   * views only — so a script flip arriving that way would repaint fresh
+   * colors over a stale trie, with no error anywhere. Rather than remember
+   * the invalidation sequence at four call sites, everything funnels
+   * through here off a single remembered value.
+   *
+   * A plain redecorate is not enough: tokens (and the `selected` entry the
+   * ruby reads) are captured at tokenize time. Same reasoning as
+   * `setDictionaryOverride` above.
+   */
+  applyScriptSideEffects(): void {
+    const current = this.settings.scriptVariant;
+    if (current === this.lastAppliedScriptVariant) return;
+    this.lastAppliedScriptVariant = current;
+    this.tokenizer?.invalidate();
+    this.vocab?.clearSurfaceCache();
+    clearTokenCache();
+    this.forceRetokenizeViews();
+    this.refreshChineseViews();
+    this.refreshStatsViews();
+  }
+
+  /**
+   * Region affects rendering only, never segmentation — but the RubyWidget
+   * snapshots pinyin when it is built, so the cached tokens have to be
+   * dropped for the new reading to reach the page.
+   */
+  applyRegionSideEffects(): void {
+    clearTokenCache();
+    this.forceRetokenizeViews();
+    this.refreshStatsViews();
+  }
+
   async saveSettings(): Promise<void> {
     const fp = JSON.stringify(filterSettingsForSharing(this.settings));
     const shareableChanged = fp !== this.lastSharedFingerprint;
@@ -561,6 +607,11 @@ export default class CciPlugin extends Plugin {
    *  accent derivation at first install (we don't want internal writes
    *  to mark the user as "touched" and start broadcasting defaults). */
   async saveSettingsSilently(opts: { markUserTouched?: boolean } = {}): Promise<void> {
+    // The guard lives here rather than in saveSettings() because
+    // SettingsMirror applies a remote settings change through this method
+    // directly — putting it one level up would miss exactly the path that
+    // is hardest to notice going wrong.
+    this.applyScriptSideEffects();
     await this.updateDataBlob((blob) => {
       blob.settings = this.settings;
       if (opts.markUserTouched) {
@@ -706,10 +757,13 @@ export default class CciPlugin extends Plugin {
    * re-tokenizes against the new overrides.
    */
   refreshTokenizerCustomWords(): void {
-    const overrides = Object.values(this.dictionaryCustomWords).map((w) => ({
-      surface: w.simplified,
-      mergeAs: w.simplified,
-    }));
+    const overrides = Object.values(this.dictionaryCustomWords).flatMap((w) => {
+      const forms = [w.simplified];
+      // A custom word met in the other script has to merge too, or it
+      // tokenizes character by character there.
+      if (w.traditional && w.traditional !== w.simplified) forms.push(w.traditional);
+      return forms.map((surface) => ({ surface, mergeAs: surface }));
+    });
     this.tokenizer.setOverrides(overrides);
     this.tokenizer.invalidate();
     clearTokenCache();
