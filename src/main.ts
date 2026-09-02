@@ -10,6 +10,7 @@ import {
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
 import { migrateAiSettingsToV2, migrateOverrideKeys } from "./settings/migrations";
+import { planScriptChange } from "./settings/scriptChange";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
 import { filterSettingsForSharing } from "./settings/SettingsIO";
@@ -609,21 +610,19 @@ export default class CciPlugin extends Plugin {
    * `setDictionaryOverride` above.
    */
   applyScriptSideEffects(): void {
-    const script = this.settings.scriptVariant;
-    const region = this.settings.pronunciationRegion;
-    const scriptChanged = script !== this.lastAppliedScriptVariant;
-    // Region matters here too, and for the same reason: it also travels
-    // through importSettings() and the settings mirror, and the RubyWidget
-    // snapshots pinyin when it is built, so cached tokens have to go for the
-    // new reading to reach the page.
-    const regionChanged = region !== this.lastAppliedRegion;
-    if (!scriptChanged && !regionChanged) return;
-    this.lastAppliedScriptVariant = script;
-    this.lastAppliedRegion = region;
+    const next = {
+      script: this.settings.scriptVariant,
+      region: this.settings.pronunciationRegion,
+    };
+    const plan = planScriptChange(
+      { script: this.lastAppliedScriptVariant, region: this.lastAppliedRegion },
+      next
+    );
+    if (plan.noop) return;
+    this.lastAppliedScriptVariant = next.script;
+    this.lastAppliedRegion = next.region;
 
-    if (scriptChanged) {
-      // Only a script change alters segmentation, so only it needs the trie
-      // and the surface-lookup cache rebuilt.
+    if (plan.rebuildTrie) {
       this.tokenizer?.invalidate();
       this.vocab?.clearSurfaceCache();
       for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
@@ -633,10 +632,12 @@ export default class CciPlugin extends Plugin {
         }
       }
     }
-    clearTokenCache();
-    this.forceRetokenizeViews();
-    this.refreshChineseViews();
-    this.refreshStatsViews();
+    if (plan.retokenize) {
+      clearTokenCache();
+      this.forceRetokenizeViews();
+      this.refreshChineseViews();
+      this.refreshStatsViews();
+    }
   }
 
   async saveSettings(): Promise<void> {
