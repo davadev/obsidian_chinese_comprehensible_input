@@ -444,6 +444,23 @@ export class ViewToolbar {
       });
     };
 
+    // Script first: on mobile, opening Settings mid-read to flip this is
+    // painful, and a Traditional reader needs it before anything else works.
+    const scriptHint = menu.createDiv({ cls: "cci-overflow-hint" });
+    scriptHint.setText("Script");
+    checkRow(
+      "Traditional characters",
+      () => this.plugin.settings.scriptVariant === "traditional",
+      async (v) => {
+        this.plugin.settings.scriptVariant = v ? "traditional" : "simplified";
+        // saveSettings routes through applyScriptSideEffects(), which
+        // rebuilds the trie and re-tokenizes. The colour checkboxes below
+        // get away with a plain redecorate; this one must not — segmentation
+        // itself changes, and a redecorate would reuse the stale tokens.
+        await this.plugin.saveSettings();
+      }
+    );
+
     const hint = menu.createDiv({ cls: "cci-overflow-hint" });
     hint.setText(
       this.plugin.settings.colorMode === "hsk"

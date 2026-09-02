@@ -198,6 +198,9 @@ export class ChineseTextFileView extends TextFileView {
     }
     this.ensureEditor(split.body);
     this.refreshPreviewActions();
+    // After the dictionary is warm (the tokenize above), so the detector has
+    // the traditional-form index it needs.
+    this.plugin.maybeSuggestTraditional(split.body);
 
     // Header action next to the standard view controls — single-tap path to
     // Obsidian's Markdown view in edit mode. Matches the affordance position

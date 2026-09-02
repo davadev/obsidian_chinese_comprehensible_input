@@ -1,4 +1,5 @@
 import { ItemView, Notice, TFile, WorkspaceLeaf } from "obsidian";
+import { displayPinyin, displaySurface } from "../dictionary/displayForms";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
@@ -28,6 +29,17 @@ export class StatsView extends ItemView {
   private progressWindow = { day: 30, week: 12, month: 12 } as const;
   private triageIndex = 0;
   private triageContextCache = new Map<string, string>();
+
+  /**
+   * Drop everything derived from tokenizing notes. `refreshStatsViews()`
+   * only re-renders, so without this a script switch would keep serving
+   * note-scope surfaces and example sentences computed under the old trie.
+   */
+  invalidateCaches(): void {
+    this.triageContextCache.clear();
+    this.noteSurfaces.clear();
+  }
+
   private triagePartialAxes: { surface: string; chars: boolean; pinyin: boolean; meaning: boolean } | null = null;
   private triageReveal = 0; // 0 = chars only, 1 = + pinyin, 2 = + definitions
   // Flashcards tab — mode is persisted in settings. Smart story panel
@@ -562,7 +574,9 @@ export class StatsView extends ItemView {
     });
 
     const card = wrap.createDiv({ cls: "cci-triage-card" });
-    const surface = rec.simplified ?? rec.surfaces[0] ?? "";
+    // The form the learner actually reads. Never a converted one — see
+    // displayForms.ts; drilling 干 as 乹 would teach a character nobody writes.
+    const surface = displaySurface(rec, this.plugin.settings.scriptVariant, this.plugin.dictionary);
     const headRow = card.createDiv({ cls: "cci-triage-headrow" });
     const headTerm = headRow.createDiv({ cls: "cci-triage-term" });
     headTerm.textContent = surface;
@@ -570,8 +584,15 @@ export class StatsView extends ItemView {
     // Pinyin + definitions are answer-revealing. Hidden by default so
     // the user assesses from context first. The Reveal button below
     // unlocks them step by step.
-    if (rec.pinyin && this.triageReveal >= 1) {
-      meta.createDiv({ cls: "cci-triage-pinyin", text: rec.pinyin });
+    // Read through the live dictionary rather than the record's snapshot, so
+    // the card picks up both the tone repair and the Taiwan reading.
+    const cardPinyin = displayPinyin(
+      this.plugin.dictionary.lookup(surface)[0],
+      rec,
+      this.plugin.settings.pronunciationRegion
+    );
+    if (cardPinyin && this.triageReveal >= 1) {
+      meta.createDiv({ cls: "cci-triage-pinyin", text: cardPinyin });
     }
     const seenLine = `Seen ${rec.seenCount}×`;
     meta.createDiv({ cls: "cci-triage-stats", text: seenLine });
@@ -582,7 +603,7 @@ export class StatsView extends ItemView {
     }
 
     // Reveal control. Stages: 0 = chars only, 1 = + pinyin, 2 = + defs.
-    const canRevealPinyin = !!rec.pinyin;
+    const canRevealPinyin = !!cardPinyin;
     const canRevealDefs = !!(rec.definitions && rec.definitions.length);
     const maxStage = canRevealDefs ? 2 : canRevealPinyin ? 1 : 0;
     if (maxStage > 0 && this.triageReveal < maxStage) {
@@ -1014,7 +1035,9 @@ export class StatsView extends ItemView {
       const tr = body.createEl("tr");
       const c = colorClassKey(r, settings.colorMode, settings.hskSource);
       tr.addClass(`cci-row-color-${c}`);
-      tr.createEl("td", { text: r.simplified ?? r.surfaces[0] });
+      tr.createEl("td", {
+        text: displaySurface(r, this.plugin.settings.scriptVariant, this.plugin.dictionary),
+      });
       tr.createEl("td", { text: r.pinyin ?? "" });
       tr.createEl("td", { cls: "cci-stats-defcol", text: (r.definitions ?? []).slice(0, 1).join("; ") });
       tr.createEl("td", { text: (r.hsk?.levels ?? []).join("/") });
@@ -1048,7 +1071,14 @@ export class StatsView extends ItemView {
     }
     if (this.query) {
       rows = rows.filter((r) => {
-        const t = (r.simplified ?? "") + " " + (r.pinyin ?? "") + " " + (r.definitions ?? []).join(" ");
+        // Search every surface, not just the simplified one, or a
+        // Traditional reader typing 學習 finds nothing.
+        const t =
+          (r.surfaces ?? []).join(" ") +
+          " " + (r.simplified ?? "") +
+          " " + (r.traditional ?? "") +
+          " " + (r.pinyin ?? "") +
+          " " + (r.definitions ?? []).join(" ");
         return t.toLowerCase().includes(this.query);
       });
     }
@@ -1065,7 +1095,9 @@ export class StatsView extends ItemView {
   private scopedRecords(): WordRecord[] {
     let rows = this.plugin.vocab.values();
     if (this.noteScope && this.noteSurfaces.size > 0) {
-      rows = rows.filter((r) => this.noteSurfaces.has(r.simplified ?? r.surfaces[0]));
+      // noteSurfaces holds raw token surfaces, which are traditional in a
+      // traditional note — matching only r.simplified emptied the list.
+      rows = rows.filter((r) => (r.surfaces ?? []).some((s) => this.noteSurfaces.has(s)));
     }
     return rows;
   }
@@ -1073,7 +1105,13 @@ export class StatsView extends ItemView {
   private openDetail(r: WordRecord) {
     const root = this.containerEl.children[1] as HTMLElement;
     const modal = root.createDiv({ cls: "cci-popup cci-popup-overlay" });
-    modal.createEl("h3", { text: `${r.simplified ?? r.surfaces[0]} (${r.pinyin ?? ""})` });
+    const detailSurface = displaySurface(r, this.plugin.settings.scriptVariant, this.plugin.dictionary);
+    const detailPinyin = displayPinyin(
+      this.plugin.dictionary.lookup(detailSurface)[0],
+      r,
+      this.plugin.settings.pronunciationRegion
+    );
+    modal.createEl("h3", { text: `${detailSurface} (${detailPinyin})` });
     modal.createEl("p", { text: (r.definitions ?? []).join("; ") });
     modal.createEl("p", { text: `Status: ${r.status} · HSK: ${(r.hsk?.levels ?? []).join("/")} · Seen: ${r.seenCount}` });
     if (r.mnemonic?.text) modal.createEl("p", { text: `🧠 ${r.mnemonic.text}` });

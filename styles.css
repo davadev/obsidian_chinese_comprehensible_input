@@ -1689,3 +1689,15 @@
 .cci-openai-usage-gridhead:first-child { text-align: left; }
 .cci-openai-usage-gridlabel { color: var(--text-muted); }
 .cci-openai-usage-gridval { text-align: right; }
+
+/* Action row inside the "this note looks Traditional" notice. */
+.cci-notice-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cci-notice-actions button {
+  font-size: var(--font-ui-smaller);
+  padding: 2px 10px;
+}

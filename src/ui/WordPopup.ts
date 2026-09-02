@@ -5,6 +5,7 @@ import { axesFromStatus } from "../vocabulary/axes";
 import { clampGraphemes } from "../vocabulary/mnemonicText";
 import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
+import { counterpartSurface, displayPinyin, displaySurface } from "../dictionary/displayForms";
 
 export class WordPopup {
   private el: HTMLElement | null = null;
@@ -77,21 +78,26 @@ export class WordPopup {
 
     const dictTop = this.plugin.dictionary.lookup(rec.surfaces[0])[0];
 
+    const script = this.plugin.settings.scriptVariant;
     const head = el.createDiv({ cls: "cci-popup-head" });
-    head.textContent = rec.simplified ?? rec.surfaces[0];
+    // The headword is the form the learner actually met, so it always
+    // matches the characters they just tapped on the page.
+    const shown = displaySurface(rec, script, this.plugin.dictionary);
+    head.textContent = shown;
 
-    const displayPinyin = dictTop?.pinyin ?? rec.pinyin;
-    const displayTraditional = dictTop?.traditional ?? rec.traditional;
-
-    if (displayPinyin) {
+    const pinyin = displayPinyin(dictTop, rec, this.plugin.settings.pronunciationRegion);
+    if (pinyin) {
       const py = el.createDiv({ cls: "cci-popup-pinyin" });
-      py.textContent = displayPinyin;
+      py.textContent = pinyin;
     }
 
-    if (displayTraditional && displayTraditional !== (rec.simplified ?? rec.surfaces[0])) {
+    // The other script, but only when the mapping is unambiguous — see
+    // displayForms.ts for why guessing is worse than saying nothing.
+    const other = counterpartSurface(dictTop, shown, script, this.plugin.dictionary);
+    if (other) {
       const tr = el.createDiv({ cls: "cci-popup-meta" });
-      tr.createSpan({ text: "Traditional:" });
-      tr.createSpan({ text: displayTraditional });
+      tr.createSpan({ text: `${other.label}:` });
+      tr.createSpan({ text: other.value });
     }
 
     const defs = el.createDiv({ cls: "cci-popup-defs cci-popup-defs-scroll" });

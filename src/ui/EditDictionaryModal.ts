@@ -62,7 +62,11 @@ export class EditDictionaryModal extends Modal {
       text: this.props.mode === "override" ? "Edit dictionary entry" : "Add custom word",
     });
 
-    const surfaceInput = this.field(contentEl, "Surface (simplified)", this.props.surface);
+    const surfaceLabel =
+      this.plugin.settings.scriptVariant === "traditional"
+        ? "Surface (traditional)"
+        : "Surface (simplified)";
+    const surfaceInput = this.field(contentEl, surfaceLabel, this.props.surface);
     if (this.props.mode === "override" || this.props.isExistingCustom) {
       surfaceInput.disabled = true;
     }

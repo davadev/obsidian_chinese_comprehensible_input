@@ -14,6 +14,7 @@ import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
 import { filterSettingsForSharing } from "./settings/SettingsIO";
 import { DictionaryService } from "./dictionary/DictionaryService";
+import { looksTraditional } from "./dictionary/scriptDetect";
 import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
 import { VocabularyStore } from "./vocabulary/VocabularyStore";
@@ -62,6 +63,8 @@ export default class CciPlugin extends Plugin {
   /** Last `scriptVariant` the reader was actually rebuilt for. Drives
    *  {@link applyScriptSideEffects}; see that method for why. */
   private lastAppliedScriptVariant: CciSettings["scriptVariant"] = "simplified";
+  /** One Traditional-script suggestion per session, at most. */
+  private traditionalPromptShown = false;
   dictionaryCustomWords: DictionaryCustomWords = {};
 
   private viewMode: ViewMode = "read";
@@ -305,7 +308,7 @@ export default class CciPlugin extends Plugin {
       () => this.settings.story.folder,
       (entry) => this.recordAiUsage(entry)
     );
-    this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings);
+    this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings, this.dictionary);
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.mnemonic = new MnemonicService(this.ai, () => this.settings);
     this.popup = new WordPopup(this);
@@ -556,6 +559,38 @@ export default class CciPlugin extends Plugin {
   private lastSharedFingerprint: string | null = null;
 
   /**
+   * Offer to switch to Traditional when a note plainly is.
+   *
+   * Shown at most once per session and never again after "Don't ask again",
+   * and it never switches on its own — detection is one-directional and
+   * deliberately conservative (see `scriptDetect.ts`), but a wrong guess
+   * that silently rebuilt the reader would be far worse than a missed one.
+   */
+  maybeSuggestTraditional(text: string): void {
+    if (this.traditionalPromptShown) return;
+    if (this.settings.traditionalPromptDismissed) return;
+    if (this.settings.scriptVariant !== "simplified") return;
+    if (!looksTraditional(text, this.dictionary)) return;
+    this.traditionalPromptShown = true;
+
+    const notice = new Notice("", 15000);
+    notice.messageEl.createDiv({
+      text: "This note looks like Traditional Chinese. Switch so words are recognised correctly?",
+    });
+    const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
+    row.createEl("button", { text: "Switch to Traditional" }).addEventListener("click", () => {
+      notice.hide();
+      this.settings.scriptVariant = "traditional";
+      void this.saveSettings();
+    });
+    row.createEl("button", { text: "Don't ask again" }).addEventListener("click", () => {
+      notice.hide();
+      this.settings.traditionalPromptDismissed = true;
+      void this.saveSettings();
+    });
+  }
+
+  /**
    * Re-tokenize when the script changed, wherever that change came from.
    *
    * Four paths can move `scriptVariant`: the settings tab, the reading
@@ -577,6 +612,12 @@ export default class CciPlugin extends Plugin {
     this.tokenizer?.invalidate();
     this.vocab?.clearSurfaceCache();
     clearTokenCache();
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
+      const v = leaf.view;
+      if (v instanceof StatsView && typeof v.invalidateCaches === "function") {
+        v.invalidateCaches();
+      }
+    }
     this.forceRetokenizeViews();
     this.refreshChineseViews();
     this.refreshStatsViews();
