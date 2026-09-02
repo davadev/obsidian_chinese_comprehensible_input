@@ -2,7 +2,8 @@ import { App, normalizePath } from "obsidian";
 import { DictionaryCustomWords, DictionaryEntry, DictionaryOverrides } from "./DictionaryTypes";
 import { SEED_ENTRIES } from "./seedDictionary";
 import { HSK_MAP, HSK_SOURCE } from "./hskMap.generated";
-import { makeKey } from "./normalizeChinese";
+import { makeKey, repairPinyin } from "./normalizeChinese";
+import { extractTaiwanReading } from "./taiwanReading";
 
 /**
  * Lazy dictionary store.
@@ -90,6 +91,15 @@ export class DictionaryService {
   }
 
   private index(e: DictionaryEntry) {
+    // Three derived fields are filled in here rather than on disk, so an
+    // existing user picks all of them up on the next load without having
+    // to re-download the dictionary. They are gathered into one patch and
+    // applied with a single spread: this runs for every one of ~125k
+    // entries at load, and cloning once per field would triple the
+    // allocation churn. The clone (rather than mutation) is what keeps the
+    // module-level SEED_ENTRIES objects immutable across reload().
+    const patch: Partial<DictionaryEntry> = {};
+
     // Backfill HSK level metadata from the generated hskMap when the
     // entry has none of its own. Seed entries that already carry an
     // explicit `hsk` are NOT overwritten — they win per the project's
@@ -99,13 +109,24 @@ export class DictionaryService {
     // the dictionary file on disk.
     if (!e.hsk) {
       const level = HSK_MAP[e.simplified];
-      if (level) {
-        e = {
-          ...e,
-          hsk: { source: HSK_SOURCE, levels: [String(level)] },
-        };
-      }
+      if (level) patch.hsk = { source: HSK_SOURCE, levels: [String(level)] };
     }
+
+    // Repair pinyin written by an older build: -iu tone marks on the wrong
+    // vowel (jǐu -> jiǔ) and ü syllables left with a bare tone digit
+    // (nü3 -> nǚ). Key-safe — see repairPinyin's contract.
+    const repaired = repairPinyin(e.pinyin);
+    if (repaired !== e.pinyin) patch.pinyin = repaired;
+
+    // CC-CEDICT records Taiwan readings as a trailing "Taiwan pr. [le4 se4]"
+    // gloss. Lift it into a real field; the gloss stays in definitions[] so
+    // the popup still shows it.
+    if (!e.pinyinTaiwan) {
+      const tw = extractTaiwanReading(e.definitions);
+      if (tw) patch.pinyinTaiwan = tw;
+    }
+
+    if (Object.keys(patch).length > 0) e = { ...e, ...patch };
     const s = this.bySimplified.get(e.simplified) ?? [];
     s.push(e);
     this.bySimplified.set(e.simplified, s);
@@ -116,6 +137,18 @@ export class DictionaryService {
     }
   }
 
+  /**
+   * True when `ch` is written only in Traditional — it appears as a
+   * traditional form and is never itself a simplified headword.
+   *
+   * Deliberately excludes characters like 台, 只 and 后, which ARE
+   * simplified headwords and so carry no evidence either way despite being
+   * common in Taiwan writing. See `scriptDetect.ts`.
+   */
+  isTraditionalMarker(ch: string): boolean {
+    return this.byTraditional.has(ch) && !this.bySimplified.has(ch);
+  }
+
   /** True if any entry exists for surface (simplified or traditional). */
   has(surface: string): boolean {
     if (this.getCustomWords()[surface]) return true;
@@ -124,7 +157,29 @@ export class DictionaryService {
 
   /** Returns native dictionary entries WITHOUT user overrides or custom words applied. */
   lookupRaw(surface: string): DictionaryEntry[] {
-    return this.bySimplified.get(surface) ?? this.byTraditional.get(surface) ?? [];
+    return this.native(surface);
+  }
+
+  /**
+   * Native entries for a surface, simplified-map entries FIRST.
+   *
+   * The ordering is load-bearing and must never depend on a setting:
+   * `VocabularyStore.ensure()` derives its canonical key from
+   * `lookup(surface)[0].simplified`, so if `[0]` could move, every record
+   * for the 66 surfaces that are both a simplified headword and someone
+   * else's traditional form (著, 乾, 宁, 於 …) would be re-keyed whenever
+   * the user toggled the script.
+   *
+   * Appending the traditional-map entries rather than the previous
+   * `simplified ?? traditional` recovers the senses that were silently
+   * dropped for those 66 surfaces, while leaving `[0]` exactly as it was.
+   */
+  private native(surface: string): DictionaryEntry[] {
+    const simplified = this.bySimplified.get(surface);
+    const traditional = this.byTraditional.get(surface);
+    if (!traditional) return simplified ?? [];
+    if (!simplified) return traditional;
+    return [...simplified, ...traditional.filter((e) => !simplified.includes(e))];
   }
 
   lookup(surface: string): DictionaryEntry[] {
@@ -139,7 +194,7 @@ export class DictionaryService {
         hsk: custom.hsk,
       });
     }
-    const native = this.bySimplified.get(surface) ?? this.byTraditional.get(surface) ?? [];
+    const native = this.native(surface);
     const overrides = this.getOverrides();
     for (const e of native) {
       const key = makeKey(e.simplified, e.pinyin);
@@ -151,6 +206,7 @@ export class DictionaryService {
       out.push({
         ...e,
         pinyin: ov.pinyin ?? e.pinyin,
+        pinyinTaiwan: ov.pinyinTaiwan ?? e.pinyinTaiwan,
         traditional: ov.traditional ?? e.traditional,
         definitions: ov.definitions ?? e.definitions,
         hsk: ov.hsk ?? e.hsk,
@@ -160,17 +216,59 @@ export class DictionaryService {
     return out;
   }
 
-  /** Iterate all simplified surfaces — native + user-added custom words.
-   * Used by the tokenizer to build its trie. */
-  *surfaces(): IterableIterator<string> {
+  /**
+   * Every surface the tokenizer should be able to match — native entries
+   * plus user-added custom words. This is the sole feed for the trie.
+   *
+   * `includeTraditional` is a UNION, not a swap: Traditional readers still
+   * meet Simplified text, and a vault holding both kinds of note has to keep
+   * working without a per-note switch. It defaults to off so an upgrading
+   * Simplified user gets a bit-identical trie.
+   *
+   * Cost of the union, measured on the 125k-entry CC-CEDICT build:
+   * 121,275 -> 198,106 keys, trie build 26 ms -> 42 ms, heap 44 MB -> 68 MB.
+   */
+  *surfaces(opts: { includeTraditional?: boolean } = {}): IterableIterator<string> {
     const seen = new Set<string>();
     for (const s of this.bySimplified.keys()) {
       seen.add(s);
       yield s;
     }
-    for (const s of Object.keys(this.getCustomWords())) {
-      if (!seen.has(s)) yield s;
+    if (opts.includeTraditional) {
+      for (const t of this.byTraditional.keys()) {
+        if (seen.has(t)) continue;
+        seen.add(t);
+        yield t;
+      }
     }
+    for (const [surface, word] of Object.entries(this.getCustomWords())) {
+      if (!seen.has(surface)) {
+        seen.add(surface);
+        yield surface;
+      }
+      if (opts.includeTraditional && word.traditional && !seen.has(word.traditional)) {
+        seen.add(word.traditional);
+        yield word.traditional;
+      }
+    }
+  }
+
+  /**
+   * How many distinct traditional forms the dictionary knows for a surface.
+   *
+   * Used to decide whether showing "the traditional form" is even meaningful.
+   * 1,078 simplified headwords map to more than one — 发 is 發 or 髮, 干 is
+   * 乾 or 幹, 复 is 復/複/覆 — and CC-CEDICT orders entries by codepoint
+   * rather than frequency, so picking the first would routinely surface an
+   * obsolete variant (干 -> 乹, 历 -> 厤). Anything above 1 means "do not
+   * guess".
+   */
+  distinctTraditionalForms(surface: string): number {
+    const forms = new Set<string>();
+    for (const e of this.lookup(surface)) {
+      if (e.traditional && e.traditional !== e.simplified) forms.add(e.traditional);
+    }
+    return forms.size;
   }
 
   /** All entries combined (simplified + traditional-only). */

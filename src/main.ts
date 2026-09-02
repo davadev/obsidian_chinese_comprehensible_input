@@ -9,11 +9,13 @@ import {
 } from "./dictionary/DictionaryTypes";
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
-import { migrateAiSettingsToV2 } from "./settings/migrations";
+import { migrateAiSettingsToV2, migrateOverrideKeys } from "./settings/migrations";
+import { planScriptChange } from "./settings/scriptChange";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
 import { filterSettingsForSharing } from "./settings/SettingsIO";
 import { DictionaryService } from "./dictionary/DictionaryService";
+import { looksTraditional } from "./dictionary/scriptDetect";
 import { DictionaryDownloader } from "./dictionary/DictionaryDownloader";
 import { TokenizerService } from "./tokenizer/TokenizerService";
 import { VocabularyStore } from "./vocabulary/VocabularyStore";
@@ -59,6 +61,13 @@ export default class CciPlugin extends Plugin {
    * redownload (which only rewrites .cci-dictionary.json).
    */
   dictionaryOverrides: DictionaryOverrides = {};
+  /** Last `scriptVariant` the reader was actually rebuilt for. Drives
+   *  {@link applyScriptSideEffects}; see that method for why. */
+  private lastAppliedScriptVariant: CciSettings["scriptVariant"] = "simplified";
+  /** Last `pronunciationRegion` the reader was actually rebuilt for. */
+  private lastAppliedRegion: CciSettings["pronunciationRegion"] = "mainland";
+  /** One Traditional-script suggestion per session, at most. */
+  private traditionalPromptShown = false;
   dictionaryCustomWords: DictionaryCustomWords = {};
 
   private viewMode: ViewMode = "read";
@@ -238,11 +247,24 @@ export default class CciPlugin extends Plugin {
       void this.saveSettingsSilently();
     }
     applyCustomColors(this.settings);
+    // The reader is about to be built for whatever script is stored, so
+    // record it as already applied — otherwise the first saveSettings()
+    // would see a change from the "simplified" field initialiser and
+    // re-tokenize for nothing.
+    this.lastAppliedScriptVariant = this.settings.scriptVariant;
+    this.lastAppliedRegion = this.settings.pronunciationRegion;
     // Snapshot the initial filtered-settings fingerprint so saveSettings
     // can tell whether a UI change actually altered a sync-eligible field.
     this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
 
-    this.dictionaryOverrides = blob.dictionaryOverrides ?? {};
+    // 0.6.0 re-keys dictionary overrides after the pinyin repair. Unlike
+    // WordRecords — which dedupeOnLoad() re-derives every load — overrides
+    // are a plain map that is never re-derived, so they need this one-shot
+    // pass or the ~1,066 affected entries would be orphaned. Pure string
+    // transform: it must not consult the dictionary, which is still
+    // unloaded at this point and only reads lazily on first tokenize.
+    const migratedOverrides = migrateOverrideKeys(blob.dictionaryOverrides ?? {});
+    this.dictionaryOverrides = migratedOverrides.overrides;
     this.dictionaryCustomWords = blob.dictionaryCustomWords ?? {};
 
     this.dictionary = new DictionaryService(this.app);
@@ -259,6 +281,26 @@ export default class CciPlugin extends Plugin {
       mergeRemote: (o, c) => this.mergeMirroredDictionaryData(o, c),
     });
     await this.vocab.load(blob);
+    if (migratedOverrides.moved > 0) {
+      // Write the re-keyed override map back once so the on-disk blob stops
+      // carrying legacy keys.
+      //
+      // Deliberately NOT saveDictionaryUserData(): that flushes through
+      // vocab.flushSave(), which schedules a mirror write. At this point
+      // `bootstrapMirrorAfterLoad()` has not run yet, so the mirror still
+      // holds the remote envelope this device has never merged — writing
+      // local-only vocabulary over it would lose whatever another device
+      // had. The mirror picks the corrected keys up on its next natural
+      // write, after the bootstrap merge.
+      //
+      // Errors are swallowed rather than floated: an unhandled rejection
+      // during onload surfaces as Obsidian's generic "plugin encountered an
+      // error while loading", and the migration is idempotent, so failing
+      // here just means it runs again next launch.
+      void this.updateDataBlob((b) => {
+        b.dictionaryOverrides = this.dictionaryOverrides;
+      }).catch((e) => console.error("CCI: override key migration write failed", e));
+    }
     this.registerSyncMirrorWatchers();
     this.startSyncMirrorPoller();
 
@@ -281,7 +323,7 @@ export default class CciPlugin extends Plugin {
       () => this.settings.story.folder,
       (entry) => this.recordAiUsage(entry)
     );
-    this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings);
+    this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings, this.dictionary);
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.mnemonic = new MnemonicService(this.ai, () => this.settings);
     this.popup = new WordPopup(this);
@@ -485,6 +527,7 @@ export default class CciPlugin extends Plugin {
         try {
           await this.dictDownloader.run();
           await this.dictionary.reload();
+          this.vocab.clearSurfaceCache();
           notice.setMessage("Chinese plugin: dictionary ready.");
           window.setTimeout(() => notice.hide(), 3000);
         } catch (err) {
@@ -531,6 +574,84 @@ export default class CciPlugin extends Plugin {
    *  mark the device as touched and don't trigger a clobbering write. */
   private lastSharedFingerprint: string | null = null;
 
+  /**
+   * Offer to switch to Traditional when a note plainly is.
+   *
+   * Shown at most once per session and never again after "Don't ask again",
+   * and it never switches on its own — detection is one-directional and
+   * deliberately conservative (see `scriptDetect.ts`), but a wrong guess
+   * that silently rebuilt the reader would be far worse than a missed one.
+   */
+  maybeSuggestTraditional(text: string): void {
+    if (this.traditionalPromptShown) return;
+    if (this.settings.traditionalPromptDismissed) return;
+    if (this.settings.scriptVariant !== "simplified") return;
+    if (!looksTraditional(text, this.dictionary)) return;
+    this.traditionalPromptShown = true;
+
+    const notice = new Notice("", 15000);
+    notice.messageEl.createDiv({
+      text: "This note looks like Traditional Chinese. Switch so words are recognised correctly?",
+    });
+    const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
+    row.createEl("button", { text: "Switch to Traditional" }).addEventListener("click", () => {
+      notice.hide();
+      this.settings.scriptVariant = "traditional";
+      void this.saveSettings();
+    });
+    row.createEl("button", { text: "Don't ask again" }).addEventListener("click", () => {
+      notice.hide();
+      this.settings.traditionalPromptDismissed = true;
+      void this.saveSettings();
+    });
+  }
+
+  /**
+   * Re-tokenize when the script changed, wherever that change came from.
+   *
+   * Four paths can move `scriptVariant`: the settings tab, the reading
+   * view's overflow menu, `importSettings()`, and a remote `SettingsMirror`
+   * apply. The last two replace `this.settings` wholesale and then refresh
+   * views only — so a script flip arriving that way would repaint fresh
+   * colors over a stale trie, with no error anywhere. Rather than remember
+   * the invalidation sequence at four call sites, everything funnels
+   * through here off a single remembered value.
+   *
+   * A plain redecorate is not enough: tokens (and the `selected` entry the
+   * ruby reads) are captured at tokenize time. Same reasoning as
+   * `setDictionaryOverride` above.
+   */
+  applyScriptSideEffects(): void {
+    const next = {
+      script: this.settings.scriptVariant,
+      region: this.settings.pronunciationRegion,
+    };
+    const plan = planScriptChange(
+      { script: this.lastAppliedScriptVariant, region: this.lastAppliedRegion },
+      next
+    );
+    if (plan.noop) return;
+    this.lastAppliedScriptVariant = next.script;
+    this.lastAppliedRegion = next.region;
+
+    if (plan.rebuildTrie) {
+      this.tokenizer?.invalidate();
+      this.vocab?.clearSurfaceCache();
+      for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
+        const v = leaf.view;
+        if (v instanceof StatsView && typeof v.invalidateCaches === "function") {
+          v.invalidateCaches();
+        }
+      }
+    }
+    if (plan.retokenize) {
+      clearTokenCache();
+      this.forceRetokenizeViews();
+      this.refreshChineseViews();
+      this.refreshStatsViews();
+    }
+  }
+
   async saveSettings(): Promise<void> {
     const fp = JSON.stringify(filterSettingsForSharing(this.settings));
     const shareableChanged = fp !== this.lastSharedFingerprint;
@@ -545,6 +666,11 @@ export default class CciPlugin extends Plugin {
    *  accent derivation at first install (we don't want internal writes
    *  to mark the user as "touched" and start broadcasting defaults). */
   async saveSettingsSilently(opts: { markUserTouched?: boolean } = {}): Promise<void> {
+    // The guard lives here rather than in saveSettings() because
+    // SettingsMirror applies a remote settings change through this method
+    // directly — putting it one level up would miss exactly the path that
+    // is hardest to notice going wrong.
+    this.applyScriptSideEffects();
     await this.updateDataBlob((blob) => {
       blob.settings = this.settings;
       if (opts.markUserTouched) {
@@ -599,7 +725,11 @@ export default class CciPlugin extends Plugin {
     customWords: DictionaryCustomWords
   ): Promise<void> {
     let mutated = false;
-    for (const [k, v] of Object.entries(overrides)) {
+    // A device still on 0.5.1 mirrors override keys in the legacy spelling,
+    // so they have to be migrated on the way in as well — the onload pass
+    // only ever sees this device's own blob.
+    const { overrides: incoming } = migrateOverrideKeys(overrides);
+    for (const [k, v] of Object.entries(incoming)) {
       const local = this.dictionaryOverrides[k];
       const localTs = local?.updatedAt ?? "";
       const remoteTs = v?.updatedAt ?? "";
@@ -626,6 +756,11 @@ export default class CciPlugin extends Plugin {
       blob.dictionaryCustomWords = this.dictionaryCustomWords;
     });
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
+    // reload() changes what lookup() resolves a surface to, and bySurface()
+    // memoises that. Nothing cleared it before, so a newly absorbed custom
+    // word could keep resolving to a cached miss.
+    this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
     this.refreshStatsViews();
@@ -635,6 +770,7 @@ export default class CciPlugin extends Plugin {
     this.dictionaryOverrides[key] = { ...ov, updatedAt: new Date().toISOString() };
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshChineseViews();
     // The 3-line ruby gloss reads from the cached token's `selected`
     // field, which is captured at tokenize-time. A plain redecorate
@@ -650,6 +786,7 @@ export default class CciPlugin extends Plugin {
     delete this.dictionaryOverrides[key];
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshChineseViews();
     clearTokenCache();
     this.forceRetokenizeViews();
@@ -667,6 +804,7 @@ export default class CciPlugin extends Plugin {
     };
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
     this.forceRetokenizeViews();
@@ -677,6 +815,7 @@ export default class CciPlugin extends Plugin {
     delete this.dictionaryCustomWords[surface];
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
     this.forceRetokenizeViews();
@@ -690,10 +829,13 @@ export default class CciPlugin extends Plugin {
    * re-tokenizes against the new overrides.
    */
   refreshTokenizerCustomWords(): void {
-    const overrides = Object.values(this.dictionaryCustomWords).map((w) => ({
-      surface: w.simplified,
-      mergeAs: w.simplified,
-    }));
+    const overrides = Object.values(this.dictionaryCustomWords).flatMap((w) => {
+      const forms = [w.simplified];
+      // A custom word met in the other script has to merge too, or it
+      // tokenizes character by character there.
+      if (w.traditional && w.traditional !== w.simplified) forms.push(w.traditional);
+      return forms.map((surface) => ({ surface, mergeAs: surface }));
+    });
     this.tokenizer.setOverrides(overrides);
     this.tokenizer.invalidate();
     clearTokenCache();

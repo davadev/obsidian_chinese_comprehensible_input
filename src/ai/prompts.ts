@@ -16,12 +16,28 @@ export interface TargetWord {
   definition: string;
 }
 
+/**
+ * The script/usage clause for a generated text.
+ *
+ * Asking only for Traditional characters is not enough: it yields Mainland
+ * vocabulary in Traditional clothing, which reads wrong to a Taiwan learner.
+ * CC-CEDICT tags 1,263 entries `(Tw)` and carries both halves of every common
+ * pair (網路/網絡, 影片/視頻, 軟體/軟件), so the distinction is real.
+ */
+export function scriptClause(script: "simplified" | "traditional"): string {
+  return script === "traditional"
+    ? "Write the Chinese in Traditional characters as used in Taiwan, and prefer Taiwanese Mandarin " +
+        "vocabulary and usage (e.g. 網路 rather than 網絡, 影片 rather than 視頻). Do not use Simplified forms."
+    : "Write the Chinese in Simplified characters as used in mainland China. Do not use Traditional forms.";
+}
+
 export function buildUserPrompt(args: {
   style: "story" | "article" | "dialogue";
   targetHsk: string;
   targetWords: TargetWord[];
   knownWords?: string[];
   lengthChars: number;
+  script: "simplified" | "traditional";
 }): string {
   const wordsBlock = args.targetWords
     .map((w, i) => `  ${i + 1}. ${w.word} (${w.pinyin}) — ${w.definition}`)
@@ -31,6 +47,7 @@ export function buildUserPrompt(args: {
     : "";
   return (
     `Create a Chinese ${args.style} for a learner around HSK ${args.targetHsk}.\n` +
+    `${scriptClause(args.script)}\n` +
     `Required target words (use every one at least once, naturally; reuse a word 2-3 times where it fits the story without forcing it):\n${wordsBlock}\n` +
     knownWordsBlock +
     `For all other vocabulary, prefer words at or below HSK ${args.targetHsk}.\n` +
@@ -46,6 +63,7 @@ export function buildRepairPrompt(args: {
   tooHardWords: string[];
   targetHsk: string;
   totalTargets: number;
+  script: "simplified" | "traditional";
 }): string {
   const attemptsBlock = args.priorAttempts
     .map(
@@ -63,8 +81,9 @@ export function buildRepairPrompt(args: {
     `${attemptsBlock}\n\n` +
     `${args.missingTargetWords.length} of ${args.totalTargets} target words are still missing from textChinese.\n` +
     `Each missing word below MUST appear at least once verbatim inside textChinese, ` +
-    `as the exact simplified-Chinese surface form. Putting it in a glossary, comment, ` +
-    `or paraphrase does NOT count. Where natural, use a missing target word more than once.\n\n` +
+    `as the exact surface form given. Putting it in a glossary, comment, ` +
+    `or paraphrase does NOT count. Where natural, use a missing target word more than once.\n` +
+    `${scriptClause(args.script)}\n\n` +
     `Missing target words to add to the story:\n${missingBlock || "  (none)"}\n\n` +
     `Also replace any too-difficult vocabulary with simpler alternatives at HSK ${args.targetHsk} or below: ${args.tooHardWords.join(", ") || "(none)"}.\n` +
     `Look at the prior attempts above to see which words you kept missing and adjust your approach accordingly. ` +

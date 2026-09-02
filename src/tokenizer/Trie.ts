@@ -6,9 +6,18 @@ export class TrieNode {
 export class Trie {
   private root = new TrieNode();
 
+  /**
+   * Note the deliberate index loop rather than `for...of`: `for...of`
+   * iterates code POINTS while `matchesFrom` walks the document one code
+   * UNIT at a time. Mixing the two meant any word containing a character
+   * outside the BMP (𪢌, 𨧀, …) was stored under a key the matcher could
+   * never reach, so it never matched. Both sides now agree on UTF-16
+   * units, which is also the offset space CodeMirror expects.
+   */
   insert(word: string): void {
     let n = this.root;
-    for (const ch of word) {
+    for (let i = 0; i < word.length; i++) {
+      const ch = word[i];
       let next = n.children.get(ch);
       if (!next) {
         next = new TrieNode();
@@ -37,8 +46,8 @@ export class Trie {
 
   hasPrefix(word: string): boolean {
     let n = this.root;
-    for (const ch of word) {
-      const c = n.children.get(ch);
+    for (let i = 0; i < word.length; i++) {
+      const c = n.children.get(word[i]);
       if (!c) return false;
       n = c;
     }

@@ -601,6 +601,19 @@ export class VocabularyStore {
     this.scheduleMirrorWrite();
   }
 
+  /**
+   * Drop the memoised surface -> record map.
+   *
+   * Public because callers outside this class can invalidate it: the
+   * dictionary reloading (which changes what `lookup()` resolves a surface
+   * to) and a script switch both do. `DictionaryService.reload()` has eight
+   * call sites and none of them could reach this before, so a freshly added
+   * custom word could keep resolving to a cached `null`.
+   */
+  clearSurfaceCache(): void {
+    this.clearSurfaceLookupCache();
+  }
+
   private clearSurfaceLookupCache(): void {
     this.surfaceLookupCache.clear();
   }

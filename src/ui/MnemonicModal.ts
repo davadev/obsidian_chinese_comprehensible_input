@@ -1,4 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
+import { displayPinyin } from "../dictionary/displayForms";
 import type CciPlugin from "../main";
 import type { MnemonicInput } from "../ai/MnemonicService";
 import type { WordRecord } from "../vocabulary/VocabularyTypes";
@@ -123,7 +124,7 @@ export class MnemonicModal extends Modal {
     const dict = this.plugin.dictionary.lookup(this.surface)[0];
     return {
       surface: this.surface,
-      pinyin: dict?.pinyin ?? this.rec.pinyin,
+      pinyin: displayPinyin(dict, this.rec, this.plugin.settings.pronunciationRegion),
       traditional: dict?.traditional ?? this.rec.traditional,
       definitions: dict?.definitions ?? this.rec.definitions ?? [],
       sentence: this.sentence,
