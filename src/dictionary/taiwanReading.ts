@@ -18,8 +18,13 @@ import { numbersToToneMarks } from "./normalizeChinese";
  */
 const TAIWAN_PR = /^Taiwan pr\.\s*\[([^\]]+)\]/;
 
-export function extractTaiwanReading(definitions: string[]): string | undefined {
+export function extractTaiwanReading(definitions: string[] | undefined): string | undefined {
+  // The vault-side dictionary file is user-supplied and only validated for
+  // `simplified` and `pinyin`, so a hand-edited entry can reach here with no
+  // definitions at all. Never throw during dictionary load.
+  if (!Array.isArray(definitions)) return undefined;
   for (const d of definitions) {
+    if (typeof d !== "string") continue;
     // Cheap guard first: this runs over every definition of every entry
     // in a ~125k-entry dictionary at load time.
     if (d.charCodeAt(0) !== 84 /* T */ || !d.startsWith("Taiwan pr.")) continue;

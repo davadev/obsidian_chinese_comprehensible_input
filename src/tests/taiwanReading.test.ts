@@ -43,4 +43,13 @@ describe("extractTaiwanReading", () => {
   it("handles an empty definition list", () => {
     expect(extractTaiwanReading([])).toBeUndefined();
   });
+
+  it("survives a malformed entry from a hand-edited dictionary file", () => {
+    // The vault dictionary is user-supplied and the loader only validates
+    // `simplified` and `pinyin`, so this must never throw during load.
+    expect(extractTaiwanReading(undefined)).toBeUndefined();
+    expect(extractTaiwanReading(null as unknown as string[])).toBeUndefined();
+    expect(extractTaiwanReading([null, undefined, 42] as unknown as string[])).toBeUndefined();
+    expect(extractTaiwanReading(["ok", null] as unknown as string[])).toBeUndefined();
+  });
 });

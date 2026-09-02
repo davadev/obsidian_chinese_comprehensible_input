@@ -150,8 +150,6 @@ export class CciSettingsTab extends PluginSettingTab {
       // vault indexed under the old script recorded single-character
       // exposures for every note in the other one.
       this.offerReindexAfterScriptChange();
-    } else if (key === "pronunciationRegion") {
-      this.plugin.applyRegionSideEffects();
     } else if (key === "ai.provider") {
       // Swaps which provider block is visible — a structural change, so the
       // definitions have to be re-evaluated rather than just re-read.

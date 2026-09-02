@@ -63,6 +63,8 @@ export default class CciPlugin extends Plugin {
   /** Last `scriptVariant` the reader was actually rebuilt for. Drives
    *  {@link applyScriptSideEffects}; see that method for why. */
   private lastAppliedScriptVariant: CciSettings["scriptVariant"] = "simplified";
+  /** Last `pronunciationRegion` the reader was actually rebuilt for. */
+  private lastAppliedRegion: CciSettings["pronunciationRegion"] = "mainland";
   /** One Traditional-script suggestion per session, at most. */
   private traditionalPromptShown = false;
   dictionaryCustomWords: DictionaryCustomWords = {};
@@ -249,6 +251,7 @@ export default class CciPlugin extends Plugin {
     // would see a change from the "simplified" field initialiser and
     // re-tokenize for nothing.
     this.lastAppliedScriptVariant = this.settings.scriptVariant;
+    this.lastAppliedRegion = this.settings.pronunciationRegion;
     // Snapshot the initial filtered-settings fingerprint so saveSettings
     // can tell whether a UI change actually altered a sync-eligible field.
     this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
@@ -606,31 +609,33 @@ export default class CciPlugin extends Plugin {
    * `setDictionaryOverride` above.
    */
   applyScriptSideEffects(): void {
-    const current = this.settings.scriptVariant;
-    if (current === this.lastAppliedScriptVariant) return;
-    this.lastAppliedScriptVariant = current;
-    this.tokenizer?.invalidate();
-    this.vocab?.clearSurfaceCache();
-    clearTokenCache();
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
-      const v = leaf.view;
-      if (v instanceof StatsView && typeof v.invalidateCaches === "function") {
-        v.invalidateCaches();
+    const script = this.settings.scriptVariant;
+    const region = this.settings.pronunciationRegion;
+    const scriptChanged = script !== this.lastAppliedScriptVariant;
+    // Region matters here too, and for the same reason: it also travels
+    // through importSettings() and the settings mirror, and the RubyWidget
+    // snapshots pinyin when it is built, so cached tokens have to go for the
+    // new reading to reach the page.
+    const regionChanged = region !== this.lastAppliedRegion;
+    if (!scriptChanged && !regionChanged) return;
+    this.lastAppliedScriptVariant = script;
+    this.lastAppliedRegion = region;
+
+    if (scriptChanged) {
+      // Only a script change alters segmentation, so only it needs the trie
+      // and the surface-lookup cache rebuilt.
+      this.tokenizer?.invalidate();
+      this.vocab?.clearSurfaceCache();
+      for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
+        const v = leaf.view;
+        if (v instanceof StatsView && typeof v.invalidateCaches === "function") {
+          v.invalidateCaches();
+        }
       }
     }
-    this.forceRetokenizeViews();
-    this.refreshChineseViews();
-    this.refreshStatsViews();
-  }
-
-  /**
-   * Region affects rendering only, never segmentation — but the RubyWidget
-   * snapshots pinyin when it is built, so the cached tokens have to be
-   * dropped for the new reading to reach the page.
-   */
-  applyRegionSideEffects(): void {
     clearTokenCache();
     this.forceRetokenizeViews();
+    this.refreshChineseViews();
     this.refreshStatsViews();
   }
 

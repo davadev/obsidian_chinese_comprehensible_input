@@ -9,6 +9,10 @@ import { counterpartSurface, displayPinyin, displaySurface } from "../dictionary
 
 export class WordPopup {
   private el: HTMLElement | null = null;
+  /** The surface the user actually tapped. Kept so the headword always
+   *  matches the characters on the page, and so `refresh()` does not have
+   *  to read it back out of the DOM. */
+  private surface = "";
   private outsideHandler: ((e: MouseEvent) => void) | null = null;
   /** Sentence the clicked word was found in. Populated by the
    *  wordInteractionPlugin so the AI "Enhance" action has context to
@@ -22,6 +26,7 @@ export class WordPopup {
     this.close();
     (activeDocument.activeElement as HTMLElement | null)?.blur?.();
     this.sentence = (sentence ?? "").trim();
+    this.surface = surface;
     const rec = this.plugin.vocab.ensure(surface);
 
     if (this.plugin.settings.exposure.popupCountsAsExposure) {
@@ -76,13 +81,17 @@ export class WordPopup {
   private renderInto(el: HTMLElement, rec: WordRecord): void {
     el.empty();
 
-    const dictTop = this.plugin.dictionary.lookup(rec.surfaces[0])[0];
+    // The tapped surface wins over surfaces[0], which is merely the first
+    // form this word was ever seen in.
+    const shown = this.surface || displaySurface(rec, this.plugin.settings.scriptVariant, this.plugin.dictionary);
+    const dictTop = this.plugin.dictionary.lookup(shown)[0]
+      ?? this.plugin.dictionary.lookup(rec.surfaces[0])[0];
 
     const script = this.plugin.settings.scriptVariant;
     const head = el.createDiv({ cls: "cci-popup-head" });
-    // The headword is the form the learner actually met, so it always
-    // matches the characters they just tapped on the page.
-    const shown = displaySurface(rec, script, this.plugin.dictionary);
+    // Exactly the characters the user tapped. Never a converted form: the
+    // headword has to stay a surface `vocab.bySurface()` can resolve, because
+    // refresh() re-reads the record by it after every marking action.
     head.textContent = shown;
 
     const pinyin = displayPinyin(dictTop, rec, this.plugin.settings.pronunciationRegion);
@@ -381,7 +390,9 @@ export class WordPopup {
 
   private refresh() {
     if (!this.el) return;
-    const surface = this.el.querySelector(".cci-popup-head")?.textContent;
+    // Read from the remembered surface, not the rendered headword: the DOM
+    // is a display surface and need not be something bySurface() resolves.
+    const surface = this.surface || this.el.querySelector(".cci-popup-head")?.textContent;
     if (!surface) return;
     const rec = this.plugin.vocab.bySurface(surface);
     if (!rec) return;

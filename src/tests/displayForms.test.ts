@@ -105,3 +105,18 @@ describe("counterpartSurface", () => {
     expect(counterpartSurface(undefined, "学习", "simplified", unambiguous)).toBeUndefined();
   });
 });
+
+describe("headword must stay resolvable by bySurface()", () => {
+  // WordPopup.refresh() re-reads the record after every marking action. It
+  // now uses the remembered clicked surface rather than the rendered
+  // headword — this guards the reason why. displaySurface may legitimately
+  // return a form the learner has never encountered (the unambiguous
+  // conversion branch), and vocab.bySurface() falls back to scanning
+  // rec.surfaces, so such a form is not guaranteed to resolve.
+  it("can return a form absent from rec.surfaces", () => {
+    const rec = { surfaces: ["学习"], simplified: "学习", traditional: "學習" };
+    const shown = displaySurface(rec, "traditional", unambiguous);
+    expect(shown).toBe("學習");
+    expect(rec.surfaces).not.toContain(shown);
+  });
+});

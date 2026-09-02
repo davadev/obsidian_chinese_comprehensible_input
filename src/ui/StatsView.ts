@@ -30,16 +30,6 @@ export class StatsView extends ItemView {
   private triageIndex = 0;
   private triageContextCache = new Map<string, string>();
 
-  /**
-   * Drop everything derived from tokenizing notes. `refreshStatsViews()`
-   * only re-renders, so without this a script switch would keep serving
-   * note-scope surfaces and example sentences computed under the old trie.
-   */
-  invalidateCaches(): void {
-    this.triageContextCache.clear();
-    this.noteSurfaces.clear();
-  }
-
   private triagePartialAxes: { surface: string; chars: boolean; pinyin: boolean; meaning: boolean } | null = null;
   private triageReveal = 0; // 0 = chars only, 1 = + pinyin, 2 = + definitions
   // Flashcards tab — mode is persisted in settings. Smart story panel
@@ -51,6 +41,16 @@ export class StatsView extends ItemView {
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
+  }
+
+  /**
+   * Drop everything derived from tokenizing notes. `refreshStatsViews()`
+   * only re-renders, so without this a script switch would keep serving
+   * note-scope surfaces and example sentences computed under the old trie.
+   */
+  invalidateCaches(): void {
+    this.triageContextCache.clear();
+    this.noteSurfaces.clear();
   }
 
   getViewType(): string {
@@ -1035,10 +1035,17 @@ export class StatsView extends ItemView {
       const tr = body.createEl("tr");
       const c = colorClassKey(r, settings.colorMode, settings.hskSource);
       tr.addClass(`cci-row-color-${c}`);
+      const rowSurface = displaySurface(r, this.plugin.settings.scriptVariant, this.plugin.dictionary);
+      tr.createEl("td", { text: rowSurface });
+      // Same path as the flashcard and the popup, so the table cannot show a
+      // stale pre-repair reading (nü3) or ignore the Taiwan region.
       tr.createEl("td", {
-        text: displaySurface(r, this.plugin.settings.scriptVariant, this.plugin.dictionary),
+        text: displayPinyin(
+          this.plugin.dictionary.lookup(rowSurface)[0],
+          r,
+          this.plugin.settings.pronunciationRegion
+        ),
       });
-      tr.createEl("td", { text: r.pinyin ?? "" });
       tr.createEl("td", { cls: "cci-stats-defcol", text: (r.definitions ?? []).slice(0, 1).join("; ") });
       tr.createEl("td", { text: (r.hsk?.levels ?? []).join("/") });
       const statusTd = tr.createEl("td", { text: r.status, cls: `cci-status-cell cci-color-${c}` });
