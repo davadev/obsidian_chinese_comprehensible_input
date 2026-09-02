@@ -9,7 +9,7 @@ import {
 } from "./dictionary/DictionaryTypes";
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
-import { migrateAiSettingsToV2 } from "./settings/migrations";
+import { migrateAiSettingsToV2, migrateOverrideKeys } from "./settings/migrations";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
 import { filterSettingsForSharing } from "./settings/SettingsIO";
@@ -242,7 +242,14 @@ export default class CciPlugin extends Plugin {
     // can tell whether a UI change actually altered a sync-eligible field.
     this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
 
-    this.dictionaryOverrides = blob.dictionaryOverrides ?? {};
+    // 0.6.0 re-keys dictionary overrides after the pinyin repair. Unlike
+    // WordRecords — which dedupeOnLoad() re-derives every load — overrides
+    // are a plain map that is never re-derived, so they need this one-shot
+    // pass or the ~1,066 affected entries would be orphaned. Pure string
+    // transform: it must not consult the dictionary, which is still
+    // unloaded at this point and only reads lazily on first tokenize.
+    const migratedOverrides = migrateOverrideKeys(blob.dictionaryOverrides ?? {});
+    this.dictionaryOverrides = migratedOverrides.overrides;
     this.dictionaryCustomWords = blob.dictionaryCustomWords ?? {};
 
     this.dictionary = new DictionaryService(this.app);
@@ -259,6 +266,15 @@ export default class CciPlugin extends Plugin {
       mergeRemote: (o, c) => this.mergeMirroredDictionaryData(o, c),
     });
     await this.vocab.load(blob);
+    if (migratedOverrides.moved > 0) {
+      // Write the re-keyed override map back once, so the on-disk blob and
+      // the vault mirror stop handing legacy keys to other devices. Has to
+      // wait until here: saveDictionaryUserData() flushes through
+      // `this.vocab`, which does not exist at the point the migration runs.
+      // Fire-and-forget — the in-memory map is already correct, and the
+      // migration is idempotent if this write never lands.
+      void this.saveDictionaryUserData();
+    }
     this.registerSyncMirrorWatchers();
     this.startSyncMirrorPoller();
 

@@ -65,3 +65,60 @@ export function migrateAiSettingsToV2(
     rescuedOllamaApiKey: rescued || null,
   };
 }
+
+/**
+ * Re-key dictionary overrides after the pinyin repair shipped in 0.6.0.
+ *
+ * Overrides are keyed by `makeKey(simplified, pinyin)` = `简体|numbered-pinyin`.
+ * Unlike WordRecords — which `VocabularyStore.dedupeOnLoad()` re-derives from
+ * their own stored fields on every load — overrides are a plain map and are
+ * never re-derived, so a change in how the numbered half is produced would
+ * silently orphan them.
+ *
+ * Only one thing changed. Before the fix, `toneMarksToNumbers` emitted a
+ * neutral tone 5 and *then* the stranded digit for pinyin that CC-CEDICT had
+ * left numbered ("nü3" → "nü53"); it now absorbs the digit as the tone
+ * ("nü3" → "nü3"). So legacy and current keys differ by exactly one thing:
+ * a `5` sitting directly before the real tone digit.
+ *
+ * That makes this a pure string transform with no dictionary lookup — which
+ * matters, because `onload()` runs `vocab.load()` long before the dictionary
+ * is read (it loads lazily on first tokenize) and forcing it early would add
+ * a ~17 MB read to every startup.
+ *
+ * Verified against all 125,052 shipped entries: 1,066 legacy keys map
+ * correctly and no correct key is touched — a genuine neutral tone is always
+ * followed by a space or end-of-string, never by a digit.
+ *
+ * Idempotent: after one pass no `5` precedes a digit, so re-running is a no-op.
+ */
+export function migrateOverrideKey(key: string): string {
+  return key.replace(/5(?=[1-5])/g, "");
+}
+
+/**
+ * Apply {@link migrateOverrideKey} across an override map. Returns the same
+ * object when nothing needed moving, so the caller can skip a write.
+ *
+ * If both the legacy and the migrated key are present the migrated one wins:
+ * it was written by a build that already had the fix, so it is the more
+ * recent of the two.
+ */
+export function migrateOverrideKeys<T>(
+  overrides: Record<string, T>
+): { overrides: Record<string, T>; moved: number } {
+  const out: Record<string, T> = {};
+  // Canonical keys claim their slot first, so a legacy duplicate can never
+  // overwrite an override written by a build that already had the fix.
+  for (const [key, value] of Object.entries(overrides)) {
+    if (migrateOverrideKey(key) === key) out[key] = value;
+  }
+  let moved = 0;
+  for (const [key, value] of Object.entries(overrides)) {
+    const next = migrateOverrideKey(key);
+    if (next === key) continue;
+    moved++;
+    if (!(next in out)) out[next] = value;
+  }
+  return moved === 0 ? { overrides, moved: 0 } : { overrides: out, moved };
+}

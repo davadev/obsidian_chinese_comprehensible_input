@@ -70,6 +70,15 @@ export function toneMarksToNumbers(s: string): string {
       tone = m[1];
     } else if (/[a-zA-Zü]/.test(ch)) {
       curSyl += ch.toLowerCase();
+    } else if (/[1-5]/.test(ch) && curSyl && tone === null) {
+      // Already-numbered input, e.g. a legacy "nü3" that predates the
+      // `u:` fix below. Absorb the digit as this syllable's tone instead
+      // of emitting a neutral 5 and then the digit ("nü53"). This is what
+      // makes `nü3` and `nǚ` hash identically, so repairing the stored
+      // pinyin cannot move any makeKey()-derived vocabulary key.
+      // Guarded on curSyl so standalone numerals ("11 Qū") pass through.
+      tone = parseInt(ch, 10);
+      flush();
     } else {
       flush();
       out += ch;
@@ -81,7 +90,6 @@ export function toneMarksToNumbers(s: string): string {
 
 /** Convert numbered pinyin syllables (like "ni3 hao3") to tone-mark pinyin. */
 export function numbersToToneMarks(s: string): string {
-  const vowelOrder = ["a", "o", "e", "i", "u", "ü"];
   const marks: Record<string, string[]> = {
     a: ["ā", "á", "ǎ", "à", "a"],
     e: ["ē", "é", "ě", "è", "e"],
@@ -90,24 +98,68 @@ export function numbersToToneMarks(s: string): string {
     u: ["ū", "ú", "ǔ", "ù", "u"],
     ü: ["ǖ", "ǘ", "ǚ", "ǜ", "ü"],
   };
-  return s.replace(/([a-zA-ZüÜ]+)([1-5])/g, (_m, syl: string, t: string) => {
+  // `u:` is CC-CEDICT's ASCII stand-in for ü. It has to become ü BEFORE
+  // the syllable regex runs, because the regex's character class has no
+  // `:` in it — leaving it until afterwards is what produced the literal
+  // "nü3" (女) and "lü4" (绿) in every dictionary built so far.
+  return s.replace(/u:/g, "ü").replace(/([a-zA-ZüÜ]+)([1-5])/g, (_m, syl: string, t: string) => {
     const tone = parseInt(t, 10);
     if (tone < 1 || tone > 4) return syl;
-    let target = "";
-    for (const v of vowelOrder) {
-      if (syl.toLowerCase().includes(v)) {
-        target = v;
-        break;
-      }
-    }
-    if (!target) return syl;
-    const i = syl.toLowerCase().indexOf(target);
+    const i = toneMarkIndex(syl);
+    if (i < 0) return syl;
+    const target = syl[i].toLowerCase();
     return (
       syl.slice(0, i) +
       marks[target][tone - 1] +
       syl.slice(i + 1)
     );
   });
+}
+
+/**
+ * Which vowel of a pinyin syllable carries the tone mark.
+ *
+ * Standard rule: an `a`, `o` or `e` always wins; otherwise the mark goes
+ * on the LAST vowel, which is what makes `jiǔ` / `liù` / `qiú` correct.
+ * The previous implementation ranked `i` above `u` unconditionally and so
+ * produced `jǐu` / `lìu` / `qíu` for every -iu final — 六, 九, 牛奶, 休息,
+ * 秋天, 丢 and the rest of the HSK 1-3 list.
+ *
+ * Returns the index into `syl`, or -1 when there is no vowel to mark.
+ */
+function toneMarkIndex(syl: string): number {
+  const low = syl.toLowerCase();
+  for (const v of ["a", "o", "e"]) {
+    const i = low.indexOf(v);
+    if (i >= 0) return i;
+  }
+  for (let i = low.length - 1; i >= 0; i--) {
+    if ("iuü".includes(low[i])) return i;
+  }
+  return -1;
+}
+
+/**
+ * Repair pinyin that was tone-marked by an older build of this file.
+ *
+ * Two defects are fixed, both in place and both case-preserving:
+ *   - `u:` left unconverted, stranding the tone digit — "nü3" -> "nǚ"
+ *   - the -iu tone mark on the wrong vowel — "jǐu" -> "jiǔ"
+ *
+ * Deliberately NOT implemented as a round-trip through toneMarksToNumbers,
+ * which lowercases and would corrupt proper nouns ("Qū" -> "qū", "3D" -> "3d").
+ *
+ * Key-safe: toneMarksToNumbers() absorbs a trailing digit as its syllable's
+ * tone, so `toneMarksToNumbers(x) === toneMarksToNumbers(repairPinyin(x))`
+ * for every affected string, and no vocabulary key moves.
+ */
+export function repairPinyin(p: string): string {
+  // Fast bail-out: the overwhelming majority of entries need no work, and
+  // this runs over every dictionary entry at index time.
+  if (!/[1-5]|u:|[īíǐì]u/.test(p)) return p;
+  const iuFix: Record<string, string> = { "ī": "iū", "í": "iú", "ǐ": "iǔ", "ì": "iù" };
+  const shifted = p.replace(/([īíǐì])u/g, (_m, v: string) => iuFix[v]);
+  return numbersToToneMarks(shifted);
 }
 
 export function shortenDefinition(def: string, max = 40): string {

@@ -2,7 +2,8 @@ import { App, normalizePath } from "obsidian";
 import { DictionaryCustomWords, DictionaryEntry, DictionaryOverrides } from "./DictionaryTypes";
 import { SEED_ENTRIES } from "./seedDictionary";
 import { HSK_MAP, HSK_SOURCE } from "./hskMap.generated";
-import { makeKey } from "./normalizeChinese";
+import { makeKey, repairPinyin } from "./normalizeChinese";
+import { extractTaiwanReading } from "./taiwanReading";
 
 /**
  * Lazy dictionary store.
@@ -90,6 +91,15 @@ export class DictionaryService {
   }
 
   private index(e: DictionaryEntry) {
+    // Three derived fields are filled in here rather than on disk, so an
+    // existing user picks all of them up on the next load without having
+    // to re-download the dictionary. They are gathered into one patch and
+    // applied with a single spread: this runs for every one of ~125k
+    // entries at load, and cloning once per field would triple the
+    // allocation churn. The clone (rather than mutation) is what keeps the
+    // module-level SEED_ENTRIES objects immutable across reload().
+    const patch: Partial<DictionaryEntry> = {};
+
     // Backfill HSK level metadata from the generated hskMap when the
     // entry has none of its own. Seed entries that already carry an
     // explicit `hsk` are NOT overwritten — they win per the project's
@@ -99,13 +109,24 @@ export class DictionaryService {
     // the dictionary file on disk.
     if (!e.hsk) {
       const level = HSK_MAP[e.simplified];
-      if (level) {
-        e = {
-          ...e,
-          hsk: { source: HSK_SOURCE, levels: [String(level)] },
-        };
-      }
+      if (level) patch.hsk = { source: HSK_SOURCE, levels: [String(level)] };
     }
+
+    // Repair pinyin written by an older build: -iu tone marks on the wrong
+    // vowel (jǐu -> jiǔ) and ü syllables left with a bare tone digit
+    // (nü3 -> nǚ). Key-safe — see repairPinyin's contract.
+    const repaired = repairPinyin(e.pinyin);
+    if (repaired !== e.pinyin) patch.pinyin = repaired;
+
+    // CC-CEDICT records Taiwan readings as a trailing "Taiwan pr. [le4 se4]"
+    // gloss. Lift it into a real field; the gloss stays in definitions[] so
+    // the popup still shows it.
+    if (!e.pinyinTaiwan) {
+      const tw = extractTaiwanReading(e.definitions);
+      if (tw) patch.pinyinTaiwan = tw;
+    }
+
+    if (Object.keys(patch).length > 0) e = { ...e, ...patch };
     const s = this.bySimplified.get(e.simplified) ?? [];
     s.push(e);
     this.bySimplified.set(e.simplified, s);
@@ -151,6 +172,7 @@ export class DictionaryService {
       out.push({
         ...e,
         pinyin: ov.pinyin ?? e.pinyin,
+        pinyinTaiwan: ov.pinyinTaiwan ?? e.pinyinTaiwan,
         traditional: ov.traditional ?? e.traditional,
         definitions: ov.definitions ?? e.definitions,
         hsk: ov.hsk ?? e.hsk,

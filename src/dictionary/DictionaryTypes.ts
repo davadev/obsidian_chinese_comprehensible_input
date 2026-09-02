@@ -2,6 +2,11 @@ export interface DictionaryEntry {
   simplified: string;
   traditional: string;
   pinyin: string;
+  /** Taiwan reading, when CC-CEDICT records one as a "Taiwan pr. [le4 se4]"
+   *  gloss. Derived at index time, so it is present without re-downloading
+   *  the dictionary. Absent for the ~99.6% of entries with no Taiwan-specific
+   *  reading — fall back to `pinyin`. */
+  pinyinTaiwan?: string;
   definitions: string[];
   hsk?: {
     source: string;
@@ -39,6 +44,9 @@ export interface HskManifest {
  */
 export interface DictionaryOverride {
   pinyin?: string;
+  /** Corrected Taiwan reading, when the user disagrees with (or wants to
+   *  add) the one derived from CC-CEDICT. */
+  pinyinTaiwan?: string;
   traditional?: string;
   definitions?: string[];
   hsk?: { source: string; levels: string[] };
