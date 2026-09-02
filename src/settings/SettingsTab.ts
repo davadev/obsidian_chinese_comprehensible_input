@@ -248,6 +248,11 @@ export class CciSettingsTab extends PluginSettingTab {
       type: "group",
       heading: "Script & region",
       items: [
+        this.docLink(
+          "Traditional Chinese",
+          "How Traditional support works, what the Taiwan readings cover, and why the plugin never converts between scripts.",
+          "traditional-chinese.md"
+        ),
         {
           name: "Text script",
           desc:

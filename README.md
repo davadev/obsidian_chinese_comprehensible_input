@@ -51,6 +51,24 @@ characters, pinyin, English — is separately settable under **Settings → Disp
 Advanced display → Reader text colors** (off by default, so your theme stays in charge).
 See [Display modes & colors](./docs/display-modes.md).
 
+### Traditional Chinese (Taiwan / Hong Kong)
+
+Set **Settings → Script & region → Text script** to Traditional, or tick
+**Traditional characters** in the reading view's ⋯ menu. Both scripts stay
+indexed, so a mixed vault keeps working, and your vocabulary is shared between
+them — mark 學習 known and 学习 is known too.
+
+**Pronunciation** can be switched to the Taiwan reading for the ~500 words the
+dictionary records one for (垃圾 lè sè rather than lā jī). It does not cover
+the neutral-tone difference (謝謝 xièxiè, 東西 dōngxī) — CC-CEDICT has no data
+for those. Zhuyin is not supported yet.
+
+Your notes are never rewritten, and words are never converted between scripts
+for display — 1,078 Simplified headwords map to more than one Traditional form
+and there is no frequency data to pick correctly, so the plugin shows you the
+form you actually read.
+See [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md).
+
 ### Open the Chinese view (mobile)
 
 <img src="resources/screenshots/mobile-open-view-annotated.png" alt="The 中 button opens the Chinese view" width="320">
@@ -223,6 +241,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [Mnemonics](./docs/mnemonics.md) — hand-written and AI-generated memory hooks, personalising the prompt
 - [Story generation, end to end](./docs/story-generation.md)
 - [Display modes & colors](./docs/display-modes.md)
+- [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md) — Taiwan / Hong Kong script, Taiwan readings, and what is not covered
 - [Formatting & highlighting](./docs/formatting.md) — tap-to-format mode, colored highlights, Highlightr support
 - [Themes & plugin compatibility](./docs/compatibility.md) — Things-style checkboxes, Highlightr, sync tools, and the limits inside the Chinese view
 - [Word states (new / partial / known / unknown / ignored)](./docs/word-states.md)
