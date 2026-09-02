@@ -1117,6 +1117,7 @@ export class CciSettingsTab extends PluginSettingTab {
       };
       await this.plugin.saveSettings();
       await this.plugin.dictionary.reload();
+      this.plugin.vocab.clearSurfaceCache();
       this.plugin.tokenizer.invalidate();
       new Notice(`Dictionary installed: ${count} entries.`);
     } catch (e) {
@@ -1139,6 +1140,7 @@ export class CciSettingsTab extends PluginSettingTab {
       this.plugin.settings.dictionarySource = undefined;
       await this.plugin.saveSettings();
       await this.plugin.dictionary.reload();
+      this.plugin.vocab.clearSurfaceCache();
       this.plugin.tokenizer.invalidate();
       new Notice("Dictionary removed; seed dictionary back in use.");
     } catch (e) {

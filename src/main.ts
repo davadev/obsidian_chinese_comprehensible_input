@@ -282,13 +282,24 @@ export default class CciPlugin extends Plugin {
     });
     await this.vocab.load(blob);
     if (migratedOverrides.moved > 0) {
-      // Write the re-keyed override map back once, so the on-disk blob and
-      // the vault mirror stop handing legacy keys to other devices. Has to
-      // wait until here: saveDictionaryUserData() flushes through
-      // `this.vocab`, which does not exist at the point the migration runs.
-      // Fire-and-forget — the in-memory map is already correct, and the
-      // migration is idempotent if this write never lands.
-      void this.saveDictionaryUserData();
+      // Write the re-keyed override map back once so the on-disk blob stops
+      // carrying legacy keys.
+      //
+      // Deliberately NOT saveDictionaryUserData(): that flushes through
+      // vocab.flushSave(), which schedules a mirror write. At this point
+      // `bootstrapMirrorAfterLoad()` has not run yet, so the mirror still
+      // holds the remote envelope this device has never merged — writing
+      // local-only vocabulary over it would lose whatever another device
+      // had. The mirror picks the corrected keys up on its next natural
+      // write, after the bootstrap merge.
+      //
+      // Errors are swallowed rather than floated: an unhandled rejection
+      // during onload surfaces as Obsidian's generic "plugin encountered an
+      // error while loading", and the migration is idempotent, so failing
+      // here just means it runs again next launch.
+      void this.updateDataBlob((b) => {
+        b.dictionaryOverrides = this.dictionaryOverrides;
+      }).catch((e) => console.error("CCI: override key migration write failed", e));
     }
     this.registerSyncMirrorWatchers();
     this.startSyncMirrorPoller();
@@ -516,6 +527,7 @@ export default class CciPlugin extends Plugin {
         try {
           await this.dictDownloader.run();
           await this.dictionary.reload();
+          this.vocab.clearSurfaceCache();
           notice.setMessage("Chinese plugin: dictionary ready.");
           window.setTimeout(() => notice.hide(), 3000);
         } catch (err) {
@@ -713,7 +725,11 @@ export default class CciPlugin extends Plugin {
     customWords: DictionaryCustomWords
   ): Promise<void> {
     let mutated = false;
-    for (const [k, v] of Object.entries(overrides)) {
+    // A device still on 0.5.1 mirrors override keys in the legacy spelling,
+    // so they have to be migrated on the way in as well — the onload pass
+    // only ever sees this device's own blob.
+    const { overrides: incoming } = migrateOverrideKeys(overrides);
+    for (const [k, v] of Object.entries(incoming)) {
       const local = this.dictionaryOverrides[k];
       const localTs = local?.updatedAt ?? "";
       const remoteTs = v?.updatedAt ?? "";
@@ -740,6 +756,11 @@ export default class CciPlugin extends Plugin {
       blob.dictionaryCustomWords = this.dictionaryCustomWords;
     });
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
+    // reload() changes what lookup() resolves a surface to, and bySurface()
+    // memoises that. Nothing cleared it before, so a newly absorbed custom
+    // word could keep resolving to a cached miss.
+    this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
     this.refreshStatsViews();
@@ -749,6 +770,7 @@ export default class CciPlugin extends Plugin {
     this.dictionaryOverrides[key] = { ...ov, updatedAt: new Date().toISOString() };
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshChineseViews();
     // The 3-line ruby gloss reads from the cached token's `selected`
     // field, which is captured at tokenize-time. A plain redecorate
@@ -764,6 +786,7 @@ export default class CciPlugin extends Plugin {
     delete this.dictionaryOverrides[key];
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshChineseViews();
     clearTokenCache();
     this.forceRetokenizeViews();
@@ -781,6 +804,7 @@ export default class CciPlugin extends Plugin {
     };
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
     this.forceRetokenizeViews();
@@ -791,6 +815,7 @@ export default class CciPlugin extends Plugin {
     delete this.dictionaryCustomWords[surface];
     await this.saveDictionaryUserData();
     await this.dictionary.reload();
+    this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
     this.forceRetokenizeViews();

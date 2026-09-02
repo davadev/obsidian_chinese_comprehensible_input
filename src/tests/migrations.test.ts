@@ -175,3 +175,25 @@ describe("migrateOverrideKeys", () => {
     expect(second.overrides).toEqual(first.overrides);
   });
 });
+
+describe("migrateOverrideKeys — remote mirror data", () => {
+  it("migrates keys arriving from a device still on the old build", () => {
+    // mergeMirroredDictionaryData() runs this on incoming remote overrides.
+    // The onload pass only sees this device's own blob, so without it a
+    // 0.5.1 peer would keep re-introducing legacy keys after every sync.
+    const remote = {
+      "女|nü53": { pinyin: "nǚ", updatedAt: "2026-03-01T00:00:00.000Z" },
+      "学习|xue2 xi2": { pinyin: "xué xí", updatedAt: "2026-03-01T00:00:00.000Z" },
+    };
+    const { overrides, moved } = migrateOverrideKeys(remote);
+    expect(moved).toBe(1);
+    expect(Object.keys(overrides).sort()).toEqual(["女|nü3", "学习|xue2 xi2"]);
+  });
+
+  it("does not lose a remote override that has no local counterpart", () => {
+    const { overrides } = migrateOverrideKeys({
+      "绿|lü54": { pinyin: "lǜ", updatedAt: "2026-03-01T00:00:00.000Z" },
+    });
+    expect(overrides["绿|lü4"]).toEqual({ pinyin: "lǜ", updatedAt: "2026-03-01T00:00:00.000Z" });
+  });
+});
