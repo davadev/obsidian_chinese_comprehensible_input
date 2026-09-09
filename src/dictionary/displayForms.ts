@@ -47,7 +47,7 @@ export function displayPinyin(
  * This NEVER converts between scripts. It returns a form the learner has
  * actually encountered, preferring one that matches the script they read in.
  *
- * Converting is not a safe alternative: 1,078 simplified headwords map to
+ * Converting is not a safe alternative: about 540 simplified headwords map to
  * more than one traditional form, CC-CEDICT orders entries by codepoint
  * rather than frequency, and `frequencyRank` is never populated — so taking
  * the first candidate's `traditional` yields 发 -> 發 (wrong for 头发/hair),
@@ -71,12 +71,19 @@ export function displaySurface(
     // was seen first.
     return record.simplified ?? surfaces[0] ?? "";
   }
-  // A surface the learner actually met that is this word's traditional form.
-  if (record.traditional && surfaces.includes(record.traditional)) return record.traditional;
-  // Otherwise only offer the traditional form when it is unambiguous, and
-  // even then only if we were given a dictionary to confirm that with.
+  // The form the learner first met. Only `surfaces[0]` is evidence of an
+  // actual encounter: `VocabularyStore.ensure()` seeds the entry's own
+  // `traditional` into `surfaces` at record creation, so a later element may
+  // be a dictionary guess nobody has read. Trusting the whole array skipped
+  // the ambiguity guard below and showed 乹 for 干, 厤 for 历 and 鍾 for 钟 —
+  // `lookup()[0].traditional` is an obsolete or wrong-sense variant for 539
+  // headwords, 346 of them single characters.
+  const first = surfaces[0];
+  if (first && first !== record.simplified) return first;
+  // Only offer the traditional form when it is unambiguous, and even then
+  // only if we were given a dictionary to confirm that with.
   if (record.traditional && record.traditional !== record.simplified && dict) {
-    const source = record.simplified ?? surfaces[0];
+    const source = record.simplified ?? first;
     if (source && dict.distinctTraditionalForms(source) === 1) return record.traditional;
   }
   return fallback;

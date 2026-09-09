@@ -55,6 +55,22 @@ describe("displaySurface", () => {
     expect(displaySurface(ambiguousWord, "traditional", ambiguous)).toBe("头发");
   });
 
+  it("ignores a dictionary-seeded traditional form for an ambiguous word", () => {
+    // VocabularyStore.ensure() seeds lookup(surface)[0].traditional into
+    // `surfaces` at record creation, so membership there is NOT evidence the
+    // learner ever read it. CC-CEDICT orders by codepoint, so entries[0] for
+    // 干 is 乹 — an obsolete variant. Only surfaces[0] is a real encounter.
+    const seeded = { surfaces: ["干", "乹"], simplified: "干", traditional: "乹" };
+    expect(displaySurface(seeded, "traditional", ambiguous)).toBe("干");
+  });
+
+  it("keeps the traditional form a Traditional reader actually met", () => {
+    // Read 幹 in a note: surfaces[0] is the encountered form, so it wins even
+    // though the mapping is ambiguous and record.traditional is the obsolete 乹.
+    const read = { surfaces: ["幹", "乹"], simplified: "干", traditional: "乹" };
+    expect(displaySurface(read, "traditional", ambiguous)).toBe("幹");
+  });
+
   it("does not convert when no dictionary is supplied to vet the mapping", () => {
     expect(displaySurface(simplifiedOnly, "traditional")).toBe("学习");
   });
