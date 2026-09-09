@@ -1,23 +1,40 @@
 # Traditional Chinese and regional pronunciation
 
-The plugin can read Traditional Chinese (Taiwan / Hong Kong) as well as
-Simplified. Turn it on under **Settings → Script & region → Text script**, or
-tick **Traditional characters** in the reading view's ⋯ menu.
+The plugin reads Traditional Chinese (Taiwan / Hong Kong) as well as Simplified.
+**Settings → Script & region → Text script** offers three choices, also
+reachable from the reading view's ⋯ menu:
 
-If you open a note that is plainly Traditional while the plugin is set to
-Simplified, it offers to switch. It never switches on its own.
+| | What it does |
+|---|---|
+| **Automatic** (default) | Recognises both scripts, and shows every word the way you read it. A vault holding notes of both kinds just works, with nothing to switch. |
+| **Traditional** | The same, but the plugin may also show you the Traditional form of a word you have only met in Simplified, where that mapping is unambiguous. |
+| **Simplified** | Indexes Simplified only. About 29 MB lighter, and the one mode that cannot read a Traditional note — see *Notes in the other script* below. |
+
+Automatic is the default because the failure it prevents is silent: with
+Simplified selected, a Traditional note is not "unsupported", it quietly falls
+apart into single characters. The cost is memory — the index holds 198,000
+entries instead of 121,000.
+
+Choosing Automatic is not a compromise on Simplified text. Measured over the
+whole dictionary, indexing both scripts segments Simplified notes
+*byte-identically*: the extra entries are almost all unreachable from Simplified
+writing, and the few that are reachable only join up words that would otherwise
+have been split (乾杯 as one word rather than 乾 + 杯).
+
+If you have chosen Simplified and open a note that is plainly Traditional, the
+plugin offers to switch. It never switches on its own.
 
 ## What changes
 
-**Words are recognised.** With Simplified selected, the tokenizer only knows
+**Words are recognised.** With **Simplified** selected, the tokenizer only knows
 Simplified headwords, so 台灣的天氣很熱 falls apart into single characters:
 
 ```
 台 | 灣 | 的 | 天 | 氣 | 很 | 熱
 ```
 
-With Traditional selected it indexes both scripts, so you get real words with
-pinyin, definitions and colours:
+With **Automatic** or **Traditional** it indexes both scripts, so you get real
+words with pinyin, definitions and colours:
 
 ```
 台灣 | 的 | 天氣 | 很 | 熱
@@ -64,6 +81,9 @@ index are not removed — they are real words in their own right.
 
 ### Notes in the other script are skipped
 
+This applies to **Simplified** only — Automatic and Traditional index both, so
+nothing is ever skipped in those modes.
+
 With **Simplified** selected, a Traditional note cannot be indexed correctly:
 the plugin only knows Simplified words, so the note collapses into single
 characters and each one would be filed as its own vocabulary entry. Rather than
@@ -87,6 +107,20 @@ Three things this does not cover:
   permanently.
 - Single-character entries created by an earlier index stay. Indexing only ever
   adds.
+
+## Why indexing adds so many words at once
+
+Indexing a vault for the first time records every Chinese word already sitting
+in your notes. On a large vault that is thousands of words in one go — they are
+new *to the plugin*, not newly met by you.
+
+Those records are marked as a **baseline** and left out of the Progress chart's
+Tracked line, which plots when you met words. Without that, a first index draws
+a vertical cliff and claims you learned 9,000 words in an afternoon. The chart
+notes how many it excluded, and the total stays visible on the dashboard.
+
+Each device keeps its own record of whether it has indexed, so a second device
+will do its own first index even though your vocabulary has already synced.
 
 ## Using more than one device
 

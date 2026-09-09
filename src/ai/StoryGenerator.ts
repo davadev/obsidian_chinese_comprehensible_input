@@ -2,7 +2,7 @@ import { App, normalizePath, Notice, TFile } from "obsidian";
 import { displaySurface } from "../dictionary/displayForms";
 import type { DictionaryService } from "../dictionary/DictionaryService";
 import { AiProviderService } from "./AiProviderService";
-import { STORY_SCHEMA, STORY_SYSTEM_PROMPT, TargetWord, buildRepairPrompt, buildUserPrompt } from "./prompts";
+import { STORY_SCHEMA, STORY_SYSTEM_PROMPT, TargetWord, buildRepairPrompt, buildUserPrompt, resolveAiScript } from "./prompts";
 import { GeneratedStory, StoryRequest } from "./aiTypes";
 import { TokenizerService } from "../tokenizer/TokenizerService";
 import { TargetForms, validateStory, ValidatorConfig } from "./StoryValidator";
@@ -96,13 +96,16 @@ export class StoryGenerator {
       }));
 
       const targetHsk = req.targetHsk === "auto" ? String(this.estimateHsk()) : req.targetHsk;
+      // `script` may be "auto", which is a reading mode; generation has to
+      // commit to one, decided from the words being studied.
+      const aiScript = this.aiScript(targetWords);
 
       const initialStory = await this.callOnce(req, targetWords, targetHsk);
       const cfg: ValidatorConfig = {
         targetHsk: parseInt(targetHsk, 10) || 0,
         lengthChars: req.lengthChars,
         tooHardRatioCap: 0.15,
-        script,
+        script: aiScript,
         countTraditionalMarkers: (t) => countTraditionalMarkers(t, this.dict),
       };
       // Accept a target in either script: the model may well answer in the
@@ -140,7 +143,7 @@ export class StoryGenerator {
           tooHardWords: best.report.tooHardWords,
           targetHsk,
           totalTargets: targetWords.length,
-          script,
+          script: aiScript,
           wrongScript: best.report.wrongScript,
         });
         try {
@@ -261,6 +264,15 @@ export class StoryGenerator {
     return saved;
   }
 
+  /** Resolve the reading-mode setting to the one script a prompt can ask for. */
+  private aiScript(target: TargetWord[]) {
+    return resolveAiScript(
+      this.settings().scriptVariant,
+      target.map((t) => t.word),
+      (t) => countTraditionalMarkers(t, this.dict)
+    );
+  }
+
   private async callOnce(req: StoryRequest, target: TargetWord[], targetHsk: string): Promise<GeneratedStory> {
     const user = buildUserPrompt({
       style: req.style,
@@ -268,7 +280,7 @@ export class StoryGenerator {
       targetWords: target,
       knownWords: this.sampleKnownWords(),
       lengthChars: req.lengthChars,
-      script: this.settings().scriptVariant,
+      script: this.aiScript(target),
     });
     const raw = await this.ai.chatJson(STORY_SYSTEM_PROMPT, user, "ChineseStory", STORY_SCHEMA);
     return parseStory(raw);
@@ -334,6 +346,14 @@ export class StoryGenerator {
   ): string {
     const { active, provider } = this.ai.resolveActive();
     const script = this.settings().scriptVariant;
+    // The frontmatter records what was actually asked for, so "auto" must be
+    // resolved here too — writing `script: auto` into the note would be a lie
+    // about the text below it.
+    const askedFor = resolveAiScript(
+      script,
+      targets.map((r) => displaySurface(r, script, this.dict)),
+      (t) => countTraditionalMarkers(t, this.dict)
+    );
     const fm = [
       "---",
       "chinese_learning_generated: true",
@@ -341,7 +361,7 @@ export class StoryGenerator {
       `provider: ${provider}`,
       `model: ${active.chatModel}`,
       `target_hsk: ${targetHsk}`,
-      `script: ${script}`,
+      `script: ${askedFor}`,
       "target_words:",
       ...targets.map((r) => `  - ${displaySurface(r, script, this.dict)}`),
       `validation_score: ${score.toFixed(3)}`,

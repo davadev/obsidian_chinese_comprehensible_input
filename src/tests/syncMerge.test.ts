@@ -104,6 +104,24 @@ describe("mergeForSync field rules", () => {
   });
 });
 
+describe("backfilledAt survives a merge", () => {
+  // mergeForSync builds an explicit object literal, so any field missing from
+  // it is silently dropped on every sync — the flag would appear to work
+  // locally and quietly evaporate between devices.
+  const opts = { statusPriority: [] as WordStatus[] };
+
+  it("keeps the flag when only one side has it", () => {
+    const a = rec({ backfilledAt: "2026-09-09T00:00:00.000Z" });
+    const b = rec({});
+    expect(mergeForSync(a, b, opts).backfilledAt).toBe("2026-09-09T00:00:00.000Z");
+    expect(mergeForSync(b, a, opts).backfilledAt).toBe("2026-09-09T00:00:00.000Z");
+  });
+
+  it("leaves it unset when neither side has it", () => {
+    expect(mergeForSync(rec({}), rec({}), opts).backfilledAt).toBeUndefined();
+  });
+});
+
 describe("mergeForSync idempotency", () => {
   it("merging the same remote twice yields the same result as once", () => {
     const local = rec({

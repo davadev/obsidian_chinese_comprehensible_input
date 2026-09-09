@@ -1,6 +1,6 @@
 import { Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
-import { ColorMode, DisplayMode, ViewMode } from "../settings/types";
+import { ColorMode, DisplayMode, ScriptVariant, ViewMode } from "../settings/types";
 import { conflictDisabled } from "../editor/formatApply";
 import { orderedFormatOptions } from "../editor/formatOptions";
 
@@ -446,21 +446,34 @@ export class ViewToolbar {
 
     // Script first: on mobile, opening Settings mid-read to flip this is
     // painful, and a Traditional reader needs it before anything else works.
+    //
+    // Three explicit rows rather than one "Traditional characters" checkbox.
+    // A checkbox has nowhere to put "Automatic": unchecking it would have to
+    // mean Simplified, so from the default two taps would silently drop the
+    // reader into the one mode where a Traditional note shatters into single
+    // characters — with nothing said. Radio-style rows cost one extra line and
+    // make the third state reachable, which is the point of the escape hatch.
     const scriptHint = menu.createDiv({ cls: "cci-overflow-hint" });
     scriptHint.setText("Script");
-    checkRow(
-      "Traditional characters",
-      () => this.plugin.settings.scriptVariant === "traditional",
-      async (v) => {
-        this.plugin.settings.scriptVariant = v ? "traditional" : "simplified";
-        // saveSettings routes through applyScriptSideEffects(), which
-        // rebuilds the trie and re-tokenizes. The colour checkboxes below
-        // get away with a plain redecorate; this one must not — segmentation
-        // itself changes, and a redecorate would reuse the stale tokens.
-        await this.plugin.saveSettings();
-        this.plugin.offerReindexAfterScriptChange();
-      }
-    );
+    const scriptRow = (label: string, value: ScriptVariant) => {
+      checkRow(
+        label,
+        () => this.plugin.settings.scriptVariant === value,
+        async () => {
+          if (this.plugin.settings.scriptVariant === value) return;
+          this.plugin.settings.scriptVariant = value;
+          // saveSettings routes through applyScriptSideEffects(), which
+          // rebuilds the trie and re-tokenizes. The colour checkboxes below
+          // get away with a plain redecorate; this one must not — segmentation
+          // itself changes, and a redecorate would reuse the stale tokens.
+          await this.plugin.saveSettings();
+          this.plugin.offerReindexAfterScriptChange();
+        }
+      );
+    };
+    scriptRow("Automatic", "auto");
+    scriptRow("Traditional characters", "traditional");
+    scriptRow("Simplified characters", "simplified");
 
     const hint = menu.createDiv({ cls: "cci-overflow-hint" });
     hint.setText(

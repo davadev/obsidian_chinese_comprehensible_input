@@ -24,7 +24,32 @@ export interface TargetWord {
  * CC-CEDICT tags roughly 1,280 entries `(Tw)` and carries both halves of every common
  * pair (網路/網絡, 影片/視頻, 軟體/軟件), so the distinction is real.
  */
-export function scriptClause(script: "simplified" | "traditional"): string {
+export type AiScript = "simplified" | "traditional";
+
+/**
+ * Which script to ask the model for.
+ *
+ * `scriptVariant` can be "auto", which is a reading mode — it means "index both
+ * and show me what I read". Generation has to commit to one, and there is no
+ * note to look at, so decide from the target words themselves: any
+ * traditional-only character among them means the learner is working in
+ * Traditional.
+ *
+ * Threshold of one, not the three `looksTraditional()` uses. That threshold
+ * guards against an incidental quotation inside a page of prose; here the input
+ * is a short list of words the learner has actually been studying, where a
+ * single traditional-only character is already decisive.
+ */
+export function resolveAiScript(
+  variant: "simplified" | "traditional" | "auto",
+  targetWords: string[],
+  countTraditionalMarkers: (text: string) => number
+): AiScript {
+  if (variant !== "auto") return variant;
+  return countTraditionalMarkers(targetWords.join("")) > 0 ? "traditional" : "simplified";
+}
+
+export function scriptClause(script: AiScript): string {
   return script === "traditional"
     ? "Write the Chinese in Traditional characters as used in Taiwan, and prefer Taiwanese Mandarin " +
         "vocabulary and usage (e.g. 網路 rather than 網絡, 影片 rather than 視頻). Do not use Simplified forms."
@@ -37,7 +62,7 @@ export function buildUserPrompt(args: {
   targetWords: TargetWord[];
   knownWords?: string[];
   lengthChars: number;
-  script: "simplified" | "traditional";
+  script: AiScript;
 }): string {
   const wordsBlock = args.targetWords
     .map((w, i) => `  ${i + 1}. ${w.word} (${w.pinyin}) — ${w.definition}`)
@@ -63,7 +88,7 @@ export function buildRepairPrompt(args: {
   tooHardWords: string[];
   targetHsk: string;
   totalTargets: number;
-  script: "simplified" | "traditional";
+  script: AiScript;
   /** The last attempt came back in the wrong script. Can be true with no
    *  missing words at all, which changes what the prompt should lead with. */
   wrongScript?: boolean;

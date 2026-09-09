@@ -53,10 +53,14 @@ See [Display modes & colors](./docs/display-modes.md).
 
 ### Traditional Chinese (Taiwan / Hong Kong)
 
-Set **Settings → Script & region → Text script** to Traditional, or tick
-**Traditional characters** in the reading view's ⋯ menu. Both scripts stay
-indexed, so a mixed vault keeps working, and your vocabulary is shared between
-them — mark 學習 known and 学习 is known too.
+**Settings → Script & region → Text script** is **Automatic** by default: both
+scripts are recognised, each word is shown the way you read it, and a mixed
+vault works with nothing to switch. Your vocabulary is shared between the
+scripts — mark 學習 known and 学习 is known too.
+
+Automatic costs about 29 MB of extra index. Choosing **Simplified** avoids that
+but cannot read a Traditional note — it falls apart into single characters — so
+change it only if you know your notes are Simplified and memory is tight.
 
 **Pronunciation** can be switched to the Taiwan reading for the ~500 words the
 dictionary records one for (垃圾 lè sè rather than lā jī). It does not cover

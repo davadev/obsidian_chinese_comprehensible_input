@@ -236,12 +236,14 @@ export class CciSettingsTab extends PluginSettingTab {
         {
           name: "Text script",
           desc:
-            "Which script your notes are written in. Traditional keeps Simplified words indexed as well, " +
-            "so a vault with both kinds of note keeps working. Your notes are never rewritten.",
+            "Automatic recognises both scripts and shows each word the way you read it — pick this unless " +
+            "you have a reason not to. Simplified indexes a little less (about 29 MB less memory) but cannot " +
+            "read a Traditional note. Your notes are never rewritten.",
           control: {
             type: "dropdown",
             key: "scriptVariant",
             options: {
+              auto: "Automatic (recognise both)",
               simplified: "Simplified (Mainland / Singapore)",
               traditional: "Traditional (Taiwan / Hong Kong)",
             },

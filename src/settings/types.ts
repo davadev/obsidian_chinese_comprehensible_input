@@ -73,12 +73,24 @@ export type FormatOptionId = FormatId | `hl:${string}`;
 export type PinyinStyle = "marks" | "numbers" | "none";
 
 /**
- * Which script the learner reads. This never rewrites note text — it
- * decides what the tokenizer indexes and which form the UI shows. In
- * "traditional" the trie indexes BOTH scripts (a union, not a swap), so a
- * vault holding notes of both kinds keeps working without a per-note switch.
+ * Which script the learner reads. This never rewrites note text — it decides
+ * what the tokenizer indexes and which form the UI shows.
+ *
+ * - "auto" (default): index BOTH scripts and never convert anything for
+ *   display — show whatever form the learner actually read. Measured on the
+ *   full CC-CEDICT: the union leaves Simplified segmentation byte-identical
+ *   (0 differing tokens over a 22,569-token corpus), and the 392 union-only
+ *   surfaces that can occur in Simplified text only ever merge what the
+ *   simplified-only trie split (乾杯 as one token, not 乾 + 杯). It costs
+ *   ~29 MB of extra trie and ~30 ms of build.
+ * - "traditional": the same union, but the UI may also offer the traditional
+ *   form of a word only ever met in Simplified, when that mapping is
+ *   unambiguous.
+ * - "simplified": simplified headwords only. Smallest index, and the only
+ *   mode in which a Traditional note cannot be read — which is why the
+ *   indexer skips such notes rather than shattering them into characters.
  */
-export type ScriptVariant = "simplified" | "traditional";
+export type ScriptVariant = "simplified" | "traditional" | "auto";
 
 /**
  * Which regional reading to display. "taiwan" prefers the Taiwan reading
@@ -260,6 +272,10 @@ export interface CciSettings {
   /** Set once the user dismisses the "this note looks Traditional" prompt,
    *  so it is never shown again. No settings-tab control by design. */
   traditionalPromptDismissed: boolean;
+  /** Set once the one-shot "records the vault index created are a baseline,
+   *  not learning events" pass has run. See VaultIndexer. No settings-tab
+   *  control by design — it is bookkeeping, not a preference. */
+  trackedBaselineRepaired: boolean;
   defaultDisplayMode: DisplayMode;
   knownWordPopups: boolean;
   /** Formats currently armed in the in-view formatting mode (#21). */

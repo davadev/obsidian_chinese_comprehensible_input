@@ -78,11 +78,16 @@ export const DEFAULT_SETTINGS: CciSettings = {
   customColors: DEFAULT_CUSTOM_COLORS,
   textColors: DEFAULT_TEXT_COLORS,
   pinyinStyle: "marks",
-  // Defaults keep an upgrading user on exactly today's behaviour: the trie
-  // stays simplified-only and the AI prompts are unchanged.
-  scriptVariant: "simplified",
+  // "auto" indexes both scripts, so a vault holding Simplified and Traditional
+  // notes works with no setting to find. It is the default despite costing
+  // ~29 MB of extra trie, because the alternative is a Traditional note
+  // silently shattering into single characters. Note this reaches EVERY
+  // upgrading user, not just new installs: 0.6.0 never shipped stable, so
+  // nobody has a stored `scriptVariant` for the spread below to preserve.
+  scriptVariant: "auto",
   pronunciationRegion: "mainland",
   traditionalPromptDismissed: false,
+  trackedBaselineRepaired: false,
   hskSource: "both",
   tokenizerEngine: "lattice",
   newWordBehavior: "subtle",

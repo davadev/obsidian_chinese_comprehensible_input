@@ -71,7 +71,7 @@ beforeAll(async () => {
   );
 });
 
-async function segment(text: string, script: "simplified" | "traditional"): Promise<Token[]> {
+async function segment(text: string, script: "simplified" | "traditional" | "auto"): Promise<Token[]> {
   settings.scriptVariant = script;
   // The trie is built per script and the token cache is module-level.
   tokenizer.invalidate();
@@ -169,6 +169,40 @@ describe("real tokenizer over a Traditional note", () => {
   });
 });
 
+describe("auto indexes both scripts without disturbing Simplified", () => {
+  // The claim that justifies making auto the DEFAULT, i.e. handing every
+  // upgrading user a union trie. Measured over the full CC-CEDICT it holds
+  // exactly: 0 differing tokens across a 22,569-token corpus. Asserted here on
+  // the committed subset so a regression cannot land quietly.
+  const SIMPLIFIED_PROSE =
+    "今天天气很热，我和朋友去图书馆学习中文。路上的垃圾很多，可是公园很干净。" +
+    "她的头发很长，我们坐计程车回家，花了两个钟头。这里的脚踏车也很方便。";
+
+  it("segments Simplified text identically to simplified-only", async () => {
+    const a = (await segment(SIMPLIFIED_PROSE, "simplified")).map((t) => `${t.start}:${t.surface}`);
+    const b = (await segment(SIMPLIFIED_PROSE, "auto")).map((t) => `${t.start}:${t.surface}`);
+    expect(b).toEqual(a);
+  });
+
+  it("segments a Traditional note as words, which simplified-only cannot", async () => {
+    const surfaces = new Set((await segment(NOTE_TRADITIONAL, "auto")).map((t) => t.surface));
+    for (const w of ["臺灣", "圖書館", "學習", "頭髮", "歷史", "便利商店"]) {
+      expect(surfaces.has(w)).toBe(true);
+    }
+  });
+
+  it("only ever MERGES what the simplified-only trie split", async () => {
+    // 乾杯 is one of the 392 union-only surfaces whose characters are all
+    // simplified headwords in their own right, so it is reachable from
+    // Simplified text. The union makes it one token instead of 乾 + 杯 —
+    // a better answer, not a different one.
+    const a = (await segment("乾杯", "simplified")).map((t) => t.surface);
+    const b = (await segment("乾杯", "auto")).map((t) => t.surface);
+    expect(a).toEqual(["乾", "杯"]);
+    expect(b).toEqual(["乾杯"]);
+  });
+});
+
 describe("real script detection", () => {
   it("recognises a Traditional note", () => {
     expect(countTraditionalMarkers(NOTE_TRADITIONAL, dict)).toBeGreaterThanOrEqual(3);
@@ -220,6 +254,17 @@ describe("displaySurface against records built the way ensure() builds them", ()
       expect(surfaces).toContain(w);
       const rec = ensureRecord(w);
       expect(displaySurface(rec, "traditional", dict)).toBe(w);
+    }
+  });
+
+  it("auto never converts, in either direction", () => {
+    // Auto shows the form actually read. A word met in Simplified stays
+    // Simplified even where the mapping is unambiguous, and vice versa.
+    expect(displaySurface(ensureRecord("学习"), "auto", dict)).toBe("学习");
+    expect(displaySurface(ensureRecord("學習"), "auto", dict)).toBe("學習");
+    expect(displaySurface(ensureRecord("头发"), "auto", dict)).toBe("头发");
+    for (const ch of ["干", "发", "历", "里", "钟"]) {
+      expect(displaySurface(ensureRecord(ch), "auto", dict)).toBe(ch);
     }
   });
 

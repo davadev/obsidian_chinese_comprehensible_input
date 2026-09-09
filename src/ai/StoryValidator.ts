@@ -1,3 +1,4 @@
+import type { AiScript } from "./prompts";
 import { TokenizerService } from "../tokenizer/TokenizerService";
 import { maxHskLevel } from "../dictionary/hskOverlay";
 import { GeneratedStory, ValidationReport } from "./aiTypes";
@@ -9,7 +10,7 @@ export interface ValidatorConfig {
   /** Script the story was asked for. When "traditional", a story containing
    *  no traditional-only characters is flagged as having ignored the
    *  instruction. */
-  script?: "simplified" | "traditional";
+  script?: AiScript;
   /** Counts distinct traditional-only characters. Supplied by the caller so
    *  this module stays free of a DictionaryService import. */
   countTraditionalMarkers?: (text: string) => number;

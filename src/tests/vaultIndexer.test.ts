@@ -35,7 +35,9 @@ describe("VaultIndexer", () => {
     const result = await indexVault(plugin, (p) => progressCalls.push({ ...p }));
     expect(result).toEqual({ scanned: 2, total: 2, recorded: 2, skipped: 0 });
     expect(recordNoteScan).toHaveBeenCalledTimes(1);
-    expect(recordNoteScan).toHaveBeenCalledWith("a.md", new Map([["学习", 2]]), 5, false);
+    expect(recordNoteScan).toHaveBeenCalledWith("a.md", new Map([["学习", 2]]), 5, false, {
+      markExistingBaseline: true,
+    });
     expect(progressCalls.at(-1)).toEqual(result);
   });
 
@@ -109,6 +111,14 @@ describe("VaultIndexer", () => {
     it("indexes the same note normally when Traditional is selected", async () => {
       // Traditional mode indexes BOTH scripts, so nothing is ever skipped.
       const { plugin, tokenize, recordNoteScan } = harness("traditional", ["灣", "氣", "熱"]);
+      const result = await indexVault(plugin);
+      expect(result).toEqual({ scanned: 1, total: 1, recorded: 1, skipped: 0 });
+      expect(tokenize).toHaveBeenCalled();
+      expect(recordNoteScan).toHaveBeenCalled();
+    });
+
+    it("skips nothing in auto, because the union trie reads both scripts", async () => {
+      const { plugin, tokenize, recordNoteScan } = harness("auto", ["灣", "氣", "熱"]);
       const result = await indexVault(plugin);
       expect(result).toEqual({ scanned: 1, total: 1, recorded: 1, skipped: 0 });
       expect(tokenize).toHaveBeenCalled();
