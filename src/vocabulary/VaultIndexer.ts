@@ -9,10 +9,14 @@ export interface VaultIndexProgress {
 }
 
 /**
- * Walk every Markdown file in the vault, tokenize the Chinese spans, and
- * `recordExposure` each word-level CJK token. Chunked + yields to the UI so
- * a large vault does not freeze the editor. Re-running it records exposures
- * again on the same canonical records.
+ * Walk every Markdown file in the vault, tokenize the Chinese spans, and hand
+ * each note's word tally to `recordNoteScan`. Chunked + yields to the UI so a
+ * large vault does not freeze the editor.
+ *
+ * Safe to re-run: counts are recorded per note as a high-water mark, so a
+ * second pass over unchanged notes writes nothing. `progress.recorded` is
+ * therefore the number of NEW exposures, not the number of tokens seen — it
+ * reads 0 on a clean re-index.
  */
 export async function indexVault(
   plugin: CciPlugin,
@@ -32,16 +36,20 @@ export async function indexVault(
     if (hasCjk(text)) {
       try {
         const tokens = await plugin.tokenizer.tokenize(text);
+        // Tally the whole note first: recordNoteScan reconciles against the
+        // count already stored for this path, so it needs the total, not one
+        // call per occurrence.
+        const counts = new Map<string, number>();
         for (const tok of tokens) {
           if (!tok.isWord || tok.candidates.length === 0) continue;
-          plugin.vocab.recordExposure(
-            tok.surface,
-            settings.exactTimestampRetentionLimit,
-            settings.storeAllExactTimestamps,
-            file.path
-          );
-          progress.recorded++;
+          counts.set(tok.surface, (counts.get(tok.surface) ?? 0) + 1);
         }
+        progress.recorded += plugin.vocab.recordNoteScan(
+          file.path,
+          counts,
+          settings.exactTimestampRetentionLimit,
+          settings.storeAllExactTimestamps
+        );
       } catch {
         // tokenizer failure on this file shouldn't stop the scan
       }
@@ -71,7 +79,7 @@ export async function indexVaultWithNotice(plugin: CciPlugin): Promise<void> {
       );
     });
     notice.setMessage(
-      `Chinese plugin: indexed ${result.scanned} files, ${result.recorded} words.`
+      `Chinese plugin: indexed ${result.scanned} files, ${result.recorded} new exposures.`
     );
     plugin.settings.vaultIndexed = true;
     await plugin.saveSettings();

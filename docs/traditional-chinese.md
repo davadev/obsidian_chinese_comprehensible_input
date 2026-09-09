@@ -36,6 +36,32 @@ Traditional characters *and* Taiwanese Mandarin usage — 網路 rather than
 網絡, 影片 rather than 視頻. Asking only for the characters gives you Mainland
 vocabulary in Traditional clothing, which reads wrong.
 
+## Re-indexing after a switch
+
+Switching the script changes how notes are *tokenized*, but it does not go back
+and re-read what you already indexed. A note that was indexed while the plugin
+was set to the other script was chopped into single characters, so its real
+words were never recorded. That is why flipping the setting offers to re-index
+the vault.
+
+**Re-indexing is safe to run as often as you like.** Each note's word counts are
+stored per note and treated as a high-water mark, so re-scanning text that has
+not changed writes nothing at all — the notice reports `0 new exposures`, and
+your "Seen N×" totals and last-seen dates do not move. A note you have since
+added to contributes only the difference.
+
+Two things worth knowing:
+
+- A note you *deleted* text from keeps its old count. Removing those exposures
+  would mean editing the day-by-day history too, and nothing records which day
+  they were read on, so the plugin leaves them alone.
+- Counts inflated by a re-index run **before 0.6.0** stay inflated. The fix
+  stops it happening again; it cannot tell an inflated count from a real one
+  after the fact.
+
+Re-indexing only ever adds records. The single-character records from the old
+index are not removed — they are real words in their own right.
+
 ## Regional pronunciation
 
 **Settings → Script & region → Pronunciation** switches to the Taiwan reading

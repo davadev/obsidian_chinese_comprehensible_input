@@ -470,6 +470,63 @@ export class VocabularyStore {
     return Array.from(set).sort();
   }
 
+  /**
+   * Record a whole note's worth of exposures at once, idempotently.
+   *
+   * The vault indexer walks every note in the vault, and a user re-runs it
+   * whenever the script setting changes. `recordExposure()` is wrong for
+   * that: it increments unconditionally, so a second pass doubled every
+   * count, back-dated `lastSeenAt` to "now" for every word in the vault, and
+   * spiked today's `dailySeenCounts` for reading that never happened. None of
+   * it was undoable.
+   *
+   * So a note's stored count is treated as a HIGH-WATER MARK. `delta <= 0`
+   * writes nothing at all — no timestamp, no `updatedAt`, no save — which is
+   * what makes re-running over unchanged text a true no-op. A note that grew
+   * contributes only the difference. A note that shrank keeps its old count:
+   * unwinding those exposures would mean removing them from
+   * `dailySeenCounts` too, and nothing records which day they were read on.
+   *
+   * Keeping `seenCount` in step with `dailySeenCounts` is not cosmetic —
+   * `mergeForSync()` re-derives `seenCount` as the sum of the daily counts on
+   * every merge, so any scheme that let the two drift would have its totals
+   * silently reset on the next sync.
+   *
+   * `recordExposure()` is deliberately left alone: live reading has no note
+   * total to reconcile against and must keep incrementing.
+   *
+   * @returns how many exposures were actually added (0 on a clean re-run).
+   */
+  recordNoteScan(
+    notePath: string,
+    counts: Map<string, number>,
+    retentionLimit: number,
+    storeAll: boolean
+  ): number {
+    const iso = new Date().toISOString();
+    const day = iso.slice(0, 10);
+    let added = 0;
+    for (const [surface, count] of counts) {
+      const r = this.ensure(surface);
+      r.notesSeenCounts = r.notesSeenCounts ?? {};
+      const delta = count - (r.notesSeenCounts[notePath] ?? 0);
+      if (delta <= 0) continue;
+      r.notesSeenCounts[notePath] = count;
+      r.seenCount += delta;
+      r.dailySeenCounts[day] = (r.dailySeenCounts[day] ?? 0) + delta;
+      r.firstSeenAt = r.firstSeenAt ?? iso;
+      r.lastSeenAt = iso;
+      for (let i = 0; i < delta; i++) r.recentSeenAt.push(iso);
+      if (!storeAll && r.recentSeenAt.length > retentionLimit) {
+        r.recentSeenAt.splice(0, r.recentSeenAt.length - retentionLimit);
+      }
+      r.updatedAt = iso;
+      added += delta;
+    }
+    if (added > 0) this.scheduleSave();
+    return added;
+  }
+
   updateMnemonic(surface: string, patch: Partial<NonNullable<WordRecord["mnemonic"]>>): WordRecord {
     const r = this.ensure(surface);
     r.mnemonic = { ...(r.mnemonic ?? {}), ...patch, updatedAt: new Date().toISOString() };
