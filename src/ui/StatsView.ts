@@ -47,10 +47,16 @@ export class StatsView extends ItemView {
    * Drop everything derived from tokenizing notes. `refreshStatsViews()`
    * only re-renders, so without this a script switch would keep serving
    * note-scope surfaces and example sentences computed under the old trie.
+   *
+   * Clearing alone is not enough: `noteScope` survives, and `scopedRecords()`
+   * only filters while `noteSurfaces` is non-empty — so an emptied set turns
+   * a note-scoped Words tab into the whole vocabulary, with the scope selector
+   * still naming the note. Re-derive the scope instead of just dropping it.
    */
   invalidateCaches(): void {
     this.triageContextCache.clear();
     this.noteSurfaces.clear();
+    if (this.noteScope) void this.setScope(this.noteScope);
   }
 
   getViewType(): string {
