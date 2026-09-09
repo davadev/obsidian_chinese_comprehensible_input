@@ -64,7 +64,7 @@ the neutral-tone difference (謝謝 xièxiè, 東西 dōngxī) — CC-CEDICT has
 for those. Zhuyin is not supported yet.
 
 Your notes are never rewritten, and words are never converted between scripts
-for display — 1,078 Simplified headwords map to more than one Traditional form
+for display — about 540 Simplified headwords map to more than one Traditional form
 and there is no frequency data to pick correctly, so the plugin shows you the
 form you actually read.
 See [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md).

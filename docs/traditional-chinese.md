@@ -68,7 +68,7 @@ For the same reason, the plugin does not convert words between scripts for
 display. A word you have only ever met in Simplified keeps showing in
 Simplified on its flashcard, even in Traditional mode.
 
-That is deliberate, not a shortcut. 1,078 Simplified headwords map to more
+That is deliberate, not a shortcut. About 540 Simplified headwords map to more
 than one Traditional form, and the dictionary has no frequency data to choose
 between them:
 

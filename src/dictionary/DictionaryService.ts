@@ -179,7 +179,10 @@ export class DictionaryService {
     const traditional = this.byTraditional.get(surface);
     if (!traditional) return simplified ?? [];
     if (!simplified) return traditional;
-    return [...simplified, ...traditional.filter((e) => !simplified.includes(e))];
+    // No de-duplication needed: index() only pushes an entry to byTraditional
+    // when its traditional form differs from its simplified one, so no single
+    // entry can appear in both lists under the same surface.
+    return [...simplified, ...traditional];
   }
 
   lookup(surface: string): DictionaryEntry[] {
@@ -226,7 +229,7 @@ export class DictionaryService {
    * Simplified user gets a bit-identical trie.
    *
    * Cost of the union, measured on the 125k-entry CC-CEDICT build:
-   * 121,275 -> 198,106 keys, trie build 26 ms -> 42 ms, heap 44 MB -> 68 MB.
+   * 121k -> 198k keys, trie build 26 ms -> 42 ms, heap 44 MB -> 68 MB.
    */
   *surfaces(opts: { includeTraditional?: boolean } = {}): IterableIterator<string> {
     const seen = new Set<string>();
@@ -257,7 +260,7 @@ export class DictionaryService {
    * How many distinct traditional forms the dictionary knows for a surface.
    *
    * Used to decide whether showing "the traditional form" is even meaningful.
-   * 1,078 simplified headwords map to more than one — 发 is 發 or 髮, 干 is
+   * About 540 simplified headwords map to more than one — 发 is 發 or 髮, 干 is
    * 乾 or 幹, 复 is 復/複/覆 — and CC-CEDICT orders entries by codepoint
    * rather than frequency, so picking the first would routinely surface an
    * obsolete variant (干 -> 乹, 历 -> 厤). Anything above 1 means "do not

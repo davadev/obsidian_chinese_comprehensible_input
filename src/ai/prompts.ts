@@ -21,7 +21,7 @@ export interface TargetWord {
  *
  * Asking only for Traditional characters is not enough: it yields Mainland
  * vocabulary in Traditional clothing, which reads wrong to a Taiwan learner.
- * CC-CEDICT tags 1,263 entries `(Tw)` and carries both halves of every common
+ * CC-CEDICT tags roughly 1,280 entries `(Tw)` and carries both halves of every common
  * pair (網路/網絡, 影片/視頻, 軟體/軟件), so the distinction is real.
  */
 export function scriptClause(script: "simplified" | "traditional"): string {

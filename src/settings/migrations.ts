@@ -86,7 +86,8 @@ export function migrateAiSettingsToV2(
  * is read (it loads lazily on first tokenize) and forcing it early would add
  * a ~17 MB read to every startup.
  *
- * Verified against all 125,052 shipped entries: 1,066 legacy keys map
+ * Verified against all 125,025 entries of the CC-CEDICT build current at
+ * 0.6.0 (cedict_1_0_ts_utf-8_mdbg): 1,069 legacy keys map
  * correctly and no correct key is touched — a genuine neutral tone is always
  * followed by a space or end-of-string, never by a digit.
  *
