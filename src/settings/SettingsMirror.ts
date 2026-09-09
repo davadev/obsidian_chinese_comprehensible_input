@@ -196,7 +196,9 @@ export class SettingsMirror {
     applyCustomColors(this.plugin.settings);
     this.appliedUpdatedAt = remoteUpdatedAt;
     this.lastWrittenHash = await hashString(rawContent);
-    await this.plugin.saveSettingsSilently();
+    // remote: this envelope came from another device, so a script change in it
+    // needs announcing — see applyScriptSideEffects().
+    await this.plugin.saveSettingsSilently({ remote: true });
     this.plugin.refreshChineseViews();
     this.plugin.refreshStatsViews();
     // Re-render the open settings tab if it's ours, so absorbed values are

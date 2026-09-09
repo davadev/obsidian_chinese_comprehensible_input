@@ -25,6 +25,10 @@ const FILTER_OUT = {
     "dictionarySource",
     "hskColorsDerivedFromAccent",
     "vaultIndexed",
+    // A per-device UI dismissal, not a preference about the vault. Sharing it
+    // meant "Don't ask again" on one device silenced the Traditional prompt on
+    // every other one, where the user may well still want it.
+    "traditionalPromptDismissed",
   ] as const,
 };
 

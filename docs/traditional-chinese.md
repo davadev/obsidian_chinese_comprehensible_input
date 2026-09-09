@@ -62,6 +62,49 @@ Two things worth knowing:
 Re-indexing only ever adds records. The single-character records from the old
 index are not removed — they are real words in their own right.
 
+### Notes in the other script are skipped
+
+With **Simplified** selected, a Traditional note cannot be indexed correctly:
+the plugin only knows Simplified words, so the note collapses into single
+characters and each one would be filed as its own vocabulary entry. Rather than
+do that, indexing skips those notes and tells you:
+
+```
+indexed 240 files, 0 new exposures — skipped 3 that look Traditional.
+Switch Text script to index them.
+```
+
+Switch **Text script** to Traditional and re-index, and they index as real
+words. Nothing is skipped in Traditional mode — it indexes both scripts.
+
+Three things this does not cover:
+
+- Detection needs **three distinct** Traditional-only characters, so a very
+  short Traditional note is still indexed character by character.
+- It applies to indexing only. *Reading* a Traditional note while set to
+  Simplified still records single characters as you go — that is what the
+  "this note looks Traditional" prompt is for, and it can be dismissed
+  permanently.
+- Single-character entries created by an earlier index stay. Indexing only ever
+  adds.
+
+## Using more than one device
+
+**Text script** and **Pronunciation** describe your vault, not your device, so
+they travel with the settings mirror — change the script on your laptop and
+your iPad follows. When that happens the second device says so, and offers to
+re-index there too:
+
+> Text script changed to Traditional (synced from another device). Re-index the
+> vault so word counts match the new script?
+
+Nothing runs unless you tap the button. Word counts are stored per note and
+merged by taking the higher of the two, so two devices indexing the same vault
+never double up.
+
+"Don't ask again" on the Traditional prompt is **per device** — dismissing it on
+your laptop leaves it available on your iPad.
+
 ## Regional pronunciation
 
 **Settings → Script & region → Pronunciation** switches to the Taiwan reading
