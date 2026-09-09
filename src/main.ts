@@ -235,6 +235,15 @@ export default class CciPlugin extends Plugin {
       ...DEFAULT_SETTINGS.textColors,
       ...(this.settings.textColors ?? {}),
     };
+    // The reader is about to be built for whatever script is stored, so
+    // record it as already applied — otherwise the first saveSettings()
+    // would see a change from the "simplified" field initialiser and
+    // re-tokenize for nothing. Set BEFORE the accent-derivation save below:
+    // saveSettingsSilently() runs applyScriptSideEffects() synchronously, so
+    // leaving these at their initialisers would let a stored "traditional"
+    // fire view refreshes here, before tokenizer/vocab even exist.
+    this.lastAppliedScriptVariant = this.settings.scriptVariant;
+    this.lastAppliedRegion = this.settings.pronunciationRegion;
     // First install: derive the HSK palette from the active Obsidian
     // accent color so the default looks intentional rather than rainbow.
     // Subsequent loads honor whatever the user has saved.
@@ -247,12 +256,6 @@ export default class CciPlugin extends Plugin {
       void this.saveSettingsSilently();
     }
     applyCustomColors(this.settings);
-    // The reader is about to be built for whatever script is stored, so
-    // record it as already applied — otherwise the first saveSettings()
-    // would see a change from the "simplified" field initialiser and
-    // re-tokenize for nothing.
-    this.lastAppliedScriptVariant = this.settings.scriptVariant;
-    this.lastAppliedRegion = this.settings.pronunciationRegion;
     // Snapshot the initial filtered-settings fingerprint so saveSettings
     // can tell whether a UI change actually altered a sync-eligible field.
     this.lastSharedFingerprint = JSON.stringify(filterSettingsForSharing(this.settings));
@@ -260,7 +263,7 @@ export default class CciPlugin extends Plugin {
     // 0.6.0 re-keys dictionary overrides after the pinyin repair. Unlike
     // WordRecords — which dedupeOnLoad() re-derives every load — overrides
     // are a plain map that is never re-derived, so they need this one-shot
-    // pass or the ~1,066 affected entries would be orphaned. Pure string
+    // pass or the ~1,070 affected entries would be orphaned. Pure string
     // transform: it must not consult the dictionary, which is still
     // unloaded at this point and only reads lazily on first tokenize.
     const migratedOverrides = migrateOverrideKeys(blob.dictionaryOverrides ?? {});
@@ -597,12 +600,37 @@ export default class CciPlugin extends Plugin {
     row.createEl("button", { text: "Switch to Traditional" }).addEventListener("click", () => {
       notice.hide();
       this.settings.scriptVariant = "traditional";
-      void this.saveSettings();
+      void this.saveSettings().then(() => this.offerReindexAfterScriptChange());
     });
     row.createEl("button", { text: "Don't ask again" }).addEventListener("click", () => {
       notice.hide();
       this.settings.traditionalPromptDismissed = true;
       void this.saveSettings();
+    });
+  }
+
+  /**
+   * Offer to re-index the vault after the user changes the script.
+   *
+   * A vault index built under the other script tokenized every note in the
+   * script it did not know about into single characters. Re-indexing adds
+   * the correct multi-character records; it does not remove the old
+   * single-character ones, which are real words in their own right.
+   *
+   * Called from the three paths where a PERSON changed the script — the
+   * settings tab, the reading view's overflow menu, and the "this note looks
+   * Traditional" prompt. Deliberately not from applyScriptSideEffects(), so a
+   * remote settings-mirror apply does not pop a notice on an idle device.
+   */
+  offerReindexAfterScriptChange(): void {
+    const notice = new Notice("", 12000);
+    notice.messageEl.createDiv({
+      text: "Text script changed. Re-index the vault so word counts match the new script?",
+    });
+    const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
+    row.createEl("button", { text: "Re-index vault" }).addEventListener("click", () => {
+      notice.hide();
+      void indexVaultWithNotice(this);
     });
   }
 
@@ -637,15 +665,18 @@ export default class CciPlugin extends Plugin {
     if (plan.rebuildTrie) {
       this.tokenizer?.invalidate();
       this.vocab?.clearSurfaceCache();
-      for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
-        const v = leaf.view;
-        if (v instanceof StatsView && typeof v.invalidateCaches === "function") {
-          v.invalidateCaches();
-        }
-      }
     }
     if (plan.retokenize) {
       clearTokenCache();
+      // After clearTokenCache(), never before: invalidateCaches() re-derives
+      // the stats view's note scope by re-tokenizing that note, and doing so
+      // ahead of the clear would just re-read the stale cached tokens.
+      if (plan.rebuildTrie) {
+        for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_STATS)) {
+          const v = leaf.view;
+          if (v instanceof StatsView) v.invalidateCaches();
+        }
+      }
       this.forceRetokenizeViews();
       this.refreshChineseViews();
       this.refreshStatsViews();
@@ -756,7 +787,6 @@ export default class CciPlugin extends Plugin {
       blob.dictionaryCustomWords = this.dictionaryCustomWords;
     });
     await this.dictionary.reload();
-    this.vocab.clearSurfaceCache();
     // reload() changes what lookup() resolves a surface to, and bySurface()
     // memoises that. Nothing cleared it before, so a newly absorbed custom
     // word could keep resolving to a cached miss.

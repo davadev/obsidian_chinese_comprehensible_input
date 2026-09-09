@@ -458,6 +458,7 @@ export class ViewToolbar {
         // get away with a plain redecorate; this one must not — segmentation
         // itself changes, and a redecorate would reuse the stale tokens.
         await this.plugin.saveSettings();
+        this.plugin.offerReindexAfterScriptChange();
       }
     );
 

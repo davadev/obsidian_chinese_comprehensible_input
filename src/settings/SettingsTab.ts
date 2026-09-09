@@ -113,24 +113,6 @@ export class CciSettingsTab extends PluginSettingTab {
    * redecorate in place) and removes a whole class of "changed a setting,
    * the reader didn't notice" bugs; only the sync keys need extra work.
    */
-  /**
-   * A vault index built under the other script tokenized every note in the
-   * script it did not know about into single characters. Re-indexing adds
-   * the correct multi-character records; it does not remove the old
-   * single-character ones, which are real words in their own right.
-   */
-  private offerReindexAfterScriptChange(): void {
-    const notice = new Notice("", 12000);
-    notice.messageEl.createDiv({
-      text: "Text script changed. Re-index the vault so word counts match the new script?",
-    });
-    const btn = notice.messageEl.createEl("button", { text: "Re-index vault" });
-    btn.addEventListener("click", () => {
-      notice.hide();
-      void indexVaultWithNotice(this.plugin);
-    });
-  }
-
   private async persist(key: string): Promise<void> {
     await this.plugin.saveSettings();
     this.plugin.refreshChineseViews();
@@ -149,7 +131,7 @@ export class CciSettingsTab extends PluginSettingTab {
       // which rebuilt the trie. All that is left is to offer a re-index: a
       // vault indexed under the old script recorded single-character
       // exposures for every note in the other one.
-      this.offerReindexAfterScriptChange();
+      this.plugin.offerReindexAfterScriptChange();
     } else if (key === "ai.provider") {
       // Swaps which provider block is visible — a structural change, so the
       // definitions have to be re-evaluated rather than just re-read.
