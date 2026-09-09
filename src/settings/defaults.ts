@@ -78,6 +78,11 @@ export const DEFAULT_SETTINGS: CciSettings = {
   customColors: DEFAULT_CUSTOM_COLORS,
   textColors: DEFAULT_TEXT_COLORS,
   pinyinStyle: "marks",
+  // Defaults keep an upgrading user on exactly today's behaviour: the trie
+  // stays simplified-only and the AI prompts are unchanged.
+  scriptVariant: "simplified",
+  pronunciationRegion: "mainland",
+  traditionalPromptDismissed: false,
   hskSource: "both",
   tokenizerEngine: "lattice",
   newWordBehavior: "subtle",

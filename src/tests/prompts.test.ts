@@ -41,6 +41,7 @@ describe("buildUserPrompt", () => {
 
   it("lists every target word with pinyin + definition", () => {
     const out = buildUserPrompt({
+      script: "simplified",
       style: "story",
       targetHsk: "3",
       targetWords: tw,
@@ -55,6 +56,7 @@ describe("buildUserPrompt", () => {
 
   it("nudges multi-use of each target word", () => {
     const out = buildUserPrompt({
+      script: "simplified",
       style: "article",
       targetHsk: "4",
       targetWords: tw,
@@ -65,6 +67,7 @@ describe("buildUserPrompt", () => {
 
   it("includes known-words block only when provided", () => {
     const noKnown = buildUserPrompt({
+      script: "simplified",
       style: "story",
       targetHsk: "3",
       targetWords: tw,
@@ -72,6 +75,7 @@ describe("buildUserPrompt", () => {
     });
     expect(noKnown).not.toContain("already knows");
     const withKnown = buildUserPrompt({
+      script: "simplified",
       style: "story",
       targetHsk: "3",
       targetWords: tw,
@@ -95,6 +99,7 @@ describe("buildRepairPrompt", () => {
 
   it("renders every prior attempt with index + miss count", () => {
     const out = buildRepairPrompt({
+      script: "simplified",
       priorAttempts: prior,
       missingTargetWords: missing,
       tooHardWords: [],
@@ -111,6 +116,7 @@ describe("buildRepairPrompt", () => {
 
   it("lists every missing word with pinyin + definition", () => {
     const out = buildRepairPrompt({
+      script: "simplified",
       priorAttempts: prior,
       missingTargetWords: missing,
       tooHardWords: [],
@@ -125,6 +131,7 @@ describe("buildRepairPrompt", () => {
 
   it("insists missing words appear verbatim inside textChinese", () => {
     const out = buildRepairPrompt({
+      script: "simplified",
       priorAttempts: prior,
       missingTargetWords: missing,
       tooHardWords: [],
@@ -136,6 +143,7 @@ describe("buildRepairPrompt", () => {
 
   it("returns shape directive matching trimmed STORY_SCHEMA", () => {
     const out = buildRepairPrompt({
+      script: "simplified",
       priorAttempts: prior,
       missingTargetWords: missing,
       tooHardWords: [],
@@ -152,6 +160,7 @@ describe("buildRepairPrompt", () => {
 
   it("renders tooHardWords section when present", () => {
     const out = buildRepairPrompt({
+      script: "simplified",
       priorAttempts: prior,
       missingTargetWords: missing,
       tooHardWords: ["搪瓷", "饕餮"],
@@ -160,5 +169,59 @@ describe("buildRepairPrompt", () => {
     });
     expect(out).toContain("搪瓷");
     expect(out).toContain("饕餮");
+  });
+});
+
+describe("script clause", () => {
+  const tw3 = [{ word: "学习", pinyin: "xué xí", definition: "to study" }];
+
+  it("asks for Simplified characters explicitly when Simplified is selected", () => {
+    const out = buildUserPrompt({
+      script: "simplified", style: "story", targetHsk: "3", targetWords: tw3, lengthChars: 400,
+    });
+    expect(out).toContain("Simplified characters");
+    expect(out).toContain("Do not use Traditional forms");
+  });
+
+  it("asks for Traditional characters when Traditional is selected", () => {
+    const out = buildUserPrompt({
+      script: "traditional", style: "story", targetHsk: "3", targetWords: tw3, lengthChars: 400,
+    });
+    expect(out).toContain("Traditional characters");
+    expect(out).toContain("Do not use Simplified forms");
+  });
+
+  it("asks for Taiwanese vocabulary, not just Traditional glyphs", () => {
+    // Characters alone would give Mainland vocabulary in Traditional
+    // clothing, which reads wrong to a Taiwan learner.
+    const out = buildUserPrompt({
+      script: "traditional", style: "story", targetHsk: "3", targetWords: tw3, lengthChars: 400,
+    });
+    expect(out).toContain("Taiwanese Mandarin");
+    expect(out).toContain("網路");
+  });
+
+  it("carries the script through to the repair prompt", () => {
+    const out = buildRepairPrompt({
+      script: "traditional",
+      priorAttempts: [{ textChinese: "…", missingCount: 1 }],
+      missingTargetWords: tw3,
+      tooHardWords: [],
+      targetHsk: "3",
+      totalTargets: 1,
+    });
+    expect(out).toContain("Traditional characters");
+  });
+
+  it("no longer hardcodes simplified in the repair prompt", () => {
+    const out = buildRepairPrompt({
+      script: "traditional",
+      priorAttempts: [{ textChinese: "…", missingCount: 1 }],
+      missingTargetWords: tw3,
+      tooHardWords: [],
+      targetHsk: "3",
+      totalTargets: 1,
+    });
+    expect(out).not.toContain("exact simplified-Chinese surface form");
   });
 });

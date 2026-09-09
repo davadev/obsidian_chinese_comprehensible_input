@@ -6,16 +6,36 @@ export interface ValidatorConfig {
   targetHsk: number; // 1..6, 0 = any
   lengthChars: number;
   tooHardRatioCap: number; // e.g., 0.15
+  /** Script the story was asked for. When "traditional", a story containing
+   *  no traditional-only characters is flagged as having ignored the
+   *  instruction. */
+  script?: "simplified" | "traditional";
+  /** Counts distinct traditional-only characters. Supplied by the caller so
+   *  this module stays free of a DictionaryService import. */
+  countTraditionalMarkers?: (text: string) => number;
+}
+
+/** A target word plus every written form that should count as a hit. */
+export interface TargetForms {
+  display: string;
+  forms: string[];
 }
 
 export async function validateStory(
   story: GeneratedStory,
-  targetWords: string[],
+  targets: Array<string | TargetForms>,
   tokenizer: TokenizerService,
   cfg: ValidatorConfig
 ): Promise<ValidationReport> {
   const text = story.textChinese;
   const tokens = await tokenizer.tokenize(text);
+  // A target counts as present in EITHER script regardless of which one was
+  // requested, so a model that ignores the script instruction is still
+  // scored on whether it used the word.
+  const normalised: TargetForms[] = targets.map((t) =>
+    typeof t === "string" ? { display: t, forms: [t] } : t
+  );
+  const targetWords = normalised.map((t) => t.display);
 
   const wordSet = new Set<string>();
   const tooHardWords = new Set<string>();
@@ -34,7 +54,18 @@ export async function validateStory(
     }
   }
 
-  const missing = targetWords.filter((w) => !text.includes(w));
+  const missing = normalised.filter((t) => !t.forms.some((f) => text.includes(f))).map((t) => t.display);
+
+  // Script check, in the only direction that is reliable. Testing for the
+  // ABSENCE of simplified characters does not work — 台, 只, 后 and 里 are
+  // simplified headwords yet entirely normal in Traditional writing. Testing
+  // for the PRESENCE of traditional-only characters does. Advisory only: a
+  // short story can legitimately contain none, so this never fails the story
+  // on its own, it just lets the repair loop try again.
+  const wrongScript =
+    cfg.script === "traditional" &&
+    !!cfg.countTraditionalMarkers &&
+    cfg.countTraditionalMarkers(text) === 0;
   const englishRatio = englishChars + cjkChars === 0 ? 0 : englishChars / (englishChars + cjkChars);
   const lengthOk = Math.abs(text.length - cfg.lengthChars) <= cfg.lengthChars * 0.5;
 
@@ -48,6 +79,7 @@ export async function validateStory(
 
   const notes: string[] = [];
   if (missing.length) notes.push(`Missing target words: ${missing.join(", ")}`);
+  if (wrongScript) notes.push("Story appears to be in Simplified characters, but Traditional was requested");
   if (tooHardWords.size) notes.push(`${tooHardWords.size} potentially too-hard words`);
   if (englishRatio > 0.1) notes.push(`Too much English content: ${(englishRatio * 100).toFixed(1)}%`);
   if (!lengthOk) notes.push(`Length out of range: ${text.length} vs target ${cfg.lengthChars}`);

@@ -1,9 +1,12 @@
 import { App, normalizePath, Notice, TFile } from "obsidian";
+import { displaySurface } from "../dictionary/displayForms";
+import type { DictionaryService } from "../dictionary/DictionaryService";
 import { AiProviderService } from "./AiProviderService";
 import { STORY_SCHEMA, STORY_SYSTEM_PROMPT, TargetWord, buildRepairPrompt, buildUserPrompt } from "./prompts";
 import { GeneratedStory, StoryRequest } from "./aiTypes";
 import { TokenizerService } from "../tokenizer/TokenizerService";
-import { validateStory, ValidatorConfig } from "./StoryValidator";
+import { TargetForms, validateStory, ValidatorConfig } from "./StoryValidator";
+import { countTraditionalMarkers } from "../dictionary/scriptDetect";
 import { SrsScheduler } from "../srs/SrsScheduler";
 import { VocabularyStore } from "../vocabulary/VocabularyStore";
 import { WordRecord } from "../vocabulary/VocabularyTypes";
@@ -43,7 +46,10 @@ export class StoryGenerator {
     private tokenizer: TokenizerService,
     private srs: SrsScheduler,
     private vocab: VocabularyStore,
-    private settings: () => CciSettings
+    private settings: () => CciSettings,
+    /** Only used to vet simplified <-> traditional mappings before showing
+     *  a converted form; see displayForms.displaySurface. */
+    private dict: DictionaryService
   ) {}
 
   /**
@@ -80,8 +86,11 @@ export class StoryGenerator {
           "No classified due words to review yet. Mark some words as unknown or partial first."
         );
       }
+      const script = this.settings().scriptVariant;
       const targetWords: TargetWord[] = dueRecords.map((r) => ({
-        word: r.simplified ?? r.surfaces[0],
+        // The form the learner actually reads, so the model is asked for a
+        // word they will recognise on the page.
+        word: displaySurface(r, script, this.dict),
         pinyin: r.pinyin ?? "",
         definition: (r.definitions ?? []).slice(0, 2).join("; "),
       }));
@@ -93,8 +102,15 @@ export class StoryGenerator {
         targetHsk: parseInt(targetHsk, 10) || 0,
         lengthChars: req.lengthChars,
         tooHardRatioCap: 0.15,
+        script,
+        countTraditionalMarkers: (t) => countTraditionalMarkers(t, this.dict),
       };
-      const targetSurfaces = targetWords.map((t) => t.word);
+      // Accept a target in either script: the model may well answer in the
+      // other one, and the word is still there.
+      const targetSurfaces: TargetForms[] = dueRecords.map((r, i) => ({
+        display: targetWords[i].word,
+        forms: Array.from(new Set([targetWords[i].word, ...(r.surfaces ?? [])])).filter(Boolean),
+      }));
       const initialReport = await validateStory(initialStory, targetSurfaces, this.tokenizer, cfg);
       // Full history of attempts (initial + every repair candidate) so the
       // repair prompt can show the model what it kept getting wrong, not
@@ -121,6 +137,7 @@ export class StoryGenerator {
           tooHardWords: best.report.tooHardWords,
           targetHsk,
           totalTargets: targetWords.length,
+          script,
         });
         try {
           const out = await this.ai.chatJson(STORY_SYSTEM_PROMPT, repair, "ChineseStory", STORY_SCHEMA);
@@ -247,6 +264,7 @@ export class StoryGenerator {
       targetWords: target,
       knownWords: this.sampleKnownWords(),
       lengthChars: req.lengthChars,
+      script: this.settings().scriptVariant,
     });
     const raw = await this.ai.chatJson(STORY_SYSTEM_PROMPT, user, "ChineseStory", STORY_SCHEMA);
     return parseStory(raw);
@@ -280,7 +298,7 @@ export class StoryGenerator {
     const pct = Math.max(1, Math.min(100, story.knownWordsSamplePercent ?? 30));
     const words = this.vocab.values()
       .filter((r) => r.status === "known")
-      .map((r) => r.simplified ?? r.surfaces[0])
+      .map((r) => displaySurface(r, this.settings().scriptVariant, this.dict))
       .filter(Boolean);
     const n = Math.ceil(words.length * pct / 100);
     return words.sort(() => Math.random() - 0.5).slice(0, n);
@@ -311,6 +329,7 @@ export class StoryGenerator {
     score: number
   ): string {
     const { active, provider } = this.ai.resolveActive();
+    const script = this.settings().scriptVariant;
     const fm = [
       "---",
       "chinese_learning_generated: true",
@@ -318,8 +337,9 @@ export class StoryGenerator {
       `provider: ${provider}`,
       `model: ${active.chatModel}`,
       `target_hsk: ${targetHsk}`,
+      `script: ${script}`,
       "target_words:",
-      ...targets.map((r) => `  - ${r.simplified ?? r.surfaces[0]}`),
+      ...targets.map((r) => `  - ${displaySurface(r, script, this.dict)}`),
       `validation_score: ${score.toFixed(3)}`,
       "---",
       "",
@@ -337,9 +357,13 @@ export class StoryGenerator {
     if (targets.length) {
       body.push("## Target word checklist");
       for (const t of targets) {
-        const surface = t.simplified ?? t.surfaces[0];
+        const surface = displaySurface(t, script, this.dict);
         if (!surface) continue;
-        body.push(`- [${story.textChinese.includes(surface) ? "x" : " "}] ${surface}`);
+        // Tick the box if the word appears in EITHER script — the model may
+        // have written the counterpart form, and it is still a hit.
+        const forms = Array.from(new Set([surface, ...(t.surfaces ?? [])])).filter(Boolean);
+        const present = forms.some((f) => story.textChinese.includes(f));
+        body.push(`- [${present ? "x" : " "}] ${surface}`);
       }
       body.push("");
     }

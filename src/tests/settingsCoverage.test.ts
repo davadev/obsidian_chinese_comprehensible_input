@@ -20,6 +20,8 @@ const NOT_IN_SETTINGS_TAB: Record<string, string> = {
   "ai.usageLog": "append-only token log",
   "ai.ollama.apiKey": "always empty at rest; the key lives in localStorage",
   "ai.ollama.embeddingModel": "reserved, not used by any feature yet",
+  traditionalPromptDismissed:
+    "set by the one-time 'this note looks Traditional' prompt's Don't ask again",
   // Edited from the reading view's toolbar / display menu.
   enabledFormats: "armed from the formatting toolbar",
   formatReverseMode: "toggled by the highlighter button",

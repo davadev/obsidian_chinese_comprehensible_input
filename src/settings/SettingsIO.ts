@@ -139,6 +139,9 @@ export async function importSettings(
   plugin.settings = { ...DEFAULT_SETTINGS, ...(next as Partial<CciSettings>) };
   applyCustomColors(plugin.settings);
   await plugin.saveSettings();
+  // An imported file can carry a different `scriptVariant`. saveSettings()
+  // routes through applyScriptSideEffects(), which rebuilds the trie — a
+  // plain view refresh would leave stale segmentation behind.
   plugin.refreshChineseViews();
   plugin.refreshStatsViews();
   return { applied: Object.keys(safe).length, skipped };

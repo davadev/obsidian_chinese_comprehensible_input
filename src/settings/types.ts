@@ -71,6 +71,21 @@ export type FormatId =
 export type FormatOptionId = FormatId | `hl:${string}`;
 
 export type PinyinStyle = "marks" | "numbers" | "none";
+
+/**
+ * Which script the learner reads. This never rewrites note text — it
+ * decides what the tokenizer indexes and which form the UI shows. In
+ * "traditional" the trie indexes BOTH scripts (a union, not a swap), so a
+ * vault holding notes of both kinds keeps working without a per-note switch.
+ */
+export type ScriptVariant = "simplified" | "traditional";
+
+/**
+ * Which regional reading to display. "taiwan" prefers the Taiwan reading
+ * wherever CC-CEDICT records one (垃圾 lè sè rather than lā jī) — about 500
+ * words. It never affects vocabulary keys, which stay on the Mainland reading.
+ */
+export type PronunciationRegion = "mainland" | "taiwan";
 export type TokenizerEngine = "lattice" | "intl-segmenter" | "experimental";
 export type HskSource = "2.0" | "3.0" | "both";
 
@@ -238,6 +253,13 @@ export interface DictionarySourceMeta {
 export interface CciSettings {
   schemaVersion: number;
   dictionarySource?: DictionarySourceMeta;
+  /** Script the reader is tuned for. See {@link ScriptVariant}. */
+  scriptVariant: ScriptVariant;
+  /** Regional reading preference. See {@link PronunciationRegion}. */
+  pronunciationRegion: PronunciationRegion;
+  /** Set once the user dismisses the "this note looks Traditional" prompt,
+   *  so it is never shown again. No settings-tab control by design. */
+  traditionalPromptDismissed: boolean;
   defaultDisplayMode: DisplayMode;
   knownWordPopups: boolean;
   /** Formats currently armed in the in-view formatting mode (#21). */

@@ -17,6 +17,7 @@ import { getCachedTokens, hashText } from "../tokenizer/tokenCache";
 import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { CciSettings, DisplayMode } from "../settings/types";
 import { hasCjk, shortenDefinition, toneMarksToNumbers } from "../dictionary/normalizeChinese";
+import { displayPinyin } from "../dictionary/displayForms";
 import { axesFromStatus, colorClassKey, ColorClassKey, colorOf } from "../vocabulary/axes";
 import { DEFAULT_HIGHLIGHT_BG, findHighlightSpans, resolveHighlightPalette } from "./highlightPalette";
 
@@ -498,7 +499,10 @@ class RubyWidget extends WidgetType {
     this.colorKey = colorKey ?? "";
     this.axes = rec?.axes ?? axesFromStatus(rec?.status ?? "new") ?? { chars: false, pinyin: false, meaning: false };
     const isNew = !rec || rec.status === "new";
-    this.pinyin = tok.selected?.pinyin ?? rec?.pinyin ?? "";
+    // Resolved here rather than at render time so eq() compares the final
+    // string — a region flip has to bust widget equality or the ruby keeps
+    // the old reading.
+    this.pinyin = displayPinyin(tok.selected, rec, settings.pronunciationRegion);
     this.showPinyin = isNew || !this.axes.pinyin || !this.axes.chars;
     this.showGloss = mode === "three-line" && (isNew || !this.axes.meaning);
     this.def = this.showGloss

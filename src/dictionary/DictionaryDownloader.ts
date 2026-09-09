@@ -163,7 +163,10 @@ export function parseCedict(
     const m = lineRe.exec(line);
     if (!m) continue;
     const [, traditional, simplified, pinyinRaw, defs] = m;
-    const pinyin = numbersToToneMarks(pinyinRaw).replace(/u:/g, "ü");
+    // numbersToToneMarks handles CC-CEDICT's "u:" spelling of ü itself —
+    // it has to, because converting after the fact left the tone digit
+    // stranded ("nu:3" -> "nü3" instead of "nǚ").
+    const pinyin = numbersToToneMarks(pinyinRaw);
     entries.push({
       simplified,
       traditional,

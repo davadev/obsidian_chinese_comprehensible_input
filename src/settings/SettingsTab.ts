@@ -126,6 +126,12 @@ export class CciSettingsTab extends PluginSettingTab {
       if (this.plugin.settings.sync.settingsMirrorEnabled) {
         await this.plugin.settingsMirror.bootstrap();
       }
+    } else if (key === "scriptVariant") {
+      // saveSettings() above already routed through applyScriptSideEffects(),
+      // which rebuilt the trie. All that is left is to offer a re-index: a
+      // vault indexed under the old script recorded single-character
+      // exposures for every note in the other one.
+      this.plugin.offerReindexAfterScriptChange();
     } else if (key === "ai.provider") {
       // Swaps which provider block is visible — a structural change, so the
       // definitions have to be re-evaluated rather than just re-read.
@@ -184,6 +190,7 @@ export class CciSettingsTab extends PluginSettingTab {
     return [
       this.dataManagementGroup(),
       this.displayGroup(),
+      this.scriptGroup(),
       this.tokenizerGroup(),
       this.exposureGroup(),
       this.srsGroup(),
@@ -205,6 +212,54 @@ export class CciSettingsTab extends PluginSettingTab {
           name: "Open dashboard",
           desc: "Dashboard, per-note breakdown, flashcards, and the full word list.",
           action: () => void this.plugin.openStatsView(),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Script & region. Deliberately a top-level group placed right after
+   * Display rather than an item inside "Advanced display": a Traditional
+   * reader has to find this before anything else in the plugin works for
+   * them, so it must not be buried behind a sub-page.
+   */
+  private scriptGroup(): SettingDefinitionItem {
+    return {
+      type: "group",
+      heading: "Script & region",
+      items: [
+        this.docLink(
+          "Traditional Chinese",
+          "How Traditional support works, what the Taiwan readings cover, and why the plugin never converts between scripts.",
+          "traditional-chinese.md"
+        ),
+        {
+          name: "Text script",
+          desc:
+            "Which script your notes are written in. Traditional keeps Simplified words indexed as well, " +
+            "so a vault with both kinds of note keeps working. Your notes are never rewritten.",
+          control: {
+            type: "dropdown",
+            key: "scriptVariant",
+            options: {
+              simplified: "Simplified (Mainland / Singapore)",
+              traditional: "Traditional (Taiwan / Hong Kong)",
+            },
+          },
+        },
+        {
+          name: "Pronunciation",
+          desc:
+            "Taiwan uses the Taiwan reading wherever the dictionary records one — 垃圾 is lè sè rather than " +
+            "lā jī. About 500 words are covered; everything else is unchanged.",
+          control: {
+            type: "dropdown",
+            key: "pronunciationRegion",
+            options: {
+              mainland: "Mainland (pǔtōnghuà)",
+              taiwan: "Taiwan (guóyǔ)",
+            },
+          },
         },
       ],
     };
@@ -1044,6 +1099,7 @@ export class CciSettingsTab extends PluginSettingTab {
       };
       await this.plugin.saveSettings();
       await this.plugin.dictionary.reload();
+      this.plugin.vocab.clearSurfaceCache();
       this.plugin.tokenizer.invalidate();
       new Notice(`Dictionary installed: ${count} entries.`);
     } catch (e) {
@@ -1066,6 +1122,7 @@ export class CciSettingsTab extends PluginSettingTab {
       this.plugin.settings.dictionarySource = undefined;
       await this.plugin.saveSettings();
       await this.plugin.dictionary.reload();
+      this.plugin.vocab.clearSurfaceCache();
       this.plugin.tokenizer.invalidate();
       new Notice("Dictionary removed; seed dictionary back in use.");
     } catch (e) {

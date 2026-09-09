@@ -41,7 +41,11 @@ export class TokenizerService {
     if (this.trie) return this.trie;
     await this.dict.ensureLoaded();
     const t = new Trie();
-    for (const s of this.dict.surfaces()) t.insert(s);
+    // Traditional mode indexes both scripts. Without this the trie holds
+    // simplified headwords only, so traditional text finds no multi-character
+    // match at all and every word collapses to the OOV single-character edge.
+    const includeTraditional = this.settings().scriptVariant === "traditional";
+    for (const s of this.dict.surfaces({ includeTraditional })) t.insert(s);
     // Include trie entries for merge overrides.
     for (const o of this.overrides.values()) {
       if (o.mergeAs) t.insert(o.mergeAs);

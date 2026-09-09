@@ -153,3 +153,69 @@ describe("validateStory", () => {
     expect(r.notes.some((n) => /too-hard words/i.test(n))).toBe(true);
   });
 });
+
+describe("validateStory — script handling", () => {
+  const tokenizer = { tokenize: async () => [] } as unknown as TokenizerService;
+  const cfg = { targetHsk: 0, lengthChars: 20, tooHardRatioCap: 0.15 };
+
+  it("counts a target as present when written in the other script", async () => {
+    // The model may answer in either script; the word is still there.
+    const report = await validateStory(
+      { title: "t", targetLevel: "3", textChinese: "我在圖書館學習中文" },
+      [{ display: "学习", forms: ["学习", "學習"] }],
+      tokenizer,
+      cfg
+    );
+    expect(report.missingWords).toEqual([]);
+  });
+
+  it("still reports a genuinely absent target", async () => {
+    const report = await validateStory(
+      { title: "t", targetLevel: "3", textChinese: "我在家" },
+      [{ display: "学习", forms: ["学习", "學習"] }],
+      tokenizer,
+      cfg
+    );
+    expect(report.missingWords).toEqual(["学习"]);
+  });
+
+  it("accepts a plain string target for backwards compatibility", async () => {
+    const report = await validateStory(
+      { title: "t", targetLevel: "3", textChinese: "我在学习中文" },
+      ["学习"],
+      tokenizer,
+      cfg
+    );
+    expect(report.missingWords).toEqual([]);
+  });
+
+  it("flags a Simplified story when Traditional was requested", async () => {
+    const report = await validateStory(
+      { title: "t", targetLevel: "3", textChinese: "我在图书馆学习中文" },
+      ["学习"],
+      tokenizer,
+      { ...cfg, script: "traditional", countTraditionalMarkers: () => 0 }
+    );
+    expect(report.notes.join(" ")).toContain("Traditional was requested");
+  });
+
+  it("does not flag a story that does contain traditional characters", async () => {
+    const report = await validateStory(
+      { title: "t", targetLevel: "3", textChinese: "我在圖書館學習中文" },
+      ["學習"],
+      tokenizer,
+      { ...cfg, script: "traditional", countTraditionalMarkers: () => 5 }
+    );
+    expect(report.notes.join(" ")).not.toContain("Traditional was requested");
+  });
+
+  it("says nothing about script when Simplified was requested", async () => {
+    const report = await validateStory(
+      { title: "t", targetLevel: "3", textChinese: "我在图书馆学习中文" },
+      ["学习"],
+      tokenizer,
+      { ...cfg, script: "simplified", countTraditionalMarkers: () => 0 }
+    );
+    expect(report.notes.join(" ")).not.toContain("Traditional was requested");
+  });
+});

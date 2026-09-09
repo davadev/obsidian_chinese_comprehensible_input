@@ -52,3 +52,36 @@ describe("lattice tokenizer", () => {
     expect(tokens[0].surface).toBe("我");
   });
 });
+
+describe("Trie — UTF-16 handling", () => {
+  it("matches a word containing a character outside the BMP", () => {
+    // insert() used to walk code points while matchesFrom() walks code
+    // units, so astral words were stored under an unreachable key. 268
+    // simplified headwords and 10 traditional-only forms are affected.
+    const t = new Trie();
+    t.insert("𪢌");
+    expect(t.matchesFrom("𪢌", 0)).toEqual(["𪢌".length]);
+  });
+
+  it("matches an astral character embedded in ordinary text", () => {
+    const t = new Trie();
+    t.insert("𪢌哰");
+    const text = "我𪢌哰好";
+    expect(t.matchesFrom(text, 1)).toEqual([1 + "𪢌哰".length]);
+  });
+
+  it("still matches ordinary BMP words unchanged", () => {
+    const t = new Trie();
+    t.insert("中文");
+    t.insert("中");
+    expect(t.matchesFrom("中文", 0)).toEqual([1, 2]);
+  });
+
+  it("reports prefixes consistently for astral words", () => {
+    const t = new Trie();
+    t.insert("𪢌哰");
+    expect(t.hasPrefix("𪢌")).toBe(true);
+    expect(t.hasPrefix("𪢌哰")).toBe(true);
+    expect(t.hasPrefix("好")).toBe(false);
+  });
+});
