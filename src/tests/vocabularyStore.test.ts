@@ -50,6 +50,73 @@ describe("VocabularyStore", () => {
     (globalThis as any).window = globalThis;
   });
 
+  /**
+   * The vault indexer re-walks every note whenever the script setting
+   * changes. Before 0.6.0-rc.2 it called recordExposure() per occurrence, so
+   * every re-index doubled seenCount, back-dated lastSeenAt for the entire
+   * vault, and spiked today's dailySeenCounts — none of it undoable.
+   */
+  describe("recordNoteScan is idempotent", () => {
+    const scan = (store: VocabularyStore, counts: [string, number][], path = "a.md") =>
+      store.recordNoteScan(path, new Map(counts), 50, false);
+
+    it("records a note's tally on the first pass", async () => {
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      expect(scan(store, [["学习", 3]])).toBe(3);
+      const rec = store.bySurface("学习")!;
+      expect(rec.seenCount).toBe(3);
+      expect(rec.notesSeenCounts?.["a.md"]).toBe(3);
+      // The invariant mergeForSync() re-derives seenCount from.
+      expect(Object.values(rec.dailySeenCounts).reduce((a, b) => a + b, 0)).toBe(3);
+    });
+
+    it("writes absolutely nothing on an unchanged re-scan", async () => {
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      scan(store, [["学习", 3]]);
+      const before = JSON.stringify(store.bySurface("学习"));
+      expect(scan(store, [["学习", 3]])).toBe(0);
+      // Byte-identical: no count, no timestamp, no updatedAt may move.
+      expect(JSON.stringify(store.bySurface("学习"))).toBe(before);
+    });
+
+    it("adds only the difference when a note grows", async () => {
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      scan(store, [["学习", 3]]);
+      expect(scan(store, [["学习", 5]])).toBe(2);
+      const rec = store.bySurface("学习")!;
+      expect(rec.seenCount).toBe(5);
+      expect(Object.values(rec.dailySeenCounts).reduce((a, b) => a + b, 0)).toBe(5);
+    });
+
+    it("keeps the high-water mark when a note shrinks", async () => {
+      // Unwinding would mean removing exposures from dailySeenCounts, and
+      // nothing records which day they were read on.
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      scan(store, [["学习", 5]]);
+      expect(scan(store, [["学习", 2]])).toBe(0);
+      expect(store.bySurface("学习")!.seenCount).toBe(5);
+    });
+
+    it("counts the same word separately per note", async () => {
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      scan(store, [["学习", 2]], "a.md");
+      scan(store, [["学习", 4]], "b.md");
+      const rec = store.bySurface("学习")!;
+      expect(rec.seenCount).toBe(6);
+      expect(rec.notesSeenCounts).toEqual({ "a.md": 2, "b.md": 4 });
+    });
+  });
+
   it("load dedupes legacy keys and backfills classification timestamps", async () => {
     const { plugin } = makePlugin();
     const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);

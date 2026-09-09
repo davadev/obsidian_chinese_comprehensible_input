@@ -197,6 +197,24 @@ describe("validateStory — script handling", () => {
       { ...cfg, script: "traditional", countTraditionalMarkers: () => 0 }
     );
     expect(report.notes.join(" ")).toContain("Traditional was requested");
+    // Until rc.2 the finding only reached `notes`, which nothing reads — the
+    // detection existed but could never send the story back for a repair.
+    expect(report.wrongScript).toBe(true);
+    expect(report.ok).toBe(false);
+  });
+
+  it("scores a wrong-script story below the same story in the right script", async () => {
+    const story = { title: "t", targetLevel: "3", textChinese: "我在圖書館學習中文" };
+    const wrong = await validateStory(story, ["學習"], tokenizer, {
+      ...cfg, script: "traditional", countTraditionalMarkers: () => 0,
+    });
+    const right = await validateStory(story, ["學習"], tokenizer, {
+      ...cfg, script: "traditional", countTraditionalMarkers: () => 5,
+    });
+    // Best-of-N tie-breaks on score once the missing-word counts match, so
+    // the gap is what lets a correct-script candidate win.
+    expect(wrong.missingWords).toEqual(right.missingWords);
+    expect(wrong.score).toBeLessThan(right.score);
   });
 
   it("does not flag a story that does contain traditional characters", async () => {
@@ -207,6 +225,7 @@ describe("validateStory — script handling", () => {
       { ...cfg, script: "traditional", countTraditionalMarkers: () => 5 }
     );
     expect(report.notes.join(" ")).not.toContain("Traditional was requested");
+    expect(report.wrongScript).toBe(false);
   });
 
   it("says nothing about script when Simplified was requested", async () => {
@@ -217,5 +236,7 @@ describe("validateStory — script handling", () => {
       { ...cfg, script: "simplified", countTraditionalMarkers: () => 0 }
     );
     expect(report.notes.join(" ")).not.toContain("Traditional was requested");
+    expect(report.wrongScript).toBe(false);
+    expect(report.ok).toBe(true);
   });
 });

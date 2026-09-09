@@ -1,5 +1,5 @@
 import { App, Modal, Notice } from "obsidian";
-import { displayPinyin } from "../dictionary/displayForms";
+import { displayPinyin, displaySurface } from "../dictionary/displayForms";
 import type CciPlugin from "../main";
 import type { MnemonicInput } from "../ai/MnemonicService";
 import type { WordRecord } from "../vocabulary/VocabularyTypes";
@@ -28,7 +28,10 @@ export class MnemonicModal extends Modal {
   /** Bumps on every generate so a slow in-flight response from a previous
    *  attempt can't overwrite newer text (or a closed modal). */
   private runId = 0;
+  /** Key for storage. Always `surfaces[0]` — see the constructor. */
   private readonly surface: string;
+  /** Key for display and for the AI prompt: the form the learner reads. */
+  private readonly shown: string;
   private lineInput!: HTMLInputElement;
   private storyInput!: HTMLTextAreaElement;
   private counterEl!: HTMLElement;
@@ -41,7 +44,15 @@ export class MnemonicModal extends Modal {
     private sentence: string
   ) {
     super(app);
+    // Two surfaces on purpose. Storage goes through updateMnemonic(), which
+    // calls vocab.ensure() — handing it a converted form would push that form
+    // into rec.surfaces, and surfaces[0]-as-first-encounter is precisely the
+    // signal displaySurface() relies on to avoid showing a guessed variant.
+    // So storage stays on surfaces[0]; only what the user sees, and what the
+    // model is asked about, follows the script setting.
     this.surface = rec.surfaces[0];
+    this.shown =
+      displaySurface(rec, plugin.settings.scriptVariant, plugin.dictionary) || this.surface;
   }
 
   onOpen(): void {
@@ -60,10 +71,10 @@ export class MnemonicModal extends Modal {
     contentEl.empty();
     contentEl.addClass("cci-mnemonic-modal");
 
-    const dict = this.plugin.dictionary.lookup(this.surface)[0];
+    const dict = this.plugin.dictionary.lookup(this.shown)[0];
     const pinyin = dict?.pinyin ?? this.rec.pinyin ?? "";
     contentEl.createEl("h2", {
-      text: pinyin ? `${this.surface} (${pinyin})` : this.surface,
+      text: pinyin ? `${this.shown} (${pinyin})` : this.shown,
     });
 
     const lineWrap = contentEl.createDiv({ cls: "cci-mnemonic-field" });
@@ -121,9 +132,9 @@ export class MnemonicModal extends Modal {
   }
 
   private aiInput(): MnemonicInput {
-    const dict = this.plugin.dictionary.lookup(this.surface)[0];
+    const dict = this.plugin.dictionary.lookup(this.shown)[0];
     return {
-      surface: this.surface,
+      surface: this.shown,
       pinyin: displayPinyin(dict, this.rec, this.plugin.settings.pronunciationRegion),
       traditional: dict?.traditional ?? this.rec.traditional,
       definitions: dict?.definitions ?? this.rec.definitions ?? [],

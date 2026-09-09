@@ -126,7 +126,10 @@ export class StoryGenerator {
 
       const maxIters = this.ai.resolveActive().active.maxRepairIterations;
       let iter = 0;
-      while (iter < maxIters && best.report.missingWords.length > 0) {
+      // Also repair a story that came back in the wrong script, even when every
+      // target word is present — otherwise a Traditional request silently
+      // returns Simplified prose.
+      while (iter < maxIters && (best.report.missingWords.length > 0 || best.report.wrongScript)) {
         iter++;
         const missingTargetWords = targetWords.filter((t) =>
           best.report.missingWords.includes(t.word)
@@ -138,6 +141,7 @@ export class StoryGenerator {
           targetHsk,
           totalTargets: targetWords.length,
           script,
+          wrongScript: best.report.wrongScript,
         });
         try {
           const out = await this.ai.chatJson(STORY_SYSTEM_PROMPT, repair, "ChineseStory", STORY_SCHEMA);

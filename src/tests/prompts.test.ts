@@ -213,6 +213,38 @@ describe("script clause", () => {
     expect(out).toContain("Traditional characters");
   });
 
+  it("leads with the script when that is the only defect", () => {
+    // A story can be sent back for the script alone, with every target word
+    // present. Opening with "repeatedly miss required target words" would
+    // point the model at a problem it does not have.
+    const out = buildRepairPrompt({
+      script: "traditional",
+      wrongScript: true,
+      priorAttempts: [{ textChinese: "我在图书馆学习中文", missingCount: 0 }],
+      missingTargetWords: [],
+      tooHardWords: [],
+      targetHsk: "3",
+      totalTargets: 1,
+    });
+    expect(out).toContain("written in the wrong script");
+    expect(out).not.toContain("repeatedly miss required target words");
+    expect(out).toContain("no Traditional-only characters");
+  });
+
+  it("still leads with missing words when words are missing", () => {
+    const out = buildRepairPrompt({
+      script: "traditional",
+      wrongScript: true,
+      priorAttempts: [{ textChinese: "…", missingCount: 1 }],
+      missingTargetWords: tw3,
+      tooHardWords: [],
+      targetHsk: "3",
+      totalTargets: 1,
+    });
+    expect(out).toContain("repeatedly miss required target words");
+    expect(out).toContain("no Traditional-only characters");
+  });
+
   it("no longer hardcodes simplified in the repair prompt", () => {
     const out = buildRepairPrompt({
       script: "traditional",
