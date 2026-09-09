@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planScriptChange, ScriptState } from "../settings/scriptChange";
+import { indexedSetChanged, planScriptChange, ScriptState } from "../settings/scriptChange";
 
 const S: ScriptState = { script: "simplified", region: "mainland" };
 
@@ -58,6 +58,32 @@ describe("planScriptChange", () => {
         }
       }
     }
+  });
+
+  /**
+   * Only "simplified" opts out of the union trie, so it is the only boundary
+   * that changes what the tokenizer indexes. Crossing it is the one case where
+   * re-indexing the vault can find anything; anywhere else the offer would walk
+   * every note only to report "0 new exposures".
+   */
+  describe("indexedSetChanged", () => {
+    it("is false between Automatic and Traditional — same trie", () => {
+      expect(indexedSetChanged("auto", "traditional")).toBe(false);
+      expect(indexedSetChanged("traditional", "auto")).toBe(false);
+    });
+
+    it("is true whenever Simplified is on exactly one side", () => {
+      expect(indexedSetChanged("simplified", "auto")).toBe(true);
+      expect(indexedSetChanged("auto", "simplified")).toBe(true);
+      expect(indexedSetChanged("simplified", "traditional")).toBe(true);
+      expect(indexedSetChanged("traditional", "simplified")).toBe(true);
+    });
+
+    it("is false when nothing moved", () => {
+      for (const v of ["auto", "traditional", "simplified"] as const) {
+        expect(indexedSetChanged(v, v)).toBe(false);
+      }
+    });
   });
 
   /**

@@ -11,6 +11,7 @@ import {
 } from "obsidian";
 import type CciPlugin from "../main";
 import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
+import { indexedSetChanged } from "./scriptChange";
 import { renderStatusPriorityList } from "./StatusPriorityList";
 import { renderFormatOptionsList } from "./FormatOptionsList";
 import { orderedFormatOptions } from "../editor/formatOptions";
@@ -24,6 +25,7 @@ import { DEFAULT_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
+import type { ScriptVariant } from "./types";
 import {
   exportSettings,
   importSettings,
@@ -99,12 +101,16 @@ export class CciSettingsTab extends PluginSettingTab {
       this.importPath = String(value).trim();
       return;
     }
+    // Captured before the write: persist() needs to know whether the script
+    // move actually changed what the tokenizer indexes, and by then the new
+    // value is already in place.
+    const prevScript = key === "scriptVariant" ? this.plugin.settings.scriptVariant : undefined;
     if (key === "topHskComfortThreshold") {
       this.plugin.settings.topHskComfortThreshold = Number(value) / 100;
     } else {
       setByPath(this.plugin.settings as unknown as Record<string, unknown>, key, value);
     }
-    return this.persist(key);
+    return this.persist(key, prevScript);
   }
 
   /**
@@ -113,7 +119,7 @@ export class CciSettingsTab extends PluginSettingTab {
    * redecorate in place) and removes a whole class of "changed a setting,
    * the reader didn't notice" bugs; only the sync keys need extra work.
    */
-  private async persist(key: string): Promise<void> {
+  private async persist(key: string, prevScript?: ScriptVariant): Promise<void> {
     await this.plugin.saveSettings();
     this.plugin.refreshChineseViews();
     this.plugin.refreshStatsViews();
@@ -131,7 +137,13 @@ export class CciSettingsTab extends PluginSettingTab {
       // which rebuilt the trie. All that is left is to offer a re-index: a
       // vault indexed under the old script recorded single-character
       // exposures for every note in the other one.
-      this.plugin.offerReindexAfterScriptChange();
+      //
+      // Only when the indexed set actually moved, though — Automatic and
+      // Traditional build the same trie, so re-indexing between them would
+      // walk the whole vault to report "0 new exposures".
+      if (prevScript && indexedSetChanged(prevScript, this.plugin.settings.scriptVariant)) {
+        this.plugin.offerReindexAfterScriptChange();
+      }
     } else if (key === "ai.provider") {
       // Swaps which provider block is visible — a structural change, so the
       // definitions have to be re-evaluated rather than just re-read.

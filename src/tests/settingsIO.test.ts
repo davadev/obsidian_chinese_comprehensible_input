@@ -43,8 +43,13 @@ describe("filterSettingsForSharing", () => {
     // Traditional prompt on every other one, where it may still be wanted.
     const s = cloneDefaults();
     s.traditionalPromptDismissed = true;
+    s.trackedBaselineRepaired = true;
     const out = filterSettingsForSharing(s) as any;
     expect(out.traditionalPromptDismissed).toBeUndefined();
+    // Bookkeeping about work this device has done, like vaultIndexed. Sharing
+    // it would let one device's completed baseline pass suppress another's.
+    expect(out.trackedBaselineRepaired).toBeUndefined();
+    expect(out.vaultIndexed).toBeUndefined();
     // The two settings that DO describe the vault keep syncing.
     expect(out.scriptVariant).toBe(s.scriptVariant);
     expect(out.pronunciationRegion).toBe(s.pronunciationRegion);

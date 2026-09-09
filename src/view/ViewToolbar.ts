@@ -1,6 +1,7 @@
 import { Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
 import { ColorMode, DisplayMode, ScriptVariant, ViewMode } from "../settings/types";
+import { indexedSetChanged } from "../settings/scriptChange";
 import { conflictDisabled } from "../editor/formatApply";
 import { orderedFormatOptions } from "../editor/formatOptions";
 
@@ -428,6 +429,9 @@ export class ViewToolbar {
     menu.style.top = `${r.bottom + 4}px`;
     menu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
 
+    // Returns the checkbox so a caller with several mutually-exclusive rows can
+    // repaint the others — this menu stays open after a toggle and is never
+    // rebuilt, so nothing else would.
     const checkRow = (label: string, get: () => boolean, set: (v: boolean) => Promise<void>) => {
       const item = menu.createDiv({ cls: "cci-overflow-item" });
       const cb = item.createEl("input", { type: "checkbox" });
@@ -442,6 +446,7 @@ export class ViewToolbar {
       item.addEventListener("click", (ev) => {
         if (ev.target !== cb) cb.click();
       });
+      return cb;
     };
 
     // Script first: on mobile, opening Settings mid-read to flip this is
@@ -455,21 +460,37 @@ export class ViewToolbar {
     // make the third state reachable, which is the point of the escape hatch.
     const scriptHint = menu.createDiv({ cls: "cci-overflow-hint" });
     scriptHint.setText("Script");
+    // These three are one setting, so they have to behave like radios. The
+    // menu stays open and is never rebuilt after a toggle, so every row has to
+    // be repainted by hand — otherwise picking Traditional while Automatic is
+    // checked leaves BOTH ticked, and clicking the already-active row unticks
+    // it while the setting stays put.
+    const scriptRows: { value: ScriptVariant; cb: HTMLInputElement }[] = [];
+    const repaintScriptRows = () => {
+      for (const r of scriptRows) r.cb.checked = this.plugin.settings.scriptVariant === r.value;
+    };
     const scriptRow = (label: string, value: ScriptVariant) => {
-      checkRow(
+      const cb = checkRow(
         label,
         () => this.plugin.settings.scriptVariant === value,
         async () => {
-          if (this.plugin.settings.scriptVariant === value) return;
-          this.plugin.settings.scriptVariant = value;
-          // saveSettings routes through applyScriptSideEffects(), which
-          // rebuilds the trie and re-tokenizes. The colour checkboxes below
-          // get away with a plain redecorate; this one must not — segmentation
-          // itself changes, and a redecorate would reuse the stale tokens.
-          await this.plugin.saveSettings();
-          this.plugin.offerReindexAfterScriptChange();
+          if (this.plugin.settings.scriptVariant !== value) {
+            const prev = this.plugin.settings.scriptVariant;
+            this.plugin.settings.scriptVariant = value;
+            // saveSettings routes through applyScriptSideEffects(), which
+            // rebuilds the trie and re-tokenizes. The colour checkboxes below
+            // get away with a plain redecorate; this one must not —
+            // segmentation itself changes, and a redecorate would reuse the
+            // stale tokens.
+            await this.plugin.saveSettings();
+            if (indexedSetChanged(prev, value)) this.plugin.offerReindexAfterScriptChange();
+          }
+          // Unconditional: a click on the already-active row still unticks its
+          // own box, and only a repaint puts it back.
+          repaintScriptRows();
         }
       );
+      scriptRows.push({ value, cb });
     };
     scriptRow("Automatic", "auto");
     scriptRow("Traditional characters", "traditional");

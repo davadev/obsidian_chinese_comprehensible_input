@@ -10,7 +10,7 @@ import {
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
 import { migrateAiSettingsToV2, migrateOverrideKeys } from "./settings/migrations";
-import { planScriptChange } from "./settings/scriptChange";
+import { indexedSetChanged, planScriptChange } from "./settings/scriptChange";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
 import { filterSettingsForSharing } from "./settings/SettingsIO";
@@ -626,11 +626,18 @@ export default class CciPlugin extends Plugin {
    * idempotent now, so the earlier objection — a surprise bulk write on an
    * idle device — no longer applies, and this is only a button either way.
    */
-  offerReindexAfterScriptChange(opts: { reason?: string } = {}): void {
+  offerReindexAfterScriptChange(opts: { reason?: string; offerReindex?: boolean } = {}): void {
+    const offer = opts.offerReindex ?? true;
+    // Nothing to say: a change the user just made here that does not alter what
+    // is indexed needs neither a notice nor a re-index.
+    if (!offer && !opts.reason) return;
     const notice = new Notice("", 12000);
     notice.messageEl.createDiv({
-      text: `${opts.reason ?? "Text script changed."} Re-index the vault so word counts match the new script?`,
+      text: offer
+        ? `${opts.reason ?? "Text script changed."} Re-index the vault so word counts match the new script?`
+        : (opts.reason ?? "Text script changed."),
     });
+    if (!offer) return;
     const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
     row.createEl("button", { text: "Re-index vault" }).addEventListener("click", () => {
       notice.hide();
@@ -664,6 +671,7 @@ export default class CciPlugin extends Plugin {
       { remote: opts.remote }
     );
     if (plan.noop) return;
+    const prevScript = this.lastAppliedScriptVariant;
     this.lastAppliedScriptVariant = next.script;
     this.lastAppliedRegion = next.region;
 
@@ -690,9 +698,15 @@ export default class CciPlugin extends Plugin {
       // Say where it came from. Without this the reader just re-segments and
       // the flashcards switch script with no explanation on a device the user
       // never touched.
-      const label = next.script === "traditional" ? "Traditional" : "Simplified";
+      const label =
+        next.script === "traditional" ? "Traditional" :
+        next.script === "simplified" ? "Simplified" : "Automatic";
       this.offerReindexAfterScriptChange({
         reason: `Text script changed to ${label} (synced from another device).`,
+        // Automatic and Traditional index the same set, so a move between them
+        // has nothing to re-index — but the user still deserves to know why
+        // their reader just changed.
+        offerReindex: indexedSetChanged(prevScript, next.script),
       });
     }
   }

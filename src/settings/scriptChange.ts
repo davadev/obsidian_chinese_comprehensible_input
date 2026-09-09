@@ -23,6 +23,18 @@ export interface ScriptChangePlan {
 }
 
 /**
+ * Did the set of surfaces the tokenizer indexes actually change?
+ *
+ * Only "simplified" opts out of the union — "auto" and "traditional" build the
+ * identical trie. So moving between those two changes what is DISPLAYED but not
+ * what is indexed, and offering to re-index the vault there would walk every
+ * note only to report "0 new exposures". Same predicate TokenizerService uses.
+ */
+export function indexedSetChanged(prev: ScriptVariant, next: ScriptVariant): boolean {
+  return (prev === "simplified") !== (next === "simplified");
+}
+
+/**
  * What has to be thrown away when the script or region setting moves.
  *
  * Pure so it can be tested without standing up the plugin. The decision is
