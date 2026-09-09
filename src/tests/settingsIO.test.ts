@@ -38,6 +38,18 @@ describe("filterSettingsForSharing", () => {
     expect(out.ai.ollama.temperature).toBe(0.42);
   });
 
+  it("strips traditionalPromptDismissed, which is a per-device dismissal", () => {
+    // Sharing it meant "Don't ask again" on one device silenced the
+    // Traditional prompt on every other one, where it may still be wanted.
+    const s = cloneDefaults();
+    s.traditionalPromptDismissed = true;
+    const out = filterSettingsForSharing(s) as any;
+    expect(out.traditionalPromptDismissed).toBeUndefined();
+    // The two settings that DO describe the vault keep syncing.
+    expect(out.scriptVariant).toBe(s.scriptVariant);
+    expect(out.pronunciationRegion).toBe(s.pronunciationRegion);
+  });
+
   it("strips all sync-config keys that are device-local", () => {
     const s = cloneDefaults();
     s.sync.mirrorEnabled = true;

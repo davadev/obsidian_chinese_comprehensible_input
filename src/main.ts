@@ -619,13 +619,17 @@ export default class CciPlugin extends Plugin {
    *
    * Called from the three paths where a PERSON changed the script — the
    * settings tab, the reading view's overflow menu, and the "this note looks
-   * Traditional" prompt. Deliberately not from applyScriptSideEffects(), so a
-   * remote settings-mirror apply does not pop a notice on an idle device.
+   * Traditional" prompt — and, with a `reason`, from applyScriptSideEffects()
+   * when the change arrived from another device.
+   *
+   * Offering it on the remote path is safe as of 0.6.0: the index is
+   * idempotent now, so the earlier objection — a surprise bulk write on an
+   * idle device — no longer applies, and this is only a button either way.
    */
-  offerReindexAfterScriptChange(): void {
+  offerReindexAfterScriptChange(opts: { reason?: string } = {}): void {
     const notice = new Notice("", 12000);
     notice.messageEl.createDiv({
-      text: "Text script changed. Re-index the vault so word counts match the new script?",
+      text: `${opts.reason ?? "Text script changed."} Re-index the vault so word counts match the new script?`,
     });
     const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
     row.createEl("button", { text: "Re-index vault" }).addEventListener("click", () => {
@@ -649,14 +653,15 @@ export default class CciPlugin extends Plugin {
    * ruby reads) are captured at tokenize time. Same reasoning as
    * `setDictionaryOverride` above.
    */
-  applyScriptSideEffects(): void {
+  applyScriptSideEffects(opts: { remote?: boolean } = {}): void {
     const next = {
       script: this.settings.scriptVariant,
       region: this.settings.pronunciationRegion,
     };
     const plan = planScriptChange(
       { script: this.lastAppliedScriptVariant, region: this.lastAppliedRegion },
-      next
+      next,
+      { remote: opts.remote }
     );
     if (plan.noop) return;
     this.lastAppliedScriptVariant = next.script;
@@ -681,6 +686,15 @@ export default class CciPlugin extends Plugin {
       this.refreshChineseViews();
       this.refreshStatsViews();
     }
+    if (plan.notifyRemote) {
+      // Say where it came from. Without this the reader just re-segments and
+      // the flashcards switch script with no explanation on a device the user
+      // never touched.
+      const label = next.script === "traditional" ? "Traditional" : "Simplified";
+      this.offerReindexAfterScriptChange({
+        reason: `Text script changed to ${label} (synced from another device).`,
+      });
+    }
   }
 
   async saveSettings(): Promise<void> {
@@ -696,12 +710,15 @@ export default class CciPlugin extends Plugin {
    *  (to avoid an echo loop) and by system-driven saves like the HSK
    *  accent derivation at first install (we don't want internal writes
    *  to mark the user as "touched" and start broadcasting defaults). */
-  async saveSettingsSilently(opts: { markUserTouched?: boolean } = {}): Promise<void> {
+  async saveSettingsSilently(
+    opts: { markUserTouched?: boolean; remote?: boolean } = {}
+  ): Promise<void> {
     // The guard lives here rather than in saveSettings() because
     // SettingsMirror applies a remote settings change through this method
     // directly — putting it one level up would miss exactly the path that
-    // is hardest to notice going wrong.
-    this.applyScriptSideEffects();
+    // is hardest to notice going wrong. `remote` is set by that one caller
+    // and by nothing else; every other path is a change the user just made.
+    this.applyScriptSideEffects({ remote: opts.remote });
     await this.updateDataBlob((blob) => {
       blob.settings = this.settings;
       if (opts.markUserTouched) {
