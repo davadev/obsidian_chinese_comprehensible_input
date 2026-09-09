@@ -21,6 +21,9 @@ export interface GeneratedStory {
 export interface ValidationReport {
   ok: boolean;
   missingWords: string[];
+  /** Traditional was requested but the text contains no traditional-only
+   *  character. Fails the report and triggers a repair — see StoryValidator. */
+  wrongScript: boolean;
   tooHardWords: string[];
   englishRatio: number;
   lengthOk: boolean;

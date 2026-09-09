@@ -64,6 +64,9 @@ export function buildRepairPrompt(args: {
   targetHsk: string;
   totalTargets: number;
   script: "simplified" | "traditional";
+  /** The last attempt came back in the wrong script. Can be true with no
+   *  missing words at all, which changes what the prompt should lead with. */
+  wrongScript?: boolean;
 }): string {
   const attemptsBlock = args.priorAttempts
     .map(
@@ -75,10 +78,21 @@ export function buildRepairPrompt(args: {
   const missingBlock = args.missingTargetWords
     .map((w, i) => `  ${i + 1}. ${w.word} (${w.pinyin}) — ${w.definition}`)
     .join("\n");
+  // The story can be sent back for the script alone, with every target word
+  // present — so don't open by accusing the model of missing words it did not
+  // miss. Naming the actual defect first is what gets it fixed.
+  const lead = args.missingTargetWords.length
+    ? "Your previous Chinese story attempts repeatedly miss required target words."
+    : "Your previous Chinese story attempt was written in the wrong script.";
+  const scriptLine = args.wrongScript
+    ? `The last attempt contains no Traditional-only characters, so it was written in ` +
+      `Simplified. Rewrite it in Traditional characters throughout.\n`
+    : "";
   return (
-    `Your previous Chinese story attempts repeatedly miss required target words. ` +
+    `${lead} ` +
     `Here is the full history of attempts so far:\n\n` +
     `${attemptsBlock}\n\n` +
+    `${scriptLine}` +
     `${args.missingTargetWords.length} of ${args.totalTargets} target words are still missing from textChinese.\n` +
     `Each missing word below MUST appear at least once verbatim inside textChinese, ` +
     `as the exact surface form given. Putting it in a glossary, comment, ` +
