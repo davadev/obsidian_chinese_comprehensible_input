@@ -151,11 +151,18 @@ export class EditDictionaryModal extends Modal {
    */
   private surfaceLabel(): string {
     const e = this.props.originalEntry;
-    const traditional =
-      this.props.mode === "override" && e
-        ? e.traditional === this.props.surface && e.simplified !== this.props.surface
-        : this.plugin.settings.scriptVariant === "traditional";
-    return traditional ? "Surface (traditional)" : "Surface (simplified)";
+    if (this.props.mode === "override" && e) {
+      return e.traditional === this.props.surface && e.simplified !== this.props.surface
+        ? "Surface (traditional)"
+        : "Surface (simplified)";
+    }
+    // Custom mode has no entry to read the script off. In auto there is no
+    // chosen script either, so say nothing rather than guess wrong.
+    switch (this.plugin.settings.scriptVariant) {
+      case "traditional": return "Surface (traditional)";
+      case "simplified": return "Surface (simplified)";
+      default: return "Surface";
+    }
   }
 
   // Field helpers ------------------------------------------------------

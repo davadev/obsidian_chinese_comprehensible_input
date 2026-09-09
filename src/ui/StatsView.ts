@@ -320,7 +320,10 @@ export class StatsView extends ItemView {
     // Build per-series timestamps with the appropriate filter.
     const stampFor = (id: ProgressSeriesId): (string | undefined)[] => {
       switch (id) {
-        case "tracked":    return records.map((r) => r.firstSeenAt);
+        // Records a vault scan created are inventory, not events — plotting
+        // them would claim the learner met thousands of words in one day.
+        // See WordRecord.backfilledAt; the count is reported under the chart.
+        case "tracked":    return records.filter((r) => !r.backfilledAt).map((r) => r.firstSeenAt);
         case "classified": return records.map((r) => r.classifiedAt);
         case "known":      return records.filter((r) => r.status === "known").map((r) => r.knownAt);
         case "partial":    return records
@@ -363,6 +366,16 @@ export class StatsView extends ItemView {
       wrap.createEl("p", {
         cls: "cci-dash-progress-summary",
         text: `Last ${range}: ${summary}.`,
+      });
+    }
+    // Say what was left out. The total stays visible elsewhere on the
+    // dashboard, so this moves the baseline out of a series that plots events
+    // rather than hiding it.
+    const backfilled = records.filter((r) => r.backfilledAt).length;
+    if (backfilled > 0 && this.plugin.settings.progressChartSeries.tracked) {
+      wrap.createEl("p", {
+        cls: "cci-dash-progress-summary",
+        text: `Tracked excludes ${backfilled} words added by vault indexing.`,
       });
     }
   }

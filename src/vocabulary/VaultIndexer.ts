@@ -44,7 +44,14 @@ export async function indexVault(
   // below runs before the first tokenize() — which used to be what forced the
   // load. Idempotent, so this costs nothing when the dictionary is already up.
   await plugin.dictionary.ensureLoaded();
+  // Only the simplified-only trie can shatter a Traditional note, so only it
+  // needs the skip. "auto" and "traditional" index the union and read both.
   const skipTraditional = settings.scriptVariant === "simplified";
+  // One-shot: records an earlier build's index created carry no backfilledAt,
+  // so this pass adopts the still-unclassified ones as baseline. The caller
+  // sets the flag afterwards; leaving it on would keep re-marking genuinely
+  // newly-read words on every later index.
+  const markExistingBaseline = !settings.trackedBaselineRepaired;
   for (const file of files) {
     let text = "";
     try {
@@ -75,7 +82,8 @@ export async function indexVault(
           file.path,
           counts,
           settings.exactTimestampRetentionLimit,
-          settings.storeAllExactTimestamps
+          settings.storeAllExactTimestamps,
+          { markExistingBaseline }
         );
       } catch {
         // tokenizer failure on this file shouldn't stop the scan
@@ -112,6 +120,7 @@ export async function indexVaultWithNotice(plugin: CciPlugin): Promise<void> {
       `Chinese plugin: indexed ${result.scanned} files, ${result.recorded} new exposures${skippedNote || "."}`
     );
     plugin.settings.vaultIndexed = true;
+    plugin.settings.trackedBaselineRepaired = true;
     await plugin.saveSettings();
     window.setTimeout(() => notice.hide(), 4000);
   } catch (err) {

@@ -66,6 +66,15 @@ export function displaySurface(
 ): string {
   const surfaces = record.surfaces ?? [];
   const fallback = record.simplified ?? surfaces[0] ?? "";
+  if (script === "auto") {
+    // Auto never converts in either direction — it shows the form the learner
+    // actually read. surfaces[0] is the first form ever encountered; later
+    // entries can be dictionary-seeded by VocabularyStore.ensure(), so they
+    // prove nothing. Written as its own branch on purpose: falling through to
+    // the `!== "traditional"` test below would silently answer as if the user
+    // had chosen Simplified.
+    return surfaces[0] ?? record.simplified ?? "";
+  }
   if (script !== "traditional") {
     // Prefer a surface known to be the simplified form; otherwise whatever
     // was seen first.
@@ -100,7 +109,19 @@ export function counterpartSurface(
   dict?: Pick<DictionaryService, "distinctTraditionalForms">
 ): { label: string; value: string } | undefined {
   if (!entry) return undefined;
-  if (script === "traditional") {
+  // In auto there is no chosen script to be the counterpart OF, so take the
+  // opposite of whatever is on screen. A surface that is neither form (an
+  // alternate spelling) has no meaningful counterpart, so say nothing.
+  const resolved =
+    script !== "auto"
+      ? script
+      : shown === entry.traditional
+        ? "traditional"
+        : shown === entry.simplified
+          ? "simplified"
+          : undefined;
+  if (!resolved) return undefined;
+  if (resolved === "traditional") {
     if (!entry.simplified || entry.simplified === shown) return undefined;
     return { label: "Simplified", value: entry.simplified };
   }

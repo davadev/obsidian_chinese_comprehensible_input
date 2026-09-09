@@ -31,6 +31,16 @@ export interface WordRecord {
   status: WordStatus;
   axes?: KnownAxes;
   firstSeenAt?: string;
+  /**
+   * Set when a bulk vault scan CREATED this record, rather than the learner
+   * meeting the word while reading.
+   *
+   * Indexing a vault establishes an inventory: every word already sitting in
+   * your notes appears at once. Plotting those on the Progress chart's Tracked
+   * series claims you met 9,829 words in a day. They are a baseline, and the
+   * chart excludes them. Set by `recordNoteScan()`; never by `recordExposure()`.
+   */
+  backfilledAt?: string;
   lastSeenAt?: string;
   /**
    * ISO timestamp the first time this word reached `known` status. Used by

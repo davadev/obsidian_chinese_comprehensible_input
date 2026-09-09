@@ -162,6 +162,11 @@ export function mergeForSync(
     status,
     axes,
     firstSeenAt,
+    // If either device says this record came from a vault scan, it did — the
+    // fact is about how the record was born, not about which side is newer.
+    // Both merge functions build an explicit literal, so a field missing from
+    // one of them is silently dropped on every sync.
+    backfilledAt: a.backfilledAt ?? b.backfilledAt,
     lastSeenAt,
     knownAt,
     classifiedAt,

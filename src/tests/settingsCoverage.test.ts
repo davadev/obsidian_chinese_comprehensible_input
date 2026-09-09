@@ -22,6 +22,8 @@ const NOT_IN_SETTINGS_TAB: Record<string, string> = {
   "ai.ollama.embeddingModel": "reserved, not used by any feature yet",
   traditionalPromptDismissed:
     "set by the one-time 'this note looks Traditional' prompt's Don't ask again",
+  trackedBaselineRepaired:
+    "one-shot bookkeeping for the vault-index baseline pass; not a preference",
   // Edited from the reading view's toolbar / display menu.
   enabledFormats: "armed from the formatting toolbar",
   formatReverseMode: "toggled by the highlighter button",

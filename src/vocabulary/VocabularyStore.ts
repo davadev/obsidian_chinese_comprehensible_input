@@ -501,13 +501,35 @@ export class VocabularyStore {
     notePath: string,
     counts: Map<string, number>,
     retentionLimit: number,
-    storeAll: boolean
+    storeAll: boolean,
+    opts: { markExistingBaseline?: boolean } = {}
   ): number {
     const iso = new Date().toISOString();
     const day = iso.slice(0, 10);
     let added = 0;
+    let changed = false;
     for (const [surface, count] of counts) {
+      // Before ensure(), which would create it and destroy the evidence.
+      const existed = !!this.bySurface(surface);
       const r = this.ensure(surface);
+
+      // Baseline marking. A record this scan CREATED is vault inventory, not
+      // a word the learner met — see WordRecord.backfilledAt.
+      if (!r.backfilledAt) {
+        const isBaseline =
+          !existed ||
+          // One-shot repair for records an earlier build's index created
+          // before the flag existed. "Still new and never classified" is the
+          // best available proxy; the caller passes this exactly once so it
+          // cannot keep swallowing genuinely newly-read words later on.
+          (!!opts.markExistingBaseline && r.status === "new" && !r.classifiedAt);
+        if (isBaseline) {
+          r.backfilledAt = iso;
+          r.updatedAt = iso;
+          changed = true;
+        }
+      }
+
       r.notesSeenCounts = r.notesSeenCounts ?? {};
       const delta = count - (r.notesSeenCounts[notePath] ?? 0);
       if (delta <= 0) continue;
@@ -522,8 +544,9 @@ export class VocabularyStore {
       }
       r.updatedAt = iso;
       added += delta;
+      changed = true;
     }
-    if (added > 0) this.scheduleSave();
+    if (changed) this.scheduleSave();
     return added;
   }
 
@@ -788,6 +811,9 @@ function mergeRecords(a: WordRecord, b: WordRecord): WordRecord {
     dailySeenCounts: mergeCounts(a.dailySeenCounts, b.dailySeenCounts),
     status: pickWinningStatus(a.status, b.status),
     firstSeenAt,
+    // Explicit rather than left to the spread above: `...b` would clobber a
+    // set flag with undefined if b ever carries the key without a value.
+    backfilledAt: a.backfilledAt ?? b.backfilledAt,
     knownAt,
     classifiedAt,
     updatedAt: a.updatedAt > b.updatedAt ? a.updatedAt : b.updatedAt,

@@ -105,6 +105,47 @@ describe("VocabularyStore", () => {
       expect(store.bySurface("学习")!.seenCount).toBe(5);
     });
 
+    it("marks a record the scan CREATED as baseline, not as an event", async () => {
+      // A bulk index establishes an inventory of what is already in the vault.
+      // Plotting those on the Progress chart claims the learner met thousands
+      // of words in a day, which is what prompted this.
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      scan(store, [["学习", 2]]);
+      expect(store.bySurface("学习")!.backfilledAt).toBeTruthy();
+    });
+
+    it("does not mark a record that already existed", async () => {
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      // Met while reading, not by a scan.
+      store.recordExposure("学习", 50, false, "a.md");
+      expect(store.bySurface("学习")!.backfilledAt).toBeUndefined();
+      scan(store, [["学习", 5]]);
+      expect(store.bySurface("学习")!.backfilledAt).toBeUndefined();
+    });
+
+    it("adopts pre-existing unclassified records only when asked, once", async () => {
+      // The one-shot repair for records an earlier build's index created
+      // before the flag existed.
+      const { plugin } = makePlugin();
+      const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);
+      await store.load({});
+      store.recordExposure("学习", 50, false, "a.md");
+      store.recordExposure("苹果", 50, false, "a.md");
+      store.setStatus("苹果", "known");
+
+      store.recordNoteScan("a.md", new Map([["学习", 9], ["苹果", 9]]), 50, false, {
+        markExistingBaseline: true,
+      });
+      // Still "new" and never classified → inventory.
+      expect(store.bySurface("学习")!.backfilledAt).toBeTruthy();
+      // Classified by the user → a real part of their learning history.
+      expect(store.bySurface("苹果")!.backfilledAt).toBeUndefined();
+    });
+
     it("counts the same word separately per note", async () => {
       const { plugin } = makePlugin();
       const store = new VocabularyStore(plugin, makeDictionary(), () => DEFAULT_SETTINGS);

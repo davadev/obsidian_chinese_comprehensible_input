@@ -71,6 +71,14 @@ const KEEP = {
   // Pinyin repair: `u:` for ü, and -iu finals whose tone mark sat on the i.
   pinyin: ["女", "绿", "九", "六", "牛奶", "休息", "秋天", "丢", "旅行"],
   /**
+   * One of the 392 union-only surfaces whose characters are ALL simplified
+   * headwords in their own right, so it is reachable from Simplified text.
+   * 乾杯 is what proves the union only ever merges (乾杯 as one token) what the
+   * simplified-only trie splits (乾 + 杯) — the measurement that justifies
+   * making "auto" the default. 杯 must come too, or the split half is missing.
+   */
+  unionOnly: ["干杯", "杯"],
+  /**
    * Every single character appearing in the test notes, in BOTH scripts.
    *
    * Not optional padding. `isTraditionalMarker(ch)` is
