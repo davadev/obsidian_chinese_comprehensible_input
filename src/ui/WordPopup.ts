@@ -324,6 +324,7 @@ export class WordPopup {
         initial: {
           traditional: top.traditional,
           pinyin: top.pinyin,
+          pinyinTaiwan: top.pinyinTaiwan,
           definitions: top.definitions,
           hskLevel: top.hsk?.levels?.[0],
         },

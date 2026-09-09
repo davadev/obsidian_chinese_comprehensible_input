@@ -25,6 +25,8 @@ export interface EditDictionaryProps {
   initial: {
     traditional?: string;
     pinyin?: string;
+    /** Override mode only — the Taiwan reading, when one is recorded. */
+    pinyinTaiwan?: string;
     definitions?: string[];
     hskLevel?: string;
   };
@@ -62,11 +64,7 @@ export class EditDictionaryModal extends Modal {
       text: this.props.mode === "override" ? "Edit dictionary entry" : "Add custom word",
     });
 
-    const surfaceLabel =
-      this.plugin.settings.scriptVariant === "traditional"
-        ? "Surface (traditional)"
-        : "Surface (simplified)";
-    const surfaceInput = this.field(contentEl, surfaceLabel, this.props.surface);
+    const surfaceInput = this.field(contentEl, this.surfaceLabel(), this.props.surface);
     if (this.props.mode === "override" || this.props.isExistingCustom) {
       surfaceInput.disabled = true;
     }
@@ -78,6 +76,18 @@ export class EditDictionaryModal extends Modal {
       this.props.initial.pinyin ?? "",
       "e.g. nǐ hǎo or ni3 hao3"
     );
+    // Override mode only: DictionaryOverride.pinyinTaiwan is what
+    // displayPinyin() reads when Pronunciation is set to Taiwan. Custom words
+    // have no Taiwan field, so the input would have nowhere to go.
+    const taiwanInput =
+      this.props.mode === "override"
+        ? this.field(
+            contentEl,
+            "Taiwan pinyin (optional)",
+            this.props.initial.pinyinTaiwan ?? "",
+            "e.g. lè sè — used only when Pronunciation is set to Taiwan"
+          )
+        : null;
     const defsArea = this.textarea(
       contentEl,
       "Definitions (one per line)",
@@ -96,7 +106,16 @@ export class EditDictionaryModal extends Modal {
     const buttons = contentEl.createDiv({ cls: "cci-edit-dict-buttons" });
 
     const save = buttons.createEl("button", { text: "Save", cls: "mod-cta" });
-    save.addEventListener("click", () => void this.handleSave(surfaceInput.value, tradInput.value, pinyinInput.value, defsArea.value, hskSel.value));
+    save.addEventListener("click", () =>
+      void this.handleSave(
+        surfaceInput.value,
+        tradInput.value,
+        pinyinInput.value,
+        taiwanInput?.value ?? "",
+        defsArea.value,
+        hskSel.value
+      )
+    );
 
     const cancel = buttons.createEl("button", { text: "Cancel" });
     cancel.addEventListener("click", () => this.close());
@@ -118,6 +137,25 @@ export class EditDictionaryModal extends Modal {
       this.vvHandler = null;
     }
     this.contentEl.empty();
+  }
+
+  /**
+   * Which script the surface box holds.
+   *
+   * Override mode is opened with `rec.surfaces[0]` — the form the word was
+   * FIRST seen in, which can be Simplified even while the plugin is set to
+   * Traditional. So read it off the entry rather than off the setting, or the
+   * box gets labelled "traditional" over 学习. Custom mode has no entry to
+   * consult, but there the surface is whatever the user just selected, so the
+   * setting is the right answer.
+   */
+  private surfaceLabel(): string {
+    const e = this.props.originalEntry;
+    const traditional =
+      this.props.mode === "override" && e
+        ? e.traditional === this.props.surface && e.simplified !== this.props.surface
+        : this.plugin.settings.scriptVariant === "traditional";
+    return traditional ? "Surface (traditional)" : "Surface (simplified)";
   }
 
   // Field helpers ------------------------------------------------------
@@ -142,7 +180,7 @@ export class EditDictionaryModal extends Modal {
 
   // Actions ------------------------------------------------------------
 
-  private async handleSave(surface: string, traditional: string, pinyin: string, definitionsRaw: string, hsk: string): Promise<void> {
+  private async handleSave(surface: string, traditional: string, pinyin: string, pinyinTaiwan: string, definitionsRaw: string, hsk: string): Promise<void> {
     const trimSurface = surface.trim();
     if (!hasCjk(trimSurface)) {
       new Notice("Surface must contain at least one Chinese character.");
@@ -165,6 +203,7 @@ export class EditDictionaryModal extends Modal {
       const key = makeKey(e.simplified, e.pinyin);
       await this.plugin.setDictionaryOverride(key, {
         pinyin: pinyin.trim() || undefined,
+        pinyinTaiwan: pinyinTaiwan.trim() || undefined,
         traditional: traditional.trim() || undefined,
         definitions: definitions.length ? definitions : undefined,
         hsk: hskField,
