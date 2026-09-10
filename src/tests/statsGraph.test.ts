@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { bucketTimestamps, countBeforeWindow, cumulativeCounts, progressEmptyHint } from "../ui/StatsGraph";
+import { bucketTimestamps, countBeforeWindow, cumulativeCounts, progressEmptyHint, radarPoints, topicEmptyHint } from "../ui/StatsGraph";
 
 /**
  * `bucketTimestamps` had no direct coverage, which is why these tests come
@@ -258,5 +258,67 @@ describe("progressEmptyHint", () => {
     // the view down.
     expect(() => progressEmptyHint([0], 0)).not.toThrow();
     expect(() => progressEmptyHint([-1], 0)).not.toThrow();
+  });
+});
+
+/**
+ * Radar geometry. The renderer itself cannot be tested here (no DOM), so the
+ * point-placement maths is the part worth pinning — a wrong angle or a
+ * duplicated vertex would silently draw a lopsided or collapsed web.
+ */
+describe("radarPoints", () => {
+  it("returns one point per spoke, all on the given radius", () => {
+    for (const n of [3, 5, 8, 10]) {
+      const pts = radarPoints(n, 50);
+      expect(pts).toHaveLength(n);
+      for (const p of pts) {
+        expect(Math.hypot(p.x, p.y)).toBeCloseTo(50, 6);
+        expect(Number.isFinite(p.x) && Number.isFinite(p.y)).toBe(true);
+      }
+    }
+  });
+
+  it("starts at 12 o'clock", () => {
+    const [first] = radarPoints(6, 10);
+    expect(first.x).toBeCloseTo(0, 6);
+    expect(first.y).toBeCloseTo(-10, 6);
+  });
+
+  it("spaces spokes evenly", () => {
+    const pts = radarPoints(4, 10);
+    const angles = pts.map((p) => Math.atan2(p.y, p.x));
+    const step = angles[1] - angles[0];
+    expect(angles[2] - angles[1]).toBeCloseTo(step, 6);
+    expect(angles[3] - angles[2]).toBeCloseTo(step, 6);
+  });
+
+  it("produces no duplicate vertices at the clamp bounds", () => {
+    for (const n of [3, 10]) {
+      const seen = new Set(radarPoints(n, 50).map((p) => `${p.x.toFixed(4)},${p.y.toFixed(4)}`));
+      expect(seen.size).toBe(n);
+    }
+  });
+
+  it("returns nothing for a non-positive count", () => {
+    expect(radarPoints(0, 10)).toEqual([]);
+    expect(radarPoints(-1, 10)).toEqual([]);
+  });
+});
+
+describe("topicEmptyHint", () => {
+  it("is undefined as soon as any spoke has coverage", () => {
+    expect(topicEmptyHint([{ coverage: 0, total: 10 }, { coverage: 0.2, total: 10 }])).toBeUndefined();
+  });
+
+  it("explains an all-zero chart rather than drawing a dot", () => {
+    expect(topicEmptyHint([{ coverage: 0, total: 10 }])).toMatch(/fills in/i);
+  });
+
+  it("distinguishes 'no vocabulary at all' from 'nothing marked yet'", () => {
+    expect(topicEmptyHint([{ coverage: 0, total: 0 }])).toMatch(/no vocabulary/i);
+  });
+
+  it("asks for a selection when there are no spokes", () => {
+    expect(topicEmptyHint([])).toMatch(/at least one topic/i);
   });
 });

@@ -353,3 +353,175 @@ export function renderProgressGraph(
   }
   container.appendChild(legend);
 }
+
+// ── Topic coverage radar ────────────────────────────────────────────────────
+
+/**
+ * Evenly spaced points on a circle, first at 12 o'clock, going clockwise.
+ *
+ * Exported and separate from the rendering because the tests run without a DOM,
+ * and the geometry is the part with behaviour worth pinning.
+ */
+export function radarPoints(count: number, radius: number): { x: number; y: number }[] {
+  const out: { x: number; y: number }[] = [];
+  if (count <= 0) return out;
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 - Math.PI / 2;
+    out.push({ x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  }
+  return out;
+}
+
+/**
+ * Hint shown instead of the chart when there is nothing to draw. A brand-new
+ * vault would otherwise render a polygon collapsed to a dot at the origin,
+ * which reads as a bug rather than as "no data yet".
+ */
+export function topicEmptyHint(spokes: { coverage: number; total: number }[]): string | undefined {
+  if (spokes.length === 0) return "Pick at least one topic to see coverage.";
+  if (spokes.some((s) => s.coverage > 0)) return undefined;
+  if (spokes.every((s) => s.total === 0)) {
+    return "No vocabulary in these topics yet.";
+  }
+  return "Nothing to plot yet — this chart fills in as you meet and mark words from these topics.";
+}
+
+export interface RadarSpoke {
+  label: string;
+  value: number;
+  max: number;
+  lowData: boolean;
+  tooltip: string;
+}
+
+/**
+ * Radar / spider chart of per-topic coverage.
+ *
+ * Square viewBox and no `preserveAspectRatio` override: the progress charts set
+ * `none` because they stretch to the container width, but doing that here would
+ * shear the polygon into an ellipse.
+ */
+export function renderTopicRadar(
+  container: HTMLElement,
+  spokes: RadarSpoke[],
+  opts: { color: string; reference?: number; referenceLabel?: string }
+): void {
+  container.empty();
+  if (spokes.length === 0) return;
+
+  const svgNs = "http://www.w3.org/2000/svg";
+  const SIZE = 200;
+  const C = SIZE / 2;
+  const R = 62; // leaves room for labels outside the web
+  const svg = activeDocument.createElementNS(svgNs, "svg");
+  svg.setAttribute("class", "cci-topic-radar");
+  svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
+  svg.setAttribute("role", "img");
+
+  const pts = radarPoints(spokes.length, R);
+  const at = (i: number, frac: number) => ({
+    x: C + pts[i].x * frac,
+    y: C + pts[i].y * frac,
+  });
+
+  // Grid rings at 25 / 50 / 75 / 100%.
+  for (const frac of [0.25, 0.5, 0.75, 1]) {
+    const ring = activeDocument.createElementNS(svgNs, "polygon");
+    ring.setAttribute(
+      "points",
+      spokes.map((_, i) => `${at(i, frac).x.toFixed(1)},${at(i, frac).y.toFixed(1)}`).join(" ")
+    );
+    ring.setAttribute("fill", "none");
+    ring.setAttribute("stroke", "currentColor");
+    ring.setAttribute("stroke-width", "0.5");
+    ring.setAttribute("opacity", frac === 1 ? "0.35" : "0.15");
+    svg.appendChild(ring);
+  }
+
+  // Axis spokes.
+  spokes.forEach((_, i) => {
+    const line = activeDocument.createElementNS(svgNs, "line");
+    line.setAttribute("x1", String(C));
+    line.setAttribute("y1", String(C));
+    line.setAttribute("x2", at(i, 1).x.toFixed(1));
+    line.setAttribute("y2", at(i, 1).y.toFixed(1));
+    line.setAttribute("stroke", "currentColor");
+    line.setAttribute("stroke-width", "0.5");
+    line.setAttribute("opacity", "0.2");
+    svg.appendChild(line);
+  });
+
+  // Reference ring — the learner's own mean, so bulges and dents read at a glance.
+  if (typeof opts.reference === "number" && opts.reference > 0) {
+    const frac = Math.max(0, Math.min(1, opts.reference));
+    const ref = activeDocument.createElementNS(svgNs, "polygon");
+    ref.setAttribute(
+      "points",
+      spokes.map((_, i) => `${at(i, frac).x.toFixed(1)},${at(i, frac).y.toFixed(1)}`).join(" ")
+    );
+    ref.setAttribute("fill", "none");
+    ref.setAttribute("stroke", "currentColor");
+    ref.setAttribute("stroke-width", "0.8");
+    ref.setAttribute("stroke-dasharray", "3 2");
+    ref.setAttribute("opacity", "0.45");
+    const rt = activeDocument.createElementNS(svgNs, "title");
+    rt.textContent = opts.referenceLabel ?? "your average";
+    ref.appendChild(rt);
+    svg.appendChild(ref);
+  }
+
+  // The data polygon.
+  const frac = (s: RadarSpoke) => (s.max > 0 ? Math.max(0, Math.min(1, s.value / s.max)) : 0);
+  const poly = activeDocument.createElementNS(svgNs, "polygon");
+  poly.setAttribute(
+    "points",
+    spokes.map((s, i) => `${at(i, frac(s)).x.toFixed(1)},${at(i, frac(s)).y.toFixed(1)}`).join(" ")
+  );
+  poly.setAttribute("fill", opts.color);
+  poly.setAttribute("opacity", "0.25");
+  poly.setAttribute("stroke", opts.color);
+  poly.setAttribute("stroke-width", "1.4");
+  svg.appendChild(poly);
+
+  // Vertex dots carry the tooltip; a spoke with too little data is hollow.
+  spokes.forEach((s, i) => {
+    const p = at(i, frac(s));
+    const dot = activeDocument.createElementNS(svgNs, "circle");
+    dot.setAttribute("cx", p.x.toFixed(1));
+    dot.setAttribute("cy", p.y.toFixed(1));
+    dot.setAttribute("r", "2.4");
+    dot.setAttribute("fill", s.lowData ? "var(--background-secondary)" : opts.color);
+    dot.setAttribute("stroke", opts.color);
+    dot.setAttribute("stroke-width", "1");
+    const t = activeDocument.createElementNS(svgNs, "title");
+    t.textContent = s.tooltip;
+    dot.appendChild(t);
+    svg.appendChild(dot);
+  });
+
+  // Labels outside the web, anchored by which side of the circle they sit on.
+  spokes.forEach((s, i) => {
+    const p = at(i, 1);
+    const dx = p.x - C;
+    const dy = p.y - C;
+    const lx = C + dx * 1.28;
+    const ly = C + dy * 1.28;
+    const text = activeDocument.createElementNS(svgNs, "text");
+    text.setAttribute("x", lx.toFixed(1));
+    text.setAttribute("y", (ly + 2.5).toFixed(1));
+    text.setAttribute("font-size", "7.5");
+    text.setAttribute("fill", "currentColor");
+    text.setAttribute("opacity", s.lowData ? "0.35" : "0.7");
+    text.setAttribute(
+      "text-anchor",
+      Math.abs(dx) < 1 ? "middle" : dx > 0 ? "start" : "end"
+    );
+    text.textContent = s.label;
+    const t = activeDocument.createElementNS(svgNs, "title");
+    t.textContent = s.tooltip;
+    text.appendChild(t);
+    svg.appendChild(text);
+  });
+
+  container.appendChild(svg);
+}

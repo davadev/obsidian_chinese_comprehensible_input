@@ -145,7 +145,7 @@ Left → right, before and after tapping **Enhance**:
 </p>
 
 <em>Tracked / known / partial counts and a comfort-HSK level; cumulative progress
-and per-HSK coverage over time; and Smart-story generation that weaves your
+per-HSK coverage over time, and a Topic coverage radar showing which subjects your vocabulary covers; and Smart-story generation that weaves your
 due words into a level-appropriate story.</em> See
 [Spaced repetition](./docs/srs.md) and [Story generation](./docs/story-generation.md).
 

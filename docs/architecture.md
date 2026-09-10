@@ -22,6 +22,8 @@
 | `src/editor/wordInteractionPlugin.ts` | Click/long-press handler for popup and marking |
 | `src/tokenizer/TokenizerService.ts` | Tokenizer orchestration + shared cache |
 | `src/vocabulary/axes.ts` | `colorOf()` and `axesFromStatus()` — maps word status to color |
+| `src/vocabulary/topicCoverage.ts` | `topicSpokes()` / `resolveRadarTopics()` — frequency-weighted per-topic coverage for the dashboard radar |
+| `src/dictionary/topicMap.generated.ts` | GENERATED word → topic / HSK level / frequency table (`npm run build:topics`) |
 | `src/dictionary/displayForms.ts` | `displaySurface()` / `displayPinyin()` — script- and region-aware display; never converts between scripts |
 | `src/dictionary/scriptDetect.ts` | One-directional Traditional detection for the auto-suggest and the story validator |
 | `src/dictionary/taiwanReading.ts` | Parses CC-CEDICT's `Taiwan pr. [...]` gloss into `DictionaryEntry.pinyinTaiwan` |

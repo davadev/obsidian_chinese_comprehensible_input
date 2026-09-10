@@ -6,7 +6,7 @@ them) is what graduates a word from new → partial → known. This page
 explains what counts and the dedup rules.
 
 The payoff shows up in **Vocabulary stats** — the dashboard tiles, the
-cumulative progress chart, and per-HSK coverage over time:
+cumulative progress chart, per-HSK coverage over time, and a Topic coverage radar showing which subjects your vocabulary actually covers:
 
 <p>
 <img src="../resources/screenshots/mobile-stats-dashboard.png" alt="Vocabulary stats dashboard" height="430">

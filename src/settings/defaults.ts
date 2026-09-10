@@ -6,6 +6,7 @@ import {
 } from "../constants";
 import { DEFAULT_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
+import { DEFAULT_RADAR_TOPICS } from "../dictionary/topicMap.generated";
 
 /**
  * Hex defaults match the RGBA values that used to live in styles.css so the
@@ -172,4 +173,6 @@ export const DEFAULT_SETTINGS: CciSettings = {
     new: false,
     untracked: false,
   },
+  topicRadarTopics: [...DEFAULT_RADAR_TOPICS],
+  topicRadarMode: "coverage",
 };

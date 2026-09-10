@@ -368,4 +368,14 @@ export interface CciSettings {
     new: boolean;
     untracked: boolean;
   };
+  /**
+   * Persisted Dashboard → Topic coverage spoke selection (3–10 topic ids).
+   * Edited from the dashboard, not the settings tab. Deliberately a flat
+   * top-level array rather than a nested object: settings are merged with a
+   * shallow spread in `onloadInner`, so a nested object that gains a key later
+   * comes back `undefined` for existing users.
+   */
+  topicRadarTopics: string[];
+  /** Persisted Dashboard → Topic coverage metric. */
+  topicRadarMode: "coverage" | "relative";
 }

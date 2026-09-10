@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import { filterSettingsForSharing } from "../settings/SettingsIO";
+import { DEFAULT_RADAR_TOPICS, TOPIC_IDS } from "../dictionary/topicMap.generated";
 
 /**
  * StatsView's dashboard checkboxes (Progress chart series + HSK coverage
@@ -79,5 +80,60 @@ describe("StatsView checkbox persistence", () => {
       new: false,
       untracked: true,
     });
+  });
+});
+
+/**
+ * Topic-coverage radar settings follow the same contract: edited from the
+ * dashboard, persisted in CciSettings, and shared across devices. The
+ * selection is a flat top-level array on purpose — settings are merged with a
+ * shallow spread in `onloadInner`, so a nested object that later gains a key
+ * would come back `undefined` for existing users.
+ */
+describe("Topic coverage radar persistence", () => {
+  it("defaults to the shipped beginner-heavy spoke set", () => {
+    expect(DEFAULT_SETTINGS.topicRadarTopics).toEqual([...DEFAULT_RADAR_TOPICS]);
+    expect(DEFAULT_SETTINGS.topicRadarMode).toBe("coverage");
+    for (const id of DEFAULT_SETTINGS.topicRadarTopics) expect(TOPIC_IDS).toContain(id);
+  });
+
+  it("does not alias the shipped default array", () => {
+    // A shared reference would let one vault's edit mutate the module-level
+    // constant for every other consumer in the process.
+    expect(DEFAULT_SETTINGS.topicRadarTopics).not.toBe(DEFAULT_RADAR_TOPICS);
+  });
+
+  it("survives a JSON save -> reload roundtrip (the data.json path)", () => {
+    const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as typeof DEFAULT_SETTINGS;
+    settings.topicRadarTopics = ["sport", "food_drink", "arts_culture"];
+    settings.topicRadarMode = "relative";
+
+    const reloaded = JSON.parse(JSON.stringify({ settings })) as { settings: typeof DEFAULT_SETTINGS };
+
+    expect(reloaded.settings.topicRadarTopics).toEqual(["sport", "food_drink", "arts_culture"]);
+    expect(reloaded.settings.topicRadarMode).toBe("relative");
+  });
+
+  it("survives the settings-mirror filter so the selection syncs across devices", () => {
+    const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as typeof DEFAULT_SETTINGS;
+    settings.topicRadarTopics = ["sport", "food_drink", "arts_culture"];
+    settings.topicRadarMode = "relative";
+
+    const shared = filterSettingsForSharing(settings);
+
+    expect(shared.topicRadarTopics).toEqual(["sport", "food_drink", "arts_culture"]);
+    expect(shared.topicRadarMode).toBe("relative");
+  });
+
+  it("gets defaults when loading a data.json written before this feature existed", () => {
+    // The shallow spread in onloadInner is what supplies them.
+    const legacy = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as Record<string, unknown>;
+    delete legacy.topicRadarTopics;
+    delete legacy.topicRadarMode;
+
+    const merged = { ...DEFAULT_SETTINGS, ...legacy };
+
+    expect(merged.topicRadarTopics).toEqual([...DEFAULT_RADAR_TOPICS]);
+    expect(merged.topicRadarMode).toBe("coverage");
   });
 });
