@@ -1726,3 +1726,36 @@
   font-size: var(--font-ui-smaller);
   padding: 2px 10px;
 }
+
+/* ── Dashboard: topic coverage radar ─────────────────────────────────── */
+.cci-dash-topics {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+}
+.cci-dash-topics-chart {
+  display: flex;
+  justify-content: center;
+}
+/* Square by design: the radar keeps its aspect ratio, unlike the progress
+   charts which stretch to the container width. */
+.cci-topic-radar {
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  display: block;
+  color: var(--text-muted);
+}
+.cci-dash-topics-chooser {
+  margin-top: 0.3rem;
+}
+.cci-dash-topics-toggle {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+.cci-dash-topics .cci-dash-progress-filter-item input:disabled + span {
+  opacity: 0.45;
+}

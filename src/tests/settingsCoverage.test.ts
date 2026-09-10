@@ -34,6 +34,8 @@ const NOT_IN_SETTINGS_TAB: Record<string, string> = {
   // Edited from the dashboard.
   statsExcludeNew: "dashboard header toggle",
   flashcardsMode: "remembered from the flashcards tab",
+  topicRadarTopics: "topic-coverage spoke chooser on the dashboard",
+  topicRadarMode: "topic-coverage metric selector on the dashboard",
   // Declared but not consumed by any code path (pre-existing).
   newWordBehavior: "not read anywhere in the plugin",
   unknownWordBehavior: "not read anywhere in the plugin",

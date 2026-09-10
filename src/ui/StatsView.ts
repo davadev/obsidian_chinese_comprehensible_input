@@ -4,8 +4,10 @@ import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorClassKey, colorOf } from "../vocabulary/axes";
-import { Bucket, bucketTimestamps, countBeforeWindow, progressEmptyHint, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
+import { Bucket, bucketTimestamps, countBeforeWindow, progressEmptyHint, renderDailyGraph, renderProgressArea, renderProgressGraph, renderTopicRadar, topicEmptyHint } from "./StatsGraph";
 import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
+import { TOPIC_IDS, TOPIC_LABELS } from "../dictionary/topicMap.generated";
+import { MAX_RADAR_TOPICS, MIN_RADAR_TOPICS, resolveRadarTopics, topicSpokes } from "../vocabulary/topicCoverage";
 import { StoryPreview } from "../ai/StoryGenerator";
 import { confirmAsync } from "./confirmInput";
 
@@ -38,9 +40,51 @@ export class StatsView extends ItemView {
   private smartGenerating = false;
   private currentPreview: StoryPreview | null = null;
   private chartStyle: "bars" | "area" = "area";
+  // Topic coverage. The section element is kept so a chip toggle can rebuild
+  // just that subtree: render() empties the whole view root, which would throw
+  // the user back to the top of the dashboard on every click.
+  private topicSectionEl: HTMLElement | null = null;
+  private topicChooserOpen = false;
+  // Persisting goes through a leading+trailing debounce: saveSettings() rewrites
+  // the entire data.json (it carries the vocabulary blob), so one write per chip
+  // click would be megabytes of churn. Leading edge means a single toggle is
+  // durable immediately, which also survives iOS never calling onClose().
+  private radarSaveTimer: number | null = null;
 
   constructor(leaf: WorkspaceLeaf, private plugin: CciPlugin) {
     super(leaf);
+  }
+
+  /** Flush any debounced topic-selection save before the view goes away. */
+  async onClose(): Promise<void> {
+    if (this.radarSaveTimer != null) {
+      window.clearTimeout(this.radarSaveTimer);
+      this.radarSaveTimer = null;
+      await this.plugin.saveSettings();
+    }
+  }
+
+  /**
+   * Leading + trailing debounce for the topic selection.
+   *
+   * The first change in a burst saves at once, so a single toggle is never
+   * lost; subsequent rapid changes coalesce into one trailing write 400 ms
+   * later. Mirrors `VocabularyStore.scheduleSave()`.
+   */
+  private scheduleRadarSave(): void {
+    if (this.radarSaveTimer == null) {
+      void this.plugin.saveSettings();
+      // Hold the window open so the burst coalesces rather than re-firing.
+      this.radarSaveTimer = window.setTimeout(() => {
+        this.radarSaveTimer = null;
+      }, 400);
+      return;
+    }
+    window.clearTimeout(this.radarSaveTimer);
+    this.radarSaveTimer = window.setTimeout(() => {
+      this.radarSaveTimer = null;
+      void this.plugin.saveSettings();
+    }, 400);
   }
 
   /**
@@ -242,6 +286,8 @@ export class StatsView extends ItemView {
 
     this.renderProgressSection(root, scoped);
     this.renderHskCoverageSection(root);
+    this.renderTopicCoverageSection(root);
+    this.renderTopicCoverageSection(root);
 
     // Per-note exposure breakdown.
     const notePaths = this.plugin.vocab.knownNotePaths();
@@ -499,6 +545,130 @@ export class StatsView extends ItemView {
     wrap.createEl("p", {
       cls: "cci-dash-progress-summary",
       text: "Percentages are out of the total HSK 2.0 word list for each level.",
+    });
+  }
+
+  // ── Topic coverage ─────────────────────────────────────
+  //
+  // Radar of what the learner's vocabulary is ABOUT, rather than how much of
+  // it there is. Deliberately titled "coverage" and never "strengths": the
+  // ranking is partly predetermined by word difficulty (food vocabulary averages
+  // HSK 4.3, political vocabulary 6.2), so the honest reading is "can I read
+  // this topic", with the Relative mode available for "am I unusual here".
+  //
+  // Like the HSK section above, this uses the whole store rather than
+  // scopedRecords(): topic coverage is a property of the learner, not of the
+  // note currently in scope.
+
+  private renderTopicCoverageSection(root: HTMLElement) {
+    const wrap = root.createDiv({ cls: "cci-dash-topics" });
+    this.topicSectionEl = wrap;
+    this.paintTopicCoverage(wrap);
+  }
+
+  /** Rebuilds only this section — never call render() from here, see topicSectionEl. */
+  private paintTopicCoverage(wrap: HTMLElement) {
+    wrap.empty();
+    const settings = this.plugin.settings;
+    const selected = resolveRadarTopics(settings.topicRadarTopics);
+    const relative = settings.topicRadarMode === "relative";
+
+    const head = wrap.createDiv({ cls: "cci-dash-progress-head" });
+    head.createEl("h3", { text: "Topic coverage" });
+    const controls = head.createDiv({ cls: "cci-dash-progress-controls" });
+    const modeSel = controls.createEl("select");
+    for (const [value, label] of [
+      ["coverage", "Coverage"],
+      ["relative", "Relative to my level"],
+    ] as const) {
+      const opt = modeSel.createEl("option", { text: label });
+      opt.value = value;
+      if (settings.topicRadarMode === value) opt.selected = true;
+    }
+    modeSel.addEventListener("change", () => {
+      void (async () => {
+        settings.topicRadarMode = modeSel.value === "relative" ? "relative" : "coverage";
+        await this.plugin.saveSettings();
+        this.paintTopicCoverage(wrap);
+      })();
+    });
+
+    const spokes = topicSpokes(this.plugin.vocab.values(), selected);
+    const hint = topicEmptyHint(spokes);
+    const body = wrap.createDiv({ cls: "cci-dash-topics-chart" });
+
+    if (hint && !relative) {
+      body.createEl("p", { cls: "cci-dash-progress-summary", text: hint });
+    } else {
+      const values = spokes.map((s) => (relative ? s.relative : s.coverage));
+      const max = relative
+        ? Math.max(1.5, ...values.map((v) => v * 1.05))
+        : Math.max(0.1, ...values);
+      const mean = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+      renderTopicRadar(
+        body,
+        spokes.map((s, i) => {
+          const label = TOPIC_LABELS[s.id]?.zh ?? s.id;
+          const pct = `${Math.round(s.coverage * 100)}%`;
+          const tracked = s.known + s.partial + s.unknown + s.new;
+          const detail =
+            `${TOPIC_LABELS[s.id]?.en ?? s.id} \u00b7 ${pct} of ${s.total} words\n` +
+            `known ${s.known} \u00b7 partial ${s.partial} \u00b7 unknown ${s.unknown} \u00b7 ` +
+            `new ${s.new} \u00b7 untracked ${s.untracked}` +
+            (relative ? `\nrelative to your level: ${s.relative.toFixed(2)}\u00d7` : "") +
+            (s.lowData ? `\nonly ${tracked} words met so far \u2014 not enough data yet` : "");
+          return { label, value: values[i], max, lowData: s.lowData, tooltip: detail };
+        }),
+        {
+          color: "rgba(46, 160, 67, 0.85)",
+          reference: max > 0 ? (relative ? 1 / max : mean / max) : 0,
+          referenceLabel: relative ? "as expected for your level" : "your average across these topics",
+        }
+      );
+    }
+
+    // Topic chooser \u2014 collapsed by default; twenty chips would otherwise fill a
+    // phone screen before the chart.
+    const chooser = wrap.createDiv({ cls: "cci-dash-topics-chooser" });
+    const toggle = chooser.createEl("button", {
+      cls: "cci-dash-topics-toggle",
+      text: `Choose topics (${selected.length}/${MAX_RADAR_TOPICS})`,
+    });
+    toggle.addEventListener("click", () => {
+      this.topicChooserOpen = !this.topicChooserOpen;
+      this.paintTopicCoverage(wrap);
+    });
+    if (this.topicChooserOpen) {
+      const list = chooser.createDiv({ cls: "cci-dash-progress-filter" });
+      for (const id of TOPIC_IDS) {
+        const on = selected.includes(id);
+        const lbl = list.createEl("label", { cls: "cci-dash-progress-filter-item" });
+        const cb = lbl.createEl("input", { type: "checkbox" });
+        cb.checked = on;
+        // Keep the selection inside 3..10 by refusing the click that would
+        // break it, rather than silently correcting afterwards.
+        cb.disabled = (on && selected.length <= MIN_RADAR_TOPICS) ||
+          (!on && selected.length >= MAX_RADAR_TOPICS);
+        cb.addEventListener("change", () => {
+          const next = cb.checked ? [...selected, id] : selected.filter((t) => t !== id);
+          settings.topicRadarTopics = resolveRadarTopics(next);
+          this.scheduleRadarSave();
+          this.paintTopicCoverage(wrap);
+        });
+        lbl.createSpan({ text: ` ${TOPIC_LABELS[id]?.en ?? id}` });
+      }
+      list.createEl("p", {
+        cls: "cci-dash-progress-summary",
+        text: `Pick between ${MIN_RADAR_TOPICS} and ${MAX_RADAR_TOPICS} topics.`,
+      });
+    }
+
+    wrap.createEl("p", {
+      cls: "cci-dash-progress-summary",
+      text:
+        "Weighted by word frequency, so common words count for more. Covers HSK 1\u20139 " +
+        "vocabulary only \u2014 words outside it have no topic. Topics overlap: a word can " +
+        "belong to more than one, and words you marked Ignored are left out entirely.",
     });
   }
 
