@@ -50,6 +50,59 @@ export function bucketTimestamps(
   return labels.map((label) => ({ label, count: counts.get(label) ?? 0 }));
 }
 
+/**
+ * How many stamps fall BEFORE the window `bucketTimestamps` would return.
+ *
+ * `bucketTimestamps` drops everything older than its first bucket, so a
+ * cumulative chart built from it alone restarts its running total at zero on
+ * every window — a learner whose classifying happened two months ago saw a flat
+ * line on the floor in the 30-day view. This supplies the opening balance.
+ *
+ * The cutoff is an INSTANT, deliberately, rather than a comparison against the
+ * first bucket's key: `yyyy-Www` week keys do not sort across a year boundary
+ * ("2026-W01" < "2025-W52" lexically), so a string comparison would silently
+ * miscount every January.
+ */
+export function countBeforeWindow(
+  stamps: (string | undefined)[],
+  bucket: Bucket,
+  windowSize: number
+): number {
+  const cutoff = windowStart(bucket, windowSize);
+  let n = 0;
+  for (const iso of stamps) {
+    if (!iso) continue;
+    const t = new Date(iso).getTime();
+    // Strictly before: NaN (an unparseable stamp) and future stamps both fail
+    // this and are correctly left out of the opening balance.
+    if (t < cutoff) n++;
+  }
+  return n;
+}
+
+/** Start instant of the oldest bucket `recentBucketLabels` would produce.
+ *  Mirrors that function's arithmetic per bucket — including the UTC month
+ *  construction it already uses, for the reason recorded there. */
+function windowStart(bucket: Bucket, n: number): number {
+  const today = new Date();
+  if (bucket === "day") {
+    const d = new Date(today.getTime() - (n - 1) * 86400000);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+  if (bucket === "month") {
+    return Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - (n - 1), 1);
+  }
+  return startOfIsoWeekUtc(new Date(today.getTime() - (n - 1) * 7 * 86400000));
+}
+
+/** Monday 00:00 UTC of the ISO week containing `d`. */
+function startOfIsoWeekUtc(d: Date): number {
+  const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dayNum = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() - (dayNum - 1));
+  return t.getTime();
+}
+
 function bucketKey(d: Date, bucket: Bucket): string {
   if (bucket === "day") return d.toISOString().slice(0, 10);
   if (bucket === "month") return d.toISOString().slice(0, 7);
@@ -89,6 +142,21 @@ function recentBucketLabels(bucket: Bucket, n: number): string[] {
 }
 
 /**
+ * Running total per bucket, opened at `prior`.
+ *
+ * Seeded, so the curve is a running total to DATE rather than a running total
+ * within whatever window happens to be selected — the latter drew a flat line
+ * on the floor for any learner whose work predated the window.
+ *
+ * Exported and separate from the rendering because the tests run without a DOM,
+ * and this is the part with behaviour worth pinning.
+ */
+export function cumulativeCounts(data: { count: number }[], prior = 0): number[] {
+  let acc = prior;
+  return data.map((d) => (acc += d.count));
+}
+
+/**
  * Cumulative-area variant of `renderProgressGraph`. Each series is the
  * running total of its `count`s, so the curve climbs over time — a more
  * motivating progress view than per-period bars. Renders one filled
@@ -96,16 +164,21 @@ function recentBucketLabels(bucket: Bucket, n: number): string[] {
  */
 export function renderProgressArea(
   container: HTMLElement,
-  series: { label: string; color: string; data: { label: string; count: number }[] }[]
+  series: {
+    label: string;
+    color: string;
+    data: { label: string; count: number }[];
+    /** Opening balance: events before the window, from countBeforeWindow().
+     *  Optional so existing callers keep working; omitted means "start at 0",
+     *  which is the pre-0.6.0 behaviour. */
+    prior?: number;
+  }[]
 ): void {
   container.empty();
   if (series.length === 0 || series[0].data.length === 0) return;
   const buckets = series[0].data.map((d) => d.label);
   const n = buckets.length;
-  const cumulative = series.map((s) => {
-    let acc = 0;
-    return s.data.map((d) => (acc += d.count));
-  });
+  const cumulative = series.map((s) => cumulativeCounts(s.data, s.prior));
   const maxVal = Math.max(1, ...cumulative.flatMap((arr) => arr));
   const W = 600;
   const H = 100;
