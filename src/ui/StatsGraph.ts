@@ -142,6 +142,33 @@ function recentBucketLabels(bucket: Bucket, n: number): string[] {
 }
 
 /**
+ * Reassurance for an empty Progress chart, or undefined when there is
+ * something to plot.
+ *
+ * A first vault index inventories every Chinese word already in the notes, and
+ * those are marked as a baseline rather than plotted — so a brand-new user's
+ * chart is a flat line reading zero, under a card saying they have thousands of
+ * words. That reads as breakage. It is not: the chart plots classifying, and
+ * they have not classified anything yet.
+ *
+ * Pure, and separate from the rendering, because the tests run without a DOM
+ * and this decision is the only part with any behaviour in it.
+ */
+export function progressEmptyHint(
+  seriesTotals: number[],
+  backfilledCount: number
+): string | undefined {
+  // No series selected is already handled by its own message; and anything
+  // non-zero means the chart has a story to tell on its own.
+  if (seriesTotals.length === 0) return undefined;
+  if (seriesTotals.some((t) => t > 0)) return undefined;
+  const base = "Nothing to plot yet — this chart fills in as you mark words known, partial or unknown.";
+  return backfilledCount > 0
+    ? `${base} The ${backfilledCount} words already found in your notes are counted on the cards above.`
+    : base;
+}
+
+/**
  * Running total per bucket, opened at `prior`.
  *
  * Seeded, so the curve is a running total to DATE rather than a running total

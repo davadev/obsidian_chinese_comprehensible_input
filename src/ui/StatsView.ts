@@ -4,7 +4,7 @@ import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorClassKey, colorOf } from "../vocabulary/axes";
-import { Bucket, bucketTimestamps, countBeforeWindow, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
+import { Bucket, bucketTimestamps, countBeforeWindow, progressEmptyHint, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
 import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
 import { StoryPreview } from "../ai/StoryGenerator";
 import { confirmAsync } from "./confirmInput";
@@ -382,10 +382,13 @@ export class StatsView extends ItemView {
     // "last 30 days: 0" printed a contradiction under a line sitting at 130.
     // The bars genuinely are per-period, so their wording is unchanged.
     const cumulative = this.chartStyle === "area";
+    const seriesTotals = activeSeries.map(
+      (s) => s.data.reduce((a, b) => a + b.count, 0) + s.prior
+    );
     const summary = activeSeries
-      .map((s) => {
+      .map((s, i) => {
         const windowed = s.data.reduce((a, b) => a + b.count, 0);
-        return `${s.label} ${cumulative ? windowed + s.prior : windowed}`;
+        return `${s.label} ${cumulative ? seriesTotals[i] : windowed}`;
       })
       .join(", ");
     if (summary) {
@@ -398,7 +401,14 @@ export class StatsView extends ItemView {
     // dashboard, so this moves the baseline out of a series that plots events
     // rather than hiding it.
     const backfilled = records.filter((r) => r.backfilledAt).length;
-    if (backfilled > 0 && this.plugin.settings.progressChartSeries.tracked) {
+    // A brand-new user has thousands of words on the cards above and a flat
+    // line here, which reads as breakage rather than "you have not classified
+    // anything yet". The hint says so, and names the count itself — so it
+    // replaces the exclusion note rather than stacking a second line under it.
+    const emptyHint = progressEmptyHint(seriesTotals, backfilled);
+    if (emptyHint) {
+      wrap.createEl("p", { cls: "cci-dash-progress-summary", text: emptyHint });
+    } else if (backfilled > 0 && this.plugin.settings.progressChartSeries.tracked) {
       wrap.createEl("p", {
         cls: "cci-dash-progress-summary",
         text: `Tracked excludes ${backfilled} words added by vault indexing.`,
