@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { bucketTimestamps, countBeforeWindow, cumulativeCounts, progressEmptyHint, radarPoints, topicEmptyHint } from "../ui/StatsGraph";
+import { bucketTimestamps, countBeforeWindow, cumulativeCounts, progressEmptyHint, RADAR_LAYOUT, radarPoints, topicEmptyHint } from "../ui/StatsGraph";
+import { TOPIC_IDS, TOPIC_LABELS } from "../dictionary/topicMap.generated";
 
 /**
  * `bucketTimestamps` had no direct coverage, which is why these tests come
@@ -320,5 +321,32 @@ describe("topicEmptyHint", () => {
 
   it("asks for a selection when there are no spokes", () => {
     expect(topicEmptyHint([])).toMatch(/at least one topic/i);
+  });
+});
+
+/**
+ * The radar canvas must be wide enough for its axis labels. This regressed
+ * once: at 200 units wide the longest label ran past the viewBox and was
+ * silently clipped, because SVG clips to the viewBox by default.
+ */
+describe("RADAR_LAYOUT", () => {
+  it("fits the longest topic label inside the viewBox on both sides", () => {
+    const longest = TOPIC_IDS.reduce(
+      (a, id) => Math.max(a, TOPIC_LABELS[id].short.length),
+      0
+    );
+    const textWidth = longest * RADAR_LAYOUT.charWidth;
+    const cx = RADAR_LAYOUT.width / 2;
+    const anchor = RADAR_LAYOUT.radius * RADAR_LAYOUT.labelMult;
+    expect(cx + anchor + textWidth).toBeLessThanOrEqual(RADAR_LAYOUT.width);
+    expect(cx - anchor - textWidth).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps the web inside the vertical bounds", () => {
+    const cy = RADAR_LAYOUT.height / 2;
+    // Top and bottom labels sit on the axis, so only the anchor matters there.
+    expect(cy + RADAR_LAYOUT.radius * RADAR_LAYOUT.labelMult).toBeLessThanOrEqual(
+      RADAR_LAYOUT.height
+    );
   });
 });

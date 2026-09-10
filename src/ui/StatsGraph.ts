@@ -396,6 +396,22 @@ export interface RadarSpoke {
   tooltip: string;
 }
 
+/**
+ * Radar canvas geometry. Exported so a test can assert the axis labels fit —
+ * at 200 wide the longest label ("Character") ran to x~216 and the viewBox
+ * silently clipped it.
+ */
+export const RADAR_LAYOUT = {
+  width: 270,
+  height: 200,
+  radius: 70,
+  /** Label anchor sits this far along the axis, as a multiple of the radius. */
+  labelMult: 1.3,
+  fontSize: 7.5,
+  /** Rough advance width per character at `fontSize`, for the fit assertion. */
+  charWidth: 7.5 * 0.55,
+} as const;
+
 export interface RadarSeries {
   label: string;
   color: string;
@@ -423,18 +439,21 @@ export function renderTopicRadar(
   if (spokes.length === 0) return;
 
   const svgNs = "http://www.w3.org/2000/svg";
-  const SIZE = 200;
-  const C = SIZE / 2;
-  const R = 62; // leaves room for labels outside the web
+  // The canvas is wider than it is tall on purpose. The web itself is circular,
+  // but the left/right axis labels extend horizontally — at 200 wide the
+  // longest ("Character") ran to x≈216 and was clipped by the viewBox.
+  const { width: W, height: H, radius: R } = RADAR_LAYOUT;
+  const CX = W / 2;
+  const CY = H / 2;
   const svg = activeDocument.createElementNS(svgNs, "svg");
   svg.setAttribute("class", "cci-topic-radar");
-  svg.setAttribute("viewBox", `0 0 ${SIZE} ${SIZE}`);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
   svg.setAttribute("role", "img");
 
   const pts = radarPoints(spokes.length, R);
   const at = (i: number, frac: number) => ({
-    x: C + pts[i].x * frac,
-    y: C + pts[i].y * frac,
+    x: CX + pts[i].x * frac,
+    y: CY + pts[i].y * frac,
   });
 
   // Grid rings at 25 / 50 / 75 / 100%.
@@ -454,8 +473,8 @@ export function renderTopicRadar(
   // Axis spokes.
   spokes.forEach((_, i) => {
     const line = activeDocument.createElementNS(svgNs, "line");
-    line.setAttribute("x1", String(C));
-    line.setAttribute("y1", String(C));
+    line.setAttribute("x1", String(CX));
+    line.setAttribute("y1", String(CY));
     line.setAttribute("x2", at(i, 1).x.toFixed(1));
     line.setAttribute("y2", at(i, 1).y.toFixed(1));
     line.setAttribute("stroke", "currentColor");
@@ -532,14 +551,14 @@ export function renderTopicRadar(
   // Labels outside the web, anchored by which side of the circle they sit on.
   spokes.forEach((s, i) => {
     const p = at(i, 1);
-    const dx = p.x - C;
-    const dy = p.y - C;
-    const lx = C + dx * 1.28;
-    const ly = C + dy * 1.28;
+    const dx = p.x - CX;
+    const dy = p.y - CY;
+    const lx = CX + dx * RADAR_LAYOUT.labelMult;
+    const ly = CY + dy * RADAR_LAYOUT.labelMult;
     const text = activeDocument.createElementNS(svgNs, "text");
     text.setAttribute("x", lx.toFixed(1));
     text.setAttribute("y", (ly + 2.5).toFixed(1));
-    text.setAttribute("font-size", "7.5");
+    text.setAttribute("font-size", String(RADAR_LAYOUT.fontSize));
     text.setAttribute("fill", "currentColor");
     text.setAttribute("opacity", s.lowData ? "0.35" : "0.7");
     text.setAttribute(

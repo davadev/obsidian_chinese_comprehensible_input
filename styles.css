@@ -1735,18 +1735,24 @@
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
 }
+/* Column, not row: the legend is a sibling of the SVG, and the default flex
+   row put it beside the chart and squeezed the graph's width. */
 .cci-dash-topics-chart {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
 }
 /* Square by design: the radar keeps its aspect ratio, unlike the progress
    charts which stretch to the container width. */
 .cci-topic-radar {
   width: 100%;
-  max-width: 320px;
+  max-width: 420px;
   margin: 0 auto;
   display: block;
   color: var(--text-muted);
+}
+.cci-dash-topics-chart .cci-progress-legend {
+  justify-content: center;
 }
 .cci-dash-topics-chooser {
   margin-top: 0.3rem;
