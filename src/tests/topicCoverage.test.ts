@@ -107,10 +107,39 @@ describe("topicSpokes — bucketing", () => {
     expect(allPartial.coverage).toBeCloseTo(0.5, 6);
   });
 
+  it("separates fully-known from known-plus-partial", () => {
+    // The chart draws these as two rings, so they must be independently
+    // correct: partial must not leak into the known ring, and must count in
+    // full (not half) in the outer one.
+    const all = wordsIn("food_drink");
+    const half = Math.floor(all.length / 2);
+    const records = all.map((w, i) =>
+      word(w, i < half ? "known" : "meaningKnownPinyinUnknown")
+    );
+    const s = topicSpokes(records, ["food_drink"])[0];
+    expect(s.coverageKnown).toBeGreaterThan(0);
+    expect(s.coverageKnown).toBeLessThan(1);
+    expect(s.coverageKnownPartial).toBeCloseTo(1, 6);
+    expect(s.coverageKnownPartial).toBeGreaterThan(s.coverageKnown);
+    // The half-credit `coverage` used by Relative mode sits between them.
+    expect(s.coverage).toBeGreaterThan(s.coverageKnown);
+    expect(s.coverage).toBeLessThan(s.coverageKnownPartial);
+  });
+
+  it("keeps the known ring at zero when everything is only partial", () => {
+    const all = wordsIn("sport");
+    const s = topicSpokes(all.map((w) => word(w, "charactersUnknown")), ["sport"])[0];
+    expect(s.coverageKnown).toBe(0);
+    expect(s.coverageKnownPartial).toBeCloseTo(1, 6);
+  });
+
   it("scores unknown and new as zero", () => {
     const all = wordsIn("food_drink");
     for (const st of ["unknown", "new"] as const) {
-      expect(topicSpokes(all.map((w) => word(w, st)), ["food_drink"])[0].coverage).toBe(0);
+      const s = topicSpokes(all.map((w) => word(w, st)), ["food_drink"])[0];
+      expect(s.coverage).toBe(0);
+      expect(s.coverageKnown).toBe(0);
+      expect(s.coverageKnownPartial).toBe(0);
     }
   });
 
@@ -284,9 +313,13 @@ describe("topicSpokes — boundaries and invariants", () => {
     const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
     const records = words.filter(() => rand() < 0.4).map((w) => word(w, states[Math.floor(rand() * states.length)]));
     for (const s of topicSpokes(records, [...TOPIC_IDS])) {
-      expect(Number.isFinite(s.coverage)).toBe(true);
-      expect(s.coverage).toBeGreaterThanOrEqual(0);
-      expect(s.coverage).toBeLessThanOrEqual(1);
+      for (const v of [s.coverage, s.coverageKnown, s.coverageKnownPartial]) {
+        expect(Number.isFinite(v)).toBe(true);
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(1);
+      }
+      // The rings must nest, always.
+      expect(s.coverageKnownPartial).toBeGreaterThanOrEqual(s.coverageKnown);
       expect(Number.isFinite(s.relative)).toBe(true);
       expect(s.relative).toBeGreaterThanOrEqual(0);
     }

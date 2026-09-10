@@ -287,7 +287,6 @@ export class StatsView extends ItemView {
     this.renderProgressSection(root, scoped);
     this.renderHskCoverageSection(root);
     this.renderTopicCoverageSection(root);
-    this.renderTopicCoverageSection(root);
 
     // Per-note exposure breakdown.
     const notePaths = this.plugin.vocab.knownNotePaths();
@@ -594,33 +593,53 @@ export class StatsView extends ItemView {
     });
 
     const spokes = topicSpokes(this.plugin.vocab.values(), selected);
-    const hint = topicEmptyHint(spokes);
+    const hint = topicEmptyHint(spokes.map((s) => ({ coverage: s.coverageKnownPartial, total: s.total })));
     const body = wrap.createDiv({ cls: "cci-dash-topics-chart" });
 
     if (hint && !relative) {
       body.createEl("p", { cls: "cci-dash-progress-summary", text: hint });
     } else {
-      const values = spokes.map((s) => (relative ? s.relative : s.coverage));
+      // Two rings in Coverage mode so "what about partial?" is answerable at a
+      // glance: the filled inner one is fully-known words, the dashed outer one
+      // adds partially-known. Everything outside the outer ring is unknown or
+      // not yet met. Relative mode is a single derived number, so one ring.
+      const series = relative
+        ? [{ label: "Relative to my level", color: "rgba(88, 166, 255, 0.85)", fill: true }]
+        : [
+            { label: "Known", color: "rgba(46, 160, 67, 0.85)", fill: true },
+            { label: "+ partially known", color: "rgba(220, 180, 30, 0.9)", fill: false },
+          ];
+      const primaryValues = spokes.map((s) => (relative ? s.relative : s.coverageKnown));
+      const outerValues = spokes.map((s) => (relative ? s.relative : s.coverageKnownPartial));
       const max = relative
-        ? Math.max(1.5, ...values.map((v) => v * 1.05))
-        : Math.max(0.1, ...values);
-      const mean = values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
+        ? Math.max(1.5, ...primaryValues.map((v) => v * 1.05))
+        : Math.max(0.1, ...outerValues);
+      const mean = primaryValues.length
+        ? primaryValues.reduce((a, b) => a + b, 0) / primaryValues.length
+        : 0;
+      const pct = (v: number) => `${Math.round(v * 100)}%`;
       renderTopicRadar(
         body,
         spokes.map((s, i) => {
-          const label = TOPIC_LABELS[s.id]?.zh ?? s.id;
-          const pct = `${Math.round(s.coverage * 100)}%`;
+          const label = TOPIC_LABELS[s.id]?.short ?? s.id;
           const tracked = s.known + s.partial + s.unknown + s.new;
           const detail =
-            `${TOPIC_LABELS[s.id]?.en ?? s.id} \u00b7 ${pct} of ${s.total} words\n` +
-            `known ${s.known} \u00b7 partial ${s.partial} \u00b7 unknown ${s.unknown} \u00b7 ` +
-            `new ${s.new} \u00b7 untracked ${s.untracked}` +
+            `${TOPIC_LABELS[s.id]?.en ?? s.id} \u2014 ${s.total} words\n` +
+            `known ${pct(s.coverageKnown)} (${s.known}) \u00b7 ` +
+            `+partial ${pct(s.coverageKnownPartial)} (${s.partial})\n` +
+            `unknown ${s.unknown} \u00b7 new ${s.new} \u00b7 never met ${s.untracked}` +
             (relative ? `\nrelative to your level: ${s.relative.toFixed(2)}\u00d7` : "") +
             (s.lowData ? `\nonly ${tracked} words met so far \u2014 not enough data yet` : "");
-          return { label, value: values[i], max, lowData: s.lowData, tooltip: detail };
+          return {
+            label,
+            values: relative ? [primaryValues[i]] : [primaryValues[i], outerValues[i]],
+            max,
+            lowData: s.lowData,
+            tooltip: detail,
+          };
         }),
         {
-          color: "rgba(46, 160, 67, 0.85)",
+          series,
           reference: max > 0 ? (relative ? 1 / max : mean / max) : 0,
           referenceLabel: relative ? "as expected for your level" : "your average across these topics",
         }
@@ -666,6 +685,9 @@ export class StatsView extends ItemView {
     wrap.createEl("p", {
       cls: "cci-dash-progress-summary",
       text:
+        (relative
+          ? "1.0 = exactly what your overall level predicts for that topic; above means stronger than expected. "
+          : "Filled ring = fully known. Dashed ring = plus partially known. The gap to the edge is unknown or not yet met. ") +
         "Weighted by word frequency, so common words count for more. Covers HSK 1\u20139 " +
         "vocabulary only \u2014 words outside it have no topic. Topics overlap: a word can " +
         "belong to more than one, and words you marked Ignored are left out entirely.",
