@@ -67,7 +67,7 @@ if (topics.length > B36.length) {
   die(`${topics.length} topics exceeds the ${B36.length}-topic base36 encoding limit`);
 }
 for (const t of topics) {
-  if (!t?.id || !t?.zh || !t?.en) die(`topic entry missing id/zh/en: ${JSON.stringify(t)}`);
+  if (!t?.id || !t?.zh || !t?.en || !t?.short) die(`topic entry missing id/zh/en/short: ${JSON.stringify(t)}`);
 }
 const ids = topics.map((t) => t.id);
 if (new Set(ids).size !== ids.length) die("duplicate topic id");
@@ -112,8 +112,10 @@ export const TOPIC_IDS: readonly string[] = [
 ${ids.map((id) => `  ${JSON.stringify(id)},`).join("\n")}
 ];
 
-export const TOPIC_LABELS: Readonly<Record<string, { zh: string; en: string }>> = {
-${topics.map((t) => `  ${JSON.stringify(t.id)}: { zh: ${JSON.stringify(t.zh)}, en: ${JSON.stringify(t.en)} },`).join("\n")}
+export const TOPIC_LABELS: Readonly<
+  Record<string, { zh: string; en: string; short: string }>
+> = {
+${topics.map((t) => `  ${JSON.stringify(t.id)}: { zh: ${JSON.stringify(t.zh)}, en: ${JSON.stringify(t.en)}, short: ${JSON.stringify(t.short)} },`).join("\n")}
 };
 
 /** Spokes shown on first open — the eight topics richest in HSK 1-4 vocabulary,

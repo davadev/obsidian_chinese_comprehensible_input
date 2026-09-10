@@ -26,6 +26,7 @@ export function renderDailyGraph(container: HTMLElement, dailyCounts: Record<str
     svg.appendChild(r);
   });
   container.appendChild(svg);
+
 }
 
 export type Bucket = "day" | "week" | "month";
@@ -388,10 +389,18 @@ export function topicEmptyHint(spokes: { coverage: number; total: number }[]): s
 
 export interface RadarSpoke {
   label: string;
-  value: number;
+  /** One value per series, in the same order as `opts.series`. */
+  values: number[];
   max: number;
   lowData: boolean;
   tooltip: string;
+}
+
+export interface RadarSeries {
+  label: string;
+  color: string;
+  /** Filled series read as the primary reading; outlines are context. */
+  fill: boolean;
 }
 
 /**
@@ -404,7 +413,11 @@ export interface RadarSpoke {
 export function renderTopicRadar(
   container: HTMLElement,
   spokes: RadarSpoke[],
-  opts: { color: string; reference?: number; referenceLabel?: string }
+  opts: {
+    series: RadarSeries[];
+    reference?: number;
+    referenceLabel?: string;
+  }
 ): void {
   container.empty();
   if (spokes.length === 0) return;
@@ -470,28 +483,45 @@ export function renderTopicRadar(
     svg.appendChild(ref);
   }
 
-  // The data polygon.
-  const frac = (s: RadarSpoke) => (s.max > 0 ? Math.max(0, Math.min(1, s.value / s.max)) : 0);
-  const poly = activeDocument.createElementNS(svgNs, "polygon");
-  poly.setAttribute(
-    "points",
-    spokes.map((s, i) => `${at(i, frac(s)).x.toFixed(1)},${at(i, frac(s)).y.toFixed(1)}`).join(" ")
-  );
-  poly.setAttribute("fill", opts.color);
-  poly.setAttribute("opacity", "0.25");
-  poly.setAttribute("stroke", opts.color);
-  poly.setAttribute("stroke-width", "1.4");
-  svg.appendChild(poly);
+  // One polygon per series. Drawn widest-first so a larger outline never hides
+  // the filled series inside it.
+  const frac = (s: RadarSpoke, si: number) =>
+    s.max > 0 ? Math.max(0, Math.min(1, (s.values[si] ?? 0) / s.max)) : 0;
+  const order = opts.series
+    .map((_, si) => si)
+    .sort((a, b) => {
+      const sum = (si: number) => spokes.reduce((acc, s) => acc + (s.values[si] ?? 0), 0);
+      return sum(b) - sum(a);
+    });
 
-  // Vertex dots carry the tooltip; a spoke with too little data is hollow.
+  for (const si of order) {
+    const series = opts.series[si];
+    const poly = activeDocument.createElementNS(svgNs, "polygon");
+    poly.setAttribute(
+      "points",
+      spokes
+        .map((s, i) => `${at(i, frac(s, si)).x.toFixed(1)},${at(i, frac(s, si)).y.toFixed(1)}`)
+        .join(" ")
+    );
+    poly.setAttribute("fill", series.fill ? series.color : "none");
+    if (series.fill) poly.setAttribute("opacity", "0.28");
+    poly.setAttribute("stroke", series.color);
+    poly.setAttribute("stroke-width", series.fill ? "1.4" : "1.1");
+    if (!series.fill) poly.setAttribute("stroke-dasharray", "4 2");
+    svg.appendChild(poly);
+  }
+
+  // Vertex dots on the primary (first) series carry the tooltip; a spoke with
+  // too little data is drawn hollow.
+  const primary = opts.series[0];
   spokes.forEach((s, i) => {
-    const p = at(i, frac(s));
+    const p = at(i, frac(s, 0));
     const dot = activeDocument.createElementNS(svgNs, "circle");
     dot.setAttribute("cx", p.x.toFixed(1));
     dot.setAttribute("cy", p.y.toFixed(1));
     dot.setAttribute("r", "2.4");
-    dot.setAttribute("fill", s.lowData ? "var(--background-secondary)" : opts.color);
-    dot.setAttribute("stroke", opts.color);
+    dot.setAttribute("fill", s.lowData ? "var(--background-secondary)" : primary.color);
+    dot.setAttribute("stroke", primary.color);
     dot.setAttribute("stroke-width", "1");
     const t = activeDocument.createElementNS(svgNs, "title");
     t.textContent = s.tooltip;
@@ -524,4 +554,21 @@ export function renderTopicRadar(
   });
 
   container.appendChild(svg);
+
+  const legend = container.createDiv();
+  legend.className = "cci-progress-legend";
+  for (const series of opts.series) {
+    const item = legend.createSpan();
+    item.className = "cci-progress-legend-item";
+    const swatch = item.createSpan();
+    swatch.className = "cci-progress-legend-swatch";
+    swatch.style.background = series.color;
+    // Class, not a static inline style: obsidianmd/no-static-styles-assignment
+    // is an Error in the community-plugin review.
+    if (!series.fill) swatch.classList.add("is-outline");
+    item.appendChild(swatch);
+    item.appendChild(activeDocument.createTextNode(series.label));
+    legend.appendChild(item);
+  }
+  container.appendChild(legend);
 }

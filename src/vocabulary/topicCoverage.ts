@@ -56,7 +56,11 @@ export interface TopicSpoke {
   untracked: number;
   /** Words in this topic, excluding ones the learner ignored. */
   total: number;
-  /** 0..1, frequency-weighted. */
+  /** 0..1, frequency-weighted, counting only fully-known words. */
+  coverageKnown: number;
+  /** 0..1, counting known AND partially-known words in full. Always >= coverageKnown. */
+  coverageKnownPartial: number;
+  /** 0..1, known + half credit for partial. Drives the Relative metric. */
   coverage: number;
   /** actual / expected for this learner's level. 1 when there is nothing to expect. */
   relative: number;
@@ -151,6 +155,8 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
   const fresh = new Map<string, number>();
   const ignored = new Map<string, number>();
   const gotWeight = new Map<string, number>();
+  const gotKnown = new Map<string, number>();
+  const gotKnownPartial = new Map<string, number>();
   const ignoredWeight = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string, by = 1) => m.set(k, (m.get(k) ?? 0) + by);
 
@@ -189,7 +195,14 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
       else if (state === "partial") bump(partial, t);
       else if (state === "unknown") bump(unknown, t);
       else bump(fresh, t);
-      if (score > 0) bump(gotWeight, t, entry.weight * score);
+      if (score > 0) {
+        bump(gotWeight, t, entry.weight * score);
+        // Separate accumulators so the chart can draw "known" and
+        // "known + partial" as two rings rather than collapsing both into one
+        // half-credited number the reader cannot decompose.
+        if (state === "known") bump(gotKnown, t, entry.weight);
+        if (state === "known" || state === "partial") bump(gotKnownPartial, t, entry.weight);
+      }
     }
   }
 
@@ -229,6 +242,8 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
       ignored: ign,
       untracked: Math.max(0, total - tracked),
       total,
+      coverageKnown: denom > 0 ? (gotKnown.get(id) ?? 0) / denom : 0,
+      coverageKnownPartial: denom > 0 ? (gotKnownPartial.get(id) ?? 0) / denom : 0,
       coverage: denom > 0 ? got / denom : 0,
       relative: expected > 0 ? got / expected : 1,
       lowData: tracked < LOW_DATA_MIN,

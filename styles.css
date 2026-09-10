@@ -1759,3 +1759,7 @@
 .cci-dash-topics .cci-dash-progress-filter-item input:disabled + span {
   opacity: 0.45;
 }
+/* Outline series in the radar legend — matches the dashed polygon. */
+.cci-progress-legend-swatch.is-outline {
+  opacity: 0.55;
+}

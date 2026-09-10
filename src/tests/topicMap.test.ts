@@ -39,11 +39,23 @@ describe("topicMap.generated", () => {
     expect(new Set(TOPIC_IDS).size).toBe(TOPIC_IDS.length);
   });
 
-  it("gives every topic a Chinese and an English label", () => {
+  it("gives every topic a Chinese, English and short label", () => {
     for (const id of TOPIC_IDS) {
       expect(TOPIC_LABELS[id]?.zh, id).toBeTruthy();
       expect(TOPIC_LABELS[id]?.en, id).toBeTruthy();
+      expect(TOPIC_LABELS[id]?.short, id).toBeTruthy();
     }
+  });
+
+  it("keeps short labels short enough for a phone-width radar", () => {
+    // These are the axis labels. Long ones collide on a 320px chart, which is
+    // what drove the switch away from the full English names.
+    for (const id of TOPIC_IDS) {
+      expect(TOPIC_LABELS[id].short.length, id).toBeLessThanOrEqual(10);
+      expect(TOPIC_LABELS[id].short, id).not.toMatch(/[&]/);
+    }
+    const shorts = TOPIC_IDS.map((id) => TOPIC_LABELS[id].short);
+    expect(new Set(shorts).size, "short labels must be unique").toBe(shorts.length);
   });
 
   it("keeps every packed field in range", () => {
