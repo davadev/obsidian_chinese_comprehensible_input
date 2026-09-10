@@ -4,7 +4,7 @@ import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "../constants";
 import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { colorClassKey, colorOf } from "../vocabulary/axes";
-import { Bucket, bucketTimestamps, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
+import { Bucket, bucketTimestamps, countBeforeWindow, renderDailyGraph, renderProgressArea, renderProgressGraph } from "./StatsGraph";
 import { HSK_LEVEL_COUNTS } from "../dictionary/hskMap.generated";
 import { StoryPreview } from "../ai/StoryGenerator";
 import { confirmAsync } from "./confirmInput";
@@ -159,6 +159,18 @@ export class StatsView extends ItemView {
       ? counts.known + counts.partial + counts.unknown
       : total - counts.ignored;
     const pct = (n: number) => (denom ? Math.round((n / denom) * 100) : 0);
+
+    // A note scope filters EVERY number below, but the only sign of it is the
+    // dropdown up in the header — scroll past that and a scoped dashboard is
+    // indistinguishable from one that has lost your vocabulary. Say so where
+    // the numbers are.
+    if (this.noteScope) {
+      const scopeNote = root.createDiv({ cls: "cci-dash-scope-note" });
+      scopeNote.createSpan({ text: "Scoped to " });
+      scopeNote.createSpan({ cls: "cci-dash-scope-path", text: this.noteScope });
+      const clear = scopeNote.createEl("button", { text: "Show all vocabulary" });
+      clear.addEventListener("click", () => void this.setScope(""));
+    }
 
     // Exclude-"new" toggle row (top of dashboard so it's the first thing
     // the user sees affecting the cards).
@@ -338,11 +350,18 @@ export class StatsView extends ItemView {
 
     const activeSeries = seriesDefs
       .filter((d) => this.plugin.settings.progressChartSeries[d.id])
-      .map((d) => ({
-        label: d.label,
-        color: d.color,
-        data: bucketTimestamps(stampFor(d.id), this.progressBucket, n),
-      }));
+      .map((d) => {
+        const stamps = stampFor(d.id);
+        return {
+          label: d.label,
+          color: d.color,
+          data: bucketTimestamps(stamps, this.progressBucket, n),
+          // Opening balance. Without it the cumulative curve restarts at zero
+          // on every window, so a learner whose classifying predates the last
+          // 30 days saw a flat line on the floor.
+          prior: countBeforeWindow(stamps, this.progressBucket, n),
+        };
+      });
 
     const graphHost = wrap.createDiv({ cls: "cci-dash-progress-graph" });
     if (activeSeries.length === 0) {
@@ -359,13 +378,20 @@ export class StatsView extends ItemView {
     const range =
       this.progressBucket === "day" ? "30 days" :
       this.progressBucket === "week" ? "12 weeks" : "12 months";
+    // The cumulative curve plots a running total to date, so summarising it as
+    // "last 30 days: 0" printed a contradiction under a line sitting at 130.
+    // The bars genuinely are per-period, so their wording is unchanged.
+    const cumulative = this.chartStyle === "area";
     const summary = activeSeries
-      .map((s) => `${s.label} ${s.data.reduce((a, b) => a + b.count, 0)}`)
+      .map((s) => {
+        const windowed = s.data.reduce((a, b) => a + b.count, 0);
+        return `${s.label} ${cumulative ? windowed + s.prior : windowed}`;
+      })
       .join(", ");
     if (summary) {
       wrap.createEl("p", {
         cls: "cci-dash-progress-summary",
-        text: `Last ${range}: ${summary}.`,
+        text: cumulative ? `Total: ${summary}.` : `Last ${range}: ${summary}.`,
       });
     }
     // Say what was left out. The total stays visible elsewhere on the
