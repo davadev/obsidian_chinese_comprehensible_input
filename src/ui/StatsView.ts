@@ -603,14 +603,20 @@ export class StatsView extends ItemView {
       // glance: the filled inner one is fully-known words, the dashed outer one
       // adds partially-known. Everything outside the outer ring is unknown or
       // not yet met. Relative mode is a single derived number, so one ring.
+      // Same colour language as the HSK coverage bars above: green known,
+      // amber partial, red unknown. Cumulative rings, so each contains the
+      // previous one; the gap to the edge is "seen but unclassified, or never
+      // met".
       const series = relative
         ? [{ label: "Relative to my level", color: "rgba(88, 166, 255, 0.85)", fill: true }]
         : [
             { label: "Known", color: "rgba(46, 160, 67, 0.85)", fill: true },
-            { label: "+ partially known", color: "rgba(220, 180, 30, 0.9)", fill: false },
+            { label: "+ partial", color: "rgba(220, 180, 30, 0.9)", fill: false },
+            { label: "+ unknown", color: "rgba(220, 60, 60, 0.85)", fill: false },
           ];
       const primaryValues = spokes.map((s) => (relative ? s.relative : s.coverageKnown));
-      const outerValues = spokes.map((s) => (relative ? s.relative : s.coverageKnownPartial));
+      const partialValues = spokes.map((s) => (relative ? s.relative : s.coverageKnownPartial));
+      const outerValues = spokes.map((s) => (relative ? s.relative : s.coverageClassified));
       const max = relative
         ? Math.max(1.5, ...primaryValues.map((v) => v * 1.05))
         : Math.max(0.1, ...outerValues);
@@ -626,13 +632,16 @@ export class StatsView extends ItemView {
           const detail =
             `${TOPIC_LABELS[s.id]?.en ?? s.id} \u2014 ${s.total} words\n` +
             `known ${pct(s.coverageKnown)} (${s.known}) \u00b7 ` +
-            `+partial ${pct(s.coverageKnownPartial)} (${s.partial})\n` +
-            `unknown ${s.unknown} \u00b7 new ${s.new} \u00b7 never met ${s.untracked}` +
+            `+partial ${pct(s.coverageKnownPartial)} (${s.partial}) \u00b7 ` +
+            `+unknown ${pct(s.coverageClassified)} (${s.unknown})\n` +
+            `seen but unclassified ${s.new} \u00b7 never met ${s.untracked}` +
             (relative ? `\nrelative to your level: ${s.relative.toFixed(2)}\u00d7` : "") +
             (s.lowData ? `\nonly ${tracked} words met so far \u2014 not enough data yet` : "");
           return {
             label,
-            values: relative ? [primaryValues[i]] : [primaryValues[i], outerValues[i]],
+            values: relative
+              ? [primaryValues[i]]
+              : [primaryValues[i], partialValues[i], outerValues[i]],
             max,
             lowData: s.lowData,
             tooltip: detail,
@@ -687,7 +696,9 @@ export class StatsView extends ItemView {
       text:
         (relative
           ? "1.0 = exactly what your overall level predicts for that topic; above means stronger than expected. "
-          : "Filled ring = fully known. Dashed ring = plus partially known. The gap to the edge is unknown or not yet met. ") +
+          : "Rings are cumulative: green = fully known, amber = plus partially known, " +
+            "red = plus words you marked unknown. The gap to the outer edge is words seen " +
+            "but not yet classified, or never met. ") +
         "Weighted by word frequency, so common words count for more. Covers HSK 1\u20139 " +
         "vocabulary only \u2014 words outside it have no topic. Topics overlap: a word can " +
         "belong to more than one, and words you marked Ignored are left out entirely.",
