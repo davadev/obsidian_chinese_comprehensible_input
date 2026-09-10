@@ -60,6 +60,12 @@ export interface TopicSpoke {
   coverageKnown: number;
   /** 0..1, counting known AND partially-known words in full. Always >= coverageKnown. */
   coverageKnownPartial: number;
+  /**
+   * 0..1, every word the learner has explicitly classified — known, partial or
+   * unknown. Always >= coverageKnownPartial. The gap from here to 1.0 is words
+   * seen but not yet classified, plus words never met at all.
+   */
+  coverageClassified: number;
   /** 0..1, known + half credit for partial. Drives the Relative metric. */
   coverage: number;
   /** actual / expected for this learner's level. 1 when there is nothing to expect. */
@@ -157,6 +163,7 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
   const gotWeight = new Map<string, number>();
   const gotKnown = new Map<string, number>();
   const gotKnownPartial = new Map<string, number>();
+  const gotClassified = new Map<string, number>();
   const ignoredWeight = new Map<string, number>();
   const bump = (m: Map<string, number>, k: string, by = 1) => m.set(k, (m.get(k) ?? 0) + by);
 
@@ -195,6 +202,12 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
       else if (state === "partial") bump(partial, t);
       else if (state === "unknown") bump(unknown, t);
       else bump(fresh, t);
+      // Classified = the learner has made a judgement, whatever it was. Drawn
+      // as the outermost ring so "unknown" is visible rather than implied by
+      // the gap to the edge.
+      if (state === "known" || state === "partial" || state === "unknown") {
+        bump(gotClassified, t, entry.weight);
+      }
       if (score > 0) {
         bump(gotWeight, t, entry.weight * score);
         // Separate accumulators so the chart can draw "known" and
@@ -244,6 +257,7 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
       total,
       coverageKnown: denom > 0 ? (gotKnown.get(id) ?? 0) / denom : 0,
       coverageKnownPartial: denom > 0 ? (gotKnownPartial.get(id) ?? 0) / denom : 0,
+      coverageClassified: denom > 0 ? (gotClassified.get(id) ?? 0) / denom : 0,
       coverage: denom > 0 ? got / denom : 0,
       relative: expected > 0 ? got / expected : 1,
       lowData: tracked < LOW_DATA_MIN,

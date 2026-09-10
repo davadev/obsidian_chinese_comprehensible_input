@@ -126,6 +126,34 @@ describe("topicSpokes — bucketing", () => {
     expect(s.coverage).toBeLessThan(s.coverageKnownPartial);
   });
 
+  it("nests the three rings: known <= known+partial <= classified", () => {
+    // The chart draws these as cumulative rings, so a violation would render
+    // an inner ring poking outside an outer one.
+    const all = wordsIn("health_body");
+    const states: WordStatus[] = ["known", "meaningKnownPinyinUnknown", "unknown", "new"];
+    const records = all.map((w, i) => word(w, states[i % states.length]));
+    const s = topicSpokes(records, ["health_body"])[0];
+    expect(s.coverageKnown).toBeLessThanOrEqual(s.coverageKnownPartial);
+    expect(s.coverageKnownPartial).toBeLessThanOrEqual(s.coverageClassified);
+    expect(s.coverageKnown).toBeGreaterThan(0);
+    expect(s.coverageClassified).toBeGreaterThan(s.coverageKnownPartial);
+  });
+
+  it("counts explicitly-unknown words in the outer ring only", () => {
+    const all = wordsIn("sport");
+    const s = topicSpokes(all.map((w) => word(w, "unknown")), ["sport"])[0];
+    expect(s.coverageKnown).toBe(0);
+    expect(s.coverageKnownPartial).toBe(0);
+    expect(s.coverageClassified).toBeCloseTo(1, 6);
+  });
+
+  it("leaves 'new' out of every ring — seen is not classified", () => {
+    const all = wordsIn("sport");
+    const s = topicSpokes(all.map((w) => word(w, "new")), ["sport"])[0];
+    expect(s.coverageClassified).toBe(0);
+    expect(s.new).toBe(all.length);
+  });
+
   it("keeps the known ring at zero when everything is only partial", () => {
     const all = wordsIn("sport");
     const s = topicSpokes(all.map((w) => word(w, "charactersUnknown")), ["sport"])[0];
@@ -140,6 +168,8 @@ describe("topicSpokes — bucketing", () => {
       expect(s.coverage).toBe(0);
       expect(s.coverageKnown).toBe(0);
       expect(s.coverageKnownPartial).toBe(0);
+      // `unknown` is classified, `new` is not.
+      expect(s.coverageClassified).toBe(st === "unknown" ? 1 : 0);
     }
   });
 
@@ -313,13 +343,14 @@ describe("topicSpokes — boundaries and invariants", () => {
     const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
     const records = words.filter(() => rand() < 0.4).map((w) => word(w, states[Math.floor(rand() * states.length)]));
     for (const s of topicSpokes(records, [...TOPIC_IDS])) {
-      for (const v of [s.coverage, s.coverageKnown, s.coverageKnownPartial]) {
+      for (const v of [s.coverage, s.coverageKnown, s.coverageKnownPartial, s.coverageClassified]) {
         expect(Number.isFinite(v)).toBe(true);
         expect(v).toBeGreaterThanOrEqual(0);
         expect(v).toBeLessThanOrEqual(1);
       }
       // The rings must nest, always.
       expect(s.coverageKnownPartial).toBeGreaterThanOrEqual(s.coverageKnown);
+      expect(s.coverageClassified).toBeGreaterThanOrEqual(s.coverageKnownPartial);
       expect(Number.isFinite(s.relative)).toBe(true);
       expect(s.relative).toBeGreaterThanOrEqual(0);
     }
