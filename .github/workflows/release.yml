@@ -1,11 +1,18 @@
 name: Release
 
 # Triggered on push of a SemVer-shaped tag. Bare `0.3.4` ships as the
-# `latest` GitHub Release; suffixed `0.3.4-rc.1` / `0.3.4-beta.2` ship as
+# `latest` GitHub Release; suffixed `0.3.4-beta.1` / `0.3.4-rc.2` ship as
 # prereleases. The whole verification chain (npm ci → lint → build →
 # test → check-release with --with-build) runs on a clean Ubuntu runner
 # before any release is created — a single lint Error aborts the
 # pipeline, so a broken release can never reach the directory.
+#
+# Prerelease safety: the default branch manifest.json always advertises the
+# CURRENT STABLE version, because Obsidian uses it to decide which release to
+# offer Community Plugin users. For a suffixed tag this workflow stamps the
+# prerelease version into the working tree only (scripts/stamp-prerelease.mjs),
+# so the uploaded assets carry the beta version for BRAT while `main` keeps
+# pointing at the last good stable release. See docs/release-process.md.
 
 on:
   push:
@@ -37,6 +44,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Prerelease tags only. The checkout carries the default branch manifest,
+      # which advertises the CURRENT STABLE version to Obsidian's Community
+      # Plugin system — that must not change while we are only testing betas.
+      # BRAT, however, reads manifest.json from the release ASSETS, so the
+      # published assets must carry the prerelease version. Stamping the working
+      # tree (never committed) satisfies both at once, and everything below —
+      # lint, build, test, release guard — then runs against the exact artifact
+      # that gets uploaded.
+      - name: Stamp prerelease version into working tree
+        if: contains(github.ref_name, '-')
+        run: node scripts/stamp-prerelease.mjs "${GITHUB_REF_NAME}"
+
       - name: Run lint (Obsidian-parity)
         run: npm run lint
 
@@ -50,6 +69,33 @@ jobs:
         # --strict: any WARN finding blocks the release (no release ships with an
         # outstanding warning).
         run: npm run check-release -- --tag "${GITHUB_REF_NAME}" --with-build --strict
+
+      # Last gate before anything becomes externally visible. `check-release`
+      # already asserts manifest.version === tag, but this re-checks the three
+      # files we are about to upload, on disk, as bytes — a build that silently
+      # produced no styles.css or an empty main.js dies here rather than
+      # shipping. (The 0.1.56-0.1.59 iPad regression was a missing styles.css.)
+      - name: Validate release artifacts
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          fail=0
+          for f in main.js manifest.json styles.css; do
+            if [ ! -s "$f" ]; then
+              echo "::error title=Missing release artifact::$f is absent or empty"
+              fail=1
+            else
+              echo "ok: $f ($(wc -c <"$f") bytes)"
+            fi
+          done
+          asset_version=$(node -p "require('./manifest.json').version")
+          if [ "$asset_version" != "$tag" ]; then
+            echo "::error title=Version mismatch::manifest.json asset says '$asset_version' but the tag is '$tag'"
+            fail=1
+          else
+            echo "ok: manifest.json asset version == tag ($tag)"
+          fi
+          exit $fail
 
       # Cryptographic provenance for the exact built assets we upload below, so
       # users (and the Obsidian review) can verify they came from this repo's CI.

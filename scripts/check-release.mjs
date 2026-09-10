@@ -417,21 +417,48 @@ if (manifest && versionsBlob) {
 }
 
 // === Tag comparison ===
+//
+// The tag must equal manifest.version EXACTLY, prereleases included.
+//
+// This used to strip the `-rc.N` suffix so a manifest pinned at the next
+// version could serve a whole prerelease series. That is unsafe: Obsidian reads
+// manifest.json on the default branch to decide which version to advertise, and
+// then fetches assets from the release tagged identically. A default branch
+// advertising 0.7.0 while only 0.7.0-beta.1 exists points every user's update
+// check at a release that does not exist.
+//
+// The prerelease flow now keeps the committed manifest on the current stable
+// version and has CI stamp the prerelease version into the working tree
+// (scripts/stamp-prerelease.mjs) before this guard runs — so an exact match is
+// the right assertion in both cases.
 if (tag && manifest) {
-  // Prerelease tags (e.g. 0.4.0-rc.1, 0.4.0-beta.2) carry the base version in
-  // manifest.json — strip the suffix before comparing so the beta-first flow
-  // works. Bare SemVer tags compare unchanged.
-  const baseTag = tag.replace(/-(?:rc|beta|alpha)\.\d+$/, "");
-  if (manifest.version === baseTag) {
+  if (manifest.version === tag) {
     pass(`manifest.version (${manifest.version}) matches release tag ${rawTag}`);
   } else {
+    const looksUnstamped = /-(?:rc|beta|alpha)\.\d+$/.test(tag) && !/-/.test(manifest.version);
     fail(
       "manifest.version matches release tag",
-      `manifest=${manifest.version}, tag=${tag}` + (baseTag !== tag ? ` (base=${baseTag})` : "")
+      `manifest=${manifest.version}, tag=${tag}` +
+        (looksUnstamped
+          ? ` — prerelease tag against an unstamped tree; run \`node scripts/stamp-prerelease.mjs ${tag}\` first (CI does this automatically)`
+          : "")
     );
   }
 } else {
   skip("manifest.version matches release tag", "no --tag arg and no GITHUB_REF_NAME / GITHUB_REF in env");
+
+  // No tag means we are validating a committed state (CI on main / PRs, or a
+  // local pre-flight). The committed manifest must never carry a prerelease
+  // suffix: Obsidian would advertise it to every Community Plugin user.
+  if (manifest && /-/.test(manifest.version)) {
+    fail(
+      "committed manifest.version is a stable version",
+      `manifest.version="${manifest.version}" carries a prerelease suffix. The default branch ` +
+        `must advertise the current stable release; prerelease versions are stamped in CI only.`
+    );
+  } else if (manifest) {
+    pass(`committed manifest.version (${manifest.version}) is a stable version`);
+  }
 }
 
 // === README content heuristics ===
