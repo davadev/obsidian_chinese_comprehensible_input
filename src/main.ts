@@ -10,6 +10,13 @@ import {
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
 import { migrateAiSettingsToV2, migrateOverrideKeys } from "./settings/migrations";
+import {
+  DEFAULT_CRASH_STATE,
+  crashStatePath,
+  decideOnLoad,
+  readCrashState,
+  writeCrashState,
+} from "./crashGuard";
 import { indexedSetChanged, planScriptChange } from "./settings/scriptChange";
 import { CciSettingsTab } from "./settings/SettingsTab";
 import { SettingsMirror } from "./settings/SettingsMirror";
@@ -101,28 +108,39 @@ export default class CciPlugin extends Plugin {
     return raw ?? {};
   }
 
+  /** Path of the ~30-byte crash-state file. Computed once; `manifest.dir` is
+   *  optional in Obsidian's API, hence the config-dir fallback. */
+  private crashStatePath(): string {
+    return crashStatePath(this.manifest, this.app.vault.configDir);
+  }
+
   async onload(): Promise<void> {
     // Crash protection: if previous launches kept dying before the
     // stability mark fired, auto-disable so the user can recover via
     // Community plugins instead of being stuck in a reload loop.
+    //
+    // Reads and writes its own tiny file rather than the main data blob. The
+    // blob is ~4.8 MB, and doing this through it meant two full parses and a
+    // full rewrite on the critical path before Obsidian even shows the ribbon
+    // icon — plus a re-upload of the blob on every launch of every synced
+    // device. The write stays AWAITED: the increment has to be durable before
+    // any risky work runs, or the guard cannot see the crash it exists for.
     try {
-      const probeBlob = await this.loadPluginData();
-      if (probeBlob.__autoDisabled) {
+      const path = this.crashStatePath();
+      const decision = decideOnLoad(
+        await readCrashState(this.app.vault.adapter, path),
+        CciPlugin.CRASH_THRESHOLD
+      );
+      await writeCrashState(this.app.vault.adapter, path, decision.next);
+      if (decision.action === "clear-auto-disable") {
         new Notice(
           "Chinese plugin auto-disabled after repeated crashes. Re-enable in Settings → Community plugins after addressing the cause.",
           0
         );
-        // Clear the flag so the next manual enable can run normally.
-        probeBlob.__autoDisabled = false;
-        await this.saveData(probeBlob);
         void this.app.plugins?.disablePlugin?.(this.manifest.id);
         return;
       }
-      const counter = (probeBlob.__crashCounter ?? 0) + 1;
-      if (counter > CciPlugin.CRASH_THRESHOLD) {
-        probeBlob.__autoDisabled = true;
-        probeBlob.__crashCounter = 0;
-        await this.saveData(probeBlob);
+      if (decision.action === "trip-threshold") {
         new Notice(
           `Chinese plugin auto-disabled: hit ${CciPlugin.CRASH_THRESHOLD} crashes in a row. Open Community plugins to re-enable.`,
           0
@@ -130,9 +148,9 @@ export default class CciPlugin extends Plugin {
         void this.app.plugins?.disablePlugin?.(this.manifest.id);
         return;
       }
-      probeBlob.__crashCounter = counter;
-      await this.saveData(probeBlob);
     } catch (e) {
+      // Fail open, as before: a crash-state problem must never stop the
+      // plugin loading.
       console.warn("CCI crash-counter probe failed", e);
     }
 
@@ -163,11 +181,12 @@ export default class CciPlugin extends Plugin {
 
   private async resetCrashCounter(): Promise<void> {
     try {
-      const blob = await this.loadPluginData();
-      if (blob.__crashCounter || blob.__autoDisabled) {
-        blob.__crashCounter = 0;
-        blob.__autoDisabled = false;
-        await this.saveData(blob);
+      const path = this.crashStatePath();
+      const state = await readCrashState(this.app.vault.adapter, path);
+      // Unconditional write would be cheap now, but skipping the no-op keeps
+      // the file's mtime still on an already-clean launch.
+      if (state.counter !== 0 || state.autoDisabled) {
+        await writeCrashState(this.app.vault.adapter, path, DEFAULT_CRASH_STATE);
       }
     } catch (e) {
       console.warn("CCI crash-counter reset failed", e);
@@ -185,6 +204,18 @@ export default class CciPlugin extends Plugin {
 
     // Keep onload light. Load just settings + small services.
     const blob = await this.loadPluginData();
+    // 0.6.1 moved crash state into its own file. Drop the legacy keys so a
+    // downgrade cannot re-read a stale __autoDisabled and take the plugin out
+    // for no reason. Not awaited: a one-time tidy must not sit on the critical
+    // path before the ribbon icon appears. The count is deliberately NOT
+    // carried over — a user in a live crash loop is already auto-disabled
+    // rather than launching a new version, so it would buy nothing.
+    if (blob.__crashCounter !== undefined || blob.__autoDisabled !== undefined) {
+      void this.updateDataBlob((b) => {
+        delete b.__crashCounter;
+        delete b.__autoDisabled;
+      }).catch((e) => console.warn("CCI: legacy crash-key cleanup failed", e));
+    }
     const rawSettings = blob.settings ?? {};
     // Run pre-merge migrations on the raw blob so legacy flat-shaped
     // ai.* fields (v1) get folded into ai.ollama.* before DEFAULT_SETTINGS
