@@ -1,5 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import { bucketTimestamps, countBeforeWindow, cumulativeCounts } from "../ui/StatsGraph";
+import { bucketTimestamps, countBeforeWindow, cumulativeCounts, progressEmptyHint } from "../ui/StatsGraph";
 
 /**
  * `bucketTimestamps` had no direct coverage, which is why these tests come
@@ -223,5 +223,40 @@ describe("cumulativeCounts", () => {
   it("never decreases", () => {
     const out = cumulativeCounts(buckets([0, 3, 0, 1, 0]), 5);
     for (let i = 1; i < out.length; i++) expect(out[i]).toBeGreaterThanOrEqual(out[i - 1]);
+  });
+});
+
+/**
+ * The new-user case: a first vault index inventories thousands of words as a
+ * baseline, so the cards say 9829 while this chart is a flat zero. Without a
+ * word of explanation that reads as a broken chart.
+ */
+describe("progressEmptyHint", () => {
+  it("explains an empty chart and names the indexed count", () => {
+    const hint = progressEmptyHint([0, 0, 0], 9829);
+    expect(hint).toContain("Nothing to plot yet");
+    expect(hint).toContain("9829");
+  });
+
+  it("drops the count when nothing was indexed", () => {
+    const hint = progressEmptyHint([0, 0], 0);
+    expect(hint).toContain("Nothing to plot yet");
+    expect(hint).not.toMatch(/\d/);
+  });
+
+  it("says nothing once any series has something to plot", () => {
+    expect(progressEmptyHint([0, 0, 1], 9829)).toBeUndefined();
+    expect(progressEmptyHint([130], 0)).toBeUndefined();
+  });
+
+  it("says nothing when no series is selected — that has its own message", () => {
+    expect(progressEmptyHint([], 9829)).toBeUndefined();
+  });
+
+  it("never throws on odd input", () => {
+    // It renders on every dashboard paint, so it must be incapable of taking
+    // the view down.
+    expect(() => progressEmptyHint([0], 0)).not.toThrow();
+    expect(() => progressEmptyHint([-1], 0)).not.toThrow();
   });
 });
