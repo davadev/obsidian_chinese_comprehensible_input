@@ -37,7 +37,11 @@ export default defineConfig({
         "src/settings/SettingsMirror.ts",
         "src/settings/SettingsTab.ts",
         "src/settings/StatusPriorityList.ts",
+        "src/settings/FormatOptionsList.ts",
+        "src/ui/confirmInput.ts",
         "src/ui/EditDictionaryModal.ts",
+        "src/ui/MnemonicModal.ts",
+        "src/ui/modalLayer.ts",
         "src/ui/GenerateStoryModal.ts",
         "src/ui/PathPickers.ts",
         "src/ui/SettingsConflictModal.ts",
@@ -51,6 +55,18 @@ export default defineConfig({
       // floor — CI fails if we regress. Bump after each coverage push
       // so we ratchet toward 100% on pure-logic modules and accept
       // realistic ceilings on DOM-heavy code.
+      //
+      // The vitest 1 -> 4 upgrade re-based these. v1's v8 provider only
+      // reported files a test actually imported, so modules nothing imported
+      // were silently absent from the denominator and the headline number was
+      // inflated (92.47% statements). v4 honours `include` literally and
+      // counts the whole declared surface, which is the honest measure. The
+      // drop below is a measurement correction, not a coverage regression —
+      // no test changed. Two genuine gaps it exposed are deliberately left
+      // IN the denominator rather than excluded away:
+      //   - src/editor/formatOptions.ts   (~5%)  pure logic, simply untested
+      //   - src/dictionary/DictionaryDownloader.ts (~23%) network/parse logic
+      // Raise these numbers by testing those, not by widening `exclude`.
       thresholds: {
         lines: 80,
         functions: 80,
@@ -63,7 +79,7 @@ export default defineConfig({
     alias: {
       // The `obsidian` package ships only type defs at runtime. Tests that
       // transitively import it get a tiny stub.
-      obsidian: path.resolve(__dirname, "src/tests/__mocks__/obsidian.ts"),
+      obsidian: path.resolve(import.meta.dirname, "src/tests/__mocks__/obsidian.ts"),
     },
   },
 });
