@@ -662,6 +662,47 @@ if (manifest) {
   }
 }
 
+// === Dependency tree validity ===
+//
+// `npm ls` exits non-zero when an installed version does not satisfy a range
+// some package actually declares. `npm ci` still succeeds in that state, tests
+// still pass, and nothing looks wrong — which is exactly why it went unnoticed
+// through a whole stable release: upgrading vitest pulled vite 8, which
+// requires esbuild ^0.27 || ^0.28, while the root esbuild was 0.21. Cheap to
+// check, and the failure mode is silent without it.
+{
+  const hasNodeModules = await stat(join(ROOT, "node_modules")).then(
+    (st) => st.isDirectory(),
+    () => false
+  );
+  if (!hasNodeModules) {
+    skip("dependency tree is internally consistent", "node_modules not installed");
+  } else {
+    const r = spawnSync("npm", ["ls", "--all"], {
+      cwd: ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (r.status === 0) {
+      pass("dependency tree is internally consistent", "npm ls reports no conflicts");
+    } else {
+      // npm prints the offending lines to stderr as "npm error invalid: ...".
+      const problems = `${r.stderr || ""}`
+        .split("\n")
+        .filter((l) => /invalid|extraneous|missing|peer dep/i.test(l))
+        .map((l) => l.replace(/^npm (error|warn)\s*/, "").trim())
+        .filter(Boolean);
+      fail(
+        "dependency tree is internally consistent",
+        problems.length
+          ? `${problems.length} problem(s): ${problems.slice(0, 3).join("; ")}`
+          : "npm ls exited non-zero"
+      );
+    }
+  }
+}
+
 // === npm install-script policy ===
 //
 // npm >= 11 blocks dependency install scripts unless package.json's

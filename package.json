@@ -35,7 +35,7 @@
 		"@lezer/highlight": "^1.2.0",
 		"@types/node": "^20.11.30",
 		"@vitest/coverage-v8": "4.1.11",
-		"esbuild": "^0.21.4",
+		"esbuild": "0.28.2",
 		"eslint": "^9.39.5",
 		"eslint-plugin-obsidianmd": "^0.4.2",
 		"obsidian": "^1.5.7",
