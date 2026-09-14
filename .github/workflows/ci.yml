@@ -1,5 +1,14 @@
 name: CI
 
+# Actions are pinned to full commit SHAs, not mutable tags. A tag can be
+# repointed by whoever controls the action's repo; release.yml builds the
+# main.js that ships to users, and build attestation would faithfully sign a
+# compromised build. The trailing comment records the human-readable version —
+# Dependabot (.github/dependabot.yml) updates both together.
+# Re-resolve by hand with:
+#   gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha
+# (if that returns an annotated tag object, deref it via git/tags/<sha>)
+
 on:
   push:
     branches:
@@ -11,12 +20,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # Least privilege. Without this block the job inherits the repository
+    # default, which is frequently read/write. Nothing here writes to the repo:
+    # upload-artifact uses the Actions runtime token, not GITHUB_TOKEN.
+    permissions:
+      contents: read
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -54,7 +69,7 @@ jobs:
 
       - name: Upload coverage artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage-report
           path: coverage/

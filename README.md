@@ -292,9 +292,34 @@ A tiny seed dictionary is bundled for development. For real use, drop a CC-CEDIC
 
 ## Privacy
 
-- No data leaves the device unless you configure an AI provider.
-- In OpenAI-compatible mode, story generation may send prompt text and target words to the provider you configured.
+- **No vault content leaves your device unless you enable an AI provider.** Story generation is the only feature that transmits your text, and it is off until you configure it.
+- In OpenAI-compatible mode, story generation sends prompt text and target words to the provider you configured.
+- The optional CC-CEDICT download contacts mdbg.net to fetch the dictionary. It is triggered only when you press the download button, and it **uploads nothing** — it is a plain download.
 - API keys are stored locally in Obsidian local storage and are not written to synced vault files.
+- No telemetry, no analytics, no usage reporting of any kind.
+
+## Permissions & network
+
+What this plugin can access, why, and when. These mirror the capability rows on the
+[Obsidian community plugin scorecard](https://community.obsidian.md/plugins/chinese-comprehensible-input).
+
+**Network** — three endpoints, none contacted unless you act:
+
+| Endpoint | When | What is sent |
+| --- | --- | --- |
+| `www.mdbg.net/chinese/export/cedict/…` | Only when you press **Download dictionary** | Nothing — a plain GET of the public CC-CEDICT file |
+| `api.openai.com/v1` (or your configured base URL) | Only when you generate a story, and only in OpenAI-compatible mode | Prompt text and target words |
+| `localhost:11434` (Ollama default) | Only when you generate a story in Ollama mode | Prompt text and target words — stays on your machine unless you point it elsewhere |
+
+**Vault access**
+
+- **Read** — reads the Chinese note you have open, to tokenize and annotate it.
+- **Write** — writes generated stories, and, if you enable the optional sync mirror, sanitized settings/vocabulary JSON inside your vault.
+- **Enumerate** — lists Markdown file paths to build the vocabulary index. Paths and Chinese text are read locally and never transmitted.
+
+**Clipboard** — used only when you click the vocabulary export or import buttons in Settings. The plugin never reads your clipboard in the background.
+
+**Not used at all:** no shell or `child_process` execution, no `eval`, no `innerHTML`-style HTML injection, no direct Node filesystem access, no auto-update mechanism.
 
 ## Data storage
 

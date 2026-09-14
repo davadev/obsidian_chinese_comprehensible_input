@@ -163,11 +163,49 @@ The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a
 - If `isDesktopOnly !== true`, source must not import Node-only modules (`fs`, `path`, `child_process`, `os`, `electron`).
 - `package.json` defines `build` and `test` scripts; with `--with-build`, they actually run and pass.
 - With `--with-build` (or `--with-lint`), the Obsidian-parity lint step runs `npm run lint --format json` and counts Errors vs Warnings — Errors fail the release guard, Warnings are reported as non-blocking.
+- `npm audit --omit=dev` reports no advisories. This covers exactly what ships: the plugin declares **no** runtime `dependencies`, so this passes today and is a regression guard for the day a runtime dependency is first added.
+- `package.json`'s `allowScripts` approves no package for install scripts. See [npm install-script policy](#npm-install-script-policy).
 
 ### Heuristic guards (WARN — review but don't block)
+
+> Separate from WARN: dev-dependency advisories are printed as a grey `ℹ` **note** and are deliberately *not* counted. `release.yml` runs the guard with `--strict`, which promotes every WARN to a release blocker — routing dev advisories through WARN would let an upstream CVE in, say, eslint's dependency tree hold back an urgent user-facing bugfix. The test and lint toolchain never reaches a user.
 
 - README.md mentions purpose / usage / settings / limitations.
 - `console.log` count in `src/` ≤ 30 (over the threshold suggests ungated debug output).
 - External network usage (`fetch` / `requestUrl`) is documented in README or `docs/`.
 - Files that call `adapter.read/write/exists/mkdir/list/append/remove/rename` also use `normalizePath()` somewhere in the file.
 - No stray distributable cruft at repo root (orphan `.ts`, `.bak`, `.DS_Store`, `main.js.map`). `*.config.{ts,js,mjs}` is allowlisted.
+
+## npm install-script policy
+
+npm 11+ blocks dependency install scripts unless `package.json`'s `allowScripts` field approves them. A malicious `postinstall` is the most common npm supply-chain vector, so this repository's policy is to approve **nothing**:
+
+```json
+"allowScripts": { "esbuild": false, "fsevents": false }
+```
+
+esbuild resolves its native binary through `optionalDependencies` (`@esbuild/<platform>`), so denying its postinstall is harmless — verified by `npx esbuild --version` working with the script skipped. With this field committed, any *new* dependency that tries to run an install script is blocked and surfaced rather than executing silently, and `check-release` fails if an approval ever appears.
+
+Record a decision with `npm install-scripts deny <pkg>` (or `approve`, which then needs the `check-release` allowlist updated too). `npm install-scripts ls` shows anything still unreviewed.
+
+Note this is enforced wherever npm ≥ 11 runs. CI currently pins Node 20, which ships npm 10, so CI does not yet enforce it — CI only runs `npm ci` from an already-committed lockfile, a much smaller surface. Enforcement extends to CI when Node is bumped to 24 (Node 22 ships npm 10.9 and would *not* be enough).
+
+## Pinning GitHub Actions
+
+Every action in `ci.yml` and `release.yml` is pinned to a **full commit SHA**, with the readable version in a trailing comment:
+
+```yaml
+uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+```
+
+`release.yml` builds the `main.js` that ships to users. A tag is mutable by whoever controls the action's repository, and the build attestation would faithfully sign a compromised build — attestation proves *origin*, not toolchain integrity, so pinning is complementary rather than redundant.
+
+Dependabot (`.github/dependabot.yml`, `github-actions` ecosystem) updates the SHA and its comment together. To re-resolve one by hand:
+
+```bash
+gh api repos/actions/checkout/git/ref/tags/v4.4.0 --jq .object.sha
+# if that returns an annotated tag object, dereference it:
+gh api repos/actions/checkout/git/tags/<sha> --jq .object.sha
+```
+
+Pin **within the major currently in use** and let Dependabot raise major bumps as their own PRs — action majors carry breaking changes, and a release pipeline is the wrong place to discover one.
