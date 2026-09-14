@@ -1,0 +1,31 @@
+# Dependency update feed.
+#
+# Obsidian's community-plugin scorecard reports "No vulnerable dependencies
+# found" only AFTER a release is published. These PRs surface the same signal
+# BEFORE we tag, which is the whole point of having them.
+#
+# PR-only by design: nothing here auto-merges, so Dependabot can never affect
+# a release on its own. Updates that change the shipped bundle (esbuild) or the
+# test toolchain (vitest) are reviewed and shipped one at a time behind their
+# own prerelease, per docs/release-process.md.
+#
+# The github-actions ecosystem also keeps the commit-SHA pins in ci.yml /
+# release.yml current — Dependabot rewrites both the SHA and its trailing
+# version comment.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

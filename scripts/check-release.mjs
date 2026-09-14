@@ -71,6 +71,14 @@ function skip(name, detail = "") {
   results.skip++;
   console.log(`${c.gray("·")} ${name}${detail ? ` (${detail})` : ""}`);
 }
+// Informational only: never counted, never blocking. `--strict` promotes WARN
+// findings to release blockers, so anything routed through warn() can stop a
+// release. Dev-dependency advisories must never do that — they live in the
+// test/lint toolchain, never reach a user, and an upstream CVE in (say)
+// eslint's tree must not hold back an urgent user-facing bugfix.
+function note(name, detail = "") {
+  console.log(`${c.gray("ℹ")} ${name}${detail ? `: ${c.gray(detail)}` : ""}`);
+}
 
 // ---------- Helpers ----------
 async function fileSize(p) {
@@ -590,6 +598,101 @@ if (manifest) {
   if (strays.length === 0) pass("no stray distributable cruft at repo root");
   else warn("no stray distributable cruft at repo root", strays.join(", "));
 }
+
+// === Dependency audit ===
+//
+// Split deliberately by what actually ships. The plugin bundles its own code
+// into main.js and declares NO runtime dependencies, so `--omit=dev` covers
+// exactly the surface a user can be exposed to — that one blocks a release.
+// Everything else lives in the build/test/lint toolchain, never reaches a
+// user, and is reported for information only (see note() above).
+{
+  /** Run `npm audit --json`; distinguish "vulns found" from "couldn't run". */
+  function audit(omitDev) {
+    const args = ["audit", "--json"];
+    if (omitDev) args.push("--omit=dev");
+    // npm audit exits non-zero merely BECAUSE vulnerabilities exist, so the
+    // exit code says nothing about whether the audit itself succeeded. Parse
+    // the payload instead.
+    const r = spawnSync("npm", args, { cwd: ROOT, stdio: "pipe", encoding: "utf8" });
+    let json;
+    try {
+      json = JSON.parse(r.stdout || "");
+    } catch {
+      return { ok: false, reason: (r.stderr || "no JSON on stdout").trim().split("\n")[0] };
+    }
+    // The registry is unreachable (offline dev machine, DNS, proxy). npm still
+    // emits JSON, but an error envelope rather than a report.
+    if (json.error) {
+      return { ok: false, reason: json.error.summary || json.error.code || "audit error" };
+    }
+    const m = (json.metadata && json.metadata.vulnerabilities) || {};
+    const total = typeof m.total === "number" ? m.total : 0;
+    const bySeverity = ["critical", "high", "moderate", "low"]
+      .filter((k) => m[k])
+      .map((k) => `${m[k]} ${k}`)
+      .join(", ");
+    return { ok: true, total, bySeverity, names: Object.keys(json.vulnerabilities || {}) };
+  }
+
+  const prod = audit(true);
+  if (!prod.ok) {
+    skip("no vulnerable runtime dependencies", `npm audit unavailable — ${prod.reason}`);
+  } else if (prod.total === 0) {
+    pass("no vulnerable runtime dependencies", "npm audit --omit=dev is clean");
+  } else {
+    fail(
+      "no vulnerable runtime dependencies",
+      `${prod.total} advisory(ies) in shipped dependencies (${prod.bySeverity}): ${prod.names.slice(0, 5).join(", ")}`
+    );
+  }
+
+  // Dev-only advisories: informational, never blocking. See note().
+  const all = audit(false);
+  if (!all.ok) {
+    note("dev-dependency advisories", `npm audit unavailable — ${all.reason}`);
+  } else {
+    const devTotal = all.total - (prod.ok ? prod.total : 0);
+    if (devTotal <= 0) note("dev-dependency advisories", "none");
+    else
+      note(
+        "dev-dependency advisories",
+        `${devTotal} in the build/test/lint toolchain (${all.bySeverity}) — not shipped, non-blocking`
+      );
+  }
+}
+
+// === npm install-script policy ===
+//
+// npm >= 11 blocks dependency install scripts unless package.json's
+// allowScripts approves them, which is the cheapest defence against the most
+// common npm supply-chain vector: a malicious postinstall. This repo's policy
+// is to approve NOTHING — esbuild resolves its binary via optionalDependencies
+// and needs no postinstall — so any approval appearing here is drift worth
+// stopping a release over.
+{
+  const APPROVED_ALLOWED = new Set(); // intentionally empty: deny-all policy
+  const allowScripts = pkg && pkg.allowScripts;
+  if (!allowScripts || typeof allowScripts !== "object") {
+    warn(
+      "npm install-script policy recorded",
+      "package.json has no allowScripts field — run `npm install-scripts deny <pkg>` to record one"
+    );
+  } else {
+    const approved = Object.keys(allowScripts).filter((k) => allowScripts[k]);
+    const unexpected = approved.filter((k) => !APPROVED_ALLOWED.has(k));
+    if (unexpected.length) {
+      fail(
+        "npm install-script policy recorded",
+        `install scripts approved for: ${unexpected.join(", ")} — review before releasing`
+      );
+    } else {
+      const denied = Object.keys(allowScripts).filter((k) => !allowScripts[k]);
+      pass("npm install-script policy recorded", `install scripts denied for: ${denied.join(", ") || "none"}`);
+    }
+  }
+}
+
 
 // === Build/test scripts exist + (optional) run them ===
 if (pkg) {

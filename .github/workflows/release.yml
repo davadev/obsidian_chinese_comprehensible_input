@@ -13,6 +13,12 @@ name: Release
 # prerelease version into the working tree only (scripts/stamp-prerelease.mjs),
 # so the uploaded assets carry the beta version for BRAT while `main` keeps
 # pointing at the last good stable release. See docs/release-process.md.
+#
+# Actions are pinned to full commit SHAs, not mutable tags — this workflow
+# builds the main.js that ships to users, and the attestation below would
+# faithfully sign a build produced by a hijacked action. The trailing comment
+# records the readable version; Dependabot keeps both current. See ci.yml for
+# how to re-resolve a SHA by hand.
 
 on:
   push:
@@ -33,10 +39,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
           cache: npm
@@ -100,7 +106,7 @@ jobs:
       # Cryptographic provenance for the exact built assets we upload below, so
       # users (and the Obsidian review) can verify they came from this repo's CI.
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
         with:
           subject-path: |
             main.js
