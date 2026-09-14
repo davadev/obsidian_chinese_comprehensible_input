@@ -52,14 +52,29 @@ export default tseslint.config(
       // Auto-review surfaces these as Recommendations.
       "@typescript-eslint/no-deprecated": "warn",
 
-      // The auto-review doesn't include these rules — they're noisy on
-      // human-language UI labels (HSK / OpenAI etc.) and on TS narrowings
-      // that the cloud lint doesn't flag.
+      // The auto-review DOES run this one: it is the rule behind the
+      // "'X' is an 'error' type that acts as 'any'" rows that head its report,
+      // and those rows are the tell that the scanner could not resolve a type
+      // at all. Reproduced its exact messages and line numbers locally. Costs
+      // nothing here (0 warnings) because these types resolve for us, and
+      // `npm run lint:cloud-parity` relies on it to mirror the scanner's view.
+      "@typescript-eslint/no-redundant-type-constituents": "warn",
+
+      // Off deliberately. `obsidianmd/ui/sentence-case*` is noisy on
+      // human-language UI labels (HSK / OpenAI / pinyin). The rest are off
+      // because they flag patterns this codebase uses intentionally; measured
+      // cost if re-enabled today is no-base-to-string 1 and require-await 8,
+      // while restrict-template-expressions, unbound-method and
+      // no-empty-object-type are currently 0 and could be turned on whenever
+      // someone wants the extra coverage.
+      //
+      // NOTE: do not assume the cloud auto-review skips a rule just because it
+      // is listed here — that assumption was wrong for
+      // no-redundant-type-constituents above. Verify before claiming it.
       "obsidianmd/ui/sentence-case": "off",
       "obsidianmd/ui/sentence-case-json": "off",
       "obsidianmd/ui/sentence-case-locale-module": "off",
       "@typescript-eslint/no-base-to-string": "off",
-      "@typescript-eslint/no-redundant-type-constituents": "off",
       "@typescript-eslint/restrict-template-expressions": "off",
       "@typescript-eslint/unbound-method": "off",
       "@typescript-eslint/require-await": "off",

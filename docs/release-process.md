@@ -337,9 +337,27 @@ npm run lint:cloud-parity
 
 It hides `node_modules/obsidian` and `node_modules/@codemirror`, lints, prints
 a per-rule histogram, and restores them (including on crash or Ctrl-C; if a
-restore ever fails it says so, and `npm ci` repairs it). Measured 3371 warnings
-against the auto-review's 3482 — the ~3% gap is the rules this repo disables
-locally, chiefly `no-redundant-type-constituents`.
+restore ever fails it says so, and `npm ci` repairs it). Measured **3377**
+warnings against the auto-review's 3482.
+
+`@typescript-eslint/no-redundant-type-constituents` is enabled precisely because
+it is the rule behind those `'error' type` rows. Under the parity run it reports
+**exactly the same six locations** the auto-review lists:
+
+```
+src/ai/AiProviderService.ts:23, :31, :149
+src/editor/markdownRendering.ts:680
+src/view/ChineseTextFileView.ts:77
+src/vocabulary/VocabularyStore.ts:14
+```
+
+It costs nothing in a normal run — those types resolve for us, so `npm run lint`
+stays at 0/0.
+
+A caution learned the hard way: the config used to disable that rule under a
+comment claiming *"the auto-review doesn't include these rules."* That was
+wrong, and it hid the single most diagnostic signal in the report. **Do not
+assume the cloud review skips a rule because this config does — verify it.**
 
 **Do not treat such a report as a regression.** Check `git diff <prev> <cur> --
 src/` first. When 0.7.1's count jumped from 2 to 3482, `src/` was byte-identical
