@@ -42,10 +42,16 @@ jobs:
 
     # Scoped to the job that needs them rather than granted workflow-wide.
     permissions:
+      # Create the GitHub Release.
       contents: write
-      # Artifact attestations (Sigstore provenance for the release assets).
+      # Mint the OIDC token used to request a Sigstore signing certificate.
       id-token: write
+      # Persist the attestation.
       attestations: write
+      # Create the artifact storage record. Required by actions/attest; this
+      # scope exists precisely to replace broader `contents` access for the
+      # artifact-metadata APIs, so granting it is least-privilege-consistent.
+      artifact-metadata: write
 
     steps:
       - name: Check out repository
@@ -121,8 +127,19 @@ jobs:
 
       # Cryptographic provenance for the exact built assets we upload below, so
       # users (and the Obsidian review) can verify they came from this repo's CI.
+      #
+      # actions/attest, not actions/attest-build-provenance: as of v4 the latter
+      # is only a wrapper over this action, and GitHub's own release notes say
+      # new implementations should use actions/attest. It is also what
+      # obsidian-sample-plugin and docs.obsidian.md use.
+      #
+      # With only subject-path given (no sbom-path, no predicate inputs) this
+      # emits SLSA build provenance — identical in kind to what v1 produced.
+      # The three subjects share ONE attestation rather than getting one each;
+      # Obsidian's scorecard reads that correctly (verified against Templater,
+      # which ships the same multi-subject setup).
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: |
             main.js

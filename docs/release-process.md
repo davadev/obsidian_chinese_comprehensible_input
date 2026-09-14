@@ -232,6 +232,22 @@ Three more entries carry a major-version ignore, each for a stated reason:
 | `typescript` | TypeScript 7 is the Go-native rewrite: a compiler swap under the whole build, deserving its own evaluation. |
 | `@types/node` | Should track the CI Node major rather than run ahead of it. |
 
+`esbuild` carries a **scoped** ignore, and the scoping is load-bearing twice over:
+
+- It is a `0.x` package, so Dependabot classifies `0.21 -> 0.28` as a *minor*
+  update — the major is `0` in both. For `0.x` packages breaking changes ship as
+  minors, and a group's `update-types: [minor, patch]` filter cannot see that.
+  PR #81 smuggled a bundler bump into a routine grouped PR exactly this way.
+- The ignore lists `version-update:semver-minor` / `-major` rather than being a
+  bare `dependency-name`. A bare ignore would also suppress Dependabot
+  **security** updates, and esbuild is the one dependency whose output reaches
+  the shipped `main.js` — the last one that should go quiet. `version-update:*`
+  conditions apply only to version updates, so security PRs still fire and
+  patch bumps within a minor line stay allowed.
+
+esbuild therefore moves by hand, on a release of its own, so that a change to
+the shipped bundle is never entangled with anything else.
+
 **Never reply `@dependabot ignore …` on a PR.** That writes the ignore into
 Dependabot's server-side state instead of this repository — invisible to code
 review, it survives config changes and can only be undone by finding the
@@ -258,7 +274,7 @@ mixed a TypeScript major in with routine patches.
 | `persist-credentials: false` on every checkout | Checkout otherwise leaves a repo-writable `GITHUB_TOKEN` in `.git/config`, and later steps run `npm ci` — third-party code — in that same workspace. Safe here because no workflow performs a git write; `gh` authenticates via an explicit `GH_TOKEN` env. |
 | Job-scoped `permissions` | Least privilege: `contents/id-token/attestations: write` are granted to the `publish` job, not workflow-wide. `ci.yml` runs on `contents: read`. |
 | `concurrency: { group: release, cancel-in-progress: false }` | Serializes releases. The group is **static** on purpose — distinct tags are distinct refs, so a per-ref group would not serialize them. `cancel-in-progress` must stay `false`; interrupting a run mid-publish is the failure being guarded against. |
-| `attest-build-provenance` held at v1.4.4 | v2+ collapses multiple `subject-path` entries into a **single** attestation referencing each subject, instead of one per artifact. Two passing scorecard rows depend on this mechanism, and there is no security driver to change it. It gets its own prerelease. |
+| `actions/attest@v4` for provenance | Not `actions/attest-build-provenance`: as of v4 that is only a wrapper, and GitHub's release notes say new implementations should use `actions/attest`. It is also what `obsidian-sample-plugin` and `docs.obsidian.md` use. With only `subject-path` set it emits SLSA build provenance. The three subjects share **one** attestation rather than getting one each — verified that Obsidian's scorecard reads that correctly, since Templater ships the same multi-subject setup and shows verified attestation rows. Needs `artifact-metadata: write` in addition to `attestations: write`. |
 
 `runs-on` stays `ubuntu-latest` rather than a pinned image: pinned runner images
 are eventually retired and would break releases, while `ubuntu-latest`

@@ -47,6 +47,21 @@ updates:
       # either breaks `npm ci` with ERESOLVE — that is what killed PR #78.
       # They follow the `obsidian` devDependency, so they move by hand when it
       # does.
+      # esbuild is a 0.x package, so Dependabot classifies 0.21 -> 0.28 as a
+      # MINOR update and the dev-dependencies group's update-types filter cannot
+      # hold it back — PR #81 smuggled a bundler bump in exactly that way. It is
+      # also the only dependency whose output lands in the shipped main.js, so
+      # it moves deliberately, on a release of its own.
+      #
+      # Scoped to version-update types ON PURPOSE. A bare `dependency-name`
+      # ignore suppresses Dependabot SECURITY updates too, and this is the last
+      # dependency we want to go quiet. `version-update:*` conditions apply only
+      # to version updates, so security PRs still fire, and patch bumps within a
+      # minor line stay allowed.
+      - dependency-name: "esbuild"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-major"
       - dependency-name: "@codemirror/state"
       - dependency-name: "@codemirror/view"
       # eslint-plugin-obsidianmd (the Obsidian-review parity anchor) is built
