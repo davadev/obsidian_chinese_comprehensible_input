@@ -165,6 +165,7 @@ The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a
 - With `--with-build` (or `--with-lint`), the Obsidian-parity lint step runs `npm run lint --format json` and counts Errors vs Warnings — Errors fail the release guard, Warnings are reported as non-blocking.
 - `npm audit --omit=dev` reports no advisories. This covers exactly what ships: the plugin declares **no** runtime `dependencies`, so this passes today and is a regression guard for the day a runtime dependency is first added.
 - `package.json`'s `allowScripts` approves no package for install scripts. See [npm install-script policy](#npm-install-script-policy).
+- `npm ls --all` exits 0, i.e. every installed version satisfies the ranges its dependents declare. See [Why the dependency-tree guard exists](#why-the-dependency-tree-guard-exists).
 
 ### Heuristic guards (WARN — review but don't block)
 
@@ -351,3 +352,42 @@ moves `main.js`; it belongs in its own release, never bundled into
 release-pipeline work. It would also only partly help here, since most of these
 warnings stem from the scanner's unresolved declarations rather than from this
 code.
+
+## Why the dependency-tree guard exists
+
+`npm ls` exits non-zero when an installed version does not satisfy a range some
+package actually declares. Crucially, **`npm ci` still succeeds in that state**,
+tests still pass, the build still works and CI stays green — the only symptom is
+`npm ls`'s exit code.
+
+That is precisely how it went unnoticed through a whole stable release. Taking
+vitest from 1 to 4 pulled in vite 8, which requires `esbuild ^0.27.0 || ^0.28.0`,
+while the root `esbuild` was still `0.21.5`:
+
+```
+└── esbuild@0.21.5 deduped invalid: "^0.27.0 || ^0.28.0" from node_modules/vitest/node_modules/vite
+```
+
+`check-release` now runs `npm ls --all` and fails on a non-zero exit, quoting the
+offending lines. It `skip()`s when `node_modules` is absent so a fresh clone does
+not trip it.
+
+## Choosing the esbuild version
+
+`obsidian-sample-plugin` pins `esbuild: 0.25.5`, and the general rule in this
+repo is to follow Obsidian's toolchain even when it lags. **esbuild is the
+documented exception**, for a reason specific to this project: the sample plugin
+has no test runner, so it never pulls vite and never meets vite's esbuild range.
+We do. `0.21.5`, `0.25.5` and `0.25.12` all fail `^0.27.0 || ^0.28.0` — only
+`0.28.x` satisfies it, so tracking Obsidian's pin here would import a conflict
+they do not have and leave the tree permanently invalid.
+
+Running ahead of Obsidian was verified not to break their automated checks:
+`obsidian-git` ships `esbuild ^0.28.1` and passes *Build reproduced the release
+`main.js` byte-for-byte*, *No obfuscated code detected* and the attestation rows.
+The rebuild evidently uses each plugin's own lockfile — confirmed in both
+directions, since this plugin previously sat *behind* Obsidian's pin at 0.21.5
+and also reproduced byte-for-byte.
+
+esbuild is pinned **exact** and Dependabot-ignored for minor and major updates,
+so it only ever moves deliberately, on a release of its own.
