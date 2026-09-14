@@ -308,3 +308,46 @@ the upgrade exposed were deliberately left *in* the denominator rather than
 excluded away: `src/editor/formatOptions.ts` (~5%) and
 `src/dictionary/DictionaryDownloader.ts` (~23%). Raise the numbers by testing
 those, never by widening `exclude`.
+
+## Why `npm run lint` is 0/0 while the auto-review reports thousands
+
+The community-plugin auto-review can report several thousand
+`@typescript-eslint/no-unsafe-*` **Warnings** while `npm run lint` reports
+0 errors / 0 warnings. That is not a disagreement about rules —
+`eslint.config.mjs` already enables that cluster at `warn`. It is a
+disagreement about **types**.
+
+The tell sits at the top of the auto-review's report: a handful of
+
+> 'error' type that acts as 'any' and overrides all other types in this union type
+
+Every one of those is a union with an Obsidian or CodeMirror type —
+`Notice | null`, `App | null`, `TFile | null`, `EditorView | null`,
+`Plugin & {…}`. `error` is TypeScript's fallback for a type it **cannot
+resolve**. Once `App` is unresolvable, everything touching it becomes `any`
+and the no-unsafe-* cluster cascades across every Obsidian-facing file.
+
+Locally those declarations resolve, so the same rules legitimately find
+nothing. Reproduce the scanner's view with:
+
+```bash
+npm run lint:cloud-parity
+```
+
+It hides `node_modules/obsidian` and `node_modules/@codemirror`, lints, prints
+a per-rule histogram, and restores them (including on crash or Ctrl-C; if a
+restore ever fails it says so, and `npm ci` repairs it). Measured 3371 warnings
+against the auto-review's 3482 — the ~3% gap is the rules this repo disables
+locally, chiefly `no-redundant-type-constituents`.
+
+**Do not treat such a report as a regression.** Check `git diff <prev> <cur> --
+src/` first. When 0.7.1's count jumped from 2 to 3482, `src/` was byte-identical
+to 0.7.0 — Obsidian had switched on type-aware rules between scans, and the
+Review verdict stayed **Passed** because every finding is a Warning. Only
+Errors block.
+
+Reducing the genuine `any` surface is worthwhile but is a `src/**` change that
+moves `main.js`; it belongs in its own release, never bundled into
+release-pipeline work. It would also only partly help here, since most of these
+warnings stem from the scanner's unresolved declarations rather than from this
+code.

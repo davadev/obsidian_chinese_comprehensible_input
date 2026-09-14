@@ -16,6 +16,7 @@ npm run check-release -- --tag 0.X.Y     # also checks tag matches manifest.vers
 npm run check-release -- --with-build    # also runs `npm run build` + `npm test` + `npm run lint`
 npm run check-release -- --with-lint     # runs the Obsidian-parity lint only (no build/test)
 npm install-scripts ls                   # any dependency install scripts still unreviewed?
+npm run lint:cloud-parity                # reproduce the auto-review's type-aware warnings locally
 node scripts/stamp-prerelease.mjs 0.X.Y-beta.N   # CI-only: stamps a prerelease version into the
                                                  # working tree. Never commit its output.
 ```
