@@ -4,14 +4,14 @@
 # found" only AFTER a release is published. These PRs surface the same signal
 # BEFORE we tag, which is the whole point of having them.
 #
-# PR-only by design: nothing here auto-merges, so Dependabot can never affect
-# a release on its own. Updates that change the shipped bundle (esbuild) or the
-# test toolchain (vitest) are reviewed and shipped one at a time behind their
-# own prerelease, per docs/release-process.md.
+# PR-only by design: nothing here auto-merges, so Dependabot can never affect a
+# release on its own.
 #
-# The github-actions ecosystem also keeps the commit-SHA pins in ci.yml /
-# release.yml current — Dependabot rewrites both the SHA and its trailing
-# version comment.
+# IMPORTANT: never reply `@dependabot ignore ...` on a PR. That stores the
+# ignore in Dependabot's server-side state rather than in this file — invisible
+# to code review, it survives config changes, and it can only be undone by
+# finding the original PR and replying `@dependabot unignore`. Every ignore
+# belongs in the `ignore:` blocks below, where it is visible and revertible.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -20,12 +20,41 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      # Only patch/minor are grouped. Majors arrive as individual PRs so each
+      # can be reviewed and shipped behind its own prerelease. Grouping
+      # everything produced one unmergeable 10-package PR (#78) that mixed a
+      # TypeScript major in with routine patches.
       dev-dependencies:
         patterns:
           - "*"
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Pinned to obsidian's EXACT peerDependencies (see package.json). Bumping
+      # either breaks `npm ci` with ERESOLVE — that is what killed PR #78.
+      # They follow the `obsidian` devDependency, so they move by hand when it
+      # does.
+      - dependency-name: "@codemirror/state"
+      - dependency-name: "@codemirror/view"
+      # eslint-plugin-obsidianmd (the Obsidian-review parity anchor) is built
+      # against eslint 9 / typescript-eslint 8. Losing that parity is the
+      # community-plugin delisting hazard called out in AGENTS.md. Revisit when
+      # eslint-plugin-obsidianmd itself moves.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      # TypeScript 7 is the Go-native rewrite — a compiler swap underneath the
+      # whole build. Evaluate deliberately, never via an automated PR.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+      # Should track the CI Node major, not run ahead of it.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
-    open-pull-requests-limit: 3
+    # 5, not 3: at 3 the fourth action (attest-build-provenance) was silently
+    # never raised.
+    open-pull-requests-limit: 5

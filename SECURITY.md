@@ -31,6 +31,30 @@ Deliberate properties of this plugin, each verifiable from this repository:
 - **No dynamic code execution.** No `eval`, no `new Function`, no `child_process`, no `innerHTML`-style HTML injection, and no auto-update mechanism.
 - **No telemetry.** The plugin never phones home. Its only network calls are the user-triggered dictionary download and the opt-in AI provider — both documented under [Permissions & network](./README.md#permissions--network) in the README.
 
+## Verify this release yourself
+
+Neither claim below asks for trust — both are checkable in under a minute.
+
+**Provenance — who built it, from which commit:**
+
+```bash
+gh attestation verify main.js --repo davadev/obsidian_chinese_comprehensible_input
+```
+
+Prints the workflow that produced the file (`.github/workflows/release.yml@refs/tags/<tag>`) and the source commit. A file built anywhere else fails this check.
+
+**Reproducibility — the released bytes come from the released source:**
+
+```bash
+git clone https://github.com/davadev/obsidian_chinese_comprehensible_input
+cd obsidian_chinese_comprehensible_input
+git checkout <tag>
+npm ci && npm run build
+shasum -a 256 main.js
+```
+
+The digest must equal the `main.js` attached to that release. Obsidian's community-plugin scorecard runs the equivalent check and reports it as *"Build reproduced the release main.js byte-for-byte."*
+
 ## Scope
 
 In scope: anything that lets a third party read or modify vault content without the user's action, exfiltrate API keys, or execute code through this plugin.

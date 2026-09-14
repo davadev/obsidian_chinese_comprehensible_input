@@ -26,25 +26,41 @@ on:
       - "[0-9]+.[0-9]+.[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+-*"
 
-permissions:
-  contents: write
-  # Artifact attestations (Sigstore provenance for the release assets).
-  id-token: write
-  attestations: write
+# Serialize releases. A STATIC group (not one keyed on the ref) is what makes
+# two tags pushed in quick succession queue instead of racing — distinct tags
+# are distinct refs, so a per-ref group would not serialize them at all.
+# cancel-in-progress MUST stay false: interrupting a run mid-publish is
+# precisely the failure this guards against. timeout-minutes bounds the queue.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # Scoped to the job that needs them rather than granted workflow-wide.
+    permissions:
+      contents: write
+      # Artifact attestations (Sigstore provenance for the release assets).
+      id-token: write
+      attestations: write
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Don't leave a repo-writable GITHUB_TOKEN in .git/config:
+          # later steps run `npm ci`, i.e. third-party code, in this
+          # same workspace. Nothing here does git writes — `gh` uses an
+          # explicit GH_TOKEN env instead.
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

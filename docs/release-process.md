@@ -209,3 +209,79 @@ gh api repos/actions/checkout/git/tags/<sha> --jq .object.sha
 ```
 
 Pin **within the major currently in use** and let Dependabot raise major bumps as their own PRs — action majors carry breaking changes, and a release pipeline is the wrong place to discover one.
+
+## Pinned dependencies that are not ours to bump
+
+`obsidian` declares **exact** `peerDependencies`:
+
+```
+"@codemirror/state": "6.5.0",
+"@codemirror/view":  "6.38.6"
+```
+
+Both are therefore pinned **exact** in `package.json`, and both are in
+`.github/dependabot.yml`'s `ignore` list. Bumping either produces an `npm ci`
+`ERESOLVE` failure — that is exactly what killed Dependabot PR #78. They move
+by hand, and only when the `obsidian` devDependency moves.
+
+Three more entries carry a major-version ignore, each for a stated reason:
+
+| Package | Why majors are held |
+| --- | --- |
+| `eslint` | `eslint-plugin-obsidianmd` — the Obsidian-review parity anchor — is built against eslint 9. Losing parity risks community-plugin delisting. |
+| `typescript` | TypeScript 7 is the Go-native rewrite: a compiler swap under the whole build, deserving its own evaluation. |
+| `@types/node` | Should track the CI Node major rather than run ahead of it. |
+
+**Never reply `@dependabot ignore …` on a PR.** That writes the ignore into
+Dependabot's server-side state instead of this repository — invisible to code
+review, it survives config changes and can only be undone by finding the
+original PR and replying `@dependabot unignore`. Every ignore belongs in
+`dependabot.yml`, where it is visible and revertible.
+
+Grouping is restricted to `update-types: [minor, patch]` for the same reason:
+majors must arrive as individual PRs so each can ship behind its own
+prerelease. Grouping everything produced one unmergeable 10-package PR that
+mixed a TypeScript major in with routine patches.
+
+## Workflow hardening
+
+| Measure | Why |
+| --- | --- |
+| Actions pinned to commit SHAs | A tag is mutable by whoever owns the action. `release.yml` builds the shipped `main.js`, and attestation would faithfully sign a compromised build — it proves origin, not toolchain integrity. |
+| `persist-credentials: false` on every checkout | Checkout otherwise leaves a repo-writable `GITHUB_TOKEN` in `.git/config`, and later steps run `npm ci` — third-party code — in that same workspace. Safe here because no workflow performs a git write; `gh` authenticates via an explicit `GH_TOKEN` env. |
+| Job-scoped `permissions` | Least privilege: `contents/id-token/attestations: write` are granted to the `publish` job, not workflow-wide. `ci.yml` runs on `contents: read`. |
+| `concurrency: { group: release, cancel-in-progress: false }` | Serializes releases. The group is **static** on purpose — distinct tags are distinct refs, so a per-ref group would not serialize them. `cancel-in-progress` must stay `false`; interrupting a run mid-publish is the failure being guarded against. |
+| `attest-build-provenance` held at v1.4.4 | v2+ collapses multiple `subject-path` entries into a **single** attestation referencing each subject, instead of one per artifact. Two passing scorecard rows depend on this mechanism, and there is no security driver to change it. It gets its own prerelease. |
+
+`runs-on` stays `ubuntu-latest` rather than a pinned image: pinned runner images
+are eventually retired and would break releases, while `ubuntu-latest`
+auto-migrates. Reproducibility here comes from the pinned toolchain (Node
+version, lockfile, esbuild), not from the image.
+
+## Coverage thresholds after the vitest 1 → 4 upgrade
+
+vitest 1's v8 provider only reported files a test actually imported, so modules
+nothing imported were absent from the denominator entirely and the headline
+number was inflated. vitest 4 honours `coverage.include` literally and counts
+the whole declared surface.
+
+Measured on the identical test suite, no test changed:
+
+| | vitest 1 | vitest 4 (raw) | vitest 4 (after excluding DOM shells) | threshold |
+| --- | --- | --- | --- | --- |
+| Statements | 92.47 | 75.36 | **82.43** | 80 |
+| Branches | 83.55 | 72.36 | **75.64** | 73 |
+| Functions | 86.14 | 71.73 | **84.30** | 80 |
+| Lines | 92.47 | 77.72 | **85.45** | 80 |
+
+The middle column is the correction, not a regression. Four Obsidian
+Modal / DOM shells that v1 never surfaced were added to `exclude`, matching the
+criterion their direct siblings already satisfied (`StatusPriorityList.ts`,
+`EditDictionaryModal.ts` and friends were already excluded).
+
+**No threshold was lowered** — the existing 80/80/73/80 now apply to a larger,
+honest denominator, so the gate is strictly harder than before. Two real gaps
+the upgrade exposed were deliberately left *in* the denominator rather than
+excluded away: `src/editor/formatOptions.ts` (~5%) and
+`src/dictionary/DictionaryDownloader.ts` (~23%). Raise the numbers by testing
+those, never by widening `exclude`.
