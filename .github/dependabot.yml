@@ -20,10 +20,22 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
-      # Only patch/minor are grouped. Majors arrive as individual PRs so each
-      # can be reviewed and shipped behind its own prerelease. Grouping
-      # everything produced one unmergeable 10-package PR (#78) that mixed a
-      # TypeScript major in with routine patches.
+      # vitest and @vitest/coverage-v8 must move TOGETHER, majors included:
+      # coverage-v8 peer-pins vitest to an EXACT version, so a PR bumping one
+      # alone can never install (`npm ci` -> ERESOLVE). Dependabot split the
+      # vitest 5 bump into two PRs (#82, #83) and both failed for exactly that
+      # reason. There is deliberately no update-types filter here — this group
+      # must catch majors too. It is listed FIRST because Dependabot assigns a
+      # dependency to the first group it matches, so this narrow family group
+      # has to precede the catch-all below.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      # Everything else: patch/minor only. Majors arrive as individual PRs so
+      # each can be reviewed and shipped behind its own prerelease. Grouping
+      # every update type together produced one unmergeable 10-package PR (#78)
+      # that mixed a TypeScript major in with routine patches.
       dev-dependencies:
         patterns:
           - "*"

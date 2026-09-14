@@ -238,6 +238,13 @@ review, it survives config changes and can only be undone by finding the
 original PR and replying `@dependabot unignore`. Every ignore belongs in
 `dependabot.yml`, where it is visible and revertible.
 
+`vitest` and `@vitest/coverage-v8` get their own group with **no** update-type
+filter, so they move together even across majors: coverage-v8 peer-pins vitest
+to an exact version, and a PR bumping one alone can never install. Dependabot
+split the vitest 5 bump into PRs #82 and #83 and both failed with ERESOLVE.
+That group is listed first, because Dependabot assigns a dependency to the
+first group it matches.
+
 Grouping is restricted to `update-types: [minor, patch]` for the same reason:
 majors must arrive as individual PRs so each can ship behind its own
 prerelease. Grouping everything produced one unmergeable 10-package PR that
