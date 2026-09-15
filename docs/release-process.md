@@ -229,8 +229,7 @@ Three more entries carry a major-version ignore, each for a stated reason:
 
 | Package | Why majors are held |
 | --- | --- |
-| `eslint` | `eslint-plugin-obsidianmd` — the Obsidian-review parity anchor — is built against eslint 9. Losing parity risks community-plugin delisting. |
-| `typescript` | TypeScript 7 is the Go-native rewrite: a compiler swap under the whole build, deserving its own evaluation. |
+| `typescript` | `typescript-eslint@8.70.0` declares `typescript >=4.8.4 <6.1.0`, so TypeScript 7 breaks the lint toolchain outright. Blocked on typescript-eslint, not on us. |
 | `@types/node` | Should track the CI Node major rather than run ahead of it. |
 
 `esbuild` carries a **scoped** ignore, and the scoping is load-bearing twice over:
@@ -409,3 +408,57 @@ and also reproduced byte-for-byte.
 
 esbuild is pinned **exact** and Dependabot-ignored for minor and major updates,
 so it only ever moves deliberately, on a release of its own.
+
+## Why `eslint` is no longer Dependabot-ignored
+
+It used to carry a `version-update:semver-major` ignore, justified by a comment
+claiming `eslint-plugin-obsidianmd` was *"built against eslint 9"*. That was
+false — its peer range is `>=9.19.0`, and `typescript-eslint@8.70.0` declares
+`^8.57.0 || ^9.0.0 || ^10.0.0`.
+
+The cost of that false comment was concrete: because majors were ignored,
+Dependabot never raised eslint 10, so nothing surfaced that the entire eslint 9
+line had reached end-of-life. `9.39.5` is the newest 9.x and npm marks it
+*"no longer supported"*. It came to light only because CI happened to print
+`npm warn deprecated` in an unrelated run.
+
+A Dependabot PR is visibility, not an obligation to merge, and `check-release`
+runs the Obsidian-parity lint before any release — so a breaking major cannot
+reach a release unseen. Ignoring an entire toolchain package traded a small
+amount of PR noise for the ability to let it rot silently. That was a bad trade.
+
+**When an eslint major does arrive, verify it like this** — the finding count
+alone is not evidence, since a plugin that fails to load also reports 0/0:
+
+```bash
+npx eslint --print-config src/ui/StatsView.ts   # rule counts must not shrink
+npm run lint 2>/tmp/err                          # and /tmp/err must be empty
+```
+
+At the eslint 9 → 10 bump the baseline was **176 configured / 137 enabled /
+37 `obsidianmd/*` / 39 `@typescript-eslint/*`** across 70 files.
+
+## Known: `@codemirror/lang-markdown` is bundled, not external
+
+`esbuild.config.mjs` externalises `@codemirror/{autocomplete,collab,commands,
+language,lint,search,state,view}` and `@lezer/{common,highlight,lr}` — but
+**not** `@codemirror/lang-markdown`, which is therefore compiled into
+`main.js` along with `@lezer/markdown`.
+
+Two consequences:
+
+- Bumping it **changes shipped bytes**. Dependabot PR #88 moved it
+  `6.2.5 → 6.5.2` and grew `main.js` by 85 bytes; it was reverted so that
+  0.7.4 could stay byte-identical, and must return on a release of its own.
+- The bump carries real behavioural risk. `src/view/ChineseTextFileView.ts`
+  imports `markdown` from it, and `src/editor/markdownRendering.ts` carries
+  explicit workarounds keyed to its parsing behaviour (wikilinks and embeds,
+  horizontal rules, task checkboxes). A parser bump can make those workarounds
+  redundant or wrong, so it needs a focused reading-view test rather than a
+  generic smoke test.
+
+**Open question, not yet investigated:** whether Obsidian exposes
+`@codemirror/lang-markdown` to plugins at runtime. If it does, externalising it
+would shrink `main.js` and remove this class of risk permanently. If it does
+not, bundling is mandatory and getting it wrong breaks the reading view
+outright — so this needs its own investigation, not a mid-release guess.
