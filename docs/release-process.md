@@ -443,22 +443,33 @@ At the eslint 9 → 10 bump the baseline was **176 configured / 137 enabled /
 `esbuild.config.mjs` externalises `@codemirror/{autocomplete,collab,commands,
 language,lint,search,state,view}` and `@lezer/{common,highlight,lr}` — but
 **not** `@codemirror/lang-markdown`, which is therefore compiled into
-`main.js` along with `@lezer/markdown`.
+`main.js` along with `@lezer/markdown`. **Bumping it changes shipped bytes.**
 
-Two consequences:
+When assessing such a bump, the questions that actually matter, in order:
 
-- Bumping it **changes shipped bytes**. Dependabot PR #88 moved it
-  `6.2.5 → 6.5.2` and grew `main.js` by 85 bytes; it was reverted so that
-  0.7.4 could stay byte-identical, and must return on a release of its own.
-- The bump carries real behavioural risk. `src/view/ChineseTextFileView.ts`
-  imports `markdown` from it, and `src/editor/markdownRendering.ts` carries
-  explicit workarounds keyed to its parsing behaviour (wikilinks and embeds,
-  horizontal rules, task checkboxes). A parser bump can make those workarounds
-  redundant or wrong, so it needs a focused reading-view test rather than a
-  generic smoke test.
+1. **Does `@lezer/markdown` move?** That package is the grammar. If it does not
+   move, node emission is unchanged and `markdownRendering.ts`'s regex
+   workarounds (wikilinks, embeds, horizontal rules, non-GFM task checkboxes)
+   cannot start double-decorating.
+2. **What is the real delta?** Compare the *locked* versions, not the ranges.
+   Dependabot PR #88 read as `^6.2.5 → ^6.5.2`, but every release from 0.7.0
+   onwards already shipped `6.5.0`, so the actual change was two patches.
+3. **Diff the published `dist/index.js`** of the two versions. For 6.5.0 → 6.5.2
+   that was 7 lines, entirely inside `insertNewlineContinueMarkup`.
+4. **Is the changed code reachable?** Grepping `src/` is *not* sufficient — this
+   is the trap. `markdown()` takes `addKeymap = true` by default and installs
+   `Prec.high(keymap.of(markdownKeymap))`, binding `Enter` to
+   `insertNewlineContinueMarkup` and `Backspace` to `deleteMarkupBackward`.
+   `ChineseTextFileView` calls `markdown()` with no arguments, and the view is
+   editable whenever `activeViewMode() === "edit"`. Absence from our source is
+   not absence of binding.
+
+`computeExcludedRanges()` in `src/editor/markdownExclusionRanges.ts` is pure
+regex over raw text and never consults the syntax tree, which is why point 1 is
+the one that governs rendering risk.
 
 **Open question, not yet investigated:** whether Obsidian exposes
 `@codemirror/lang-markdown` to plugins at runtime. If it does, externalising it
-would shrink `main.js` and remove this class of risk permanently. If it does
-not, bundling is mandatory and getting it wrong breaks the reading view
+would drop ~20 KB from `main.js` and remove this risk class permanently. If it
+does not, bundling is mandatory and getting it wrong breaks the reading view
 outright — so this needs its own investigation, not a mid-release guess.
