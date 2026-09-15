@@ -486,15 +486,17 @@ export default class CciPlugin extends Plugin {
     // lives in data.json which is per-device, so it can't be trusted on
     // its own. Vault file check is the source of truth.
     if (await this.todaysStoryExists(today)) {
-      blob.__autoStoryLastSuccessDate = today;
-      await this.saveData(blob);
+      await this.updateDataBlob((b) => {
+        b.__autoStoryLastSuccessDate = today;
+      });
       return;
     }
 
     // Mark the attempt before kicking off, so generationInFlight guards
     // can't end up running this tick repeatedly inside the throttle window.
-    blob.__autoStoryLastAttemptAt = now.toISOString();
-    await this.saveData(blob);
+    await this.updateDataBlob((b) => {
+      b.__autoStoryLastAttemptAt = now.toISOString();
+    });
 
     if (!this.settings.ai?.enabled) return;
 
@@ -505,9 +507,9 @@ export default class CciPlugin extends Plugin {
       window.setTimeout(resolve, CciPlugin.AUTO_STORY_SYNC_BUFFER_MS)
     );
     if (await this.todaysStoryExists(today)) {
-      blob = await this.loadPluginData();
-      blob.__autoStoryLastSuccessDate = today;
-      await this.saveData(blob);
+      await this.updateDataBlob((b) => {
+        b.__autoStoryLastSuccessDate = today;
+      });
       return;
     }
 
@@ -520,9 +522,9 @@ export default class CciPlugin extends Plugin {
         includeGlossary: s.includeGlossary,
       });
       await this.story.commitPreviewAsNote(preview);
-      blob = await this.loadPluginData();
-      blob.__autoStoryLastSuccessDate = today;
-      await this.saveData(blob);
+      await this.updateDataBlob((b) => {
+        b.__autoStoryLastSuccessDate = today;
+      });
       new Notice("Daily Chinese story generated.");
     } catch (e) {
       console.warn("CCI auto-story: generation failed", e);

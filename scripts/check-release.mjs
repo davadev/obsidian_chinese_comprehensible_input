@@ -227,17 +227,44 @@ const CSS_PARTIAL_FEATURES = [
 // Release workflow attests its assets (GitHub artifact attestations) — the
 // "missing attestations" RELEASES recommendation. Can't verify the attestation
 // itself locally, but we can ensure the step is wired so it never regresses.
+//
+// Comments are stripped before matching. release.yml explains in prose why we
+// moved off actions/attest-build-provenance, so a plain substring search matches
+// that comment and reports green even if the real step were deleted — on the one
+// step whose absence would ship unsigned assets. Both action names are accepted:
+// attest-build-provenance is still supported and is only a wrapper over
+// actions/attest, so rejecting it would fail a valid workflow.
 {
   const wf = await readText(".github/workflows/release.yml");
+  const label = "release workflow attests build provenance";
   if (wf == null) {
-    skip("release workflow attests build provenance", "release.yml not found");
-  } else if (/attest-build-provenance/.test(wf)) {
-    pass("release workflow attests build provenance");
+    skip(label, "release.yml not found");
   } else {
-    warn(
-      "release workflow attests build provenance",
-      "add an actions/attest-build-provenance step so release assets are signed"
+    // YAML starts a comment at `#` only at line start or after whitespace.
+    const code = wf
+      .split("\n")
+      .map((l) => l.replace(/(^|\s)#.*$/, ""))
+      .join("\n");
+    const starts = [...code.matchAll(/^\s*-\s+(?:name|uses):/gm)].map((m) => m.index);
+    const steps = starts.map((from, i) =>
+      code.slice(from, i + 1 < starts.length ? starts[i + 1] : code.length)
     );
+    const step = steps.find((b) =>
+      /^\s*uses:\s*actions\/attest(-build-provenance)?@/m.test(b)
+    );
+    if (!step) {
+      warn(label, "add an actions/attest step so release assets are signed");
+    } else {
+      // Subjects must live inside the attest step itself, not anywhere in the file.
+      const missing = ["main.js", "manifest.json", "styles.css"].filter(
+        (f) => !step.includes(f)
+      );
+      if (missing.length === 0) {
+        pass(label, "actions/attest signs main.js, manifest.json, styles.css");
+      } else {
+        warn(label, `attest step does not list subject(s): ${missing.join(", ")}`);
+      }
+    }
   }
 }
 
