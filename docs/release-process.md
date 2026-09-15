@@ -438,6 +438,65 @@ npm run lint 2>/tmp/err                          # and /tmp/err must be empty
 At the eslint 9 → 10 bump the baseline was **176 configured / 137 enabled /
 37 `obsidianmd/*` / 39 `@typescript-eslint/*`** across 70 files.
 
+## Everything that lands in `main.js` is version-pinned
+
+`esbuild.config.mjs` externalises a fixed list, so **every other
+`@codemirror/*` and `@lezer/*` package is compiled into `main.js`** — eight of
+them, only one a direct dependency:
+
+| bundled | pinned at | | bundled | pinned at |
+| --- | --- | --- | --- | --- |
+| `@codemirror/lang-markdown` *(direct)* | 6.5.2 | | `@lezer/markdown` | 1.6.4 |
+| `@codemirror/lang-html` | 6.4.11 | | `@lezer/html` | 1.3.13 |
+| `@codemirror/lang-css` | 6.3.1 | | `@lezer/css` | 1.3.3 |
+| `@codemirror/lang-javascript` | 6.2.5 | | `@lezer/javascript` | 1.5.4 |
+
+The seven transitive ones previously sat behind caret ranges, so **any unrelated
+`npm install` could re-resolve them and change shipped bytes.** That is not
+hypothetical: applying the vitest 5 bump moved `@lezer/markdown` 1.6.4 -> 1.7.2
+(the markdown *grammar*), `@codemirror/lang-html` 6.4.11 -> 6.4.12 and
+`@lezer/css` 1.3.3 -> 1.3.6, growing `main.js` by 1206 bytes. A dev-only
+test-runner upgrade would have silently shipped a grammar change.
+
+They are now pinned. npm refuses an override for a package that is also a direct
+dependency (`EOVERRIDE`), so the split is:
+
+- `@codemirror/lang-markdown` — **exact** in `devDependencies`, like
+  `@codemirror/state`, `@codemirror/view` and `esbuild`
+- the other seven — **`overrides`**
+
+Verified from a completely fresh resolve (`node_modules` *and*
+`package-lock.json` deleted): all eight hold, `npm ls` exits 0, and the bundle
+rebuilds to the same hash. The shipped artifact is now reproducible from a fresh
+dependency resolve, not merely from the committed lockfile — and `npm ci` from
+the resulting lockfile reproduces it too, so Obsidian's own rebuild is
+unaffected by the `overrides`.
+
+**When a bundled package does need to move**, treat it as a shipped-code change:
+its own release, its own test, and check `@lezer/markdown` specifically, since
+that one is the grammar.
+
+### Externalising `lang-markdown` was investigated and rejected
+
+Three signals said no:
+
+- Obsidian's official `obsidian-sample-plugin` external list is *exactly* this
+  repo's, and `lang-markdown` is not in it.
+- A GitHub code search for plugins externalising it returns zero results.
+- Obsidian does not use CodeMirror's markdown mode internally; it has its own.
+
+Externalising would emit `require("@codemirror/lang-markdown")` against a module
+Obsidian does not provide, and the reading view would fail to load.
+
+### Known: ~180 KB of grammar arrives uninvited
+
+Only `lang-markdown` is asked for. `markdown()` defaults `htmlTagLanguage` to
+`html({matchClosingTags: false})`, which pulls `lang-html` -> `lang-css` +
+`lang-javascript` and their grammars — roughly 180 KB unminified of HTML/CSS/JS
+highlighting that `src/` never references. Trimming it means passing a
+`markdown({ htmlTagLanguage: … })` config, which changes behaviour and shipped
+bytes, so it belongs in a release of its own.
+
 ## Known: `@codemirror/lang-markdown` is bundled, not external
 
 `esbuild.config.mjs` externalises `@codemirror/{autocomplete,collab,commands,
