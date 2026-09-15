@@ -8,6 +8,17 @@ import { ReviewGrade, ScheduleResult } from "./srsTypes";
  * for FSRS-lite without touching callers.
  */
 export class SrsScheduler {
+  /**
+   * Ceiling on `intervalDays`, matching Anki's default maximum. Without it the
+   * interval compounds geometrically — `interval * ease * 1.3` with ease
+   * saturating at 3.5 — and the 14th consecutive "easy" grade pushes
+   * `now + interval * 86400000` past the ECMAScript date range, so
+   * `new Date(...).toISOString()` throws `RangeError: Invalid time value`.
+   * Reachable by grading one word "easy" repeatedly without waiting for it to
+   * come due. 100 years is far beyond any real review schedule.
+   */
+  private static MAX_INTERVAL_DAYS = 36500;
+
   constructor(private vocab: VocabularyStore, private settings: () => CciSettings) {}
 
   /** Words eligible for SRS review based on status filter. */
@@ -66,6 +77,8 @@ export class SrsScheduler {
         ease = Math.min(3.5, ease + 0.15);
         break;
     }
+    // One clamp covers every grade arm — see MAX_INTERVAL_DAYS.
+    interval = Math.min(interval, SrsScheduler.MAX_INTERVAL_DAYS);
     const now = new Date();
     const dueAt = new Date(now.getTime() + interval * 86400000).toISOString();
     const result: ScheduleResult = {

@@ -124,7 +124,14 @@ export class CciSettingsTab extends PluginSettingTab {
     this.plugin.refreshChineseViews();
     this.plugin.refreshStatsViews();
 
-    if (key === "sync.mirrorEnabled" || key === "sync.mirrorPath") {
+    if (key === "tokenizerEngine") {
+      // refreshChineseViews() above only redecorates from the tokens the view
+      // already holds. Changing the engine changes segmentation itself, so the
+      // open notes have to be re-tokenized — TokenizerService drops its caches
+      // on the engine change, and this makes the views ask again right away
+      // instead of on the next edit.
+      this.plugin.forceRetokenizeViews();
+    } else if (key === "sync.mirrorEnabled" || key === "sync.mirrorPath") {
       if (this.plugin.settings.sync.mirrorEnabled) await this.plugin.refreshSyncMirror();
     } else if (key === "sync.mirrorPollIntervalMinutes") {
       this.plugin.startSyncMirrorPoller();

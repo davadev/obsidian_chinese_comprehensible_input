@@ -133,3 +133,45 @@ describe("TokenizerService — applyOverrides branches", () => {
     expect(tokens.map((t) => t.surface)).toEqual(["学习"]);
   });
 });
+
+describe("TokenizerService — engine change invalidates the cache", () => {
+  it("re-segments the same text after the engine setting changes", async () => {
+    // Regression guard: the module-level token cache is keyed on document text
+    // alone, so before this fix switching the engine kept serving the previous
+    // segmentation — the note is unchanged, the cache hits, and the newly
+    // chosen engine never runs.
+    clearTokenCache();
+    let engine: "lattice" | "intl-segmenter" = "lattice";
+    const tokenizer = new TokenizerService(
+      makeDict(),
+      { hasRecord: () => false, knownBoost: () => 0 },
+      () => ({ tokenizerEngine: engine }) as any
+    );
+
+    // 中文 is deliberately absent from the test dictionary, so the two engines
+    // disagree on it: the lattice falls back to single characters while
+    // Intl.Segmenter groups them. Text that both engines segment identically
+    // would let a stale cache hit slip through unnoticed.
+    const text = "我今天学习中文";
+
+    const lattice = await tokenizer.tokenize(text);
+    expect(lattice.map((t) => t.surface)).toEqual(["我", "今天", "学习", "中", "文"]);
+
+    engine = "intl-segmenter";
+    const intl = await tokenizer.tokenize(text);
+    expect(intl.map((t) => t.surface)).toEqual(["我", "今天", "学习", "中文"]);
+
+    engine = "lattice";
+    const back = await tokenizer.tokenize(text);
+    expect(back.map((t) => t.surface)).toEqual(["我", "今天", "学习", "中", "文"]);
+  });
+
+  it("does not invalidate when the engine is unchanged", async () => {
+    clearTokenCache();
+    const tokenizer = makeTokenizer();
+    const first = await tokenizer.tokenize("今天学习");
+    const second = await tokenizer.tokenize("今天学习");
+    // Same cached array instance — proves the cache was consulted, not rebuilt.
+    expect(second).toBe(first);
+  });
+});

@@ -17,6 +17,15 @@ export class TokenizerService {
   private trie: Trie | null = null;
   private overrides = new Map<string, TokenizerOverride>();
   private cache = new Map<string, TokenizationCacheEntry>();
+  /**
+   * Engine the caches were last populated under. The token cache is keyed on
+   * document text alone, so without this a change of engine keeps serving the
+   * previous segmentation: the note is unchanged, the cache hits, and the new
+   * engine never runs. Checked here rather than only at the settings tab
+   * because the setting can also arrive from another device via SettingsMirror,
+   * which never goes through the tab at all.
+   */
+  private lastEngine: CciSettings["tokenizerEngine"] | null = null;
 
   constructor(
     private dict: DictionaryService,
@@ -60,9 +69,11 @@ export class TokenizerService {
   }
 
   async tokenize(text: string): Promise<Token[]> {
+    const engine = this.settings().tokenizerEngine;
+    if (this.lastEngine !== null && this.lastEngine !== engine) this.invalidate();
+    this.lastEngine = engine;
     const cached = getCachedTokens(text);
     if (cached) return cached;
-    const engine = this.settings().tokenizerEngine;
     const tokens = engine === "intl-segmenter"
       ? await this.tokenizeIntl(text)
       : await this.tokenizeLattice(text);
