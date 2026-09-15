@@ -131,7 +131,6 @@ export class DictionaryDownloader {
 }
 
 async function gunzip(input: Uint8Array): Promise<Uint8Array> {
-  // @ts-ignore — DecompressionStream is available in Obsidian's Chromium/WebKit runtime.
   const ds = new DecompressionStream("gzip");
   const blobPart = new Uint8Array(input).slice().buffer as BlobPart;
   const stream = new Blob([blobPart]).stream().pipeThrough(ds);
@@ -222,7 +221,6 @@ async function unzipFirstEntry(zip: Uint8Array): Promise<Uint8Array> {
   if (compressionMethod === 0) return compressed; // stored
   if (compressionMethod !== 8) throw new Error(`Unsupported ZIP compression method ${compressionMethod}`);
 
-  // @ts-ignore — DecompressionStream is available in Obsidian's Chromium/WebKit runtime.
   const ds = new DecompressionStream("deflate-raw");
   const blobPart = new Uint8Array(compressed).slice().buffer as BlobPart;
   const stream = new Blob([blobPart]).stream().pipeThrough(ds);

@@ -136,13 +136,33 @@ describe("SRS scheduler — hard and easy grades", () => {
 
   it("clamps ease at the 3.5 ceiling", () => {
     // Ease rises 0.15 per easy grade from 2.5, so it saturates on the 7th.
-    // Deliberately stops there: `intervalDays` grows geometrically and the
-    // 14th consecutive easy grade overflows `new Date()` with a RangeError.
-    // That is a real defect, tracked separately — not asserted here, because
-    // a test that pins the throw would cement the bug instead of flagging it.
     const s = sched();
     for (let i = 0; i < 7; i++) s.applyGrade("学习", "easy");
     expect(s.applyGrade("学习", "easy").ease).toBe(3.5);
+  });
+
+  it("caps the interval instead of overflowing the date range", () => {
+    // Regression guard. intervalDays compounds by interval * ease * 1.3 with
+    // ease saturating at 3.5, so before the MAX_INTERVAL_DAYS clamp the 14th
+    // consecutive easy grade pushed now + interval * 86400000 past the
+    // ECMAScript date range and toISOString() threw "RangeError: Invalid time
+    // value". 40 grades is well past that point.
+    const s = sched();
+    let last = s.applyGrade("学习", "easy");
+    for (let i = 0; i < 40; i++) {
+      last = s.applyGrade("学习", "easy");
+      expect(Number.isFinite(last.intervalDays)).toBe(true);
+      expect(Number.isNaN(Date.parse(last.dueAt))).toBe(false);
+    }
+    expect(last.intervalDays).toBe(36500);
+    expect(new Date(last.dueAt).getFullYear()).toBeGreaterThan(new Date().getFullYear());
+  });
+
+  it("leaves realistic intervals untouched by the cap", () => {
+    const s = sched();
+    const r = s.applyGrade("学习", "good");
+    expect(r.intervalDays).toBe(1);
+    expect(s.applyGrade("学习", "good").intervalDays).toBeLessThan(36500);
   });
 
   it("clamps ease at the 1.3 floor however often hard is graded", () => {
