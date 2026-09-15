@@ -64,14 +64,20 @@ updates:
           - "version-update:semver-major"
       - dependency-name: "@codemirror/state"
       - dependency-name: "@codemirror/view"
-      # eslint-plugin-obsidianmd (the Obsidian-review parity anchor) is built
-      # against eslint 9 / typescript-eslint 8. Losing that parity is the
-      # community-plugin delisting hazard called out in AGENTS.md. Revisit when
-      # eslint-plugin-obsidianmd itself moves.
-      - dependency-name: "eslint"
-        update-types: ["version-update:semver-major"]
-      # TypeScript 7 is the Go-native rewrite — a compiler swap underneath the
-      # whole build. Evaluate deliberately, never via an automated PR.
+      # NOTE: eslint is deliberately NOT ignored. It used to be ignored for
+      # majors, and that is exactly how the eslint 9 line reached end-of-life
+      # unnoticed — Dependabot never raised eslint 10, so nothing surfaced that
+      # 9.39.5 had been deprecated. The old comment here also claimed
+      # eslint-plugin-obsidianmd was "built against eslint 9"; it is not, its
+      # peer range is >=9.19.0 and typescript-eslint declares ^10.0.0.
+      # A Dependabot PR is visibility, not an obligation to merge, and
+      # check-release runs the Obsidian-parity lint before any release, so
+      # breakage cannot reach a release unseen.
+      #
+      # TypeScript majors stay ignored, for a concrete checkable reason rather
+      # than a guess: typescript-eslint 8.70.0 declares
+      # `typescript >=4.8.4 <6.1.0`, so TypeScript 7 breaks the lint toolchain
+      # outright. Revisit when typescript-eslint supports it.
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
       # Should track the CI Node major, not run ahead of it.
