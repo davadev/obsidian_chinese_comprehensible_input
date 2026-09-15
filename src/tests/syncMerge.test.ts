@@ -173,3 +173,101 @@ describe("mergeStoresForSync", () => {
     expect(merged.words.c.dailySeenCounts["2026-06-10"]).toBe(5);
   });
 });
+
+describe("resolveStatus — rules 3 and 4", () => {
+  it("falls to the timestamp when neither status is in the priority list", () => {
+    // Rule 2 needs both indices; an empty list forces the tiebreak onward.
+    const a = rec({ status: "known", updatedAt: "2026-06-12T00:00:00.000Z" });
+    const b = rec({ status: "unknown", updatedAt: "2026-06-13T00:00:00.000Z" });
+    expect(resolveStatus(a, b, []).status).toBe("unknown");
+    expect(resolveStatus(b, a, []).status).toBe("unknown");
+  });
+
+  it("falls to the timestamp when the two statuses share a priority index", () => {
+    // A user list can legitimately omit entries; a status absent from it has
+    // index -1, so rule 2 cannot decide between it and another absentee.
+    const priority: WordStatus[] = ["ignored", "known"];
+    const a = rec({ status: "unknown", updatedAt: "2026-06-14T00:00:00.000Z" });
+    const b = rec({ status: "charactersUnknown", updatedAt: "2026-06-13T00:00:00.000Z" });
+    expect(resolveStatus(a, b, priority).status).toBe("unknown");
+  });
+
+  it("falls back to the built-in rank when statuses differ and timestamps tie", () => {
+    // Rule 4: same instant on both devices, priority indecisive.
+    const stamp = "2026-06-12T00:00:00.000Z";
+    const a = rec({ status: "unknown", updatedAt: stamp });
+    const b = rec({ status: "charactersUnknown", updatedAt: stamp });
+    // STATUS_RANK: charactersUnknown (2) outranks unknown (1).
+    expect(resolveStatus(a, b, []).status).toBe("charactersUnknown");
+    expect(resolveStatus(b, a, []).status).toBe("charactersUnknown");
+  });
+
+  it("is order-independent for identical statuses, preferring the newer", () => {
+    const a = rec({ status: "known", updatedAt: "2026-06-14T00:00:00.000Z" });
+    const b = rec({ status: "known", updatedAt: "2026-06-12T00:00:00.000Z" });
+    expect(resolveStatus(a, b, DEFAULT_STATUS_PRIORITY).updatedAt).toBe(a.updatedAt);
+    expect(resolveStatus(b, a, DEFAULT_STATUS_PRIORITY).updatedAt).toBe(a.updatedAt);
+  });
+});
+
+describe("mergeForSync — both-sides-present sub-objects", () => {
+  const opts = { statusPriority: DEFAULT_STATUS_PRIORITY };
+
+  it("keeps the mnemonic with the later inner updatedAt", () => {
+    const a = rec({ mnemonic: { text: "older", updatedAt: "2026-06-10T00:00:00.000Z" } as never });
+    const b = rec({ mnemonic: { text: "newer", updatedAt: "2026-06-11T00:00:00.000Z" } as never });
+    expect(mergeForSync(a, b, opts).mnemonic).toMatchObject({ text: "newer" });
+    expect(mergeForSync(b, a, opts).mnemonic).toMatchObject({ text: "newer" });
+  });
+
+  it("keeps the SRS state from the most recent review", () => {
+    const a = rec({ srs: { intervalDays: 3, lastReviewedAt: "2026-06-10T00:00:00.000Z" } as never });
+    const b = rec({ srs: { intervalDays: 9, lastReviewedAt: "2026-06-11T00:00:00.000Z" } as never });
+    expect(mergeForSync(a, b, opts).srs).toMatchObject({ intervalDays: 9 });
+    expect(mergeForSync(b, a, opts).srs).toMatchObject({ intervalDays: 9 });
+  });
+
+  it("prefers the winning side's ignore reason", () => {
+    const a = rec({
+      status: "ignored",
+      ignoredReason: "winner-reason",
+      updatedAt: "2026-06-14T00:00:00.000Z",
+    });
+    const b = rec({
+      status: "ignored",
+      ignoredReason: "loser-reason",
+      updatedAt: "2026-06-12T00:00:00.000Z",
+    });
+    expect(mergeForSync(a, b, opts).ignoredReason).toBe("winner-reason");
+  });
+
+  it("falls back to the other side's reason when the winner has none", () => {
+    const a = rec({ status: "ignored", updatedAt: "2026-06-14T00:00:00.000Z" });
+    const b = rec({
+      status: "ignored",
+      ignoredReason: "only-reason",
+      updatedAt: "2026-06-12T00:00:00.000Z",
+    });
+    expect(mergeForSync(a, b, opts).ignoredReason).toBe("only-reason");
+  });
+
+  it("drops the ignore reason when the merged status is not ignored", () => {
+    const a = rec({ status: "known", ignoredReason: "stale", updatedAt: "2026-06-14T00:00:00.000Z" });
+    const b = rec({ status: "known", ignoredReason: "stale", updatedAt: "2026-06-12T00:00:00.000Z" });
+    expect(mergeForSync(a, b, opts).ignoredReason).toBeUndefined();
+  });
+
+  it("stays idempotent when the same snapshot is replayed", () => {
+    // The whole point of the sync merge: re-applying a remote snapshot must
+    // converge rather than drift.
+    const a = rec({
+      status: "known",
+      seenCount: 4,
+      srs: { intervalDays: 3, lastReviewedAt: "2026-06-10T00:00:00.000Z" } as never,
+      mnemonic: { text: "m", updatedAt: "2026-06-10T00:00:00.000Z" } as never,
+    });
+    const b = rec({ status: "unknown", seenCount: 7, updatedAt: "2026-06-13T00:00:00.000Z" });
+    const once = mergeForSync(a, b, opts);
+    expect(mergeForSync(once, b, opts)).toEqual(once);
+  });
+});
