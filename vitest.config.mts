@@ -60,18 +60,23 @@ export default defineConfig({
       // reported files a test actually imported, so modules nothing imported
       // were silently absent from the denominator and the headline number was
       // inflated (92.47% statements). v4 honours `include` literally and
-      // counts the whole declared surface, which is the honest measure. The
-      // drop below is a measurement correction, not a coverage regression —
-      // no test changed. Two genuine gaps it exposed are deliberately left
-      // IN the denominator rather than excluded away:
-      //   - src/editor/formatOptions.ts   (~5%)  pure logic, simply untested
-      //   - src/dictionary/DictionaryDownloader.ts (~23%) network/parse logic
-      // Raise these numbers by testing those, not by widening `exclude`.
+      // counts the whole declared surface, which is the honest measure.
+      //
+      // 0.7.6 closed the pure-logic gaps: formatOptions.ts went 4.76% -> 100%,
+      // and axes / markdownExclusionRanges / TokenizerService / colorTheme /
+      // syncMerge / SrsScheduler all moved into the 94-100% band. Measured
+      // 87.71 stmts / 82.92 br / 87.95 fn / 90.05 lines; the floors below sit
+      // just under that so an accidental regression fails CI.
+      //
+      // The one gap deliberately left IN the denominator rather than excluded:
+      //   - src/dictionary/DictionaryDownloader.ts (~23%) network/parse logic,
+      //     which needs vi.mock("obsidian") plus gzip/ZIP byte fixtures.
+      // Raise these numbers by testing that, not by widening `exclude`.
       thresholds: {
-        lines: 80,
-        functions: 80,
-        branches: 73,
-        statements: 80,
+        lines: 89,
+        functions: 87,
+        branches: 82,
+        statements: 87,
       },
     },
   },

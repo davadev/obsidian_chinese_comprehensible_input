@@ -95,3 +95,66 @@ describe("SRS scheduler", () => {
     expect(recs2.learn.srs.lapses).toBe(0);
   });
 });
+
+describe("SRS scheduler — hard and easy grades", () => {
+  // Only "good" and "again" were exercised; both arms below were dead in
+  // coverage, including the ease floor and ceiling.
+  const sched = () => new SrsScheduler(makeVocab({}) as any, settings);
+
+  it("hard holds a fresh card at the initial interval", () => {
+    // Math.max(init, round(0 * 1.2)) === init, so a never-reviewed card
+    // cannot collapse to a zero-day interval.
+    const r = sched().applyGrade("学习", "hard");
+    expect(r.intervalDays).toBe(1);
+    expect(r.ease).toBeCloseTo(2.35, 5);
+    expect(r.lapses).toBe(0);
+  });
+
+  it("hard grows an established interval by 1.2 and shaves the ease", () => {
+    const s = sched();
+    s.applyGrade("学习", "good");
+    s.applyGrade("学习", "good");
+    const before = s.applyGrade("学习", "good");
+    const r = s.applyGrade("学习", "hard");
+    expect(r.intervalDays).toBe(Math.round(before.intervalDays * 1.2));
+    expect(r.ease).toBeCloseTo(before.ease - 0.15, 5);
+  });
+
+  it("easy doubles the initial interval on a fresh card", () => {
+    const r = sched().applyGrade("学习", "easy");
+    expect(r.intervalDays).toBe(2);
+    expect(r.ease).toBeCloseTo(2.65, 5);
+  });
+
+  it("easy applies the 1.3 bonus to an established interval", () => {
+    const s = sched();
+    const first = s.applyGrade("学习", "good");
+    const r = s.applyGrade("学习", "easy");
+    expect(r.intervalDays).toBe(Math.round(first.intervalDays * first.ease * 1.3));
+    expect(r.ease).toBeCloseTo(first.ease + 0.15, 5);
+  });
+
+  it("clamps ease at the 3.5 ceiling", () => {
+    // Ease rises 0.15 per easy grade from 2.5, so it saturates on the 7th.
+    // Deliberately stops there: `intervalDays` grows geometrically and the
+    // 14th consecutive easy grade overflows `new Date()` with a RangeError.
+    // That is a real defect, tracked separately — not asserted here, because
+    // a test that pins the throw would cement the bug instead of flagging it.
+    const s = sched();
+    for (let i = 0; i < 7; i++) s.applyGrade("学习", "easy");
+    expect(s.applyGrade("学习", "easy").ease).toBe(3.5);
+  });
+
+  it("clamps ease at the 1.3 floor however often hard is graded", () => {
+    const s = sched();
+    for (let i = 0; i < 20; i++) s.applyGrade("学习", "hard");
+    expect(s.applyGrade("学习", "hard").ease).toBe(1.3);
+  });
+
+  it("hard does not count as a lapse, unlike again", () => {
+    const s = sched();
+    expect(s.applyGrade("学习", "hard").lapses).toBe(0);
+    expect(s.applyGrade("学习", "again").lapses).toBe(1);
+    expect(s.applyGrade("学习", "hard").lapses).toBe(1);
+  });
+});
