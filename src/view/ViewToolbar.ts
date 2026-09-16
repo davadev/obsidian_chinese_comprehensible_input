@@ -573,43 +573,80 @@ export class ViewToolbar {
     const sep1 = menu.createDiv({ cls: "cci-overflow-sep" });
     sep1.setAttr("role", "separator");
 
-    const fontRow = menu.createDiv({ cls: "cci-overflow-item cci-overflow-slider" });
-    fontRow.createSpan({ text: "Font size" });
-    const slider = fontRow.createEl("input", { type: "range" });
-    slider.min = "14";
-    slider.max = "40";
-    slider.step = "1";
-    slider.value = String(this.plugin.settings.readerFontPx ?? 22);
-    const sizeLabel = fontRow.createSpan({ cls: "cci-slider-value", text: `${slider.value}px` });
-    slider.addEventListener("input", () => {
-      void (async () => {
-        const px = parseInt(slider.value, 10);
-        this.plugin.settings.readerFontPx = px;
-        sizeLabel.setText(`${px}px`);
-        await this.plugin.saveSettings();
-        this.onChange();
-      })();
+    /** One labelled range row. Four of these differ only in bounds, formatting
+     *  and which setting they write, so they share a builder rather than
+     *  repeating the save/relabel/onChange dance four times. */
+    const sliderRow = (
+      label: string,
+      opts: {
+        min: number;
+        max: number;
+        step: number;
+        value: number;
+        format: (v: number) => string;
+        apply: (v: number) => void;
+      }
+    ): void => {
+      const row = menu.createDiv({ cls: "cci-overflow-item cci-overflow-slider" });
+      row.createSpan({ text: label });
+      const input = row.createEl("input", { type: "range" });
+      input.min = String(opts.min);
+      input.max = String(opts.max);
+      input.step = String(opts.step);
+      input.value = String(opts.value);
+      const valueLabel = row.createSpan({
+        cls: "cci-slider-value",
+        text: opts.format(opts.value),
+      });
+      input.addEventListener("input", () => {
+        void (async () => {
+          const v = parseFloat(input.value);
+          opts.apply(v);
+          valueLabel.setText(opts.format(v));
+          await this.plugin.saveSettings();
+          // Applies the CSS variables and restores the scroll position.
+          this.onChange();
+        })();
+      });
+    };
+
+    sliderRow("Font size", {
+      min: 14,
+      max: 40,
+      step: 1,
+      value: this.plugin.settings.readerFontPx ?? 22,
+      format: (v) => `${v}px`,
+      apply: (v) => (this.plugin.settings.readerFontPx = v),
     });
 
-    const lineRow = menu.createDiv({ cls: "cci-overflow-item cci-overflow-slider" });
-    lineRow.createSpan({ text: "Line spacing" });
-    const lineSlider = lineRow.createEl("input", { type: "range" });
-    lineSlider.min = "0.15";
-    lineSlider.max = "1.2";
-    lineSlider.step = "0.05";
-    lineSlider.value = String(this.plugin.settings.readerLineSpacing ?? 1.0);
-    const lineLabel = lineRow.createSpan({
-      cls: "cci-slider-value",
-      text: `${Number(lineSlider.value).toFixed(2)}×`,
+    sliderRow("Line spacing", {
+      min: 0.15,
+      max: 1.2,
+      step: 0.05,
+      value: this.plugin.settings.readerLineSpacing ?? 1.0,
+      format: (v) => `${v.toFixed(2)}×`,
+      apply: (v) => (this.plugin.settings.readerLineSpacing = v),
     });
-    lineSlider.addEventListener("input", () => {
-      void (async () => {
-        const m = parseFloat(lineSlider.value);
-        this.plugin.settings.readerLineSpacing = m;
-        lineLabel.setText(`${m.toFixed(2)}×`);
-        await this.plugin.saveSettings();
-        this.onChange();
-      })();
+
+    // #103: the size of the characters relative to the rows above them, and of
+    // those rows. Mirrored here from Settings because both are things a reader
+    // adjusts while reading, like font size — not once during setup.
+    sliderRow("Chinese size", {
+      min: 80,
+      max: 200,
+      step: 5,
+      value: this.plugin.settings.charScalePercent ?? 100,
+      format: (v) => `${v}%`,
+      apply: (v) => (this.plugin.settings.charScalePercent = v),
+    });
+
+    sliderRow("Annotation size", {
+      min: 80,
+      max: 200,
+      step: 5,
+      value: this.plugin.settings.annotationScalePercent ?? 100,
+      format: (v) => `${v}%`,
+      apply: (v) => (this.plugin.settings.annotationScalePercent = v),
     });
 
     const sep2 = menu.createDiv({ cls: "cci-overflow-sep" });
