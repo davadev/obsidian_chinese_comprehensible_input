@@ -56,6 +56,39 @@ suppressed — you see plain Chinese as you type. Switching back to
 **Read** restores them. This works for every display mode because the
 plugin uses non-widget decorations during edit.
 
+## Text size
+
+Three separate controls, in **Settings → Display** (font size and line
+spacing are also in the toolbar's **More** menu):
+
+- **Reader font size (px)** — scales the whole view together. Start here.
+- **Chinese size (%)** — the characters only, relative to the rows above
+  them. Raise it when the characters feel cramped at a font size that is
+  comfortable for English: Han glyphs pack far more stroke detail into the
+  same square than Latin letters do, so they need more size to read
+  without strain.
+- **Annotation size (%)** — the pinyin and translation rows only. Raise it
+  if they get too small to read on a high-resolution screen.
+
+### Why the two percentages behave differently
+
+Each word is only as wide as its **widest row**, and with the downloaded
+CC-CEDICT dictionary the English translation is that row almost every
+time — it adds roughly five characters' worth of width per word.
+
+So:
+
+- **Chinese size does not change word spacing.** The English is still
+  wider; the characters just get bigger inside a box that was already
+  that wide. You would have to go past roughly 350% before that flips.
+- **Annotation size does change word spacing**, pushing the Chinese
+  further apart, because you are growing the row that sets the width.
+
+In two-line mode with pinyin there is no translation row, and a pinyin
+syllable is usually narrower than the character above it — so there the
+Chinese does set the width, and raising Chinese size scales the whole
+line together. That reads as zoom rather than as words drifting apart.
+
 ## Pinyin styles
 
 - **Marks**: with diacritics — `xué xí`. Standard textbook style.

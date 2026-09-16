@@ -170,6 +170,7 @@ export class ChineseTextFileView extends TextFileView {
     this.containerEl.children[1].addClass("cci-view");
     this.applyReaderFont();
     this.applyReaderLineSpacing();
+    this.applyAnnotationScales();
     this.applyDisplayAttr();
 
     const top = this.containerEl.children[1].createDiv({ cls: "cci-toolbar-wrap" });
@@ -225,6 +226,22 @@ export class ChineseTextFileView extends TextFileView {
    * the decoration plugin to redecorate, then scroll the captured
    * offset back to the top of the viewport on the next frame.
    */
+  /**
+   * Re-apply appearance settings to an already-open view.
+   *
+   * `refreshChineseViews()` only redecorates — it never re-applies the CSS
+   * variables — so before this existed, changing the reader font size from the
+   * Settings tab did nothing until the view was reopened. The toolbar's copy of
+   * that control worked only because it routed through `handleToolbarChange`.
+   *
+   * Delegating here rather than calling the appliers directly is deliberate:
+   * changing the font reflows the editor and loses the scroll position, and
+   * `handleToolbarChange` is the path that captures and restores it.
+   */
+  applySettingsToView(): void {
+    this.handleToolbarChange();
+  }
+
   private handleToolbarChange(): void {
     let topOffset = 0;
     if (this.editor) {
@@ -238,6 +255,7 @@ export class ChineseTextFileView extends TextFileView {
     }
     this.applyReaderFont();
     this.applyReaderLineSpacing();
+    this.applyAnnotationScales();
     this.applyDisplayAttr();
     this.redecorate();
     this.toolbar?.refresh();
@@ -265,6 +283,25 @@ export class ChineseTextFileView extends TextFileView {
     const root = this.containerEl.children[1] as HTMLElement;
     const m = Math.max(0.15, Math.min(1.5, this.plugin.settings.readerLineSpacing ?? 1.0));
     root.style.setProperty("--cci-line-spacing", String(m));
+  }
+
+  /**
+   * Per-row scale factors (#103). Written to the view root — NOT document.body
+   * — so they sit on the same element as `--cci-reader-font` and stay scoped to
+   * the reading view rather than leaking into the rest of the vault.
+   *
+   * Stored as integer percents; styles.css wants multipliers. Clamped here as
+   * well as in the slider, because settings also arrive by import and by sync
+   * mirror, neither of which passes through the settings tab.
+   */
+  applyAnnotationScales(): void {
+    const root = this.containerEl.children[1] as HTMLElement;
+    const pct = (v: number | undefined) => Math.max(80, Math.min(200, v ?? 100)) / 100;
+    root.style.setProperty("--cci-char-scale", String(pct(this.plugin.settings.charScalePercent)));
+    root.style.setProperty(
+      "--cci-annotation-scale",
+      String(pct(this.plugin.settings.annotationScalePercent))
+    );
   }
 
   applyDisplayAttr(): void {

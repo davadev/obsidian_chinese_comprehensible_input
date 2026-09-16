@@ -154,6 +154,9 @@ export const DEFAULT_SETTINGS: CciSettings = {
   mnemonicsFirst: false,
   readerFontPx: 22,
   readerLineSpacing: 1.0,
+  // 100 = the ratios that shipped before #103, so an upgrade changes nothing.
+  charScalePercent: 100,
+  annotationScalePercent: 100,
   topHskComfortThreshold: 0.67,
   vaultIndexed: false,
   autoDownloadDictionary: true,
