@@ -47,6 +47,11 @@ const DOCS_BASE =
 /** Keys whose value is stored somewhere other than `plugin.settings`.
  *  `secret:` → Obsidian's device-local key store (never data.json).
  *  `ui:` → transient state of this tab (export / import paths). */
+/** Settings whose only effect is a CSS custom property on the view root. They
+ *  need the view's appearance re-applied, which `refreshChineseViews()` does
+ *  not do — see the branch in `persist()`. */
+const APPEARANCE_KEYS = new Set(["readerFontPx", "readerLineSpacing", "charScalePercent"]);
+
 const SECRET_PREFIX = "secret:";
 const UI_PREFIX = "ui:";
 
@@ -124,7 +129,14 @@ export class CciSettingsTab extends PluginSettingTab {
     this.plugin.refreshChineseViews();
     this.plugin.refreshStatsViews();
 
-    if (key === "tokenizerEngine") {
+    if (APPEARANCE_KEYS.has(key)) {
+      // refreshChineseViews() above only redecorates; it does not re-apply the
+      // CSS custom properties these keys drive, so before this branch existed a
+      // font-size change made from Settings did nothing until the view was
+      // reopened. The plugin-side helper also preserves the scroll position
+      // across the reflow a size change causes.
+      this.plugin.refreshChineseViewAppearance();
+    } else if (key === "tokenizerEngine") {
       // refreshChineseViews() above only redecorates from the tokens the view
       // already holds. Changing the engine changes segmentation itself, so the
       // open notes have to be re-tokenized — TokenizerService drops its caches
@@ -346,6 +358,15 @@ export class CciSettingsTab extends PluginSettingTab {
               name: "Reader font size (px)",
               desc: "Base font size used inside the Chinese Learning View.",
               control: { type: "slider", key: "readerFontPx", min: 14, max: 40, step: 1 },
+            },
+            {
+              name: "Chinese size (%)",
+              desc:
+                "Size of the Chinese characters relative to the annotation rows above them. " +
+                "Raise it when the characters feel cramped at a font size that is comfortable " +
+                "for English — Han glyphs carry more stroke detail than Latin at the same size. " +
+                "Reader font size scales everything together; this changes only the ratio.",
+              control: { type: "slider", key: "charScalePercent", min: 80, max: 200, step: 5 },
             },
             {
               name: "Top HSK comfort threshold (%)",

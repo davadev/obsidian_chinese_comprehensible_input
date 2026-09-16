@@ -1384,6 +1384,21 @@ export default class CciPlugin extends Plugin {
     this.refreshStatsViews();
   }
 
+  /**
+   * Re-apply appearance settings (font size, line spacing, per-row scale) to
+   * every open Chinese view. Separate from `refreshChineseViews()`, which only
+   * redecorates: the CSS custom properties live on the view root and nothing
+   * rewrites them on a plain redecorate.
+   */
+  refreshChineseViewAppearance(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
+      const v = leaf.view;
+      if (v instanceof ChineseTextFileView && typeof v.applySettingsToView === "function") {
+        try { v.applySettingsToView(); } catch (e) { console.warn("CCI appearance refresh failed", e); }
+      }
+    }
+  }
+
   refreshChineseViews(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
       const v = leaf.view;

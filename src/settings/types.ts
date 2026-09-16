@@ -337,6 +337,20 @@ export interface CciSettings {
   readerFontPx: number;
   /** Line-height multiplier for the Chinese view. 1.0 = current behavior. */
   readerLineSpacing: number;
+  /**
+   * Size of the Chinese character row, as a percentage of the reader font
+   * size. 100 = the ratio this plugin shipped with (#103).
+   *
+   * Separate from `readerFontPx`, which scales the whole view uniformly.
+   * This one changes the RATIO between the characters and the annotation
+   * rows above them, which is the actual complaint: Han glyphs carry far
+   * more stroke density than Latin and need more size to read comfortably.
+   *
+   * Stored as an integer percent rather than a fraction so the slider needs
+   * no unit conversion — the unit lives in the setting's name, as
+   * `readerFontPx` ("Reader font size (px)") already does.
+   */
+  charScalePercent: number;
   /** Fraction (0..1) of cumulative known/total HSK vocabulary required for the
    * status bar to surface a given HSK level as "Top HSK". Default 0.67. */
   topHskComfortThreshold: number;
