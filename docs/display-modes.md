@@ -19,7 +19,8 @@ The **More** menu holds the display controls:
 <img src="../resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
 - **1 · Show / hide colors** · **2 · Display mode** (2-line / 3-line / None).
-- **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing**.
+- **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing** ·
+  **Chinese size** · **Annotation size**.
 - **6 · Stats** · **7 · Generate story**.
 
 ## Display modes
@@ -58,8 +59,9 @@ plugin uses non-widget decorations during edit.
 
 ## Text size
 
-Three separate controls, in **Settings → Display** (font size and line
-spacing are also in the toolbar's **More** menu):
+Three separate controls. All of them live in **Settings → Display**, and all
+of them are also in the toolbar's **More** menu — they are things you adjust
+while reading, not once during setup:
 
 - **Reader font size (px)** — scales the whole view together. Start here.
 - **Chinese size (%)** — the characters only, relative to the rows above
