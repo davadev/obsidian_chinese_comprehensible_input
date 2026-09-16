@@ -351,6 +351,20 @@ export interface CciSettings {
    * `readerFontPx` ("Reader font size (px)") already does.
    */
   charScalePercent: number;
+  /**
+   * Size of the annotation rows — pinyin and the English/mnemonic line — as a
+   * percentage of their shipped ratios (0.5em and 0.42em). 100 = unchanged.
+   *
+   * One control covers both rows rather than one each, because #56 makes the
+   * CONTENT of each row a user choice: a "pinyin size" setting would swap
+   * meaning with the row it names the moment someone reorders them. Sizes bind
+   * to the line, not to what is on it.
+   *
+   * Unlike `charScalePercent`, raising this DOES push words apart — the widest
+   * annotation row sets each word's box width, and with a downloaded CC-CEDICT
+   * the English is the widest row in essentially every word.
+   */
+  annotationScalePercent: number;
   /** Fraction (0..1) of cumulative known/total HSK vocabulary required for the
    * status bar to surface a given HSK level as "Top HSK". Default 0.67. */
   topHskComfortThreshold: number;

@@ -290,15 +290,18 @@ export class ChineseTextFileView extends TextFileView {
    * — so they sit on the same element as `--cci-reader-font` and stay scoped to
    * the reading view rather than leaking into the rest of the vault.
    *
-   * The stored value is an integer percent; styles.css wants a multiplier.
-   * `--cci-annotation-scale` is deliberately not written yet: styles.css
-   * already consumes it with a default of 1, so the control for it can land
-   * later without touching any of the CSS.
+   * Stored as integer percents; styles.css wants multipliers. Clamped here as
+   * well as in the slider, because settings also arrive by import and by sync
+   * mirror, neither of which passes through the settings tab.
    */
   applyAnnotationScales(): void {
     const root = this.containerEl.children[1] as HTMLElement;
-    const pct = Math.max(80, Math.min(200, this.plugin.settings.charScalePercent ?? 100));
-    root.style.setProperty("--cci-char-scale", String(pct / 100));
+    const pct = (v: number | undefined) => Math.max(80, Math.min(200, v ?? 100)) / 100;
+    root.style.setProperty("--cci-char-scale", String(pct(this.plugin.settings.charScalePercent)));
+    root.style.setProperty(
+      "--cci-annotation-scale",
+      String(pct(this.plugin.settings.annotationScalePercent))
+    );
   }
 
   applyDisplayAttr(): void {

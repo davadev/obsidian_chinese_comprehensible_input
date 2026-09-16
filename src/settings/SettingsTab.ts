@@ -50,7 +50,12 @@ const DOCS_BASE =
 /** Settings whose only effect is a CSS custom property on the view root. They
  *  need the view's appearance re-applied, which `refreshChineseViews()` does
  *  not do — see the branch in `persist()`. */
-const APPEARANCE_KEYS = new Set(["readerFontPx", "readerLineSpacing", "charScalePercent"]);
+const APPEARANCE_KEYS = new Set([
+  "readerFontPx",
+  "readerLineSpacing",
+  "charScalePercent",
+  "annotationScalePercent",
+]);
 
 const SECRET_PREFIX = "secret:";
 const UI_PREFIX = "ui:";
@@ -367,6 +372,14 @@ export class CciSettingsTab extends PluginSettingTab {
                 "for English — Han glyphs carry more stroke detail than Latin at the same size. " +
                 "Reader font size scales everything together; this changes only the ratio.",
               control: { type: "slider", key: "charScalePercent", min: 80, max: 200, step: 5 },
+            },
+            {
+              name: "Annotation size (%)",
+              desc:
+                "Size of the pinyin and translation rows. Raise it if they are hard to read " +
+                "on a high-resolution screen. Note this also spreads the words further apart: " +
+                "each word is as wide as its widest row, and the translation is usually that row.",
+              control: { type: "slider", key: "annotationScalePercent", min: 80, max: 200, step: 5 },
             },
             {
               name: "Top HSK comfort threshold (%)",
