@@ -10,6 +10,14 @@ A mnemonic is a memory hook attached to one word. In this plugin it has
 
 Both are optional; fill in either, both, or neither.
 
+## Showing a mnemonic under a word
+
+Since 0.7.7 the emoji line can be one of the annotation rows in the reading
+view — see [Display modes](./display-modes.md). Inline it is truncated far
+shorter than the 40 characters the card allows, because a row under a word
+competes for width with that word's neighbours. The card always shows the
+full text.
+
 ## Why the emoji line is short
 
 Two reasons. Emoji stick in memory better than a sentence you have to

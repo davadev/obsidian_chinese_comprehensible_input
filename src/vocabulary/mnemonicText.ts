@@ -14,6 +14,22 @@
  */
 export const MNEMONIC_LINE_MAX_GRAPHEMES = 40;
 
+/**
+ * Much tighter bound for the mnemonic when it is rendered as a row UNDER a
+ * word rather than on the word card (#56).
+ *
+ * The 40 above was chosen for the card, where a whole line is available. As a
+ * per-word row the constraint is horizontal: each word is only as wide as its
+ * widest row, so a 40-grapheme emoji line — emoji render near full-width, like
+ * Han characters — would stretch a two-character word to roughly seventeen
+ * characters of width and push its neighbours apart. 14 keeps the worst case
+ * level with today's translation row, so word spacing cannot regress.
+ *
+ * Applied at RENDER time only. Stored mnemonics are untouched, so there is no
+ * migration and the card still shows the full text.
+ */
+export const MNEMONIC_INLINE_MAX_GRAPHEMES = 14;
+
 /** Zero-width joiner and variation selectors. Legal inside an emoji
  *  sequence, meaningless (and rendered as a stray box by some fonts) when
  *  left dangling at the end after a cut. Written as an alternation rather

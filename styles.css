@@ -605,6 +605,13 @@
   margin-bottom: 0.45em;
   padding: 0 0.4em;
 }
+/* Mnemonic row (#56). Same geometry as the translation row — including the
+   side padding that stops neighbouring rows touching — but tinted like pinyin
+   so the three rows stay tellable apart when two of them carry prose. */
+.cci-stack-mnemonic {
+  color: var(--cci-text-pinyin, var(--text-muted));
+}
+
 .cci-stack-cells {
   display: block;
   white-space: nowrap;
@@ -1672,6 +1679,12 @@
 }
 
 /* Settings tab — light visual grouping */
+/* Settings prose that is a warning rather than description. The default prose
+   style is muted body text, which would render a warning invisible. */
+.cci-settings-warn {
+  color: var(--text-warning, var(--color-orange, var(--text-accent)));
+}
+
 .cci-settings-section-desc {
   color: var(--text-muted);
   font-size: 0.9em;

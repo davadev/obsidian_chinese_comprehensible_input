@@ -156,6 +156,11 @@ export const DEFAULT_SETTINGS: CciSettings = {
   readerLineSpacing: 1.0,
   // 100 = the ratios that shipped before #103, so an upgrade changes nothing.
   charScalePercent: 100,
+  // Reproduce the fixed layout this plugin has always had, so #56 changes
+  // nothing until the reader chooses otherwise.
+  line2Content: "pinyin",
+  line3Content: "english",
+  stripGlossParentheticals: false,
   annotationScalePercent: 100,
   topHskComfortThreshold: 0.67,
   vaultIndexed: false,

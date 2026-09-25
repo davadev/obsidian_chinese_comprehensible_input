@@ -1,6 +1,20 @@
 import { WordStatus } from "../vocabulary/VocabularyTypes";
 
 export type DisplayMode = "two-line" | "three-line" | "none";
+
+/**
+ * What a configurable annotation row shows (#56). Rows are numbered upward
+ * from the characters: line 2 sits directly above them, line 3 above that.
+ */
+export type LineContent = "pinyin" | "english" | "mnemonic";
+
+/**
+ * Line 3 cannot show pinyin. Pinyin is aligned per character — one syllable
+ * centred over its own glyph — which is only meaningful directly above the
+ * characters. Offering it on line 3 would silently downgrade it to a single
+ * run of text for the whole word.
+ */
+export type Line3Content = Exclude<LineContent, "pinyin">;
 export type ColorMode = "status" | "hsk";
 
 export interface CustomColors {
@@ -351,6 +365,19 @@ export interface CciSettings {
    * `readerFontPx` ("Reader font size (px)") already does.
    */
   charScalePercent: number;
+  /** Content of the row directly above the characters (#56). */
+  line2Content: LineContent;
+  /** Content of the row above line 2. Only rendered in three-line mode. */
+  line3Content: Line3Content;
+  /**
+   * Drop "(...)" groups from the inline translation, keeping the full text on
+   * the word card. CC-CEDICT puts register and etymology there, which is
+   * detail for the card rather than for a row over running text.
+   *
+   * Default off: it changes what every annotated word shows, and the plugin
+   * does not change a reader's view without being asked.
+   */
+  stripGlossParentheticals: boolean;
   /**
    * Size of the annotation rows — pinyin and the English/mnemonic line — as a
    * percentage of their shipped ratios (0.5em and 0.42em). 100 = unchanged.
