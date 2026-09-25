@@ -141,6 +141,9 @@ export class CciSettingsTab extends PluginSettingTab {
       // reopened. The plugin-side helper also preserves the scroll position
       // across the reflow a size change causes.
       this.plugin.refreshChineseViewAppearance();
+    } else if (key === "line2Content" || key === "line3Content") {
+      // Re-evaluate the duplicate-content warning's `visible` predicate.
+      this.update();
     } else if (key === "tokenizerEngine") {
       // refreshChineseViews() above only redecorates from the tokens the view
       // already holds. Changing the engine changes segmentation itself, so the
@@ -199,6 +202,20 @@ export class CciSettingsTab extends PluginSettingTab {
         setting.settingEl.empty();
         setting.settingEl.addClass("cci-settings-prose");
         setting.settingEl.createEl("p", { cls: "cci-settings-section-desc", text });
+      },
+    };
+  }
+
+  /** Like `prose`, but styled as a warning — the default is muted body text,
+   *  which would make a warning read as description. */
+  private warnProse(text: string): SettingDefinitionRender {
+    return {
+      name: "",
+      searchable: false,
+      render: (setting: Setting) => {
+        setting.settingEl.empty();
+        setting.settingEl.addClass("cci-settings-prose");
+        setting.settingEl.createEl("p", { cls: "cci-settings-warn", text });
       },
     };
   }
@@ -380,6 +397,52 @@ export class CciSettingsTab extends PluginSettingTab {
                 "on a high-resolution screen. Note this also spreads the words further apart: " +
                 "each word is as wide as its widest row, and the translation is usually that row.",
               control: { type: "slider", key: "annotationScalePercent", min: 80, max: 200, step: 5 },
+            },
+            { type: "group", heading: "Annotation lines", items: [] },
+            this.prose(
+              "Rows are numbered upward from the Chinese: line 2 sits directly above the " +
+                "characters, line 3 above that. Line 3 only appears in three-line mode."
+            ),
+            {
+              name: "Line 2 (directly above the characters)",
+              control: {
+                type: "dropdown",
+                key: "line2Content",
+                options: {
+                  pinyin: "Pinyin",
+                  english: "English translation",
+                  mnemonic: "Mnemonic",
+                },
+              },
+            },
+            {
+              name: "Line 3 (above line 2)",
+              desc:
+                "Pinyin is not offered here: it is aligned one syllable per character, " +
+                "which only works directly above them.",
+              control: {
+                type: "dropdown",
+                key: "line3Content",
+                options: { english: "English translation", mnemonic: "Mnemonic" },
+              },
+            },
+            {
+              ...this.warnProse(
+                "⚠ Line 3 is showing the same content as line 2. That is allowed, but it " +
+                  "renders the same text twice above every word."
+              ),
+              visible: () =>
+                (this.plugin.settings.line2Content as string) ===
+                (this.plugin.settings.line3Content as string),
+            },
+            {
+              name: "Shorten translations",
+              desc:
+                "Drop bracketed notes such as “(Internet slang)” or “(Ming Dynasty)” from the " +
+                "translation row. The full text stays on the word card. About 29% of dictionary " +
+                "entries carry one, and removing it sheds roughly 20 characters — which also " +
+                "narrows the word, since each word is as wide as its widest row.",
+              control: { type: "toggle", key: "stripGlossParentheticals" },
             },
             {
               name: "Top HSK comfort threshold (%)",

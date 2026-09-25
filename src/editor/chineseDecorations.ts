@@ -15,9 +15,22 @@ import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRange
 import { Token } from "../tokenizer/tokenizerTypes";
 import { getCachedTokens, hashText } from "../tokenizer/tokenCache";
 import { ColorState, KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
-import { CciSettings, DisplayMode } from "../settings/types";
-import { hasCjk, shortenDefinition, toneMarksToNumbers } from "../dictionary/normalizeChinese";
+import { CciSettings, DisplayMode, LineContent } from "../settings/types";
+import { hasCjk, toneMarksToNumbers } from "../dictionary/normalizeChinese";
 import { displayPinyin } from "../dictionary/displayForms";
+import { resolveAnnotationLines, type ResolvedAnnotationLines } from "./annotationLines";
+
+/**
+ * Class per row content. Reuses the classes these rows already had so the
+ * styling is unchanged for the default layout: the translation keeps the
+ * padding that stops neighbouring glosses touching, and word-level pinyin
+ * keeps its slightly smaller size. Only the mnemonic row is new.
+ */
+const ROW_CLASS: Record<LineContent, string> = {
+  pinyin: "cci-stack-pinyin cci-stack-pinyin-word",
+  english: "cci-stack-gloss",
+  mnemonic: "cci-stack-gloss cci-stack-mnemonic",
+};
 import { axesFromStatus, colorClassKey, ColorClassKey, colorOf } from "../vocabulary/axes";
 import { DEFAULT_HIGHLIGHT_BG, findHighlightSpans, resolveHighlightPalette } from "./highlightPalette";
 
@@ -476,9 +489,8 @@ class RubyWidget extends WidgetType {
   private readonly colorKey: ColorClassKey | "";
   private readonly axes: KnownAxes;
   private readonly pinyin: string;
-  private readonly def: string;
-  private readonly showPinyin: boolean;
-  private readonly showGloss: boolean;
+  /** Resolved rows above the characters — see annotationLines.ts (#56). */
+  private readonly lines: ResolvedAnnotationLines;
   private readonly start: number;
   private readonly end: number;
 
@@ -502,12 +514,22 @@ class RubyWidget extends WidgetType {
     // Resolved here rather than at render time so eq() compares the final
     // string — a region flip has to bust widget equality or the ruby keeps
     // the old reading.
-    this.pinyin = displayPinyin(tok.selected, rec, settings.pronunciationRegion);
-    this.showPinyin = isNew || !this.axes.pinyin || !this.axes.chars;
-    this.showGloss = mode === "three-line" && (isNew || !this.axes.meaning);
-    this.def = this.showGloss
-      ? tok.selected?.definitions?.[0] ?? rec?.definitions?.[0] ?? ""
-      : "";
+    this.pinyin = formatPinyin(
+      displayPinyin(tok.selected, rec, settings.pronunciationRegion),
+      settings.pinyinStyle
+    );
+    this.lines = resolveAnnotationLines({
+      mode,
+      line2Content: settings.line2Content,
+      line3Content: settings.line3Content,
+      isNew,
+      axes: this.axes,
+      pinyin: this.pinyin,
+      definition: tok.selected?.definitions?.[0] ?? rec?.definitions?.[0] ?? "",
+      mnemonic: rec?.mnemonic?.text ?? "",
+      charCount: Array.from(surface).length,
+      stripGlossParentheticals: settings.stripGlossParentheticals,
+    });
   }
 
   eq(other: RubyWidget): boolean {
@@ -520,7 +542,14 @@ class RubyWidget extends WidgetType {
       other.axes.pinyin === this.axes.pinyin &&
       other.axes.meaning === this.axes.meaning &&
       other.pinyin === this.pinyin &&
-      other.def === this.def &&
+      // Compare the RESOLVED strings, not the settings that produced them: too
+      // little here and a row goes stale until the user types, too much and
+      // every keystroke rebuilds every widget.
+      other.lines.line2?.content === this.lines.line2?.content &&
+      other.lines.line2?.text === this.lines.line2?.text &&
+      other.lines.line3?.content === this.lines.line3?.content &&
+      other.lines.line3?.text === this.lines.line3?.text &&
+      other.lines.perCharPinyin === this.lines.perCharPinyin &&
       other.headingLevel === this.headingLevel &&
       other.highlightBg === this.highlightBg
     );
@@ -563,23 +592,24 @@ class RubyWidget extends WidgetType {
     stack.setAttribute("data-cci-doclen", String(this.end - this.start));
     if (this.colorKey) stack.setAttribute("data-cci-color", this.colorKey);
 
-    if (this.showGloss && this.def) {
-      const g = stack.createSpan({ cls: "cci-stack-gloss" });
-      g.textContent = shortenDefinition(this.def, 28);
-    }
+    const { line2, line3, perCharPinyin } = this.lines;
+
+    // Rows are emitted top-down, so line 3 first. Only per-character pinyin
+    // lives inside the cells; every other row is one span across the word.
+    const emitRow = (row: { content: LineContent; text: string }): void => {
+      const span = stack.createSpan({ cls: ROW_CLASS[row.content] });
+      span.textContent = row.text;
+    };
+    if (line3) emitRow(line3);
+    if (line2 && !perCharPinyin) emitRow(line2);
 
     const cells = stack.createSpan({ cls: "cci-stack-cells" });
     const chars = Array.from(this.surface);
-    const formattedPinyin =
-      this.showPinyin && this.pinyin
-        ? formatPinyin(this.pinyin, this.settings.pinyinStyle)
-        : "";
-    const syllables = formattedPinyin ? formattedPinyin.split(/\s+/).filter(Boolean) : [];
-    const perChar = this.showPinyin && syllables.length === chars.length;
 
     // Chars carry no per-cell tint — the `.cci-stack-hl` band on the stack does
-    // the highlighting (pinyin/gloss stay un-tinted, band sits on the chars row).
-    if (perChar) {
+    // the highlighting (rows stay un-tinted, band sits on the chars row).
+    if (perCharPinyin && line2) {
+      const syllables = line2.text.split(/\s+/).filter(Boolean);
       for (let i = 0; i < chars.length; i++) {
         const cell = cells.createSpan({ cls: "cci-stack-cell" });
         const p = cell.createSpan({ cls: "cci-stack-pinyin" });
@@ -588,13 +618,7 @@ class RubyWidget extends WidgetType {
         c.textContent = chars[i];
       }
     } else {
-      // Pinyin syllable count doesn't match char count → fall back to a
-      // single pinyin row above the entire word.
       const cell = cells.createSpan({ cls: "cci-stack-cell cci-stack-cell-word" });
-      if (this.showPinyin && this.pinyin) {
-        const p = cell.createSpan({ cls: "cci-stack-pinyin cci-stack-pinyin-word" });
-        p.textContent = formattedPinyin;
-      }
       const c = cell.createSpan({ cls: "cci-stack-chars" });
       c.textContent = this.surface;
     }

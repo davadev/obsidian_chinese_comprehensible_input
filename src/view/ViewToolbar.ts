@@ -1,6 +1,6 @@
 import { Platform, setIcon } from "obsidian";
 import type CciPlugin from "../main";
-import { ColorMode, DisplayMode, ScriptVariant, ViewMode } from "../settings/types";
+import { ColorMode, DisplayMode, LineContent, ScriptVariant, ViewMode } from "../settings/types";
 import { indexedSetChanged } from "../settings/scriptChange";
 import { conflictDisabled } from "../editor/formatApply";
 import { orderedFormatOptions } from "../editor/formatOptions";
@@ -558,8 +558,18 @@ export class ViewToolbar {
         if (ev.target !== cb) cb.click();
       });
     };
-    radioRow("2-line (pinyin)", "two-line");
-    radioRow("3-line (pinyin + gloss)", "three-line");
+    // Labels name the CONTENT the user has chosen for each row (#56) rather
+    // than hardcoding "pinyin" / "pinyin + gloss", which stopped being true
+    // once the rows became configurable.
+    const CONTENT_LABEL: Record<LineContent, string> = {
+      pinyin: "pinyin",
+      english: "English",
+      mnemonic: "mnemonic",
+    };
+    const l2 = CONTENT_LABEL[this.plugin.settings.line2Content] ?? "pinyin";
+    const l3 = CONTENT_LABEL[this.plugin.settings.line3Content] ?? "English";
+    radioRow(`2-line (${l2})`, "two-line");
+    radioRow(`3-line (${l3} + ${l2})`, "three-line");
     radioRow("None (no inline annotation)", "none");
 
     const sepDisplay = menu.createDiv({ cls: "cci-overflow-sep" });

@@ -93,6 +93,47 @@ So:
 In two-line mode with pinyin there is no translation row at all, so the
 characters set the width immediately and the whole line scales together.
 
+## What goes on each line
+
+The Chinese characters are always the bottom line. The rows above them are
+yours to choose, in **Settings → Display → Annotation lines**:
+
+```
+   line 3   English / mnemonic        (three-line mode only)
+   line 2   pinyin / English / mnemonic
+   line 1   你好                       always the characters
+```
+
+- **Line 2** sits directly above the characters, and is the only row a
+  two-line layout shows. If you want English under the Chinese without
+  pinyin, set it here and stay in two-line mode.
+- **Line 3** appears only in three-line mode. It cannot show pinyin,
+  because pinyin is aligned one syllable per character — which only works
+  directly above them.
+
+Setting both rows to the same thing is allowed but warned about; it just
+prints the same text twice.
+
+### When a row disappears
+
+Each kind of content retires on its own terms, and follows the content
+wherever you put it:
+
+- **Pinyin** goes once you know both the characters and the pronunciation.
+- **English** goes once you know the meaning.
+- **A mnemonic** goes once you know the word completely — it exists to
+  help you recall something you can't yet, so it retires with the rest.
+
+A row is also skipped for any word that has nothing to put there — a word
+with no mnemonic, or no translation.
+
+### Mnemonics on a line
+
+Mnemonics are truncated hard inline, much shorter than on the word card.
+They are mostly emoji, and emoji are about as wide as Chinese characters,
+so a full-length one would stretch its word far wider than its neighbours.
+Tap the word to read the whole thing.
+
 ## Pinyin styles
 
 - **Marks**: with diacritics — `xué xí`. Standard textbook style.
