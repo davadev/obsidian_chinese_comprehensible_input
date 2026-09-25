@@ -74,22 +74,24 @@ while reading, not once during setup:
 
 ### Why the two percentages behave differently
 
-Each word is only as wide as its **widest row**, and with the downloaded
-CC-CEDICT dictionary the English translation is that row almost every
-time — it adds roughly five characters' worth of width per word.
+Each word is only as wide as its **widest row**. With the downloaded
+CC-CEDICT dictionary the English translation is that row for **82%** of
+its 125,008 entries at default sizes — 98% for single-character words,
+where a long translation sits over one narrow glyph.
 
 So:
 
-- **Chinese size does not change word spacing.** The English is still
-  wider; the characters just get bigger inside a box that was already
-  that wide. You would have to go past roughly 350% before that flips.
-- **Annotation size does change word spacing**, pushing the Chinese
-  further apart, because you are growing the row that sets the width.
+- **Annotation size always changes word spacing.** You are growing the
+  row that usually sets the width, so the Chinese spreads apart.
+- **Chinese size mostly doesn't — at first.** Below about 120% the
+  characters are still narrower than their translation, so they grow
+  inside a box that was already that wide. Push further and they
+  progressively overtake it, word by word: the translation still sets
+  the width for 64% of words at 140%, but only 42% at 200%. Spacing
+  opens up gradually rather than all at once.
 
-In two-line mode with pinyin there is no translation row, and a pinyin
-syllable is usually narrower than the character above it — so there the
-Chinese does set the width, and raising Chinese size scales the whole
-line together. That reads as zoom rather than as words drifting apart.
+In two-line mode with pinyin there is no translation row at all, so the
+characters set the width immediately and the whole line scales together.
 
 ## Pinyin styles
 
