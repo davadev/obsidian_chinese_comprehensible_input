@@ -116,7 +116,25 @@ export function mergeForSync(
 ): WordRecord {
   const statusWinner = resolveStatus(a, b, opts.statusPriority);
   const status = statusWinner.status;
-  const axes = axesFromStatus(status) ?? statusWinner.axes;
+  // Prefer the winner's STORED axes; derive from the status only when the record
+  // predates the axes field.
+  //
+  // The other way round loses data. `statusFromAxes` is not injective — it maps
+  // eight axis combinations onto five statuses — so re-deriving axes from the
+  // coarse status silently rewrites the three combinations that collapse:
+  //
+  //   chars only            -> "unknown"                  -> all three false
+  //   pinyin only           -> "pinyinKnownMeaningUnknown" -> chars flipped ON
+  //   meaning only          -> "meaningKnownPinyinUnknown" -> chars flipped ON
+  //
+  // `resolveStatus` returns a whole record, so `statusWinner.axes` is that same
+  // record's axes and stays consistent with the status chosen above.
+  //
+  // This fired on EVERY key present on both sides, including records that were
+  // byte-identical, so a reader who ticked only "Characters" in the word popup
+  // watched that box untick itself on the next sync — and the corrupted value
+  // then propagated to their other device.
+  const axes = statusWinner.axes ?? axesFromStatus(status);
 
   const dailySeenCounts = maxCounts(a.dailySeenCounts, b.dailySeenCounts);
   const seenCount = Object.values(dailySeenCounts).reduce((s, n) => s + n, 0);
