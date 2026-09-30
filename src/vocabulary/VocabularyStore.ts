@@ -39,6 +39,20 @@ interface MirrorEnvelope {
 }
 
 /**
+ * What we remember about the mirror file on disk between polls.
+ *
+ * `size` is nullable on purpose. `DataAdapter.stat` declares it, but nothing in
+ * this repo has ever read it, so there is no local evidence that the mobile /
+ * Capacitor adapter or a FUSE-backed mount (iCloud, Nextcloud) populates it.
+ * It is therefore treated as extra information when present and ignored when
+ * absent, never assumed either way.
+ */
+interface MirrorStatSnapshot {
+  mtime: number;
+  size: number | null;
+}
+
+/**
  * Vocabulary store backed by Obsidian plugin data via loadData/saveData.
  * Writes are debounced. Schema migrations run on load.
  *
@@ -58,15 +72,39 @@ export class VocabularyStore {
    */
   private static MIRROR_WRITE_DEBOUNCE_MS = 5_000;
 
+  /**
+   * Longest we will trust the stat gate before reading the file anyway.
+   *
+   * The equality check below is a big improvement on the old ordering check,
+   * but it still rests on `stat` telling the truth. This bounds the damage if
+   * it ever does not: a skip can delay a merge by at most this long, never
+   * lose it. Costs one read per five minutes in the worst case, against one
+   * per poll (3 s with a Chinese view open) if the gate were simply deleted.
+   */
+  private static MIRROR_FULL_READ_MAX_AGE_MS = 5 * 60_000;
+
   private data: PersistedVocabData = { schemaVersion: DATA_SCHEMA_VERSION, words: {} };
   private loaded = false;
   private saveTimer: number | null = null;
   private mirrorWriteTimer: number | null = null;
   /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
   private lastMirrorHash: string | null = null;
-  /** Last seen mtime of the mirror file. Used by the fast poll to short-
-   *  circuit the 2.9 MB read when the file hasn't moved on disk. */
-  private lastMirrorMtime: number | null = null;
+  /**
+   * What the mirror file looked like on disk the last time we read or wrote it.
+   * Lets the fast poll short-circuit the 2.9 MB read when the file has not
+   * moved.
+   *
+   * Compared for EQUALITY, never ordering. The old `st.mtime <= lastMirrorMtime`
+   * test assumed the two clocks agreed and that mtime had sub-second
+   * granularity; neither holds on the mobile adapter or on the FUSE mounts this
+   * feature targets, so a remote write in the same second — or from a device
+   * whose clock runs behind — was skipped, and because the skip path refreshed
+   * nothing it was skipped again on every later poll, for good. (#122)
+   */
+  private lastMirrorStat: MirrorStatSnapshot | null = null;
+  /** When we last actually read the mirror file. Backs the self-heal below, so
+   *  no stat-based skip can ever become permanent. */
+  private lastFullMirrorReadMs: number | null = null;
   private dictBridge: DictionaryMirrorBridge | null = null;
   private surfaceLookupCache = new Map<string, WordRecord | null>();
 
@@ -129,13 +167,16 @@ export class VocabularyStore {
     const adapter = this.plugin.app.vault.adapter;
     try {
       if (await adapter.exists(path)) {
+        // Stat first, for the same reason as absorbExternalMirrorChange().
+        let st: { mtime: number; size?: number } | null = null;
+        try {
+          st = await adapter.stat(path);
+        } catch { /* ignore */ }
         const content = await adapter.read(path);
+        this.lastFullMirrorReadMs = Date.now();
+        this.rememberMirrorStat(st);
         this.mergeMirrorContent(content);
         this.lastMirrorHash = await hashString(content);
-        try {
-          const st = await adapter.stat(path);
-          if (st) this.lastMirrorMtime = st.mtime;
-        } catch { /* ignore */ }
       }
       await this.sweepConflictFiles(path);
     } catch (e) {
@@ -176,6 +217,14 @@ export class VocabularyStore {
       try {
         const c = await adapter.read(filePath);
         this.mergeMirrorContent(c);
+        // Persist BEFORE removing the source file. `mergeMirrorContent` only
+        // mutates memory, and the save that follows this sweep is wrapped in a
+        // catch that merely logs — so if it failed (the comment on load()
+        // spells out that iOS Files-provider I/O "can stall or reject") the
+        // conflict file was already gone and its vocabulary existed nowhere.
+        // Unrecoverable. Leaving the file for the next sweep costs nothing:
+        // `mergeForSync` is idempotent by construction.
+        await this.flushSave();
         await adapter.remove(filePath);
       } catch (e) {
         console.warn("CCI sync: failed to absorb conflict file", filePath, e);
@@ -241,36 +290,107 @@ export class VocabularyStore {
     if (!path) return false;
     const adapter = this.plugin.app.vault.adapter;
     if (!(await adapter.exists(path))) return false;
-    // Cheap mtime gate: skip the 2.9 MB read entirely when the file hasn't
-    // moved on disk. Falls through to the full read if stat is unsupported
-    // by the adapter or returns null.
+
+    // Stat BEFORE the read, and remember THAT value.
+    //
+    // The previous code stat'd again after the read and stored the result. A
+    // remote write landing in the window between the read and that stat had its
+    // mtime recorded as "seen" while its content was never read — so it was
+    // skipped from then on, by the same stickiness as #122 itself. Reading the
+    // stat first inverts the failure: a write during the read leaves a stat we
+    // have not recorded, so the next poll reads again and the hash gate decides.
+    // A wasted read is the right thing to risk; a silently dropped version is not.
+    let st: { mtime: number; size?: number } | null = null;
     try {
-      const st = await adapter.stat(path);
-      if (st && this.lastMirrorMtime != null && st.mtime <= this.lastMirrorMtime) {
-        return false;
-      }
+      st = await adapter.stat(path);
     } catch {
-      /* stat unsupported on this platform; fall through */
+      /* stat unsupported on this platform; fall through to the full read */
     }
+    if (st && this.shouldSkipMirrorRead(st)) return false;
+
     const content = await adapter.read(path);
+    this.lastFullMirrorReadMs = Date.now();
+    this.rememberMirrorStat(st);
+
     const hash = await hashString(content);
-    if (hash === this.lastMirrorHash) {
-      // Same content; remember mtime so future polls short-circuit on stat.
-      try {
-        const st = await adapter.stat(path);
-        if (st) this.lastMirrorMtime = st.mtime;
-      } catch { /* ignore */ }
-      return false;
-    }
+    if (hash === this.lastMirrorHash) return false;
+
+    // Everything below only runs when the bytes genuinely differ from the last
+    // thing we wrote or absorbed.
+    const before = this.vocabFingerprint();
     const ok = this.mergeMirrorContent(content);
     if (!ok) return false;
     this.lastMirrorHash = hash;
-    try {
-      const st = await adapter.stat(path);
-      if (st) this.lastMirrorMtime = st.mtime;
-    } catch { /* ignore */ }
-    await this.flushSave();
+    const changed = this.vocabFingerprint() !== before;
+
+    // Only push back when the merge actually moved OUR data.
+    //
+    // `flushSave()` schedules a mirror write, so absorbing used to push
+    // unconditionally — and the whole-store merge is order-dependent
+    // (`mergeStoresForSync` spreads the LOCAL words first) and, for
+    // `definitions` / `pinyin` / `hsk` / `notes`, not commutative: each device's
+    // merge prefers its own value. Two devices therefore never converge on
+    // identical bytes, so absorb-writes-back is an endless multi-megabyte
+    // ping-pong. It was only hidden because the #122 gate skipped most of those
+    // echoes; fixing #122 without this would have traded data loss for a write
+    // loop on mobile.
+    //
+    // This is the rule the other two mirrored payloads already follow —
+    // `saveSettingsSilently` ("to avoid an echo loop") and
+    // `mergeMirroredDictionaryData` ("Persist WITHOUT triggering another mirror
+    // write loop"). The vocabulary mirror was the only one missing it.
+    //
+    // It terminates because `mergeForSync` is monotone (max / set-union /
+    // earliest / latest): state only grows toward the union, so each device
+    // writes at most until it has nothing new to contribute.
+    await this.flushSave({ mirror: changed });
+    return changed;
+  }
+
+  /**
+   * True when the file on disk looks byte-for-byte like the one we last read or
+   * wrote, so the multi-megabyte read can be skipped.
+   *
+   * Equality only — never ordering. See `lastMirrorStat`.
+   */
+  private shouldSkipMirrorRead(st: { mtime: number; size?: number }): boolean {
+    const last = this.lastMirrorStat;
+    if (!last) return false;
+    // Self-heal: however good the stat looks, re-read periodically so a skip can
+    // never become permanent. This is what makes the `size` uncertainty below
+    // survivable rather than load-bearing.
+    if (
+      this.lastFullMirrorReadMs == null ||
+      Date.now() - this.lastFullMirrorReadMs >= VocabularyStore.MIRROR_FULL_READ_MAX_AGE_MS
+    ) {
+      return false;
+    }
+    if (st.mtime !== last.mtime) return false;
+    // Size settles it only when both sides actually reported one. Requiring it
+    // would silently disable the gate on any platform that omits `size` — which
+    // is exactly the phone this optimisation exists for.
+    if (typeof st.size === "number" && last.size != null && st.size !== last.size) {
+      return false;
+    }
     return true;
+  }
+
+  private rememberMirrorStat(st: { mtime: number; size?: number } | null): void {
+    if (!st) {
+      this.lastMirrorStat = null;
+      return;
+    }
+    this.lastMirrorStat = {
+      mtime: st.mtime,
+      size: typeof st.size === "number" ? st.size : null,
+    };
+  }
+
+  /** Cheap stand-in for "did the merge change anything we would need to push?".
+   *  Only ever computed on the rare path where the stat AND hash gates both
+   *  passed, i.e. the file genuinely differs — not on every poll. */
+  private vocabFingerprint(): string {
+    return JSON.stringify(this.data);
   }
 
   /**
@@ -661,7 +781,15 @@ export class VocabularyStore {
     }, 400);
   }
 
-  async flushSave(): Promise<void> {
+  /**
+   * Persist the store to plugin data, and (by default) schedule a mirror write.
+   *
+   * `mirror: false` persists locally WITHOUT pushing — used by the absorb path
+   * when a merge changed nothing, so absorbing another device's file cannot
+   * bounce a write straight back at it. Same separation `saveSettingsSilently`
+   * makes for the settings mirror.
+   */
+  async flushSave(opts: { mirror?: boolean } = {}): Promise<void> {
     if (this.saveTimer != null) {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
@@ -678,7 +806,7 @@ export class VocabularyStore {
       await this.plugin.saveData(blob);
     }
     // Mirror write is decoupled and debounced — see scheduleMirrorWrite.
-    this.scheduleMirrorWrite();
+    if (opts.mirror !== false) this.scheduleMirrorWrite();
   }
 
   /**
@@ -759,9 +887,11 @@ export class VocabularyStore {
       void wroteAtomic;
       this.lastMirrorHash = await hashString(content);
       try {
-        const st = await adapter.stat(path);
-        if (st) this.lastMirrorMtime = st.mtime;
+        this.rememberMirrorStat(await adapter.stat(path));
       } catch { /* ignore */ }
+      // We know this file's contents exactly, so it counts as a read for the
+      // self-heal timer — no point forcing a re-read of our own write.
+      this.lastFullMirrorReadMs = Date.now();
     } catch (e) {
       console.error("CCI sync: mirror write failed", e);
     }
