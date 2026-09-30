@@ -61,7 +61,7 @@ Any other character falls back to an empty square.
 
 Headings inside the Chinese Learning view are scaled by this plugin
 (H1–H6), because a heading line in two-line / three-line mode has to make
-room for the pinyin and gloss rows. Your theme's heading *fonts* and
+room for the annotation rows above the characters. Your theme's heading *fonts* and
 *colors* are not applied to annotated words in those modes — the
 annotation widget draws them.
 

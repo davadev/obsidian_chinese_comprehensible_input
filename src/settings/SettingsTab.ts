@@ -328,18 +328,27 @@ export class CciSettingsTab extends PluginSettingTab {
       items: [
         this.docLink(
           "Display modes & colors guide",
-          "Two-line vs three-line, pinyin styles, what each color toggle controls.",
+          "Two-line vs three-line, what goes on each annotation row, the three text-size " +
+            "controls, pinyin styles, and what each color toggle controls.",
           "display-modes.md"
         ),
         {
           name: "Default display mode",
-          desc: "Controls the inline annotation layout. Color and popup behavior are independent — see the color-mode toggle below.",
+          desc:
+            "How many rows sit above the characters. What goes on each row is set " +
+            "under Advanced display \u2192 Annotation lines. Color and popup behaviour " +
+            "are independent \u2014 see the color-mode toggle below.",
           control: {
             type: "dropdown",
             key: "defaultDisplayMode",
             options: {
-              "two-line": "Two-line (pinyin)",
-              "three-line": "Three-line (pinyin + gloss)",
+              // Deliberately not "(pinyin)" / "(pinyin + gloss)": #56 made the row
+              // CONTENT a user choice, and these labels are baked at definition
+              // time, so naming a row here would go stale the moment someone
+              // changes it. The reading view's More menu can name them because it
+              // rebuilds its labels every time it opens.
+              "two-line": "Two-line (characters + one row)",
+              "three-line": "Three-line (characters + two rows)",
               none: "None (no inline annotation)",
             },
           },
@@ -365,6 +374,12 @@ export class CciSettingsTab extends PluginSettingTab {
           name: "Advanced display",
           desc: "Pinyin style, reader sizing, per-status and HSK colors, reader text colors, and the formatting picker.",
           items: [
+            this.docLink(
+              "Text size & annotation rows",
+              "Reader font size, annotation size, and what to put on each row \u2014 including " +
+                "how to make the Chinese bigger without enlarging the rows above it.",
+              "display-modes.md"
+            ),
             {
               name: "Pinyin style",
               control: {

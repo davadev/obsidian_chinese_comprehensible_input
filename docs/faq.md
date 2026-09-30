@@ -92,6 +92,35 @@ Check, in order:
 The plugin retries every 30 minutes if the AI is briefly unreachable;
 failures don't carry across midnight.
 
+## The Chinese characters are too small (or the pinyin is)
+
+Han glyphs pack far more stroke detail into the same square than Latin
+letters do, so they often need more size than the annotation rows above
+them. Three controls, all under **Settings → Display → Advanced
+display** and all repeated in the reading view's **More** menu so you can
+reach them while reading:
+
+- **Reader font size (px)** — scales the whole view. Start here.
+- **Annotation size (%)** — the annotation rows only.
+- **Line spacing** — how far apart the lines sit.
+
+**To make only the Chinese bigger:** raise reader font size, then lower
+annotation size by about the same proportion. Going 22 → 33px is half
+again as large, so set annotation size to roughly 67% and the rows stay
+the size they were. That is why the slider reaches down to 50%.
+
+Reader font size is the control that grows the characters because it
+reaches **every** character in the view — a known word rendered without
+annotations grows exactly as much as an annotated one, so nothing is left
+behind at the old size.
+
+One side effect worth knowing: raising annotation size also pushes words
+apart, because each word is only as wide as its widest row. If long
+translations are what is spreading your text out, try **Shorten
+translations**.
+
+More: [Display modes → Text size](./display-modes.md#text-size).
+
 ## My HSK colors look the same as my Obsidian accent
 
 That's on purpose — first install derives the HSK palette from your

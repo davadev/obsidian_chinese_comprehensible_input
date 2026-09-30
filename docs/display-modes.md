@@ -19,9 +19,11 @@ The **More** menu holds the display controls:
 <img src="../resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
 - **1 · Show / hide colors** · **2 · Display mode** (2-line / 3-line / None).
-- **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing** ·
-  **Annotation size**.
+- **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing**.
 - **6 · Stats** · **7 · Generate story**.
+
+**Annotation size** sits directly below line spacing and is not in the
+screenshot above yet — it was added in 0.7.7.
 
 ## Display modes
 
@@ -151,18 +153,30 @@ Off by default, because it changes what every annotated word shows.
 
 ### Mnemonics on a line
 
-Mnemonics are truncated hard inline, much shorter than on the word card.
-They are mostly emoji, and emoji are about as wide as Chinese characters,
-so a full-length one would stretch its word far wider than its neighbours.
-Tap the word to read the whole thing.
+Inline, a mnemonic is clamped to **14 characters** against the 40 the word
+card allows. They are mostly emoji, and emoji are about as wide as Chinese
+characters, so a full-length one would stretch its word far wider than its
+neighbours. Anything longer is cut with an ellipsis — tap the word to read
+the whole thing, which is always stored in full. More:
+[Mnemonics](./mnemonics.md#showing-a-mnemonic-under-a-word).
+
+A word with no mnemonic simply has no row drawn, so this shows up only on
+the words you have written one for.
 
 ## Pinyin styles
 
 - **Marks**: with diacritics — `xué xí`. Standard textbook style.
 - **Numbers**: `xue2 xi2`. Easier on some fonts; some learners prefer
   it.
-- **None**: pinyin row stays empty (useful in three-line mode if you
-  want only Chinese + English).
+- **None**: no pinyin is drawn at all.
+
+**If you want only Chinese + English,** set **line 2** to *English
+translation* and use **two-line** mode — that is what
+[Annotation lines](#what-goes-on-each-line) is for, and it gives you the
+English directly above the characters. Setting pinyin style to *None*
+instead leaves a gap: in two-line mode with line 2 still on pinyin, there is
+nothing left to draw, and the line keeps the height it reserved for a row
+that never appears.
 
 ## Colors
 

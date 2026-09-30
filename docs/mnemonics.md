@@ -12,11 +12,20 @@ Both are optional; fill in either, both, or neither.
 
 ## Showing a mnemonic under a word
 
-Since 0.7.7 the emoji line can be one of the annotation rows in the reading
-view — see [Display modes](./display-modes.md). Inline it is truncated far
-shorter than the 40 characters the card allows, because a row under a word
-competes for width with that word's neighbours. The card always shows the
-full text.
+Since 0.7.7 the emoji line can sit on either annotation row — pick it for
+line 2 or line 3 under **Settings → Display → Advanced display → Annotation
+lines** (see [Display modes](./display-modes.md#what-goes-on-each-line)).
+
+Inline it is clamped to **14 characters**, against the 40 the word card
+allows. The card has a whole line to itself; a row under a word competes for
+width with that word's neighbours, and emoji render nearly as wide as Han
+characters — at 40 a two-character word would stretch to roughly seventeen
+characters wide and shove the words beside it apart. Anything longer is cut
+with an ellipsis. Nothing is lost: the clamp is applied when drawing, so your
+stored mnemonic and the word card always keep the full text.
+
+A row with no mnemonic simply is not drawn, so setting a row to Mnemonic
+shows it only on the words that have one.
 
 ## Why the emoji line is short
 
