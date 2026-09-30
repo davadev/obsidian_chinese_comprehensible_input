@@ -5,6 +5,7 @@ import { indexedSetChanged } from "../settings/scriptChange";
 import { conflictDisabled } from "../editor/formatApply";
 import { orderedFormatOptions } from "../editor/formatOptions";
 import { normalizeLine2Content, normalizeLine3Content } from "../editor/annotationLines";
+import { overflowMenuTopPx } from "./overflowMenuLayout";
 
 /**
  * Compact toolbar.
@@ -73,7 +74,14 @@ export class ViewToolbar {
         menu = null;
         return;
       }
-      menu = this.buildOverflowMenu(overflow);
+      // The callback matters: before it existed, every path that closed the menu
+      // WITHOUT going through this handler (outside click, Stats, Generate story)
+      // left `menu` pointing at a detached node, so the next tap took the branch
+      // above, removed nothing, and returned without reopening — one dead tap
+      // every time. Mirrors buildFormatMenu's contract.
+      menu = this.buildOverflowMenu(overflow, () => {
+        menu = null;
+      });
     });
 
     // Reserved slot: active marking banner, otherwise note vocabulary stats.
@@ -356,19 +364,41 @@ export class ViewToolbar {
     menu.className = "cci-overflow-menu";
     activeDocument.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
-    menu.style.top = `${r.bottom + 4}px`;
+    // One number for both the offset and the height clamp — see
+    // overflowMenuLayout.ts. The custom property is what lets the CSS max-height
+    // subtract how far down the anchor sits.
+    const top = overflowMenuTopPx(r.bottom, window.innerHeight);
+    menu.style.top = `${top}px`;
+    menu.style.setProperty("--cci-overflow-top", `${top}px`);
     menu.style.left = `${Math.max(8, r.left)}px`;
 
+    // `closed` makes close() idempotent. Without it, a resize firing before the
+    // deferred registration below would tear the menu down and then the timeout
+    // would bind an orphaned document listener to a menu that no longer exists.
+    let closed = false;
     const close = () => {
+      if (closed) return;
+      closed = true;
       menu.remove();
       activeDocument.removeEventListener("click", onDocClick, true);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("orientationchange", close);
       onClose();
     };
     const onDocClick = (ev: MouseEvent) => {
       if (!menu.contains(ev.target as Node) && ev.target !== anchor) close();
     };
     // Defer so the opening click doesn't immediately close it.
-    window.setTimeout(() => activeDocument.addEventListener("click", onDocClick, true), 0);
+    window.setTimeout(() => {
+      if (closed) return;
+      activeDocument.addEventListener("click", onDocClick, true);
+    }, 0);
+    // `top`, `left` and the height clamp are all snapshots of the anchor rect and
+    // the viewport at open time, so a resize or rotation leaves the menu
+    // mis-anchored horizontally as well as mis-sized. Closing is both simpler and
+    // more correct than recomputing half of it.
+    window.addEventListener("resize", close);
+    window.addEventListener("orientationchange", close);
 
     // Rebuild the rows in place after each toggle so conflict states refresh
     // without destroying the menu (which would detach the anchor and reposition
@@ -422,13 +452,38 @@ export class ViewToolbar {
     return menu;
   }
 
-  private buildOverflowMenu(anchor: HTMLElement): HTMLElement {
+  private buildOverflowMenu(anchor: HTMLElement, onClose: () => void): HTMLElement {
     const menu = createDiv();
     menu.className = "cci-overflow-menu";
     activeDocument.body.appendChild(menu);
     const r = anchor.getBoundingClientRect();
-    menu.style.top = `${r.bottom + 4}px`;
+    // One number for both the offset and the height clamp — see
+    // overflowMenuLayout.ts. The custom property is what lets the CSS max-height
+    // subtract how far down the anchor sits.
+    const top = overflowMenuTopPx(r.bottom, window.innerHeight);
+    menu.style.top = `${top}px`;
+    menu.style.setProperty("--cci-overflow-top", `${top}px`);
     menu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+
+    // Single close path. Every caller below goes through it so the node, the
+    // listeners and the trigger's reference are always torn down together.
+    // `closed` makes it idempotent: a resize can fire before the deferred
+    // registration below, and without the flag that timeout would bind an
+    // orphaned document listener to a menu that is already gone.
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      menu.remove();
+      activeDocument.removeEventListener("click", off);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("orientationchange", close);
+      onClose();
+    };
+    const off = (e: MouseEvent) => {
+      if (e.target instanceof Node && menu.contains(e.target)) return;
+      close();
+    };
 
     // Returns the checkbox so a caller with several mutually-exclusive rows can
     // repaint the others — this menu stays open after a toggle and is never
@@ -657,21 +712,26 @@ export class ViewToolbar {
 
     const stats = menu.createEl("button", { cls: "cci-overflow-btn", text: "Stats" });
     stats.addEventListener("click", () => {
-      menu.remove();
+      close();
       void this.plugin.openStatsView();
     });
     const story = menu.createEl("button", { cls: "cci-overflow-btn", text: "Generate story" });
     story.addEventListener("click", () => {
-      menu.remove();
+      close();
       this.plugin.openGenerateStoryModal();
     });
 
-    const off = (e: MouseEvent) => {
-      if (e.target instanceof Node && menu.contains(e.target)) return;
-      menu.remove();
-      activeDocument.removeEventListener("click", off);
-    };
-    window.setTimeout(() => activeDocument.addEventListener("click", off), 0);
+    // Defer so the opening click doesn't immediately close it.
+    window.setTimeout(() => {
+      if (closed) return;
+      activeDocument.addEventListener("click", off);
+    }, 0);
+    // `top`, `right` and the height clamp are all snapshots of the anchor rect and
+    // the viewport at open time, so a resize or rotation leaves the menu
+    // mis-anchored horizontally as well as mis-sized. Closing is both simpler and
+    // more correct than recomputing half of it.
+    window.addEventListener("resize", close);
+    window.addEventListener("orientationchange", close);
     return menu;
   }
 }

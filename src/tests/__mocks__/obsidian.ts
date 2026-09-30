@@ -21,7 +21,14 @@ export class Setting {
   addDropdown(_: any) { return this; }
   addButton(_: any) { return this; }
 }
-export class Modal {}
+export class Modal {
+  // Enough for MnemonicModal.save(), which persists then closes. The real class
+  // owns a lot more DOM; tests that need it assign the fields directly.
+  contentEl: unknown = undefined;
+  constructor(_app?: unknown) {}
+  open() {}
+  close() {}
+}
 export class Notice {
   message: string;
   constructor(message: string) { this.message = message; }
