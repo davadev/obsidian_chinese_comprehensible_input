@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mergeForSync, mergeStoresForSync, resolveStatus } from "../vocabulary/syncMerge";
-import { WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
+import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
+import { statusFromAxes } from "../vocabulary/axes";
 import { DEFAULT_STATUS_PRIORITY } from "../settings/defaults";
 
 function rec(over: Partial<WordRecord> = {}): WordRecord {
@@ -269,5 +270,76 @@ describe("mergeForSync — both-sides-present sub-objects", () => {
     const b = rec({ status: "unknown", seenCount: 7, updatedAt: "2026-06-13T00:00:00.000Z" });
     const once = mergeForSync(a, b, opts);
     expect(mergeForSync(once, b, opts)).toEqual(once);
+  });
+});
+
+describe("stored axes survive a sync merge", () => {
+  /**
+   * Regression guard. `mergeForSync` used to re-derive axes from the coarse
+   * status, and `statusFromAxes` is not injective — three of the eight
+   * combinations collapse onto a status that maps back to something else. The
+   * merge runs for every key present on both sides, so a record could be
+   * rewritten by a sync that had nothing to merge.
+   */
+  const SYNC_OPTS = { statusPriority: DEFAULT_STATUS_PRIORITY };
+  const ALL_AXES = [
+    { chars: true, pinyin: true, meaning: true },
+    { chars: true, pinyin: true, meaning: false },
+    { chars: true, pinyin: false, meaning: true },
+    { chars: true, pinyin: false, meaning: false },
+    { chars: false, pinyin: true, meaning: true },
+    { chars: false, pinyin: true, meaning: false },
+    { chars: false, pinyin: false, meaning: true },
+    { chars: false, pinyin: false, meaning: false },
+  ] as const;
+
+  function recWithAxes(axes: KnownAxes): WordRecord {
+    return {
+      surfaces: ["学习"],
+      status: statusFromAxes(axes),
+      axes: { ...axes },
+      seenCount: 0,
+      updatedAt: "2026-09-30T10:00:00Z",
+    } as unknown as WordRecord;
+  }
+
+  it("merging a record with an identical copy changes nothing, for all 8 combinations", () => {
+    for (const axes of ALL_AXES) {
+      const rec = recWithAxes(axes);
+      const copy = JSON.parse(JSON.stringify(rec)) as WordRecord;
+      const merged = mergeForSync(rec, copy, SYNC_OPTS);
+      expect(merged.axes, `axes ${JSON.stringify(axes)} did not survive`).toEqual(axes);
+      expect(merged.status).toBe(statusFromAxes(axes));
+    }
+  });
+
+  it("survives a whole-store sync of two identical stores", () => {
+    // The real path: mergeMirrorOnLoad -> mergeStoresForSync on every start.
+    const axes = { chars: true, pinyin: false, meaning: false };
+    const store = () =>
+      ({ schemaVersion: 4, words: { 学习: recWithAxes(axes) } }) as unknown as PersistedVocabData;
+    const out = mergeStoresForSync(store(), store(), SYNC_OPTS);
+    expect(out.words["学习"].axes).toEqual(axes);
+  });
+
+  it("is idempotent across repeated merges", () => {
+    // Sync can deliver the same snapshot many times; the value must not drift.
+    const axes = { chars: false, pinyin: false, meaning: true };
+    let rec = recWithAxes(axes);
+    for (let i = 0; i < 5; i++) {
+      rec = mergeForSync(rec, recWithAxes(axes), SYNC_OPTS);
+    }
+    expect(rec.axes).toEqual(axes);
+  });
+
+  it("still derives axes for a legacy record that has none", () => {
+    const legacy = {
+      surfaces: ["学习"],
+      status: "known",
+      seenCount: 0,
+      updatedAt: "2026-09-30T10:00:00Z",
+    } as unknown as WordRecord;
+    const merged = mergeForSync(legacy, JSON.parse(JSON.stringify(legacy)) as WordRecord, SYNC_OPTS);
+    expect(merged.axes).toEqual({ chars: true, pinyin: true, meaning: true });
   });
 });
