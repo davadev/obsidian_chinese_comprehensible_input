@@ -90,10 +90,16 @@ trigger conditions. See [exposure tracking](./exposure.md) for what
 
 In short:
 
-- Every visible exposure of a due word is a successful recall.
-- A long-press on a due word is a failed recall (if the toggle is on).
+- A long-press on a due word is a failed recall (if the toggle is on) — needing
+  to look a word up is evidence you did not recall it.
+- Grading a card by hand from the dashboard sets the schedule directly.
 - Marking a word from the toolbar (Mark known / unknown / partial)
   directly overrides the SRS — no recall logic, you said "I know this."
+
+**Reading a due word does not extend its interval.** Earlier versions of this
+page said every visible exposure counted as a successful recall; that was never
+implemented, and the claim was removed in 0.7.8 along with the dead code behind
+it. Nothing advances a card except the three things above.
 
 ## Reading the Flashcards "Due" view
 

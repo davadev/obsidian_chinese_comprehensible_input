@@ -479,11 +479,6 @@ export class CciSettingsTab extends PluginSettingTab {
                 step: 5,
               },
             },
-            {
-              name: "Annotation density cap (%)",
-              desc: "If more than this % of visible words are densely annotated, auto-degrade to popup-only.",
-              control: { type: "number", key: "densityCapPercent", min: 0, max: 100 },
-            },
             ...this.statusColorItems(),
             ...this.textColorItems(),
             ...this.hskColorItems(),
@@ -736,11 +731,6 @@ export class CciSettingsTab extends PluginSettingTab {
           name: "Advanced exposure",
           desc: "Dedup rules and how much exposure history is kept per word.",
           items: [
-            {
-              name: "Minimum visible time (ms)",
-              desc: "How long a word must be visible before it counts as seen.",
-              control: { type: "number", key: "exposure.minVisibleMs", min: 0 },
-            },
             {
               name: "Limit: one exposure per word per note per session",
               control: { type: "toggle", key: "exposure.maxOncePerNotePerSession" },

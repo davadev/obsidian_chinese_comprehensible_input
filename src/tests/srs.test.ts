@@ -63,18 +63,6 @@ describe("SRS scheduler", () => {
     expect(out).toEqual(["到期", "新的"]);
   });
 
-  it("applyExposureSignal nudges ease for non-known, non-ignored words", () => {
-    const recs = {
-      learn: { surfaces: ["学习"], status: "unknown", srs: { ease: 2.5 } },
-      known: { surfaces: ["知道"], status: "known", srs: { ease: 2.5 } },
-    };
-    const s = new SrsScheduler(makeVocab(recs) as any, settings);
-    s.applyExposureSignal("learn");
-    s.applyExposureSignal("known");
-    expect(recs.learn.srs.ease).toBeCloseTo(2.51, 5);
-    expect(recs.known.srs.ease).toBe(2.5);
-  });
-
   it("applyPopupSignal applies 'again' only when enabled", () => {
     const recs = {
       learn: { surfaces: ["学习"], status: "unknown", srs: { intervalDays: 5, ease: 2.5, lapses: 0 } },

@@ -1,47 +1,34 @@
 import { CciSettings } from "../settings/types";
 import { VocabularyStore } from "./VocabularyStore";
 
-interface PendingExposure {
-  firstSeenMs: number;
-  noteKey: string;
-}
-
 /**
- * Decides whether a word visible in the viewport should be counted as "seen".
+ * Dedup rules for counting a word as "seen".
  *
- * Rules:
- *  - Must be visible at least `minVisibleMs` (settings).
+ * An exposure is recorded when the user OPENS A WORD POPUP (gated on
+ * `exposure.popupCountsAsExposure`). Generated stories also record exposures,
+ * but they call `VocabularyStore.recordExposure` directly and so bypass the
+ * dedup below; the vault indexer has its own idempotent path
+ * (`recordNoteScan`). Simply reading a note records nothing.
+ *
+ * Rules applied here:
  *  - Not counted twice in the same session per note (if enabled).
  *  - Not counted twice in the same day (if enabled).
- *  - Excluded-zone filtering happens upstream in the decoration plugin; the
- *    tracker only sees surfaces it was told to track.
+ *
+ * This class used to advertise viewport-duration tracking — `onVisible` /
+ * `onHidden` and a `minVisibleMs` setting — but nothing ever called them, in
+ * any released version. The unit tests passed because they called the methods
+ * directly, so the gap survived for as long as the feature did. Removed in
+ * 0.7.8 (#126) rather than left as a promise the plugin does not keep; see
+ * docs/exposure.md. Doing it properly is tracked separately, and has to answer
+ * for the write amplification and the indexer's per-note high-water mark first.
  */
 export class ExposureTracker {
-  private pending = new Map<string, PendingExposure>();
   private sessionSeen = new Set<string>(); // `${noteKey}|${surface}`
   private daySeen = new Set<string>(); // `${YYYY-MM-DD}|${surface}`
 
   constructor(private vocab: VocabularyStore, private settings: () => CciSettings) {}
 
-  /** Called when a surface becomes visible. */
-  onVisible(surface: string, noteKey: string): void {
-    const id = `${noteKey}|${surface}`;
-    if (this.pending.has(id)) return;
-    this.pending.set(id, { firstSeenMs: Date.now(), noteKey });
-  }
-
-  /** Called when a surface leaves the viewport (or note closes). */
-  onHidden(surface: string, noteKey: string): void {
-    const id = `${noteKey}|${surface}`;
-    const p = this.pending.get(id);
-    if (!p) return;
-    this.pending.delete(id);
-    const dur = Date.now() - p.firstSeenMs;
-    if (dur < this.settings().exposure.minVisibleMs) return;
-    this.commit(surface, noteKey);
-  }
-
-  /** Force-commit (e.g. popup opened, generated story rendered). */
+  /** Record an exposure, subject to the dedup settings. */
   commit(surface: string, noteKey: string): void {
     const s = this.settings();
     if (s.exposure.maxOncePerNotePerSession) {
@@ -65,6 +52,5 @@ export class ExposureTracker {
 
   resetSession(): void {
     this.sessionSeen.clear();
-    this.pending.clear();
   }
 }

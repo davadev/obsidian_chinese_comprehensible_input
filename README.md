@@ -89,7 +89,7 @@ See [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md
 1. **Word, pinyin & meaning** — headword, reading, traditional form, definitions.
 2. **"I know"** — tick characters / pinyin / translation; this sets the word's status.
 3. **Per-word stats** — HSK, times seen, last seen, status, SRS due date.
-4. **Exposure history** — recent sightings driving spaced repetition.
+4. **Exposure history** — recent sightings, feeding the stats and charts.
 5. **Actions** — Ignore, **Mnemonic** (write your own emoji line + story, or generate them with AI), Edit, or **Enhance** (AI, see below).
 
 ### Tap-to-format & highlights (mobile)

@@ -36,28 +36,6 @@ describe("ExposureTracker", () => {
     vi.useRealTimers();
   });
 
-  it("does not commit when visibility is shorter than minVisibleMs", () => {
-    const { vocab, calls } = mockStore();
-    const tracker = new ExposureTracker(vocab, settingsFn({ minVisibleMs: 1000 }));
-    vi.setSystemTime(new Date(0));
-    tracker.onVisible("好", "note.md");
-    vi.setSystemTime(new Date(500));
-    tracker.onHidden("好", "note.md");
-    expect(calls).toEqual([]);
-  });
-
-  it("commits when visibility exceeds minVisibleMs", () => {
-    const { vocab, calls } = mockStore();
-    const tracker = new ExposureTracker(vocab, settingsFn({ minVisibleMs: 1000 }));
-    vi.setSystemTime(new Date(0));
-    tracker.onVisible("好", "note.md");
-    vi.setSystemTime(new Date(2000));
-    tracker.onHidden("好", "note.md");
-    expect(calls.length).toBe(1);
-    expect(calls[0].surface).toBe("好");
-    expect(calls[0].noteKey).toBe("note.md");
-  });
-
   it("honours maxOncePerNotePerSession", () => {
     const { vocab, calls } = mockStore();
     const tracker = new ExposureTracker(
