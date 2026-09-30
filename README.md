@@ -30,9 +30,11 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 <img src="resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
 - **1 · Show / hide colors** — per-status (or per-HSK) tint toggles.
-- **2 · Display mode** — 2-line (pinyin), 3-line (pinyin + gloss), or None.
+- **2 · Display mode** — 2-line, 3-line, or None. What goes on each row is
+  yours to choose — see [Display modes](./docs/display-modes.md#what-goes-on-each-line).
 - **3 · Known-word popups** — allow tapping words you already know.
-- **4 · Font size**, **5 · Line spacing** — reader sizing.
+- **4 · Font size**, **5 · Line spacing**, **Annotation size** — reader sizing.
+  (The screenshot predates the annotation-size slider, which sits below line spacing.)
 - **6 · Stats**, **7 · Generate story** — open vocabulary stats / AI story generation.
 
 ### Colors & the 1–3 line stack (3-line mode)
@@ -256,7 +258,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 
 ### Limitations
 
-- Mobile + Ollama needs a reachable LAN/Tailscale host (`localhost` from the phone points at the phone). See [Ollama tips](./docs/ollama-tips.md#mobile-tailscale-tips).
+- Mobile + Ollama needs a reachable LAN/Tailscale host (`localhost` from the phone points at the phone). See [Ollama tips](./docs/ollama-tips.md#mobile-and-tailscale-tips).
 - OpenAI mode sends prompt + target words to OpenAI's servers — fine for most users, see [the privacy section](./docs/openai-setup.md#2-privacy--your-text-leaves-obsidian).
 - The bundled seed dictionary is tiny; real use needs CC-CEDICT (see Data below).
 

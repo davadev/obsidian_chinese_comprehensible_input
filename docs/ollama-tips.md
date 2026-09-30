@@ -115,7 +115,7 @@ SSE.
 
 Most users never touch this.
 
-## Mobile / Tailscale tips
+## Mobile and Tailscale tips
 
 - `localhost` on the phone points to the phone. Use the LAN IP or
   Tailscale hostname of the Ollama machine.

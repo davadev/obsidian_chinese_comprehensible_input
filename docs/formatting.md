@@ -79,8 +79,8 @@ recognizing it. The link itself isn't colored, but it always opens.
 
 ## How highlights look in the reader
 
-The highlight is a single continuous band across the **characters only** — pinyin
-and the English gloss above them are never painted. It's the same height whether a
+The highlight is a single continuous band across the **characters only** — the
+annotation rows above them are never painted, whatever you have put on them. It's the same height whether a
 word has annotations or not, and it scales up inside headings. Digits and
 punctuation at the edges of a selection (e.g. a line like `1. 你好？`) are
 included.

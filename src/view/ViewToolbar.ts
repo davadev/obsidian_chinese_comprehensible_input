@@ -4,6 +4,7 @@ import { ColorMode, DisplayMode, LineContent, ScriptVariant, ViewMode } from "..
 import { indexedSetChanged } from "../settings/scriptChange";
 import { conflictDisabled } from "../editor/formatApply";
 import { orderedFormatOptions } from "../editor/formatOptions";
+import { normalizeLine2Content, normalizeLine3Content } from "../editor/annotationLines";
 
 /**
  * Compact toolbar.
@@ -566,8 +567,10 @@ export class ViewToolbar {
       english: "English",
       mnemonic: "mnemonic",
     };
-    const l2 = CONTENT_LABEL[this.plugin.settings.line2Content] ?? "pinyin";
-    const l3 = CONTENT_LABEL[this.plugin.settings.line3Content] ?? "English";
+    // Normalised through the same helper the renderer uses, so the label can
+    // never name a row the reader is not actually being shown.
+    const l2 = CONTENT_LABEL[normalizeLine2Content(this.plugin.settings.line2Content)];
+    const l3 = CONTENT_LABEL[normalizeLine3Content(this.plugin.settings.line3Content)];
     radioRow(`2-line (${l2})`, "two-line");
     radioRow(`3-line (${l3} + ${l2})`, "three-line");
     radioRow("None (no inline annotation)", "none");

@@ -33,7 +33,11 @@ the whole tree from here.
 ## Reading and vocabulary
 
 - [Display modes and colors](./display-modes.md) — two-line, three-line,
-  none; pinyin styles; which color toggles control what.
+  none; what goes on each annotation row; the three text-size controls;
+  pinyin styles; which color toggles control what.
+- [Traditional Chinese](./traditional-chinese.md) — how Traditional support
+  works, what the Taiwan readings cover, and why the plugin never converts
+  between scripts.
 - [Formatting and highlighting](./formatting.md) — the tap-to-format mode:
   the add/remove/off highlighter button, colored highlights + Highlightr,
   reordering the picker, and how highlights render in the reader.
