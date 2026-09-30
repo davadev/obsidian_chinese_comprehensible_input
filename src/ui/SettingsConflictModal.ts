@@ -18,6 +18,9 @@ export type ConflictChoice = "local" | "remote";
  */
 export class SettingsConflictModal extends Modal {
   private choices = new Map<string, ConflictChoice>();
+  /** Guards `onResolve` so it fires exactly once, whichever way the modal goes
+   *  away. Same idiom as `confirmAsync`'s `answered` flag in confirmInput.ts. */
+  private resolved = false;
   constructor(
     app: App,
     private conflicts: SettingsConflict[],
@@ -81,11 +84,29 @@ export class SettingsConflictModal extends Modal {
   }
 
   private finish() {
+    if (this.resolved) return;
+    this.resolved = true;
     this.onResolve(this.choices);
     this.close();
   }
 
   onClose() {
+    // Obsidian closes a Modal on Esc and on a background click, and neither
+    // routes through a button. Before this, dismissing resolved nothing: the
+    // caller's promise never settled and its `conflictModalOpen` flag stayed
+    // set, which made every later absorb a silent no-op — settings sync was
+    // dead until Obsidian restarted, with nothing said to the user (#123).
+    //
+    // An empty choice map means "keep local for every conflict", which is
+    // exactly what the "Keep all local" button produces, and what this class's
+    // own doc comment has always claimed cancelling would do. Non-conflicting
+    // remote keys still land, and the envelope is marked applied so the same
+    // conflict is not re-offered on the next poll tick — a prompt the user
+    // could not escape would be worse than the bug.
+    if (!this.resolved) {
+      this.resolved = true;
+      this.onResolve(new Map());
+    }
     this.contentEl.empty();
   }
 }

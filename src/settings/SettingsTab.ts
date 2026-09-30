@@ -1503,6 +1503,28 @@ export class CciSettingsTab extends PluginSettingTab {
                 })();
               },
             },
+            {
+              name: "Pull settings from mirror now",
+              desc: "Re-read the mirror file and apply it to this device, even if we believe we are already in sync. The counterpart to the push above — use it when this device is the one holding the wrong values.",
+              action: () => {
+                void (async () => {
+                  if (!this.plugin.settings.sync.settingsMirrorEnabled) {
+                    new Notice("Settings mirror is off — enable it first.");
+                    return;
+                  }
+                  try {
+                    const applied = await this.plugin.settingsMirror.forcePullNow();
+                    new Notice(
+                      applied
+                        ? "Settings pulled from mirror."
+                        : "Nothing to pull — no mirror file, or a conflict prompt is already open."
+                    );
+                  } catch (e) {
+                    new Notice("Pull failed: " + (e as Error).message);
+                  }
+                })();
+              },
+            },
 
             { type: "group", heading: "Backup / restore", items: [] },
             this.prose(
