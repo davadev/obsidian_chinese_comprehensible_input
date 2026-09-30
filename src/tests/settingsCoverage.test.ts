@@ -168,6 +168,52 @@ describe("settings tab definitions", () => {
     expect(missing).toEqual([]);
   });
 
+  /**
+   * The inverse direction, added in 0.7.8.
+   *
+   * The test above catches a setting that exists but has no control. It cannot
+   * catch the opposite — a control bound to a setting no code ever reads — which
+   * is how "Annotation density cap (%)" shipped promising to "auto-degrade to
+   * popup-only" while nothing implemented it, and how #126's "Minimum visible
+   * time (ms)" survived a release.
+   *
+   * Its limit, so nobody over-trusts it: this only catches a key that is read
+   * NOWHERE. It would NOT have caught #126 on its own, because `minVisibleMs`
+   * did have a read — inside a method no caller reached. Proving that needs
+   * reachability analysis, which this is not.
+   */
+  it("only binds controls to settings that some code actually reads", async () => {
+    const { readFileSync, readdirSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const SKIP_FILES = new Set(["types.ts", "defaults.ts", "SettingsTab.ts"]);
+    const sources: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) {
+          if (entry !== "tests") walk(full);
+        } else if (entry.endsWith(".ts") && !SKIP_FILES.has(entry)) {
+          sources.push(readFileSync(full, "utf8"));
+        }
+      }
+    };
+    walk("src");
+    const haystack = sources.join("\n");
+
+    const unread = collectKeys(makeTab().getSettingDefinitions() as AnyItem[])
+      // `secret:` and `ui:` are pseudo-keys for transient UI state, not paths
+      // into the settings object — the no-typos test below skips them for the
+      // same reason.
+      .filter((k) => !k.startsWith("secret:") && !k.startsWith("ui:"))
+      .filter((k) => {
+        const leaf = k.slice(k.lastIndexOf(".") + 1);
+        return !new RegExp(`\\.${leaf}\\b`).test(haystack);
+      });
+
+    expect(unread).toEqual([]);
+  });
+
   it("only binds controls to real settings paths (no typos)", () => {
     const keys = collectKeys(makeTab().getSettingDefinitions() as AnyItem[]);
     const bogus = keys.filter(

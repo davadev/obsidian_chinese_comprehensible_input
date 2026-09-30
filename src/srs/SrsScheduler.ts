@@ -92,16 +92,6 @@ export class SrsScheduler {
     return result;
   }
 
-  /** Soft signal from natural reading exposure. Doesn't promote to passed review. */
-  applyExposureSignal(surface: string): void {
-    const rec = this.vocab.bySurface(surface);
-    if (!rec) return;
-    if (rec.status === "ignored" || rec.status === "known") return;
-    // Tiny ease nudge if word is repeatedly seen without lookup.
-    const ease = (rec.srs?.ease ?? this.settings().srs.initialEase) + 0.01;
-    this.vocab.updateSrs(surface, { ease: Math.min(3.5, ease) });
-  }
-
   /** Popup on a due/eligible word counts as a weak/failed recall when enabled. */
   applyPopupSignal(surface: string): void {
     if (!this.settings().srs.popupOnDueIsFailedRecall) return;

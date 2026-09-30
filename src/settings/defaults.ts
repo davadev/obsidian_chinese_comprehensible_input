@@ -94,7 +94,6 @@ export const DEFAULT_SETTINGS: CciSettings = {
   newWordBehavior: "subtle",
   unknownWordBehavior: "popup-only",
   exposure: {
-    minVisibleMs: 1000,
     maxOncePerNotePerSession: true,
     maxOncePerDay: false,
     popupCountsAsExposure: true,
@@ -150,7 +149,6 @@ export const DEFAULT_SETTINGS: CciSettings = {
   },
   exactTimestampRetentionLimit: 500,
   storeAllExactTimestamps: false,
-  densityCapPercent: 35,
   mnemonicsFirst: false,
   readerFontPx: 22,
   readerLineSpacing: 1.0,

@@ -237,7 +237,6 @@ export interface AiSettings {
 }
 
 export interface ExposureSettings {
-  minVisibleMs: number;
   maxOncePerNotePerSession: boolean;
   maxOncePerDay: boolean;
   popupCountsAsExposure: boolean;
@@ -345,7 +344,6 @@ export interface CciSettings {
   sync: SyncSettings;
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
-  densityCapPercent: number;
   mnemonicsFirst: boolean;
   /** Base font size for the Chinese Learning view, in pixels. */
   readerFontPx: number;
