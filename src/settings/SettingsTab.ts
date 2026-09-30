@@ -50,12 +50,7 @@ const DOCS_BASE =
 /** Settings whose only effect is a CSS custom property on the view root. They
  *  need the view's appearance re-applied, which `refreshChineseViews()` does
  *  not do — see the branch in `persist()`. */
-const APPEARANCE_KEYS = new Set([
-  "readerFontPx",
-  "readerLineSpacing",
-  "charScalePercent",
-  "annotationScalePercent",
-]);
+const APPEARANCE_KEYS = new Set(["readerFontPx", "readerLineSpacing", "annotationScalePercent"]);
 
 const SECRET_PREFIX = "secret:";
 const UI_PREFIX = "ui:";
@@ -382,21 +377,14 @@ export class CciSettingsTab extends PluginSettingTab {
               control: { type: "slider", key: "readerFontPx", min: 14, max: 40, step: 1 },
             },
             {
-              name: "Chinese size (%)",
-              desc:
-                "Size of the Chinese characters relative to the annotation rows above them. " +
-                "Raise it when the characters feel cramped at a font size that is comfortable " +
-                "for English — Han glyphs carry more stroke detail than Latin at the same size. " +
-                "Reader font size scales everything together; this changes only the ratio.",
-              control: { type: "slider", key: "charScalePercent", min: 80, max: 200, step: 5 },
-            },
-            {
               name: "Annotation size (%)",
               desc:
                 "Size of the pinyin and translation rows. Raise it if they are hard to read " +
-                "on a high-resolution screen. Note this also spreads the words further apart: " +
-                "each word is as wide as its widest row, and the translation is usually that row.",
-              control: { type: "slider", key: "annotationScalePercent", min: 80, max: 200, step: 5 },
+                "on a high-resolution screen, or lower it — together with a larger reader font " +
+                "size — to make the Chinese bigger without enlarging them. Note it also changes " +
+                "word spacing: each word is as wide as its widest row, and the translation is " +
+                "usually that row.",
+              control: { type: "slider", key: "annotationScalePercent", min: 50, max: 200, step: 5 },
             },
             { type: "group", heading: "Annotation lines", items: [] },
             this.prose(

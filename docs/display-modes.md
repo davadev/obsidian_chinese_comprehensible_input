@@ -20,7 +20,7 @@ The **More** menu holds the display controls:
 
 - **1 · Show / hide colors** · **2 · Display mode** (2-line / 3-line / None).
 - **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing** ·
-  **Chinese size** · **Annotation size**.
+  **Annotation size**.
 - **6 · Stats** · **7 · Generate story**.
 
 ## Display modes
@@ -59,39 +59,48 @@ plugin uses non-widget decorations during edit.
 
 ## Text size
 
-Three separate controls. All of them live in **Settings → Display**, and all
-of them are also in the toolbar's **More** menu — they are things you adjust
-while reading, not once during setup:
+Three controls, all in **Settings → Display** and all in the toolbar's
+**More** menu — they are things you adjust while reading, not once during
+setup:
 
-- **Reader font size (px)** — scales the whole view together. Start here.
-- **Chinese size (%)** — the characters only, relative to the rows above
-  them. Raise it when the characters feel cramped at a font size that is
-  comfortable for English: Han glyphs pack far more stroke detail into the
-  same square than Latin letters do, so they need more size to read
-  without strain.
-- **Annotation size (%)** — the pinyin and translation rows only. Raise it
-  if they get too small to read on a high-resolution screen.
+- **Reader font size (px)** — the whole view together. Start here.
+- **Line spacing** — how far apart the lines sit.
+- **Annotation size (%)** — the pinyin and translation rows only.
 
-### Why the two percentages behave differently
+### Making the Chinese bigger without enlarging the annotations
 
-Each word is only as wide as its **widest row**. With the downloaded
-CC-CEDICT dictionary the English translation is that row for **82%** of
-its 125,008 entries at default sizes — 98% for single-character words,
-where a long translation sits over one narrow glyph.
+This is the usual request: Han glyphs pack far more stroke detail into the
+same square than Latin letters do, so they need more size to read without
+strain — while the pinyin and translation were already fine.
 
-So:
+Two steps:
 
-- **Annotation size always changes word spacing.** You are growing the
-  row that usually sets the width, so the Chinese spreads apart.
-- **Chinese size mostly doesn't — at first.** Below about 120% the
-  characters are still narrower than their translation, so they grow
-  inside a box that was already that wide. Push further and they
-  progressively overtake it, word by word: the translation still sets
-  the width for 64% of words at 140%, but only 42% at 200%. Spacing
-  opens up gradually rather than all at once.
+1. Raise **Reader font size**.
+2. Lower **Annotation size** by roughly the same proportion.
 
-In two-line mode with pinyin there is no translation row at all, so the
-characters set the width immediately and the whole line scales together.
+For example 22 → 33px is half again as large, so set annotation size to
+about 67%: the characters grow by half, the rows stay the size they were.
+That is why the slider goes down to 50% and not just to 80%.
+
+Reader font size is deliberately the control that grows the characters,
+because it reaches **every** character in the view — a word you already
+know, rendered without annotations, grows exactly as much as one that has
+them. Nothing is left behind at the old size.
+
+### Annotation size and word spacing
+
+One thing to know before dragging it: each word is only as wide as its
+**widest row**. With the downloaded CC-CEDICT dictionary the English
+translation is that row for **82%** of its 125,008 entries — 98% for
+single-character words, where a long translation sits over one narrow
+glyph.
+
+So raising annotation size also spreads the words apart, and lowering it
+pulls them together. Reader font size does not have that effect: it grows
+the characters and the rows in step, so their relative widths don't change.
+
+If the translations themselves are what's making words too wide, try
+**Shorten translations** (below).
 
 ## What goes on each line
 
@@ -126,6 +135,19 @@ wherever you put it:
 
 A row is also skipped for any word that has nothing to put there — a word
 with no mnemonic, or no translation.
+
+### Shorten translations
+
+CC-CEDICT puts register, era and etymology in brackets — “(Internet slang)”,
+“(Ming Dynasty)”, “(loanword)”. That is useful detail on the word card and
+mostly noise on a row sitting over running text, where it also makes the word
+wider than its neighbours.
+
+**Settings → Display → Shorten translations** drops those brackets from the
+inline row only. The word card always keeps the full text. About 29% of
+dictionary entries carry one, and removing it sheds roughly 20 characters.
+
+Off by default, because it changes what every annotated word shows.
 
 ### Mnemonics on a line
 
