@@ -436,7 +436,25 @@
   cursor: pointer;
 }
 
-/* Overflow menu */
+/* Overflow menu. Shared by TWO menus: the highlighter's "Formats" list and the
+   toolbar's "..." More menu (ViewToolbar.buildFormatMenu / buildOverflowMenu).
+   Both are body-appended and positioned `fixed` under their anchor button, so
+   anything here lands on both.
+
+   Height clamp: neither menu was bounded, so a long one ran off the bottom of
+   the screen with no way to reach the last rows. The More menu grows with the
+   colour mode (HSK adds three rows over status) and with Obsidian's font size;
+   the Formats menu grows with the user's formatting-picker config and any
+   Highlightr colours, so its length is genuinely per-user.
+
+   `dvh` rather than `vh` so the dynamic viewport and the on-screen keyboard are
+   tracked with no listener (same reason as .cci-edit-dict-modal above).
+   `--cci-overflow-top` is the one thing CSS cannot know -- how far down the
+   anchor sits -- and is written by overflowMenuTopPx() at open time; the 0px
+   fallback degrades to a too-tall-but-still-bounded menu rather than none.
+   The safe-area inset is SUBTRACTED from the height rather than added as
+   padding: padding would leave a band of dead space under every short menu on
+   a device with a home indicator. */
 .cci-overflow-menu {
   position: fixed;
   background: var(--background-primary);
@@ -448,6 +466,27 @@
   z-index: 300;
   display: flex;
   flex-direction: column;
+  max-height: calc(
+    100dvh - var(--cci-overflow-top, 0px) - 12px - env(safe-area-inset-bottom, 0px)
+  );
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* pan-y, not none: the browser takes vertical scrolling and leaves horizontal
+     gestures to the page, which is what the range sliders below need. */
+  touch-action: pan-y;
+  /* A flick past the end of the menu must not scroll the note behind it. */
+  overscroll-behavior: contain;
+}
+/* REQUIRED by the max-height above, not cosmetic. The container is a column
+   flex box, so its children default to `flex-shrink: 1` and would COMPRESS to
+   fit the cap instead of overflowing it -- row padding crushed, .cci-overflow-sep
+   (height: 1px, min-content 0) collapsing to nothing, and no scrollbar at all,
+   because nothing ever overflows. */
+.cci-overflow-item,
+.cci-overflow-btn,
+.cci-overflow-sep,
+.cci-overflow-hint {
+  flex-shrink: 0;
 }
 .cci-overflow-item,
 .cci-overflow-btn {
@@ -478,6 +517,9 @@
 .cci-overflow-slider input[type="range"] {
   flex: 1 1 120px;
   min-width: 100px;
+  /* The menu is a scroll container (pan-y). Claim the slider's own gestures so a
+     slow or diagonal thumb drag can never be taken over as a scroll. */
+  touch-action: none;
 }
 .cci-overflow-slider .cci-slider-value {
   font-variant-numeric: tabular-nums;
