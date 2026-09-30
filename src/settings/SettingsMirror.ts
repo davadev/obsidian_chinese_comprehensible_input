@@ -45,7 +45,17 @@ async function hashString(s: string): Promise<string> {
 export class SettingsMirror {
   private writeTimer: number | null = null;
   private lastWrittenHash: string | null = null;
-  private appliedUpdatedAt = "";
+  /**
+   * `updatedAt` of the last REMOTE envelope we applied. Recorded for logging
+   * and diagnosis only — it is deliberately not a gate.
+   *
+   * It used to be one, and it was also advanced from `write()` using THIS
+   * device's clock, so a remote wall-clock string was compared against a local
+   * one. A device running a few minutes fast therefore rejected a slower
+   * device's genuinely newer changes outright, silently, and then overwrote
+   * them on its next write (#124).
+   */
+  private appliedRemoteUpdatedAt = "";
   private conflictModalOpen = false;
 
   constructor(private plugin: CciPlugin) {}
@@ -91,6 +101,27 @@ export class SettingsMirror {
    *  by the "Push settings to mirror now" button to unstick users whose
    *  device made changes pre-0.1.95 (touched flag didn't exist yet, so
    *  the file was never written). */
+  /**
+   * Re-read the mirror and apply it, ignoring `lastWrittenHash`.
+   *
+   * The settings-side twin of the vocabulary mirror's "Force re-sync now".
+   * `forcePushNow()` has always existed; there was no way back, so a device
+   * whose local state was the wrong one had no recovery short of deleting the
+   * mirror file. Part of #124's definition of done.
+   */
+  async forcePullNow(): Promise<boolean> {
+    const path = this.path();
+    if (!path) return false;
+    if (this.conflictModalOpen) return false;
+    const adapter = this.plugin.app.vault.adapter;
+    const norm = normalizePath(path);
+    if (!(await adapter.exists(norm))) return false;
+    const content = await adapter.read(norm);
+    // Deliberately skips the hash check: the point is to re-apply even when we
+    // believe we are already in sync.
+    return await this.applyEnvelope(content);
+  }
+
   async forcePushNow(): Promise<void> {
     if (this.writeTimer != null) {
       window.clearTimeout(this.writeTimer);
@@ -127,8 +158,24 @@ export class SettingsMirror {
     }
     if (!parsed || typeof parsed !== "object" || !parsed.settings) return false;
     const remoteUpdatedAt = parsed.updatedAt ?? "";
-    if (remoteUpdatedAt && remoteUpdatedAt <= this.appliedUpdatedAt) {
-      return false;
+    // No staleness gate. Wall-clock ordering across devices is not reliable —
+    // and tightening the comparison does not fix it, because with three devices
+    // even a remote-vs-remote comparison is still cross-clock.
+    //
+    // The job this gate was doing is already done, correctly and
+    // clock-independently, by the content-hash check in absorbExternalChange():
+    // our own write is ignored because `write()` records its hash, and an
+    // already-applied remote envelope is ignored because `applyMerge()` records
+    // ITS hash. Anything reaching here genuinely differs from the last bytes we
+    // wrote or applied, and goes through per-key resolution below, which yields
+    // to defaults in both directions and only prompts when both sides are
+    // non-default and disagree. So the worst case is an extra prompt, never a
+    // silently dropped change.
+    if (remoteUpdatedAt && remoteUpdatedAt < this.appliedRemoteUpdatedAt) {
+      // Not a rejection — just the signature of clock skew, now visible.
+      console.debug(
+        `CCI settings mirror: applying an envelope stamped ${remoteUpdatedAt}, older than the last applied ${this.appliedRemoteUpdatedAt} (clock skew between devices)`
+      );
     }
     const safeRemote = filterSettingsForSharing(parsed.settings as CciSettings);
     const userTouched = await this.plugin.hasUserTouchedSettings();
@@ -173,13 +220,21 @@ export class SettingsMirror {
       this.conflictModalOpen = true;
       new SettingsConflictModal(this.plugin.app, conflicts, (choices) => {
         void (async () => {
-          this.conflictModalOpen = false;
-          const patch: Record<string, unknown> = { ...autoPatch };
-          for (const c of conflicts) {
-            if (choices.get(c.keyPath) === "remote") patch[c.keyPath] = c.remote;
+          // Everything that clears the flag and settles the promise lives in a
+          // finally, so no path out of here — a throw in applyMerge included —
+          // can leave settings sync wedged for the session (#123).
+          try {
+            const patch: Record<string, unknown> = { ...autoPatch };
+            for (const c of conflicts) {
+              if (choices.get(c.keyPath) === "remote") patch[c.keyPath] = c.remote;
+            }
+            await this.applyMerge(unflatten(patch), content, remoteUpdatedAt);
+          } catch (e) {
+            console.error("CCI settings mirror: applying conflict choices failed", e);
+          } finally {
+            this.conflictModalOpen = false;
+            resolve(true);
           }
-          await this.applyMerge(unflatten(patch), content, remoteUpdatedAt);
-          resolve(true);
         })();
       }).open();
     });
@@ -194,7 +249,7 @@ export class SettingsMirror {
     deepMerge(next, patch);
     this.plugin.settings = { ...DEFAULT_SETTINGS, ...(next as Partial<CciSettings>) };
     applyCustomColors(this.plugin.settings);
-    this.appliedUpdatedAt = remoteUpdatedAt;
+    this.appliedRemoteUpdatedAt = remoteUpdatedAt;
     this.lastWrittenHash = await hashString(rawContent);
     // remote: this envelope came from another device, so a script change in it
     // needs announcing — see applyScriptSideEffects().
@@ -232,7 +287,9 @@ export class SettingsMirror {
       settings: filterSettingsForSharing(this.plugin.settings),
     };
     const content = JSON.stringify(envelope, null, 2);
-    this.appliedUpdatedAt = envelope.updatedAt;
+    // Deliberately does NOT touch `appliedRemoteUpdatedAt`: that field tracks
+    // remote versions, and seeding it from this device's clock is exactly what
+    // made #124 possible. Self-echo is handled by `lastWrittenHash` below.
     const tmp = `${norm}.tmp`;
     try {
       try {
