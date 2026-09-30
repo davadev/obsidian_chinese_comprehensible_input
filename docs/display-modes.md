@@ -256,5 +256,7 @@ a word you "should" know.
 
 ## See also
 
+- [E-ink readers](./e-ink.md) — swap the status tints for underlines on
+  black-and-white screens.
 - [Word states](./word-states.md) — what each status / color means.
 - [FAQ](./faq.md) — common color / display confusion.

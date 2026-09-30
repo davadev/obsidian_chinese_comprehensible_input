@@ -144,5 +144,11 @@ tap, and on mobile the Edit mode routes there deliberately.
 - **Custom checkbox characters are rendered, not clickable.** Toggling a
   task is done in the Markdown view.
 
+## E-ink devices
+
+The plugin runs on e-paper screens, but its colour tints do not survive
+greyscale well. [E-ink readers](./e-ink.md) carries a snippet that replaces them
+with underlines.
+
 Something missing or broken with a theme/plugin combination you use?
 [Open an issue](https://github.com/davadev/obsidian_chinese_comprehensible_input/issues).
