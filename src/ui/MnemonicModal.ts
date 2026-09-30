@@ -183,6 +183,11 @@ export class MnemonicModal extends Modal {
       story: story || undefined,
     });
     new Notice(text || story ? "Mnemonic saved." : "Mnemonic cleared.");
+    // The mnemonic can be an annotation row above the word (#56), and the
+    // vocabulary store has no change notification — every other mutating UI
+    // path redecorates at the call site. Without this, saving shows nothing and
+    // clearing leaves the old text above the word next to a "cleared" notice.
+    this.plugin.refreshChineseViews();
     this.close();
   }
 }

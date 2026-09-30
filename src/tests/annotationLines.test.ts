@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   GLOSS_INLINE_MAX_CHARS,
   isContentVisible,
+  normalizeLine2Content,
+  normalizeLine3Content,
   resolveAnnotationLines,
   stripParentheticals,
   type AnnotationLineInput,
@@ -209,5 +211,46 @@ describe("inline text limits", () => {
       input({ line3Content: "mnemonic", mnemonic: "🌊🐟" })
     ).line3!.text;
     expect(text).toBe("🌊🐟");
+  });
+});
+
+describe("an unrecognised stored content falls back instead of vanishing", () => {
+  // Settings arrive by import (SettingsIO.deepMerge) and by sync mirror, neither
+  // of which validates enums, so a value from a newer version — or a typo in a
+  // hand-edited data.json — is reachable. Before the normalizer the switch fell
+  // through to undefined and two-line mode rendered bare characters under a
+  // full-height line.
+  it("coerces a junk line 2 to pinyin", () => {
+    expect(normalizeLine2Content("hanzi-radicals")).toBe("pinyin");
+    expect(normalizeLine2Content(undefined)).toBe("pinyin");
+    expect(normalizeLine2Content(42)).toBe("pinyin");
+  });
+
+  it("coerces a junk line 3 to English, and rejects pinyin there", () => {
+    expect(normalizeLine3Content("hanzi-radicals")).toBe("english");
+    expect(normalizeLine3Content(null)).toBe("english");
+    // Pinyin is aligned per character, which is only meaningful on line 2.
+    expect(normalizeLine3Content("pinyin")).toBe("english");
+  });
+
+  it("leaves every valid value alone", () => {
+    for (const v of ["pinyin", "english", "mnemonic"] as const) {
+      expect(normalizeLine2Content(v)).toBe(v);
+    }
+    for (const v of ["english", "mnemonic"] as const) {
+      expect(normalizeLine3Content(v)).toBe(v);
+    }
+  });
+
+  it("still renders both rows when the stored values are junk", () => {
+    const out = resolveAnnotationLines(
+      input({
+        line2Content: "sideways" as never,
+        line3Content: "sideways" as never,
+      })
+    );
+    expect(out.line2).toEqual({ content: "pinyin", text: "xué xí" });
+    expect(out.line3).toEqual({ content: "english", text: "to study" });
+    expect(out.perCharPinyin).toBe(true);
   });
 });

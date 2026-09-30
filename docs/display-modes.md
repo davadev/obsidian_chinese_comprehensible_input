@@ -59,7 +59,7 @@ plugin uses non-widget decorations during edit.
 
 ## Text size
 
-Three controls, all in **Settings → Display** and all in the toolbar's
+Three controls, all in **Settings → Display → Advanced display** and all in the toolbar's
 **More** menu — they are things you adjust while reading, not once during
 setup:
 
@@ -105,7 +105,7 @@ If the translations themselves are what's making words too wide, try
 ## What goes on each line
 
 The Chinese characters are always the bottom line. The rows above them are
-yours to choose, in **Settings → Display → Annotation lines**:
+yours to choose, in **Settings → Display → Advanced display → Annotation lines**:
 
 ```
    line 3   English / mnemonic        (three-line mode only)
@@ -143,7 +143,7 @@ CC-CEDICT puts register, era and etymology in brackets — “(Internet slang)�
 mostly noise on a row sitting over running text, where it also makes the word
 wider than its neighbours.
 
-**Settings → Display → Shorten translations** drops those brackets from the
+**Settings → Display → Advanced display → Shorten translations** drops those brackets from the
 inline row only. The word card always keeps the full text. About 29% of
 dictionary entries carry one, and removing it sheds roughly 20 characters.
 

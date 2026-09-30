@@ -134,11 +134,17 @@ export class CciSettingsTab extends PluginSettingTab {
       // CSS custom properties these keys drive, so before this branch existed a
       // font-size change made from Settings did nothing until the view was
       // reopened. The plugin-side helper also preserves the scroll position
-      // across the reflow a size change causes.
+      // across the reflow a size change causes — and deliberately does NOT
+      // redecorate a second time, since these are sliders and the refresh above
+      // has already done it for this tick.
       this.plugin.refreshChineseViewAppearance();
     } else if (key === "line2Content" || key === "line3Content") {
       // Re-evaluate the duplicate-content warning's `visible` predicate.
-      this.update();
+      // `refreshDomState()` and not `update()`: this changes no definition
+      // structure, only whether one existing row is shown, and it is documented
+      // as the cheap in-place path — `update()` re-runs getSettingDefinitions()
+      // and re-renders, which moves the page under the reader's cursor.
+      this.refreshDomState();
     } else if (key === "tokenizerEngine") {
       // refreshChineseViews() above only redecorates from the tokens the view
       // already holds. Changing the engine changes segmentation itself, so the
@@ -386,6 +392,13 @@ export class CciSettingsTab extends PluginSettingTab {
                 "usually that row.",
               control: { type: "slider", key: "annotationScalePercent", min: 50, max: 200, step: 5 },
             },
+            {
+              // Word-popup ordering, not an annotation row. It sits here in the
+              // page's un-headed general block because every heading below is a
+              // divider that would otherwise claim it.
+              name: "Show mnemonic before full definition",
+              control: { type: "toggle", key: "mnemonicsFirst" },
+            },
             { type: "group", heading: "Annotation lines", items: [] },
             this.prose(
               "Rows are numbered upward from the Chinese: line 2 sits directly above the " +
@@ -416,9 +429,13 @@ export class CciSettingsTab extends PluginSettingTab {
             },
             {
               ...this.warnProse(
-                "⚠ Line 3 is showing the same content as line 2. That is allowed, but it " +
-                  "renders the same text twice above every word."
+                "⚠ Line 3 is set to the same content as line 2. That is allowed, but in " +
+                  "three-line mode it renders the same text twice above every word."
               ),
+              // Shown whenever the two match, including in two-line mode where
+              // line 3 is not rendered — the setting is still wrong and the
+              // reader should see that before switching modes. The wording says
+              // "is set to" rather than "is showing" for exactly that reason.
               visible: () =>
                 (this.plugin.settings.line2Content as string) ===
                 (this.plugin.settings.line3Content as string),
@@ -432,6 +449,10 @@ export class CciSettingsTab extends PluginSettingTab {
                 "narrows the word, since each word is as wide as its widest row.",
               control: { type: "toggle", key: "stripGlossParentheticals" },
             },
+            // Closes the "Annotation lines" section above. An empty-items group
+            // is a divider, not a container, so without this heading every
+            // setting that follows renders under "Annotation lines".
+            { type: "group", heading: "Thresholds", items: [] },
             {
               name: "Top HSK comfort threshold (%)",
               desc: "Status-bar 'Top HSK X' shows the highest level where you already know at least this % of the note's HSK 1..X vocabulary. Lower = looser (label climbs higher); higher = stricter.",
@@ -447,10 +468,6 @@ export class CciSettingsTab extends PluginSettingTab {
               name: "Annotation density cap (%)",
               desc: "If more than this % of visible words are densely annotated, auto-degrade to popup-only.",
               control: { type: "number", key: "densityCapPercent", min: 0, max: 100 },
-            },
-            {
-              name: "Show mnemonic before full definition",
-              control: { type: "toggle", key: "mnemonicsFirst" },
             },
             ...this.statusColorItems(),
             ...this.textColorItems(),

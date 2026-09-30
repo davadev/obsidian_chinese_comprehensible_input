@@ -237,12 +237,17 @@ export class ChineseTextFileView extends TextFileView {
    * Delegating here rather than calling the appliers directly is deliberate:
    * changing the font reflows the editor and loses the scroll position, and
    * `handleToolbarChange` is the path that captures and restores it.
+   *
+   * `redecorate: false` because the size settings are pure CSS — no decoration
+   * depends on them — and the Settings tab has already redecorated via
+   * `refreshChineseViews()` by the time it calls this. Redecorating again would
+   * mean two full passes over every open view for every tick of a slider drag.
    */
   applySettingsToView(): void {
-    this.handleToolbarChange();
+    this.handleToolbarChange({ redecorate: false });
   }
 
-  private handleToolbarChange(): void {
+  private handleToolbarChange(opts: { redecorate?: boolean } = {}): void {
     let topOffset = 0;
     if (this.editor) {
       try {
@@ -257,7 +262,7 @@ export class ChineseTextFileView extends TextFileView {
     this.applyReaderLineSpacing();
     this.applyAnnotationScales();
     this.applyDisplayAttr();
-    this.redecorate();
+    if (opts.redecorate !== false) this.redecorate();
     this.toolbar?.refresh();
     if (this.editor) {
       const target = Math.min(topOffset, this.editor.state.doc.length);

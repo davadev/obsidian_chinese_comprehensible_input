@@ -1,4 +1,4 @@
-import type { DisplayMode, LineContent } from "../settings/types";
+import type { DisplayMode, Line3Content, LineContent } from "../settings/types";
 import type { KnownAxes } from "../vocabulary/VocabularyTypes";
 import { shortenDefinition } from "../dictionary/normalizeChinese";
 import { clampGraphemes, MNEMONIC_INLINE_MAX_GRAPHEMES } from "../vocabulary/mnemonicText";
@@ -107,6 +107,39 @@ export function isContentVisible(
   }
 }
 
+/**
+ * Coerce a stored line content to a value this module can actually render.
+ *
+ * Needed because settings do not only arrive through the settings tab: the
+ * import path (`SettingsIO.deepMerge`) and the sync mirror both merge whatever
+ * they are handed without validating enums, and a device on a newer version can
+ * sync a content value this one has never heard of.
+ *
+ * Without this the switches below fall through to `undefined`, the row is
+ * dropped, and two-line mode renders bare characters under a full-height line —
+ * broken-looking, with nothing to diagnose it by. Falling back to the shipped
+ * default degrades visibly but sanely instead.
+ */
+const LINE2_CONTENTS: readonly LineContent[] = ["pinyin", "english", "mnemonic"];
+/** Pinyin is excluded here for the reason given on `Line3Content`. */
+const LINE3_CONTENTS: readonly LineContent[] = ["english", "mnemonic"];
+
+function normalize(
+  value: unknown,
+  allowed: readonly LineContent[],
+  fallback: LineContent
+): LineContent {
+  return allowed.includes(value as LineContent) ? (value as LineContent) : fallback;
+}
+
+export function normalizeLine2Content(value: unknown): LineContent {
+  return normalize(value, LINE2_CONTENTS, "pinyin");
+}
+
+export function normalizeLine3Content(value: unknown): Line3Content {
+  return normalize(value, LINE3_CONTENTS, "english") as Line3Content;
+}
+
 /** Row text for a given content, already truncated for inline display. */
 function textFor(content: LineContent, input: AnnotationLineInput): string {
   switch (content) {
@@ -151,8 +184,8 @@ export function resolveAnnotationLines(
     return text ? { content, text } : undefined;
   };
 
-  const line2 = build(input.line2Content);
-  const line3 = rows === 2 ? build(input.line3Content) : undefined;
+  const line2 = build(normalizeLine2Content(input.line2Content));
+  const line3 = rows === 2 ? build(normalizeLine3Content(input.line3Content)) : undefined;
 
   const perCharPinyin =
     line2?.content === "pinyin" &&
