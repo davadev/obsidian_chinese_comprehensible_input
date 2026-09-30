@@ -1,0 +1,122 @@
+<!--
+  Harness for regenerating resources/screenshots/desktop-display-menu-annotated.png.
+
+  Renders the reading view's "..." overflow menu from the REAL ../styles.css,
+  reproducing the DOM that ViewToolbar.buildOverflowMenu() builds, and draws the
+  numbered callouts in-page using the same colours as annotate-screenshots.py
+  (#0d6a00 dashed box, #349e00 circle).
+
+  Why a render rather than a capture: the previous source screenshot was taken
+  for 0.4.3 and went four minor versions stale, because regenerating it meant
+  hand-capturing Obsidian at an exact scale. This renders from the stylesheet
+  the plugin actually ships, so it can be refreshed in one command whenever the
+  menu changes. It is NOT a screenshot of Obsidian — there is no reading view
+  behind it, and the theme variables below are Obsidian's default light values.
+
+  Regenerate:  node scripts/render-display-menu.mjs
+
+  KEEP IN STEP with ViewToolbar.buildOverflowMenu(): if you add, remove or
+  reorder a row there, mirror it here, and update the callout legends in
+  README.md and docs/display-modes.md.
+-->
+<!doctype html><meta charset="utf-8">
+<link rel="stylesheet" href="../styles.css">
+<style>
+  /* Obsidian default LIGHT theme values, to match the rest of the doc images. */
+  :root{
+    --background-primary:#ffffff; --background-primary-alt:#f5f5f5;
+    --background-modifier-border:#e0e0e0; --background-modifier-hover:#efefef;
+    --text-normal:#222222; --text-muted:#7a7a7a; --text-faint:#a0a0a0;
+    --text-accent:#7f6df2; --interactive-accent:#7f6df2;
+    font-family:-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  html,body{margin:0;background:#ffffff;}
+  body{position:relative;width:394px;}
+  /* Real menu is position:fixed and anchored to the toolbar button; placed
+     statically here for a clean capture. Every other rule is untouched. */
+  .cci-overflow-menu{position:static!important;max-height:none!important;
+    margin:18px 18px 18px 58px;width:300px;}
+  input[type=checkbox],input[type=radio]{accent-color:#7f6df2;width:16px;height:16px;}
+  input[type=range]{accent-color:#7f6df2;}
+</style>
+<div class="cci-overflow-menu" id="m"></div>
+<script>
+// Mirrors ViewToolbar.buildOverflowMenu()'s DOM: hints, checkbox rows for script
+// and colors, RADIO rows for display mode (ViewToolbar.ts:601), separators, the
+// three sliders, then the two buttons.
+const m = document.getElementById('m');
+const hint = t => { const e=document.createElement('div'); e.className='cci-overflow-hint'; e.textContent=t; m.appendChild(e); return e; };
+const sep  = () => { const e=document.createElement('div'); e.className='cci-overflow-sep'; m.appendChild(e); return e; };
+const row = (t,checked,type) => { const e=document.createElement('div'); e.className='cci-overflow-item';
+  const c=document.createElement('input'); c.type=type||'checkbox'; if(type==='radio') c.name='cci-display-mode';
+  c.checked=!!checked; e.appendChild(c);
+  const s=document.createElement('span'); s.textContent=t; e.appendChild(s); m.appendChild(e); return e; };
+const slider = (label,min,max,step,val,fmt) => {
+  const e=document.createElement('div'); e.className='cci-overflow-item cci-overflow-slider';
+  const l=document.createElement('span'); l.textContent=label; e.appendChild(l);
+  const r=document.createElement('input'); r.type='range'; r.min=min; r.max=max; r.step=step; r.value=val; e.appendChild(r);
+  const v=document.createElement('span'); v.className='cci-slider-value'; v.textContent=fmt; e.appendChild(v);
+  m.appendChild(e); return e; };
+const btn = t => { const e=document.createElement('button'); e.className='cci-overflow-btn'; e.textContent=t; m.appendChild(e); return e; };
+
+const g = {};
+g.scriptHint = hint('Script');
+g.s1 = row('Automatic', true); g.s2 = row('Traditional characters'); g.s3 = row('Simplified characters');
+g.colorHint = hint('Show / hide status colors');
+g.c1 = row('Color known'); g.c2 = row('Color partial', true); g.c3 = row('Color unknown', true); g.c4 = row('Color new (untracked)', true);
+sep();
+g.dHint = hint('Display mode');
+g.d1 = row('2-line (pinyin)', false, 'radio');
+g.d2 = row('3-line (English + pinyin)', true, 'radio');
+g.d3 = row('None (no inline annotation)', false, 'radio');
+sep();
+g.pop = row('Known-word popups');
+sep();
+g.font = slider('Font size',14,40,1,22,'22px');
+g.line = slider('Line spacing',0.15,1.2,0.05,1,'1.00×');
+g.ann  = slider('Annotation size',50,200,5,100,'100%');
+sep();
+g.stats = btn('Stats'); g.story = btn('Generate story');
+
+// Callouts drawn after layout settles. position:fixed so the layer shares the
+// viewport coordinate system getBoundingClientRect() reports in.
+function drawCallouts() {
+  const groups = [
+    {n:1, from:g.scriptHint, to:g.s3},
+    {n:2, from:g.colorHint,  to:g.c4},
+    {n:3, from:g.dHint,      to:g.d3},
+    {n:4, from:g.pop,        to:g.pop},
+    {n:5, from:g.font,       to:g.ann},
+    {n:6, from:g.stats,      to:g.story},
+  ];
+  const layer = document.createElement('div');
+  layer.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:9;';
+  document.body.appendChild(layer);
+  for (const q of groups) {
+    const a=q.from.getBoundingClientRect(), b=q.to.getBoundingClientRect();
+    const x0=a.left-7, y0=a.top-4, x1=b.right+7, y1=b.bottom+4;
+    const box=document.createElement('div');
+    box.style.cssText=`position:absolute;left:${x0}px;top:${y0}px;width:${x1-x0}px;`
+      +`height:${y1-y0}px;border:2.5px dashed #0d6a00;border-radius:4px;box-sizing:border-box;`;
+    layer.appendChild(box);
+    const c=document.createElement('div'); c.textContent=q.n;
+    c.style.cssText=`position:absolute;left:12px;top:${(y0+y1)/2-16}px;width:32px;height:32px;`
+      +`border-radius:50%;background:#349e00;border:2px solid #307000;color:#fff;`
+      +`font:700 18px -apple-system,sans-serif;display:flex;align-items:center;`
+      +`justify-content:center;box-sizing:border-box;`;
+    layer.appendChild(c);
+  }
+}
+// Publish the content height SYNCHRONOUSLY: --dump-dom snapshots at parse time,
+// before any rAF callback, so anything deferred would not be in the dump. Reading
+// getBoundingClientRect() here forces layout, and the harness uses only system
+// fonts, so the metrics are already final. The renderer uses this to size the
+// capture exactly — no trailing background, and no clipping if rows are added.
+document.documentElement.setAttribute(
+  'data-content-height',
+  String(Math.ceil(m.getBoundingClientRect().bottom + 18))
+);
+// Callouts still wait for layout to settle; measuring them too early produced
+// boxes a row too tall.
+window.addEventListener('load', () => requestAnimationFrame(() => requestAnimationFrame(drawCallouts)));
+</script>

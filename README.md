@@ -29,13 +29,14 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 
 <img src="resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
-- **1 · Show / hide colors** — per-status (or per-HSK) tint toggles.
-- **2 · Display mode** — 2-line, 3-line, or None. What goes on each row is
+- **1 · Script** — Automatic, Traditional, or Simplified, without leaving the note.
+- **2 · Show / hide colors** — per-status (or per-HSK) tint toggles.
+- **3 · Display mode** — 2-line, 3-line, or None. What goes on each row is
   yours to choose — see [Display modes](./docs/display-modes.md#what-goes-on-each-line).
-- **3 · Known-word popups** — allow tapping words you already know.
-- **4 · Font size**, **5 · Line spacing**, **Annotation size** — reader sizing.
-  (The screenshot predates the annotation-size slider, which sits below line spacing.)
-- **6 · Stats**, **7 · Generate story** — open vocabulary stats / AI story generation.
+- **4 · Known-word popups** — allow tapping words you already know.
+- **5 · Font size**, **Line spacing**, **Annotation size** — reader sizing, adjustable
+  while you read.
+- **6 · Stats**, **Generate story** — open vocabulary stats / AI story generation.
 
 ### Colors & the 1–3 line stack (3-line mode)
 
