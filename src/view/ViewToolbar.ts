@@ -638,20 +638,10 @@ export class ViewToolbar {
       apply: (v) => (this.plugin.settings.readerLineSpacing = v),
     });
 
-    // #103: the size of the characters relative to the rows above them, and of
-    // those rows. Mirrored here from Settings because both are things a reader
+    // #103: mirrored here from Settings because it is something a reader
     // adjusts while reading, like font size — not once during setup.
-    sliderRow("Chinese size", {
-      min: 80,
-      max: 200,
-      step: 5,
-      value: this.plugin.settings.charScalePercent ?? 100,
-      format: (v) => `${v}%`,
-      apply: (v) => (this.plugin.settings.charScalePercent = v),
-    });
-
     sliderRow("Annotation size", {
-      min: 80,
+      min: 50,
       max: 200,
       step: 5,
       value: this.plugin.settings.annotationScalePercent ?? 100,

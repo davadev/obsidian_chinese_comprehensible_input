@@ -351,20 +351,6 @@ export interface CciSettings {
   readerFontPx: number;
   /** Line-height multiplier for the Chinese view. 1.0 = current behavior. */
   readerLineSpacing: number;
-  /**
-   * Size of the Chinese character row, as a percentage of the reader font
-   * size. 100 = the ratio this plugin shipped with (#103).
-   *
-   * Separate from `readerFontPx`, which scales the whole view uniformly.
-   * This one changes the RATIO between the characters and the annotation
-   * rows above them, which is the actual complaint: Han glyphs carry far
-   * more stroke density than Latin and need more size to read comfortably.
-   *
-   * Stored as an integer percent rather than a fraction so the slider needs
-   * no unit conversion — the unit lives in the setting's name, as
-   * `readerFontPx` ("Reader font size (px)") already does.
-   */
-  charScalePercent: number;
   /** Content of the row directly above the characters (#56). */
   line2Content: LineContent;
   /** Content of the row above line 2. Only rendered in three-line mode. */
@@ -382,14 +368,25 @@ export interface CciSettings {
    * Size of the annotation rows — pinyin and the English/mnemonic line — as a
    * percentage of their shipped ratios (0.5em and 0.42em). 100 = unchanged.
    *
+   * This is the only text-size control that is not `readerFontPx`. A
+   * characters-only scale shipped in 0.7.7-beta.2 and was removed: it could
+   * only reach words rendered as ruby stacks, so a known word stayed small
+   * beside an unknown one. Raising `readerFontPx` and lowering this achieves
+   * the same ratio and reaches every character.
+   *
+   * The floor is 50, not 80, precisely so that recipe works: holding the rows
+   * at their original absolute size while the font goes 22px -> 40px needs
+   * 55%.
+   *
    * One control covers both rows rather than one each, because #56 makes the
    * CONTENT of each row a user choice: a "pinyin size" setting would swap
    * meaning with the row it names the moment someone reorders them. Sizes bind
    * to the line, not to what is on it.
    *
-   * Unlike `charScalePercent`, raising this DOES push words apart — the widest
-   * annotation row sets each word's box width, and with a downloaded CC-CEDICT
-   * the English is the widest row in essentially every word.
+   * Raising this pushes words apart: the widest annotation row sets each word's
+   * box width, and with a downloaded CC-CEDICT the English is the widest row
+   * for 82% of entries. Raising `readerFontPx` does not have that effect,
+   * because it grows the characters and the rows together.
    */
   annotationScalePercent: number;
   /** Fraction (0..1) of cumulative known/total HSK vocabulary required for the

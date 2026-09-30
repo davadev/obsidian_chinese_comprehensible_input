@@ -27,13 +27,16 @@
   width: 100%;
   --cci-reader-font: 22px;
   --cci-line-spacing: 1;
-  /* Per-row scale factors (#103). 1 = the ratios this plugin shipped with:
-     chars 1em, pinyin 0.5em, gloss 0.42em. Written by
-     ChineseTextFileView.applyAnnotationScales() as percent / 100. Everything
-     that was hand-matched to those ratios — the highlight band height, the
-     heading sizes, the line-height reserve below — multiplies through these,
-     so a scale change cannot desync them. */
-  --cci-char-scale: 1;
+  /* Size of the annotation rows relative to the ratios this plugin shipped
+     with — pinyin 0.5em, translation 0.42em. 1 = unchanged. Written by
+     ChineseTextFileView.applyAnnotationScales() as percent / 100.
+     The line-height reserve below multiplies through it, so shrinking or
+     growing a row cannot desync the space reserved for it.
+     The CHARACTER size is not scaled here: that is `--cci-reader-font` on
+     .cm-content, which moves every character in the view whether or not the
+     word is annotated. A characters-only scale was tried in 0.7.7-beta.2 and
+     removed — it reached only the annotated words, so a known word stayed
+     small beside an unknown one. */
   --cci-annotation-scale: 1;
 }
 
@@ -48,22 +51,22 @@
    the line box instead of pushing the next line down unevenly.
  *
  * Written as a DELTA from the values that shipped (2.4 / 3.1) rather than
- * re-derived from the row heights, so at scale 1 these evaluate to exactly
- * what they always did. The coefficients are the measured stack-em height of
- * each row — note a child's `em` margin is relative to its OWN font-size:
- *   chars       1.0
+ * re-derived from the row heights, so at annotation scale 1 these evaluate to
+ * exactly what they always did. The coefficients are the measured stack-em
+ * height of each row — note a child's `em` margin is relative to its OWN
+ * font-size:
  *   pinyin row  0.5  + margin 0.15 x 0.5  = 0.575
  *   gloss row   0.462 + margin 0.45 x 0.42 = 0.651   (cumulative 1.226)
- * Without this, scaling a row up makes neighbouring lines collide. */
+ * Without this, growing a row makes neighbouring lines collide. */
 .cci-view[data-display="two-line"] .cci-editor .cm-content {
   line-height: calc(
-    (2.4 + 1 * (var(--cci-char-scale, 1) - 1) + 0.575 * (var(--cci-annotation-scale, 1) - 1))
+    (2.4 + 0.575 * (var(--cci-annotation-scale, 1) - 1))
     * var(--cci-line-spacing)
   );
 }
 .cci-view[data-display="three-line"] .cci-editor .cm-content {
   line-height: calc(
-    (3.1 + 1 * (var(--cci-char-scale, 1) - 1) + 1.226 * (var(--cci-annotation-scale, 1) - 1))
+    (3.1 + 1.226 * (var(--cci-annotation-scale, 1) - 1))
     * var(--cci-line-spacing)
   );
 }
@@ -402,17 +405,14 @@
   background-image: linear-gradient(var(--cci-hl), var(--cci-hl));
   background-repeat: no-repeat;
   background-position: left bottom;
-  /* Height tracks the chars row, which is what the band sits behind — so it
-     must pick up --cci-char-scale or the strip stops matching the glyphs the
-     moment the user scales them. */
-  background-size: 100% calc(1em * var(--cci-char-scale, 1));
+  background-size: 100% 1em;
 }
 /* Heading chars are scaled (see .cci-stack-h{n} .cci-stack-chars below), so the
-   band height must match — including the user's char scale. */
-.cci-view .cci-stack-h1.cci-stack-hl { background-size: 100% calc(1.7em * var(--cci-char-scale, 1)); }
-.cci-view .cci-stack-h2.cci-stack-hl { background-size: 100% calc(1.45em * var(--cci-char-scale, 1)); }
-.cci-view .cci-stack-h3.cci-stack-hl { background-size: 100% calc(1.25em * var(--cci-char-scale, 1)); }
-.cci-view .cci-stack-h4.cci-stack-hl { background-size: 100% calc(1.1em * var(--cci-char-scale, 1)); }
+   band height must match. */
+.cci-view .cci-stack-h1.cci-stack-hl { background-size: 100% 1.7em; }
+.cci-view .cci-stack-h2.cci-stack-hl { background-size: 100% 1.45em; }
+.cci-view .cci-stack-h3.cci-stack-hl { background-size: 100% 1.25em; }
+.cci-view .cci-stack-h4.cci-stack-hl { background-size: 100% 1.1em; }
 /* A link widget (wikilink / embed) sitting inside a highlight paints its own
    background inline (dynamic color); this just rounds the corners. */
 .cci-view .cci-md-link-hl {
@@ -638,7 +638,7 @@
 }
 .cci-stack-chars {
   display: block;
-  font-size: calc(1em * var(--cci-char-scale, 1));
+  font-size: 1em;
   color: var(--cci-text-chars, var(--text-normal));
   line-height: 1;
 }
@@ -656,15 +656,14 @@
  *
  * This 1.7 / 1.45 / 1.25 / 1.1 series exists in THREE places: here, on the
  * highlight band above, and in ChineseTextFileView.ts (the CodeMirror
- * HighlightStyle for PLAIN heading text). Only the first two take
- * --cci-char-scale, and that asymmetry is deliberate — the third is not the
- * ruby stack, so the Chinese-size control must not move it. */
-.cci-stack-h1 .cci-stack-chars { font-size: calc(1.7em * var(--cci-char-scale, 1));  font-weight: 700; }
-.cci-stack-h2 .cci-stack-chars { font-size: calc(1.45em * var(--cci-char-scale, 1)); font-weight: 700; }
-.cci-stack-h3 .cci-stack-chars { font-size: calc(1.25em * var(--cci-char-scale, 1)); font-weight: 700; }
-.cci-stack-h4 .cci-stack-chars { font-size: calc(1.1em * var(--cci-char-scale, 1));  font-weight: 700; }
-.cci-stack-h5 .cci-stack-chars { font-size: calc(1em * var(--cci-char-scale, 1));    font-weight: 700; }
-.cci-stack-h6 .cci-stack-chars { font-size: calc(1em * var(--cci-char-scale, 1));    font-weight: 700; color: var(--cci-text-chars, var(--text-muted)); }
+ * HighlightStyle for PLAIN heading text). They must be kept in step by hand;
+ * nothing enforces it. */
+.cci-stack-h1 .cci-stack-chars { font-size: 1.7em;  font-weight: 700; }
+.cci-stack-h2 .cci-stack-chars { font-size: 1.45em; font-weight: 700; }
+.cci-stack-h3 .cci-stack-chars { font-size: 1.25em; font-weight: 700; }
+.cci-stack-h4 .cci-stack-chars { font-size: 1.1em;  font-weight: 700; }
+.cci-stack-h5 .cci-stack-chars { font-size: 1em;    font-weight: 700; }
+.cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--cci-text-chars, var(--text-muted)); }
 
 /* AI mnemonic editor modal (#49).
    `.cci-popup` (100), `.cci-bottom-sheet` (200) and `.cci-overflow` (300)
