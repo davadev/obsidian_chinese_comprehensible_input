@@ -18,12 +18,10 @@ The **More** menu holds the display controls:
 
 <img src="../resources/screenshots/desktop-display-menu-annotated.png" alt="Annotated display menu" width="330">
 
-- **1 · Show / hide colors** · **2 · Display mode** (2-line / 3-line / None).
-- **3 · Known-word popups** · **4 · Font size** · **5 · Line spacing**.
-- **6 · Stats** · **7 · Generate story**.
-
-**Annotation size** sits directly below line spacing and is not in the
-screenshot above yet — it was added in 0.7.7.
+- **1 · Script** (Automatic / Traditional / Simplified) · **2 · Show / hide colors**.
+- **3 · Display mode** (2-line / 3-line / None) · **4 · Known-word popups**.
+- **5 · Font size**, **line spacing**, **annotation size** · **6 · Stats** /
+  **Generate story**.
 
 ## Display modes
 
