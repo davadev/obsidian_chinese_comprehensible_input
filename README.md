@@ -251,6 +251,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md) — Taiwan / Hong Kong script, Taiwan readings, and what is not covered
 - [Formatting & highlighting](./docs/formatting.md) — tap-to-format mode, colored highlights, Highlightr support
 - [Themes & plugin compatibility](./docs/compatibility.md) — Things-style checkboxes, Highlightr, sync tools, and the limits inside the Chinese view
+- [E-ink readers](./docs/e-ink.md) — underline styling instead of colour tints, for black-and-white screens
 - [Word states (new / partial / known / unknown / ignored)](./docs/word-states.md)
 - [Exposure tracking](./docs/exposure.md)
 - [Spaced repetition](./docs/srs.md)
