@@ -42,6 +42,10 @@ type Cfg = {
   branch: "plain" | "perchar" | "wordcell";
   len: 1 | 2 | 4; font: number; spacing: number; annot: number;
   heading?: number; mixed?: boolean;
+  /** Real notes are runs of ADJACENT word spans with no separator: repeat the word list `reps` times, no filler. */
+  adjacent?: number;
+  /** Colour the words by status (known/partial/unknown/new) instead of HSK level. */
+  palette?: "status";
 };
 
 const WORDS: Record<number, string[]> = {
@@ -68,8 +72,9 @@ function mount(cfg: Cfg, editable = false, keep = false) {
   if (!keep) document.body.innerHTML = "";
   const toks: any[] = [];
   let doc = "我";
-  WORDS[cfg.len].forEach((w, i) => {
-    if (i) doc += "说";
+  const list = Array.from({ length: cfg.adjacent ?? 1 }, () => WORDS[cfg.len]).flat();
+  list.forEach((w, i) => {
+    if (i && !cfg.adjacent) doc += "说";
     const start = doc.length;
     doc += w;
     const sy = Array.from({ length: Array.from(w).length }, (_, k) => SYL[(i * 3 + k) % SYL.length]).join(" ");
@@ -89,7 +94,7 @@ function mount(cfg: Cfg, editable = false, keep = false) {
   document.body.appendChild(root);
   const b = new RangeSetBuilder<Decoration>();
   toks.forEach((t, i) => {
-    const key = `hsk-${i + 1}`;
+    const key = cfg.palette === "status" ? ["known", "partial", "unknown", "new"][i % 4] : `hsk-${(i % 7) + 1}`;
     // Known words take the plain-mark path even inside a ruby-mode line (chineseDecorations.ts
     // `wantsRuby`), so a "mixed" line puts plain marks and stacks side by side.
     const plain = cfg.mode === "none" || (cfg.mixed && i % 2 === 1);
@@ -120,7 +125,7 @@ const fail = (code: string, key: string, detail: string) => {
 };
 const probeWidth = (root: HTMLElement, text: string, size: number) => {
   const p = document.createElement("span");
-  p.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font-size:${size}px;font-weight:700`;
+  p.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font-family:var(--font-interface,system-ui,sans-serif);font-size:${size}px;font-weight:700`;
   p.textContent = text;
   root.appendChild(p);
   const w = p.getBoundingClientRect().width;
@@ -180,9 +185,9 @@ function runConfig(cfg: Cfg) {
       sigs.forEach((g, i) => {
         const same = g.line === ref.line && g.style === ref.style && g.thick === ref.thick && g.offset === ref.offset && g.pos === ref.pos && g.colour === ref.colour && g.font === ref.font;
         if (!same) fail("underline-differs-between-kinds-of-word", key, `word${i + 1} ${JSON.stringify(g)} vs ${JSON.stringify(ref)}`);
-        // The border stays (1px, to keep the layout identical to colour mode) but must be invisible; a visible one
+        // The border stays (1px, to keep the layout identical to colour mode) but must be invisible, or absent (0px) on a numbered plain word, where an inline-block would count it toward the line height; a visible one
         // would be a second underline at a different height.
-        if (g.border !== "1px rgba(0, 0, 0, 0)") fail("visible-border-underline-reintroduced", key, `word${i + 1} border-bottom ${g.border}`);
+        if (g.border !== "1px rgba(0, 0, 0, 0)" && !g.border.startsWith("0px ")) fail("visible-border-underline-reintroduced", key, `word${i + 1} border-bottom ${g.border}`);
         // Declared on the annotated word's own box it would also underline the pinyin and translation rows.
         if (g.stack && g.ownLine !== "none") fail("decoration-on-annotated-box", key, `word${i + 1} ${g.ownLine}`);
       });
@@ -193,25 +198,26 @@ function runConfig(cfg: Cfg) {
       const isStack = w.classList.contains("cci-stack");
       const cells = isStack ? ([...w.querySelectorAll(".cci-stack-cell")] as HTMLElement[]) : [];
       const last = isStack ? cells[cells.length - 1] : w;
-      const contents = isStack ? cells.map((c) => getComputedStyle(c, "::after").content) : [getComputedStyle(w, "::after").content];
+      // The number follows the characters row of the LAST cell (plain words: the word itself).
+      const charsOf = (c: HTMLElement) => c.querySelector(".cci-stack-chars") as HTMLElement;
+      const contents = isStack ? cells.map((c) => getComputedStyle(charsOf(c), "::after").content) : [getComputedStyle(w, "::after").content];
       const nShown = contents.filter(shown).length;
       if (nShown !== 1 || (isStack && !shown(contents[contents.length - 1]))) fail("not-exactly-one-number", k, `word${level} stack=${isStack} ${contents.join(",")}`);
 
-      const pseudo = getComputedStyle(last, "::after");
+      const pseudo = getComputedStyle(isStack ? charsOf(last) : last, "::after");
       const numPx = px(pseudo.fontSize);
       const charsPx = px(getComputedStyle((isStack ? w.querySelector(".cci-stack-chars") : w) as HTMLElement).fontSize);
       const ratio = numPx / charsPx;
       stat.maxRatio = Math.max(stat.maxRatio, ratio);
       if (ratio > 0.8 + 1e-6) fail("number-too-large-vs-character", k, `${numPx.toFixed(2)} / ${charsPx.toFixed(2)} = ${ratio.toFixed(3)}`);
-      // The number is em of the CELL (so it follows the reader font and ignores annotation size).
-      const cellPx = px(getComputedStyle(last).fontSize);
-      const model = Math.max(0.55 * cellPx * (sc / 100), FLOOR);
+      // The number follows the READER font (not the heading-scaled characters, not the annotation size).
+      const model = Math.max(0.55 * cfg.font * (sc / 100), FLOOR);
       if (Math.abs(model - numPx) > 0.15) fail("size-not-following-font-or-ignoring-annotation", k, `${numPx.toFixed(2)} vs ${model.toFixed(2)}`);
 
       if (isStack) {
         const gutter = px(getComputedStyle(last).paddingRight);
         const dw = probeWidth(root, String(level), numPx);
-        if (gutter + 0.01 < dw + 0.05 * numPx + 1) fail("gutter-narrower-than-number", k, `${gutter.toFixed(2)} < ${dw.toFixed(2)}+${(0.05 * numPx).toFixed(2)}+1`);
+        if (gutter + 0.01 < dw + 0.05 * numPx + 0.5) fail("gutter-narrower-than-number", k, `${gutter.toFixed(2)} < ${dw.toFixed(2)}+${(0.05 * numPx).toFixed(2)}+0.5`);
         const nh = px(pseudo.height);
         const ch = (w.querySelector(".cci-stack-chars") as HTMLElement).getBoundingClientRect().height;
         if (Number.isFinite(nh) && nh > ch + 0.5) fail("number-taller-than-character-row", k, `${nh.toFixed(2)} > ${ch.toFixed(2)}`);
@@ -223,13 +229,13 @@ function runConfig(cfg: Cfg) {
         if (Math.abs(dW - expect) > 0.6) fail("word-width-delta-unexplained", k, `word${level} ${dW.toFixed(2)} vs ${expect.toFixed(2)}`);
       } else {
         // A plain word's number is out of flow in a gutter on the word itself. The gutter must hold the digit
-        // (else it overlaps the next character), the word must not wrap (so the number cannot be separated
-        // from it), and the word is exactly one gutter wider than without E-ink mode.
+        // (else it overlaps the next character), the word must not wrap (an atomic box, so the number cannot be separated
+        // from it, and NOT nowrap: that removed the break between adjacent words in WebKit), and the word is exactly one gutter wider than without E-ink mode.
         const cs = getComputedStyle(w);
         const gutter = px(cs.paddingRight);
         const dw = probeWidth(root, String(level), numPx);
-        if (gutter + 0.01 < dw + 0.05 * numPx + 1) fail("gutter-narrower-than-number", k, `plain word${level} ${gutter.toFixed(2)} < ${dw.toFixed(2)}+${(0.05 * numPx).toFixed(2)}+1`);
-        if (cs.whiteSpace !== "nowrap" && cs.whiteSpace !== "pre") fail("numbered-word-may-wrap", k, `word${level} white-space ${cs.whiteSpace}`);
+        if (gutter + 0.01 < dw + 0.05 * numPx + 0.5) fail("gutter-narrower-than-number", k, `plain word${level} ${gutter.toFixed(2)} < ${dw.toFixed(2)}+${(0.05 * numPx).toFixed(2)}+0.5`);
+        if (cs.display !== "inline-block") fail("numbered-word-not-atomic", k, `word${level} display ${cs.display}`);
         const dW = o.width - off.words[i].width;
         if (Math.abs(dW - gutter) > 0.6) fail("plain-word-width-delta-unexplained", k, `word${level} ${dW.toFixed(2)} vs gutter ${gutter.toFixed(2)}`);
       }
@@ -320,19 +326,53 @@ function geom() {
       : kind === "wordcell" ? { mode: "two-line", branch: "wordcell", len: 2, font: size, spacing: 1, annot: 100 }
       : { mode: "two-line", branch: "perchar", len: 2, font: size, spacing: 1, annot: 100 };
     const m = mount(cfg, false, true);
-    m.root.style.fontFamily = `"${ff}"`; m.root.style.width = "1100px"; m.root.style.margin = "6px 0";
+    // On .cm-scroller, not the root: CodeMirror gives the scroller its own font-family, so a font set on an ancestor is
+    // silently ignored (every "font" in beta.4's measurement was the same one).
+    m.view.scrollDOM.style.fontFamily = ff === "sans-serif" ? ff : `"${ff}", sans-serif`; m.root.style.width = "1100px"; m.root.style.margin = "6px 0";
     m.root.setAttribute("data-eink", ""); m.root.style.setProperty("--cci-eink-number-scale", String(sc / 100)); settle(m.view);
     const words = ([...m.view.contentDOM.querySelectorAll(".cci-word")] as HTMLElement[]).map((w, i) => {
       const stack = w.classList.contains("cci-stack");
       const r = w.getBoundingClientRect();
       const cells = [...w.querySelectorAll(".cci-stack-cell")] as HTMLElement[];
       const chars = stack ? (w.querySelector(".cci-stack-chars") as HTMLElement).getBoundingClientRect() : null;
-      const num = parseFloat(getComputedStyle(stack ? cells[cells.length - 1] : w, "::after").fontSize);
+      const num = parseFloat(getComputedStyle(stack ? (cells[cells.length - 1].querySelector(".cci-stack-chars") as HTMLElement) : w, "::after").fontSize);
       return { lvl: i + 1, stack, left: r.left, right: r.right, bottom: r.bottom, cellRight: stack ? cells[cells.length - 1].getBoundingClientRect().right : null, charsBottom: chars?.bottom, num };
     });
     rows.push({ kind, size, scale: sc, words });
   }
   return { installed: true, rows, height: document.documentElement.scrollHeight };
+}
+
+/** The phone bug: a paragraph of adjacent numbered words must wrap to the container. Real notes have no
+ *  filler between words, so a rule that forbids breaks at word boundaries leaves NO break in the line and it
+ *  overflows sideways (beta.4: `white-space: nowrap` on numbered words). Every width, three kinds of line. */
+function overflow() {
+  const out: Record<string, { widths: number; over: number; worst: number; multi: number }> = {};
+  const variants: [string, Cfg, boolean][] = [
+    ["hsk plain", { mode: "none", branch: "plain", len: 2, font: 22, spacing: 1, annot: 100, adjacent: 6 }, true],
+    ["hsk mixed", { mode: "two-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100, adjacent: 6, mixed: true }, true],
+    ["status plain", { mode: "none", branch: "plain", len: 2, font: 22, spacing: 1, annot: 100, adjacent: 6, palette: "status" }, true],
+    ["e-ink off", { mode: "none", branch: "plain", len: 2, font: 22, spacing: 1, annot: 100, adjacent: 6 }, false],
+  ];
+  for (const [name, cfg, eink] of variants) {
+    const r = { widths: 0, over: 0, worst: 0, multi: 0 };
+    for (let w = 280; w <= 700; w += 10) {
+      const { view, root } = mount(cfg);
+      root.style.width = w + "px";
+      if (eink) root.setAttribute("data-eink", "");
+      settle(view);
+      const rr = root.getBoundingClientRect();
+      const els = [...view.contentDOM.querySelectorAll(".cci-word")] as HTMLElement[];
+      const right = Math.max(...els.map((e) => Math.max(...[...e.getClientRects()].map((q) => q.right))));
+      const sideways = Math.max(right - rr.right, view.scrollDOM.scrollWidth - view.scrollDOM.clientWidth);
+      r.widths++;
+      if (sideways > 1) { r.over++; r.worst = Math.max(r.worst, sideways); }
+      if (new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size > 1) r.multi++;
+      view.destroy();
+    }
+    out[name] = r;
+  }
+  return out;
 }
 
 function rects() {
@@ -354,6 +394,8 @@ if (task === "matrix") {
   result = { task, ms: Math.round(performance.now() - t0), stat, fails };
 } else if (task === "extras") {
   result = { task, edit: editModeGuard(), split: splitWords() };
+} else if (task === "overflow") {
+  result = { task, over: overflow() };
 } else if (task === "geom") {
   result = { task, ...geom() };
 } else if (task === "rects") {

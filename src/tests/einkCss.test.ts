@@ -93,14 +93,16 @@ describe("e-ink CSS block", () => {
   });
 
   it("places the underline from the reader font, identically on both kinds of word", () => {
-    // `.2em` was relative to the underlined text, and `under` + a reader-font offset puts the underline at the
-    // same height for a plain word and for the characters row of an annotated one, in any font. The number is
-    // anchored to this same offset, so changing one without the other misaligns the digit.
+    // Anchored to the BASELINE (default underline position + a px offset), never to a box edge: a box edge depends on
+    // the font's ascent + descent, which put the number 3-10px off the underline in real CJK fonts. The number is
+    // lowered by the same amount, so changing one without the other misaligns the digit.
     const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
-    expect(deco.body).toContain("text-underline-position: under");
+    expect(deco.body).not.toContain("text-underline-position");
     expect(deco.body).toContain("text-underline-offset: var(--cci-eink-ul)");
     const def = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === SC)!;
     expect(def.body).toMatch(/--cci-eink-ul:\s*calc\(var\(--cci-reader-font\)/);
+    // The number is lowered by the underline's offset plus its thickness.
+    expect(def.body).toMatch(/--cci-eink-dn:\s*calc\(var\(--cci-eink-ul\) \+ 3px\)/);
     // Both kinds of word share ONE rule, so they cannot be given different offsets.
     expect(deco.selectors.some((x) => x.includes(".cci-word:not(.cci-stack)"))).toBe(true);
     expect(deco.selectors.some((x) => x.includes(".cci-stack-chars"))).toBe(true);
@@ -152,7 +154,7 @@ describe("e-ink CSS block", () => {
       const sel = r!.selectors.join(" | ");
       // Plain words AND annotated words: dropping either loses the number there.
       expect(sel).toContain(`.cci-word:not(.cci-stack).cci-color-hsk-${n}::after`);
-      expect(sel).toContain(`.cci-stack.cci-color-hsk-${n} .cci-stack-cells > .cci-stack-cell:last-child::after`);
+      expect(sel).toContain(`.cci-stack.cci-color-hsk-${n} .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after`);
     }
   });
 
@@ -173,41 +175,62 @@ describe("e-ink CSS block", () => {
     expect(plain).toBeTruthy();
     const lastCell = rules.find((r) => r.selectors.some((s) => s.endsWith(".cci-stack-cell:last-child")));
     expect(lastCell!.body).toContain("padding-right: calc(var(--cci-eink-num)");
-    const stackAfter = rules.find((r) => r.selectors.some((s) => s.endsWith(".cci-stack-cell:last-child::after")) && r.body.includes("font-size"));
+    const stackAfter = rules.find((r) => r.selectors.some((s) => s.endsWith(".cci-stack-chars::after")) && r.body.includes("font-size"));
     expect(stackAfter!.body).toContain("font-size: var(--cci-eink-num)");
     const def = ruleWith(SC) && rules.find((r) => r.selectors.length === 1 && r.selectors[0] === SC);
     expect(def!.body).toContain("--cci-eink-num:");
     expect(def!.body).toContain("var(--cci-eink-number-scale");
+    // px from the reader font, NOT em: an em resolves where it is used, and the gutter (on the cell) and the digit
+    // (on the characters row, 1.7x larger in a heading) would disagree and the digit would overlap the next word.
+    expect(def!.body).toMatch(/--cci-eink-num:\s*max\(calc\(var\(--cci-reader-font\)/);
+    expect(def!.body).not.toMatch(/--cci-eink-num:[^;]*\.55em/);
   });
 
-  it("takes the plain-word number out of flow, so it is not underlined and cannot change the line", () => {
-    // A child cannot opt out of its parent's text-decoration; absolutely positioned boxes are simply not
-    // decorated. This is also why the number cannot affect line height at ANY spacing (the inline version
-    // needed `vertical-align: middle` + `line-height: 0` and still rose as the number shrank).
+  it("makes the number a zero-width atomic box lowered from the baseline, so it is not underlined and cannot change the line", () => {
+    // A child cannot opt out of its parent's text-decoration, but a decoration is not propagated into atomic
+    // inline-level boxes. Zero width: the gutter beside the word is what holds it, so layout does not depend on
+    // the digit. Lowered with `top` (no layout effect), by the same amount as the underline offset.
     const r = rules.find((x) => x.selectors.some((q) => q.includes(":not(.cci-stack):is(") && q.endsWith("::after")))!;
-    expect(r.body).toContain("position: absolute");
-    expect(r.body).not.toContain("vertical-align");
-    expect(r.body).not.toMatch(/\btop:/);
-    expect(r.body).not.toContain("text-decoration");
-    // Bottom edge from the SAME offset as the underline (derived from the reader font), so it does not move
-    // with the number's own size: `.25em` of the number itself rose by several px as the slider went down.
-    expect(r.body).toMatch(/bottom:\s*calc\(-1 \* \(var\(--cci-eink-ul\)/);
-  });
-
-  it("keeps a numbered plain word whole, so its number can never be separated from it", () => {
-    // An out-of-flow number belongs to the whole line-spanning box when a word wraps mid-word and was stranded
-    // at the far edge of the line. Whole word = one box = one anchor.
-    const r = rules.find((x) => x.selectors.length === 1 && x.selectors[0].includes(".cci-word:not(.cci-stack):is(") && x.body.includes("white-space"))!;
-    expect(r, "no nowrap rule for numbered plain words").toBeTruthy();
-    expect(r.body).toContain("white-space: nowrap");
+    expect(r.body).toContain("display: inline-block");
+    expect(r.body).toContain("width: 0");
     expect(r.body).toContain("position: relative");
-    // ...and it holds a gutter, derived from the number's size, so the digit has room.
-    expect(r.body).toContain("padding-right: calc(var(--cci-eink-num)");
-    // Only words that carry a number: Status mode wraps exactly as before.
-    expect(r.selectors[0]).not.toMatch(/cci-color-(known|partial|unknown|new)\b/);
+    expect(r.body).toContain("top: var(--cci-eink-dn)");
+    expect(r.body).toContain("line-height: 0");
+    expect(r.body).not.toContain("position: absolute");
+    expect(r.body).not.toContain("vertical-align");
+    expect(r.body).not.toContain("text-decoration");
+    // Both kinds of word share this rule, so they cannot be given different anchors.
+    expect(r.selectors.some((q) => q.endsWith(".cci-stack-chars::after"))).toBe(true);
+    // UI font: lining digits that sit on the baseline. Some CJK fonts' digits do not.
+    expect(r.body).toContain("font-family: var(--font-interface");
   });
 
-  it("uses no word joiner: with the word kept whole there is nothing to hold together", () => {
+  it("makes a numbered plain word an atomic inline-block, and never white-space: nowrap on a span", () => {
+    // beta.4 used nowrap on the word and in WebKit (iPhone) that removed the break opportunity between ADJACENT
+    // words: a paragraph of numbered words had no legal break and scrolled sideways. An atomic box keeps the number
+    // with its word AND leaves the line free to break around it. check:layout wraps adjacent words at every width.
+    const r = rules.find((x) => x.selectors.length === 1 && x.selectors[0].includes(".cci-word:not(.cci-stack):is(") && x.body.includes("display: inline-block"))!;
+    expect(r, "numbered plain word is not an inline-block").toBeTruthy();
+    expect(r.body).toContain("padding-right: calc(var(--cci-eink-num)");
+    // An inline-block's border counts toward its height (an inline's does not): it must be gone.
+    expect(r.body).toContain("border-bottom: 0");
+    expect(r.selectors[0]).not.toMatch(/cci-color-(known|partial|unknown|new)\b/);
+    // No rule in the block may set nowrap on a word that sits in the flow of the line. (Inside the atomic box it is
+    // harmless: the word's own rule above is the one allowed use.)
+    for (const x of rules) {
+      if (!x.body.includes("white-space: nowrap")) continue;
+      expect(x.selectors.every((q) => q.includes(".cci-word:not(.cci-stack):is(") || q.endsWith("::after")), `nowrap on ${x.selectors.join(" | ")}`).toBe(true);
+    }
+  });
+
+  it("restores a plain inline span while the view is editable", () => {
+    // A box around live text disturbs the caret and selection.
+    const r = rules.find((x) => x.selectors.some((q) => q.includes('.cm-content[contenteditable="true"] .cci-word:not(.cci-stack)')))!;
+    expect(r.body).toContain("display: inline");
+    expect(r.body).toContain("padding-right: 0");
+  });
+
+  it("uses no word joiner: the number is a separate atomic box", () => {
     expect(css).not.toContain("\\2060");
   });
 
@@ -215,7 +238,7 @@ describe("e-ink CSS block", () => {
     // Content beside a live caret shifts it (measured 7.3px at every word end).
     const g = rules.find((r) => r.body.includes("content: none"))!;
     expect(g.selectors.join(" ")).toContain('.cm-content[contenteditable="true"] .cci-word::after');
-    expect(g.selectors.join(" ")).toContain('.cm-content[contenteditable="true"] .cci-stack-cell:last-child::after');
+    expect(g.selectors.join(" ")).toContain('.cm-content[contenteditable="true"] .cci-stack-chars::after');
   });
 
   it("covers every colour class the plugin can actually produce", () => {

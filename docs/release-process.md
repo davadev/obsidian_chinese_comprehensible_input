@@ -57,7 +57,7 @@ measures, across every combination of reader font, line spacing, annotation size
 level-number size, that the mode never changes line height, leaves the annotation rows alone, shows
 exactly one number per word, keeps the number's bottom edge level with the underline (read from a screenshot, in every CJK font installed on the machine, at several slider positions), and is inert when off. Run it before any release that touches
 `styles.css` or `RubyWidget` — those are the two things that can break it, and CI cannot see layout
-(no DOM harness, #119). It is deliberately **not** in CI (the runner has no browser), and it exits 0
+(no DOM harness, #119). It runs in Chromium only; **WebKit (iPhone) is not covered by it** and has already behaved differently once (a `white-space: nowrap` that Chromium tolerated removed every line break in WebKit), so a release touching `styles.css` should also be looked at on an iPhone. It is deliberately **not** in CI (the runner has no browser), and it exits 0
 with a notice when no Chromium is installed, so it can never block a machine that lacks one.
 
 ### Stage 3 — install and test the prerelease

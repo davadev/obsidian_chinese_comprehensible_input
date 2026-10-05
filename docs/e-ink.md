@@ -55,12 +55,14 @@ Things to know:
   the line can look broken where the pinyin pushes them apart.
 - **The number sits level with the underline, and is not underlined itself.** Its bottom
   edge lines up with the bottom edge of the underline next to it, and it stays there at any
-  size on the slider, in plain and annotated words alike (measured in pixels, within half a
-  pixel, in every CJK font the check could find).
+  size on the slider, in plain and annotated words alike. Both are measured from the text's
+  baseline, so this holds in any font (checked in pixels, within half a pixel, in the CJK fonts
+  installed on a Mac, in Chromium and in WebKit, the engine on iPhone). The digit is drawn in
+  Obsidian's interface font, whose digits sit on the baseline in every reader font.
 - **A numbered word is never split across two lines.** In HSK mode a word that carries a
   number moves to the next line as a whole, so its number can never end up on a different
-  line. The cost: line ends can be a few characters ragged, and text wraps slightly
-  differently from colour mode. Status mode wraps exactly as before.
+  line; the text still wraps to the screen like any other. The cost: line ends can be a few
+  characters ragged. Status mode wraps exactly as before.
 - E-ink mode never changes how tall a line is, whatever your font size, line spacing or
   annotation size.
 - In HSK mode, each annotated word gains a small gap for its number, so text can re-wrap
