@@ -416,8 +416,9 @@ function highlights() {
       return getComputedStyle(el);
     };
     const plain = mk("cci-md-highlight", "");
-    const coloured = mk("cci-md-highlight cci-md-colored", "background-color:rgba(255, 85, 130, 0.65);");
-    const link = mk("cci-md-link-hl", "background-color:rgba(255, 85, 130, 0.65);");
+    // The colour arrives as the inline custom property the plugin writes (never an inline background), which the base rules read.
+    const coloured = mk("cci-md-highlight cci-md-colored", "--cci-mark-bg:rgba(255, 85, 130, 0.65);");
+    const link = mk("cci-md-link-hl", "--cci-mark-bg:rgba(255, 85, 130, 0.65);");
     const chars = getComputedStyle(stack.querySelector(".cci-stack-chars") as HTMLElement);
     const row = getComputedStyle(stack.querySelector(".cci-stack-cell > *:not(.cci-stack-chars)") ?? stack);
     out[eink ? "on" : "off"] = {

@@ -401,7 +401,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           const deco = span.color
             ? Decoration.mark({
                 class: "cci-md-highlight cci-md-colored",
-                attributes: { style: `background-color:${span.color};` },
+                attributes: { style: `--cci-mark-bg:${span.color};` },
               })
             : Decoration.mark({ class: "cci-md-highlight" });
           items.push({ from: span.contentFrom, to: span.contentTo, deco });
@@ -568,7 +568,7 @@ function markFormatTarget(el: HTMLElement, surface: string, start: number, end: 
 function tintHighlight(el: HTMLElement, bg: string | undefined): void {
   if (!bg) return;
   el.classList.add("cci-md-link-hl");
-  el.style.backgroundColor = bg;
+  el.style.setProperty("--cci-mark-bg", bg);
 }
 
 class WikilinkWidget extends WidgetType {

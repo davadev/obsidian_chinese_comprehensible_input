@@ -51,6 +51,23 @@ for (const chunk of css.split("}")) {
 }
 const ruleWith = (needle: string) => rules.find((r) => r.selectors.some((s) => s.includes(needle)));
 const SC = ".cci-view[data-eink]";
+/** The one rule that draws the underline: a single `text-decoration` shorthand fed by --cci-eink-ul-* properties. */
+const underlineRule = () => rules.find((r) => /(^|[;\s])text-decoration:\s*var\(--cci-eink-ul-line/.test(r.body))!;
+/** Specificity of a selector as [classes + attributes + pseudo-classes, elements/pseudo-elements]. Enough for the
+ *  selectors in this block: no ids, no type selectors, `:not()` / `:is()` counted by their argument. */
+function specificity(sel: string): [number, number] {
+  const flat = sel.replace(/:(not|is)\(([^()]*)\)/g, " $2 ");
+  const pseudoEl = (flat.match(/::[a-z-]+/g) ?? []).length;
+  const noEl = flat.replace(/::[a-z-]+/g, "");
+  const classes = (noEl.match(/\.[A-Za-z_-][\w-]*/g) ?? []).length;
+  const attrs = (noEl.match(/\[[^\]]+\]/g) ?? []).length;
+  const pseudoClass = (noEl.match(/:[a-z-]+/g) ?? []).length;
+  return [classes + attrs + pseudoClass, pseudoEl];
+}
+const outranks = (a: string, b: string) => {
+  const [x, y] = [specificity(a), specificity(b)];
+  return x[0] > y[0] || (x[0] === y[0] && x[1] > y[1]);
+};
 
 describe("e-ink CSS block", () => {
   it("exists, between the markers", () => {
@@ -85,10 +102,12 @@ describe("e-ink CSS block", () => {
     // is (ascent + descent - 1)/2 em of the font in use (1px in one font, ~5px in another), so no
     // fixed offset can align them. A text-decoration is drawn from the baseline by the same engine for
     // both. It also has no layout effect, where a thicker border grew the line.
-    const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
+    const deco = underlineRule();
     expect(deco, "no underline rule").toBeTruthy();
-    expect(deco.body).toContain("text-decoration-thickness: 3px");
-    expect(deco.body).toContain("text-decoration-skip-ink: none");
+    // 3px thickness is the last part of the shorthand: line style colour thickness.
+    expect(deco.body).toMatch(/text-decoration:[^;]*\)\s+3px;/);
+    // Obsidian's CSS lint flags these longhands as partially supported; the shorthand with var() parts passes.
+    expect(css).not.toMatch(/text-decoration-(line|style|color|thickness|skip-ink)\s*:/);
     expect(css).not.toMatch(/border-bottom:\s*\d+px\s+(solid|dotted)\s+(?!transparent)/);
   });
 
@@ -96,7 +115,7 @@ describe("e-ink CSS block", () => {
     // Anchored to the BASELINE (default underline position + a px offset), never to a box edge: a box edge depends on
     // the font's ascent + descent, which put the number 3-10px off the underline in real CJK fonts. The number is
     // lowered by the same amount, so changing one without the other misaligns the digit.
-    const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
+    const deco = underlineRule();
     expect(deco.body).not.toContain("text-underline-position");
     expect(deco.body).toContain("text-underline-offset: var(--cci-eink-ul)");
     const def = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === SC)!;
@@ -117,12 +136,12 @@ describe("e-ink CSS block", () => {
 
   it("underlines the characters row of an annotated word, never the word's own box", () => {
     // Declared on the inline-block, a decoration would also underline the pinyin and translation rows.
-    const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
+    const deco = underlineRule();
     const sels = deco.selectors;
     expect(sels.some((s) => s.includes(".cci-word:not(.cci-stack):is("))).toBe(true);
     expect(sels.some((s) => s.includes(".cci-stack:is(") && s.endsWith(".cci-stack-chars"))).toBe(true);
     // No decoration rule may select a .cci-stack on its own.
-    for (const r of rules.filter((x) => /text-decoration-(line|style|color)/.test(x.body))) {
+    for (const r of rules.filter((x) => /(text-decoration:|--cci-eink-ul-(line|style|color):)/.test(x.body))) {
       for (const s of r.selectors) {
         // `:not(.cci-stack)` is how the plain-word selector EXCLUDES annotated words; strip it before
         // asking whether a selector reaches one.
@@ -137,17 +156,16 @@ describe("e-ink CSS block", () => {
       const r = rules.find((x) => x.selectors.some((s) => s.includes(`.cci-color-${status}:not(.cci-stack)`)))!;
       expect(r, `no ${status} rule`).toBeTruthy();
       expect(r.selectors.some((s) => s.includes(`.cci-stack.cci-color-${status} .cci-stack-chars`))).toBe(true);
+      // The variant only sets the custom property the underline shorthand reads (no longhand, see above).
+      expect(r.body).toMatch(/--cci-eink-ul-(color|style|line):/);
     }
   });
 
-  it("uses !important in exactly two places: the edit-mode guard and the highlight grey", () => {
-    // Both exist to beat INLINE styles (the caret guard's generated content; coloured marks'
-    // style attribute). Anywhere else it would hide a specificity mistake.
-    const important = rules.filter((r) => r.body.includes("!important"));
-    expect(important.length).toBe(2);
-    const where = important.map((r) => r.selectors.join(" "));
-    expect(where.some((w) => w.includes('[contenteditable="true"]'))).toBe(true);
-    expect(where.some((w) => w.includes(".cci-md-highlight"))).toBe(true);
+  it("uses no !important at all: every override is won by specificity or by a custom property", () => {
+    // Obsidian's CSS lint rejects it. The two uses beta.1-0.7.8 shipped (the edit-mode guard and the grey
+    // highlight) existed to beat INLINE styles; the guard now outranks by specificity and the colours arrive
+    // as inline custom properties that the base rules read. styles.css as a whole is checked in cssLint.test.ts.
+    expect(css).not.toContain("!important");
   });
 
   it("generates content for each HSK level 1-7, on both kinds of word", () => {
@@ -238,11 +256,22 @@ describe("e-ink CSS block", () => {
     expect(css).not.toContain("\\2060");
   });
 
-  it("does not generate content while the view is editable", () => {
-    // Content beside a live caret shifts it (measured 7.3px at every word end).
-    const g = rules.find((r) => r.body.includes("content: none"))!;
-    expect(g.selectors.join(" ")).toContain('.cm-content[contenteditable="true"] .cci-word::after');
-    expect(g.selectors.join(" ")).toContain('.cm-content[contenteditable="true"] .cci-stack-chars::after');
+  it("does not generate content while the view is editable, by specificity", () => {
+    // Content beside a live caret shifts it (measured 7.3px at every word end). The guard has no !important, so it
+    // must be MORE specific than the number rule it cancels, for both kinds of word.
+    const g = rules.filter((r) => r.body.includes("content: none"));
+    const guards = g.flatMap((r) => r.selectors);
+    const plainGuard = guards.find((x) => x.includes('[contenteditable="true"]') && x.includes(".cci-word:not(.cci-stack)::after"))!;
+    const stackGuard = guards.find((x) => x.includes('[contenteditable="true"]') && x.endsWith(".cci-stack-chars::after"))!;
+    expect(plainGuard, "plain-word guard").toBeTruthy();
+    expect(stackGuard, "annotated-word guard").toBeTruthy();
+    for (let n = 1; n <= 7; n++) {
+      const r = ruleWith(`.cci-color-hsk-${n}::after`)!;
+      const plain = r.selectors.find((x) => x.includes(":not(.cci-stack).cci-color-hsk"))!;
+      const stack = r.selectors.find((x) => x.endsWith(".cci-stack-chars::after"))!;
+      expect(outranks(plainGuard, plain), `plain guard vs hsk-${n}`).toBe(true);
+      expect(outranks(stackGuard, stack), `stack guard vs hsk-${n}`).toBe(true);
+    }
   });
 
   it("covers every colour class the plugin can actually produce", () => {
@@ -269,18 +298,29 @@ describe("e-ink CSS block", () => {
     // (colorShouldShow returns false for it) — both are deliberately unmarked.
     const needed = [...produced].filter((k) => k !== "ignored" && k !== "hsk-none");
     expect(needed.length).toBeGreaterThanOrEqual(11);
-    const underline = rules.find((r) => r.selectors.some((s) => s.startsWith(`${SC} .cci-word:not(.cci-stack):is(`)) && r.body.includes("text-decoration-line: underline"))!;
+    const underline = underlineRule();
     const text = underline.selectors.join(" ");
     for (const key of needed) expect(text, `no e-ink underline for .cci-color-${key}`).toContain(`.cci-color-${key}`);
   });
 
-  it("draws every highlight in the one e-ink grey, beating the inline colours", () => {
-    // Coloured <mark> carries style="background-color:..." and link widgets set an inline
-    // background, so the plain-class rules lose without !important; the stack band is a
-    // gradient fed by the inline --cci-hl, so that one restyles background-image instead.
+  it("draws every highlight in the one e-ink grey, beating the base rules by specificity", () => {
+    // Coloured <mark>s and link widgets carry their colour as the inline custom property --cci-mark-bg (never an
+    // inline background, which nothing could beat without !important); the stack band is a gradient fed by the
+    // inline --cci-hl, so that one restyles background-image instead.
     const flat = ruleWith(`${SC} .cci-md-highlight`)!;
     expect(flat.selectors).toContain(`${SC} .cci-md-link-hl`);
-    expect(flat.body).toMatch(/background-color:\s*var\(--cci-eink-highlight\)\s*!important/);
+    expect(flat.body).toMatch(/background-color:\s*var\(--cci-eink-highlight\);/);
+    expect(flat.body).toMatch(/color:\s*#000;/);
+    // outranks the base rules it overrides, including the link's :hover background
+    // Strictly more specific, or a tie that the e-ink block wins by coming later in the file.
+    for (const base of [".cci-view .cci-md-highlight", ".cci-view .cci-md-link-hl", ".cci-view .cci-md-wikilink:hover", ".cci-view .cci-word"]) {
+      for (const sel of flat.selectors) {
+        const [x, y] = [specificity(sel), specificity(base)];
+        const stricter = x[0] > y[0] || (x[0] === y[0] && x[1] > y[1]);
+        const tie = x[0] === y[0] && x[1] === y[1];
+        expect(stricter || (tie && raw.indexOf(base + " {") < begin), `${sel} vs ${base}`).toBe(true);
+      }
+    }
     const band = ruleWith(`${SC} .cci-stack-hl`)!;
     expect(band.body).toMatch(/background-image:\s*linear-gradient\(var\(--cci-eink-highlight\)/);
     expect(band.body).not.toContain("--cci-hl");

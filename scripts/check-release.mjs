@@ -205,6 +205,37 @@ const CSS_PARTIAL_FEATURES = [
   "box-decoration-break",
   "-webkit-box-decoration-break",
 ];
+// Rules Obsidian's CSS lint enforces and that are checked HERE as failures, because they are deterministic and
+// a violation was published once already (0.7.8: 8 text-decoration longhands, 3 !important). Reproduced with
+// stylelint + stylelint-no-unsupported-browser-features targeting `chrome 138` plus `declaration-no-important`,
+// which gave exactly the review's 11 warnings at the same lines. Mirrored by src/tests/cssLint.test.ts.
+const CSS_FORBIDDEN = [
+  {
+    name: "!important",
+    re: /!\s*important/,
+    why: "avoid !important: raise selector specificity or use a custom property",
+  },
+  {
+    name: "text-decoration longhand",
+    re: /(^|[\s;{])text-decoration-(line|style|color|thickness|skip-ink|skip)\s*:/,
+    why: "flagged as partially supported; use the text-decoration shorthand with var() parts (see the e-ink underline rule)",
+  },
+];
+{
+  const styles = (await readText("styles.css")) ?? "";
+  // Comments are blanked (newlines kept, so line numbers stay true): they may discuss the very things forbidden.
+  const code = styles.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
+  const bad = [];
+  code.split("\n").forEach((line, i) => {
+    for (const rule of CSS_FORBIDDEN) if (rule.re.test(line)) bad.push({ rule, line: i + 1 });
+  });
+  if (bad.length === 0) pass("styles.css passes Obsidian's CSS lint rules (no !important, no text-decoration longhands)");
+  else
+    fail(
+      "styles.css passes Obsidian's CSS lint rules",
+      bad.map((b) => `${b.rule.name} (styles.css:${b.line})`).join(", ") + " — " + [...new Set(bad.map((b) => b.rule.why))].join("; ")
+    );
+}
 {
   const styles = (await readText("styles.css")) ?? "";
   const lines = styles.split("\n");
