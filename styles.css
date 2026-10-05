@@ -250,7 +250,10 @@
   border-radius: 4px;
 }
 .cci-view .cci-md-highlight {
-  background: var(--text-highlight-bg, rgba(255, 208, 0, 0.45));
+  /* `--cci-mark-bg` is the colour of a coloured <mark> / a highlighted word, written inline as a custom
+     PROPERTY (not as an inline background, which no selector could override: E-ink mode needed !important
+     for that, and Obsidian's CSS lint rejects !important). Unset = the plain ==highlight== colour. */
+  background: var(--cci-mark-bg, var(--text-highlight-bg, rgba(255, 208, 0, 0.45)));
   color: var(--text-normal);
   /* Used only by the "none" display-mode content tint (ruby modes use the
      .cci-stack-hl band). Horizontal-only padding keeps a single-line highlight
@@ -427,9 +430,12 @@
 .cci-view .cci-word-h2 span,
 .cci-view .cci-word-h3 span,
 .cci-view .cci-word-h4 span { font-size: inherit; }
-/* A link widget (wikilink / embed) sitting inside a highlight paints its own
-   background inline (dynamic color); this just rounds the corners. */
-.cci-view .cci-md-link-hl {
+/* A link widget (wikilink / embed) sitting inside a highlight takes the highlight's colour from
+   `--cci-mark-bg` (set inline by tintHighlight). :hover is repeated because the link's own hover rule has a
+   higher specificity, and a highlighted link has never shown its hover background. */
+.cci-view .cci-md-link-hl,
+.cci-view .cci-md-link-hl:hover {
+  background-color: var(--cci-mark-bg);
   border-radius: 2px;
 }
 .cci-format-swatch {
@@ -720,26 +726,27 @@
 }
 .cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7),
 .cci-view[data-eink] .cci-stack:is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-chars {
-  text-decoration-line: underline;
-  text-decoration-style: solid;
-  text-decoration-thickness: 3px;
-  text-decoration-color: var(--text-normal);
-  text-decoration-skip-ink: none;
+  /* ONE shorthand, fed by custom properties that the status rules below override. Obsidian's CSS lint flags
+     the longhands (-line, -style, -color, -thickness, -skip-ink) as "partially supported", but not a shorthand
+     whose parts are var(); every engine Obsidian 1.13+ runs on supports all of them. `skip-ink: none` has no
+     shorthand and went with them: measured, it changes nothing under CJK words (the only words that get this
+     underline) in Chromium and WebKit; it would only open gaps under Latin descenders inside a word. */
+  text-decoration: var(--cci-eink-ul-line, underline) var(--cci-eink-ul-style, solid) var(--cci-eink-ul-color, var(--text-normal)) 3px;
   text-underline-offset: var(--cci-eink-ul);
 }
 /* ~#aaa on a white page (the value confirmed readable on e-ink), but derived from
    the theme so it stays light-on-dark in dark themes; --text-faint varies by theme. */
 .cci-view[data-eink] .cci-word.cci-color-known:not(.cci-stack),
 .cci-view[data-eink] .cci-stack.cci-color-known .cci-stack-chars {
-  text-decoration-color: color-mix(in srgb, var(--text-normal) 38%, var(--background-primary));
+  --cci-eink-ul-color: color-mix(in srgb, var(--text-normal) 38%, var(--background-primary));
 }
 .cci-view[data-eink] .cci-word.cci-color-partial:not(.cci-stack),
 .cci-view[data-eink] .cci-stack.cci-color-partial .cci-stack-chars {
-  text-decoration-style: dotted;
+  --cci-eink-ul-style: dotted;
 }
 .cci-view[data-eink] .cci-word.cci-color-new:not(.cci-stack),
 .cci-view[data-eink] .cci-stack.cci-color-new .cci-stack-chars {
-  text-decoration-line: none;
+  --cci-eink-ul-line: none;
 }
 
 .cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) {
@@ -785,14 +792,17 @@
 
 /* A box around live text disturbs the caret and selection: while editable a word is a plain inline span again. */
 .cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word:not(.cci-stack) { display: inline; white-space: inherit; padding-right: 0; }
-.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word::after,
-.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-stack-chars::after { content: none !important; }
+/* No generated number beside a live caret. Selectors are one class longer than the number rules they cancel
+   ((0,6,1) over (0,5,1) for a plain word, (0,9,1) over (0,8,1) for an annotated one), so this wins by
+   specificity and needs no !important. */
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word:not(.cci-stack)::after,
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-stack .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: none; }
 /* Highlighting (#112 follow-up). Coloured highlights are pastel tints, which all print as the
    same light grey on e-paper, so in E-ink mode every highlight - the plain ==text== one, a
    coloured <mark> already in a note, and a link widget inside either - is drawn in ONE grey
    (a display change only: nothing in the note is rewritten, and it is gone when the mode is
-   off). The colours are inline (style="background-color:..." / --cci-hl / widget style), so
-   the rules that must beat them say !important or restyle the property the inline value feeds.
+   off). The colours arrive as inline custom properties (--cci-mark-bg / --cci-hl), which the base
+   rules read, so these rules override them by ordinary specificity: no !important.
    Black text on it, whatever the theme: a light theme's black is fine, a dark theme's white
    would not read on this grey. The grey is a guess for e-paper (only seen on LCD): one
    constant, so it is a one-line change. */
@@ -801,8 +811,8 @@
 }
 .cci-view[data-eink] .cci-md-highlight,
 .cci-view[data-eink] .cci-md-link-hl {
-  background-color: var(--cci-eink-highlight) !important;
-  color: #000 !important;
+  background-color: var(--cci-eink-highlight);
+  color: #000;
 }
 .cci-view[data-eink] .cci-stack-hl {
   background-image: linear-gradient(var(--cci-eink-highlight), var(--cci-eink-highlight));

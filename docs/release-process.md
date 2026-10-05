@@ -329,6 +329,25 @@ The remaining exclusions are the Obsidian / DOM shells (`main.ts`, `ViewToolbar.
 (`formatOptions.ts`, `einkMode.ts`) and are tested there; `check:layout` covers the E-ink CSS in a
 real browser.
 
+## CSS lint: what Obsidian's review checks in `styles.css`
+
+`npm run lint` is ESLint over `src/**/*.ts`; it has never looked at `styles.css`. Obsidian's review does, with
+two kinds of finding, and 0.7.8 shipped 11 of them (8 `text-decoration` longhands and 3 `!important`):
+
+- **`!important`**: "avoid !important, override by raising specificity or using CSS variables".
+- **"Unexpected browser feature … is only partially supported by Obsidian"**: for `text-decoration`, this fires
+  on the longhands `text-decoration-line / -style / -color / -thickness / -skip-ink`. The shorthand
+  `text-decoration: underline` is accepted, and so is a shorthand whose parts are `var()`s (what the E-ink underline
+  uses).
+
+Both were reproduced offline with `stylelint` + `stylelint-no-unsupported-browser-features` targeting `chrome 138`
+plus `declaration-no-important`, which gives exactly the review's findings at the same lines on 0.7.8 and none on
+the fixed file. That tool is deliberately **not** a dependency here (see the supply-chain issue #150). Instead the
+two rules are enforced without it: `check-release` fails on them (`CSS_FORBIDDEN`), and `src/tests/cssLint.test.ts`
+fails the PR build. Anything else the review finds in the CSS that the repository does not yet know about can still
+slip through once; add its pattern to both places when it does. Real stylelint in CI would remove that, and is
+tracked as a follow-up.
+
 ## Why `npm run lint` is 0/0 while the auto-review reports thousands
 
 The community-plugin auto-review can report several thousand

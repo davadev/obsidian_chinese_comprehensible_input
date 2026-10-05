@@ -430,7 +430,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // (it would overlap the ruby widgets), so mark-rendered words tint here.
         const rubyMode = mode === "two-line" || mode === "three-line";
         const hlAttrs: Record<string, string> =
-          effHl && rubyMode ? { style: `background-color:${effHl};` } : {};
+          effHl && rubyMode ? { style: `--cci-mark-bg:${effHl};` } : {};
         const hlClass = effHl && rubyMode ? " cci-md-highlight" : "";
         if (showColor) {
           builder.add(
