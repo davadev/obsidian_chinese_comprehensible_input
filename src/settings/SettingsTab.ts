@@ -596,7 +596,8 @@ export class CciSettingsTab extends PluginSettingTab {
         "Font color for each row of the reader — Chinese characters, pinyin, and the English gloss. " +
           "This is the text color, not the known/unknown/HSK background tint, so the two can be combined. " +
           "The three pickers below only take effect while the toggle is on; with it off your theme " +
-          "decides all three (so dark themes keep working)."
+          "decides all three (so dark themes keep working). While E-ink mode is on, the pinyin and " +
+          "translation rows are black and their two pickers are switched off."
       ),
       {
         name: "Use custom text colors",
@@ -604,10 +605,13 @@ export class CciSettingsTab extends PluginSettingTab {
         control: { type: "toggle", key: "textColors.enabled" },
       },
       { name: "Characters color", control: { type: "color", key: "textColors.chars" } },
-      { name: "Pinyin color", control: { type: "color", key: "textColors.pinyin" } },
+      {
+        name: "Pinyin color",
+        control: { type: "color", key: "textColors.pinyin", disabled: this.einkOn },
+      },
       {
         name: "English translation color",
-        control: { type: "color", key: "textColors.gloss" },
+        control: { type: "color", key: "textColors.gloss", disabled: this.einkOn },
       },
       {
         name: "Reset text colors",

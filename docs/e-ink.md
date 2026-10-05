@@ -90,6 +90,14 @@ in E-ink mode there is **one highlight, in one grey**:
   dark on yours, please say so on
   [#112](https://github.com/davadev/obsidian_chinese_comprehensible_input/issues/112).
 
+## Annotation rows
+
+In two-line and three-line mode the pinyin and translation rows (and the mnemonic row) are drawn
+**black**: small grey text is hard to read on e-paper. This replaces the theme's grey and your own
+"Pinyin color" / "English translation color" (those two pickers are switched off while E-ink mode is
+on; your values are kept and come back when you turn it off). The characters color is not affected.
+On a dark theme these rows keep the theme's text colour, since black would not show.
+
 ## The CSS snippet
 
 **The approach and the original snippet are [huwhowell](https://github.com/huwhowell)'s**,

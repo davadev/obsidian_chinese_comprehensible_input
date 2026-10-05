@@ -14,6 +14,7 @@
  *   extras  edit-mode guard, and one-number-per-word at every width that splits a word
  *   rects   layout of every config with E-ink OFF, for the "off is inert" comparison
  *   highlight  computed colours of every kind of highlight, E-ink on and off
+ *   rows       computed colours of the pinyin / translation / mnemonic / characters rows
  */
 import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration } from "@codemirror/view";
@@ -425,6 +426,30 @@ function highlights() {
   return out;
 }
 
+/** Colour of each annotation row under every combination of E-ink, custom text colours (root custom
+ *  properties, as the plugin writes them) and theme. */
+function rowColours() {
+  const out: Record<string, any> = {};
+  for (const eink of [true, false]) for (const custom of [true, false]) for (const dark of [true, false]) {
+    const { view, root } = mount({ mode: "three-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100 });
+    if (eink) root.setAttribute("data-eink", "");
+    if (custom) root.style.cssText += ";--cci-text-chars:rgb(1, 2, 3);--cci-text-pinyin:rgb(10, 20, 30);--cci-text-gloss:rgb(40, 50, 60)";
+    document.body.classList.toggle("theme-dark", dark);
+    document.body.style.setProperty("--text-normal", "rgb(238, 238, 238)");
+    const stack = view.contentDOM.querySelector(".cci-stack") as HTMLElement;
+    const mnemonic = document.createElement("div");
+    mnemonic.className = "cci-stack-gloss cci-stack-mnemonic";
+    stack.prepend(mnemonic);
+    const c = (sel: string | HTMLElement) => getComputedStyle(typeof sel === "string" ? stack.querySelector(sel)! : sel).color;
+    out[`${eink ? "eink" : "off"}|${custom ? "custom" : "theme"}|${dark ? "dark" : "light"}`] = {
+      pinyin: c(".cci-stack-pinyin"), gloss: c(".cci-stack-gloss:not(.cci-stack-mnemonic)"), mnemonic: c(mnemonic), chars: c(".cci-stack-chars"),
+    };
+    view.destroy();
+  }
+  document.body.classList.remove("theme-dark");
+  return out;
+}
+
 const task = Q.get("task") ?? "matrix";
 const t0 = performance.now();
 let result: any;
@@ -437,6 +462,8 @@ if (task === "matrix") {
   result = { task, over: overflow() };
 } else if (task === "geom") {
   result = { task, ...geom() };
+} else if (task === "rows") {
+  result = { task, rows: rowColours() };
 } else if (task === "highlight") {
   result = { task, hl: highlights() };
 } else if (task === "rects") {
