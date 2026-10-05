@@ -151,7 +151,11 @@ function runConfig(cfg: Cfg) {
     const numberDelta = Math.abs(on.lineH - underline.lineH);
     stat.maxNumberLineDelta = Math.max(stat.maxNumberLineDelta, numberDelta);
     if (numberDelta > 0.5) fail("number-changes-line-height", k, `${underline.lineH.toFixed(2)} -> ${on.lineH.toFixed(2)}`);
-    stat.maxUnderlineLineDelta = Math.max(stat.maxUnderlineLineDelta, Math.abs(underline.lineH - off.lineH));
+    const underlineDelta = Math.abs(underline.lineH - off.lineH);
+    stat.maxUnderlineLineDelta = Math.max(stat.maxUnderlineLineDelta, underlineDelta);
+    // The underline is a text-decoration, which has no layout effect. A thicker border used to add 1-2px
+    // to a line in two/three-line mode at tight spacing; if that comes back this fails.
+    if (underlineDelta > 0.5) fail("underline-changes-line-height", k, `${off.lineH.toFixed(2)} -> ${underline.lineH.toFixed(2)}`);
 
     const s0 = view.contentDOM.querySelector(".cci-stack") as HTMLElement | null;
     if (s0 && offRows) {
@@ -159,6 +163,30 @@ function runConfig(cfg: Cfg) {
       if (now?.pinyin !== offRows.pinyin || now?.gloss !== offRows.gloss) fail("annotation-rows-changed", k, JSON.stringify({ was: offRows, now }));
     }
 
+    if (sc === SCALES[0]) {
+      // Both kinds of word must carry the SAME underline, drawn from the same font at the same baseline.
+      // A border put them at different heights (the gap is (ascent + descent - 1)/2 em of the font in use,
+      // so it varies by font and no fixed offset fixes it). Geometry of a decoration is not exposed to
+      // script, so this checks what determines it: the decoration, the font, and that no border is drawn.
+      const sig = (w: HTMLElement) => {
+        const stack = w.classList.contains("cci-stack");
+        const el = (stack ? w.querySelector(".cci-stack-chars") : w) as HTMLElement;
+        const c = getComputedStyle(el);
+        const own = getComputedStyle(w);
+        return { stack, line: c.textDecorationLine, style: c.textDecorationStyle, thick: c.textDecorationThickness, offset: c.textUnderlineOffset, colour: c.textDecorationColor, font: c.fontSize + c.fontFamily, border: own.borderBottomWidth + " " + own.borderBottomColor, ownLine: own.textDecorationLine };
+      };
+      const sigs = on.words.map((o) => sig(o.w));
+      const ref = sigs[0];
+      sigs.forEach((g, i) => {
+        const same = g.line === ref.line && g.style === ref.style && g.thick === ref.thick && g.offset === ref.offset && g.colour === ref.colour && g.font === ref.font;
+        if (!same) fail("underline-differs-between-kinds-of-word", key, `word${i + 1} ${JSON.stringify(g)} vs ${JSON.stringify(ref)}`);
+        // The border stays (1px, to keep the layout identical to colour mode) but must be invisible; a visible one
+        // would be a second underline at a different height.
+        if (g.border !== "1px rgba(0, 0, 0, 0)") fail("visible-border-underline-reintroduced", key, `word${i + 1} border-bottom ${g.border}`);
+        // Declared on the annotated word's own box it would also underline the pinyin and translation rows.
+        if (g.stack && g.ownLine !== "none") fail("decoration-on-annotated-box", key, `word${i + 1} ${g.ownLine}`);
+      });
+    }
     on.words.forEach((o, i) => {
       const w = o.w;
       const level = i + 1;
@@ -243,7 +271,7 @@ function editModeGuard() {
  *  still carry exactly one number. (An absolutely positioned number was stranded in exactly
  *  these cases.) */
 function splitWords() {
-  let widths = 0, wrong = 0;
+  let widths = 0, wrong = 0, detached = 0;
   for (let w = 300; w <= 700; w += 2) {
     const { view, root } = mount({ mode: "none", branch: "plain", len: 2, font: 22, spacing: 1, annot: 100 });
     root.style.width = w + "px";
@@ -253,10 +281,19 @@ function splitWords() {
     if (els.some((e) => e.getClientRects().length > 1)) {
       widths++;
       if (els.filter((e) => shown(getComputedStyle(e, "::after").content)).length !== els.length) wrong++;
+      // The number must stay with its word. Without a word joiner a break was allowed between the last
+      // character and the number, and at the end of a line the number dropped to the next line alone:
+      // its piece of the word is then no wider than the digit.
+      let bad = false;
+      for (const e of els) {
+        const rs = [...e.getClientRects()];
+        if (rs.length > 1) { const numPx = parseFloat(getComputedStyle(e, "::after").fontSize); if (rs[rs.length - 1].width <= numPx * 1.3) bad = true; }
+      }
+      if (bad) detached++;
     }
     view.destroy();
   }
-  return { widths, wrong };
+  return { widths, wrong, detached };
 }
 
 function rects() {

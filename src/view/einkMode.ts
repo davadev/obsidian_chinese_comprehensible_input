@@ -15,19 +15,24 @@
 /**
  * Bounds of the level-number size slider, as a percentage of its default.
  *
- * Measured, not chosen: over 7,500 layout combinations (reader font 12–48 px,
- * line spacing 0.15–1.5×, annotation size 50–200 %, all three display modes)
- * the number stays within 0.8× the character size up to 140 %, and 150 % is the
- * first value that breaks it. One step of margin gives 130. Below roughly 74 %
- * the 9 px legibility floor in styles.css makes slider positions do nothing at
- * the default font, so 80 is the first position that visibly differs.
+ * Measured, not chosen: over 11,250 layout combinations (reader font 12-48 px,
+ * line spacing 0.15-1.5x, annotation size 50-200 %, all three display modes) the
+ * number stays within 0.8x the character size up to 140 %, and 150 % is the first
+ * value that breaks it. One step of margin gives 130.
+ *
+ * The lower bound is a preference, not a limit: beta.2 stopped at 80 and a tester
+ * wanted the numbers smaller, so it goes to 50. At the default 22 px font that is
+ * 6.05 px, which is the floor in styles.css (6 px) — so every slider position from
+ * 50 up changes something at the default font. At small reader fonts the floor wins
+ * and the low end does nothing; that is deliberate, since a digit smaller than 6 px
+ * is not legible on any screen this feature is for.
  *
  * These are shared by the settings slider, the reading view's "…" menu and the
  * clamp below. The annotation-size slider duplicates its 50/200 in three places
  * and its own comment warns that the floor "must match the slider's"; sharing
  * constants removes that failure by construction.
  */
-export const EINK_NUMBER_SCALE_MIN = 80;
+export const EINK_NUMBER_SCALE_MIN = 50;
 export const EINK_NUMBER_SCALE_MAX = 130;
 export const EINK_NUMBER_SCALE_STEP = 10;
 export const EINK_NUMBER_SCALE_DEFAULT = 100;

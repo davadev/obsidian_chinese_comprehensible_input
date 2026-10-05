@@ -37,14 +37,16 @@ describe("isEinkMode", () => {
 
 describe("clampEinkNumberScale", () => {
   it("leaves in-range values alone", () => {
-    for (const v of [80, 90, 100, 110, 120, 130, 87.5]) expect(clampEinkNumberScale(v)).toBe(v);
+    for (const v of [EINK_NUMBER_SCALE_MIN, 60, 80, 90, 100, 110, 120, EINK_NUMBER_SCALE_MAX, 87.5]) expect(clampEinkNumberScale(v)).toBe(v);
   });
 
   it("pulls out-of-range numbers back to the nearest bound", () => {
+    // Relative to the constants, not literals: the lower bound moved from 80 to 50 once already,
+    // and a hard-coded 79 here silently stopped testing anything.
     expect(clampEinkNumberScale(0)).toBe(EINK_NUMBER_SCALE_MIN);
-    expect(clampEinkNumberScale(79)).toBe(EINK_NUMBER_SCALE_MIN);
+    expect(clampEinkNumberScale(EINK_NUMBER_SCALE_MIN - 1)).toBe(EINK_NUMBER_SCALE_MIN);
     expect(clampEinkNumberScale(-50)).toBe(EINK_NUMBER_SCALE_MIN);
-    expect(clampEinkNumberScale(131)).toBe(EINK_NUMBER_SCALE_MAX);
+    expect(clampEinkNumberScale(EINK_NUMBER_SCALE_MAX + 1)).toBe(EINK_NUMBER_SCALE_MAX);
     expect(clampEinkNumberScale(1000)).toBe(EINK_NUMBER_SCALE_MAX);
   });
 
@@ -54,6 +56,11 @@ describe("clampEinkNumberScale", () => {
     for (const v of [NaN, Infinity, -Infinity, undefined, null, "150", "abc", {}, [], true]) {
       expect(clampEinkNumberScale(v)).toBe(EINK_NUMBER_SCALE_DEFAULT);
     }
+  });
+
+  it("lets the numbers go down to half size, as a tester asked", () => {
+    // beta.2 stopped at 80 and a tester wanted them smaller.
+    expect(EINK_NUMBER_SCALE_MIN).toBe(50);
   });
 
   it("has sane constants the slider can actually reach", () => {
