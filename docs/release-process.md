@@ -55,7 +55,7 @@ Nothing is committed to `main`. Files changed on the default branch: **none**.
 CodeMirror editors using the real `RubyWidget` and the real `styles.css` in headless Chromium and
 measures, across every combination of reader font, line spacing, annotation size, display mode and
 level-number size, that the mode never changes line height, leaves the annotation rows alone, shows
-exactly one number per word, and is inert when off. Run it before any release that touches
+exactly one number per word, keeps the number's bottom edge level with the underline (read from a screenshot, in every CJK font installed on the machine, at several slider positions), and is inert when off. Run it before any release that touches
 `styles.css` or `RubyWidget` — those are the two things that can break it, and CI cannot see layout
 (no DOM harness, #119). It is deliberately **not** in CI (the runner has no browser), and it exits 0
 with a notice when no Chromium is installed, so it can never block a machine that lacks one.

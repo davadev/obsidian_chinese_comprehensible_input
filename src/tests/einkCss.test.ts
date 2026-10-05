@@ -89,8 +89,21 @@ describe("e-ink CSS block", () => {
     expect(deco, "no underline rule").toBeTruthy();
     expect(deco.body).toContain("text-decoration-thickness: 3px");
     expect(deco.body).toContain("text-decoration-skip-ink: none");
-    expect(deco.body).toContain("text-underline-offset: .2em");
     expect(css).not.toMatch(/border-bottom:\s*\d+px\s+(solid|dotted)\s+(?!transparent)/);
+  });
+
+  it("places the underline from the reader font, identically on both kinds of word", () => {
+    // `.2em` was relative to the underlined text, and `under` + a reader-font offset puts the underline at the
+    // same height for a plain word and for the characters row of an annotated one, in any font. The number is
+    // anchored to this same offset, so changing one without the other misaligns the digit.
+    const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
+    expect(deco.body).toContain("text-underline-position: under");
+    expect(deco.body).toContain("text-underline-offset: var(--cci-eink-ul)");
+    const def = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === SC)!;
+    expect(def.body).toMatch(/--cci-eink-ul:\s*calc\(var\(--cci-reader-font\)/);
+    // Both kinds of word share ONE rule, so they cannot be given different offsets.
+    expect(deco.selectors.some((x) => x.includes(".cci-word:not(.cci-stack)"))).toBe(true);
+    expect(deco.selectors.some((x) => x.includes(".cci-stack-chars"))).toBe(true);
   });
 
   it("keeps the base 1px border, transparent, so layout is identical to colour mode", () => {
@@ -135,10 +148,7 @@ describe("e-ink CSS block", () => {
     for (let n = 1; n <= 7; n++) {
       const r = ruleWith(`.cci-color-hsk-${n}::after`);
       expect(r, `no number rule for hsk-${n}`).toBeTruthy();
-      // Leading word joiner: without it a line break was allowed between the last character and the
-      // number, and at the end of a line the number dropped to the next line on its own (41% of the
-      // widths where a word wraps).
-      expect(r!.body).toContain(`content: "\\2060" "${n}"`);
+      expect(r!.body).toContain(`content: "${n}"`);
       const sel = r!.selectors.join(" | ");
       // Plain words AND annotated words: dropping either loses the number there.
       expect(sel).toContain(`.cci-word:not(.cci-stack).cci-color-hsk-${n}::after`);
@@ -170,15 +180,35 @@ describe("e-ink CSS block", () => {
     expect(def!.body).toContain("var(--cci-eink-number-scale");
   });
 
-  it("keeps the plain-word number out of the line-height calculation", () => {
-    // Measured at the slider's 0.15x minimum: `vertical-align: sub`, and a plain
-    // relative offset, both grew the line; middle + line-height 0 does not.
-    const r = rules.find((x) => x.selectors.some((s) => s.includes(":not(.cci-stack):is(") && s.endsWith("::after")))!;
-    expect(r.body).toContain("line-height: 0");
-    expect(r.body).toContain("vertical-align: middle");
-    // Inline, NOT absolute: an absolutely positioned number belongs to the whole
-    // line-spanning box and is stranded when a word wraps mid-word.
-    expect(r.body).not.toContain("position: absolute");
+  it("takes the plain-word number out of flow, so it is not underlined and cannot change the line", () => {
+    // A child cannot opt out of its parent's text-decoration; absolutely positioned boxes are simply not
+    // decorated. This is also why the number cannot affect line height at ANY spacing (the inline version
+    // needed `vertical-align: middle` + `line-height: 0` and still rose as the number shrank).
+    const r = rules.find((x) => x.selectors.some((q) => q.includes(":not(.cci-stack):is(") && q.endsWith("::after")))!;
+    expect(r.body).toContain("position: absolute");
+    expect(r.body).not.toContain("vertical-align");
+    expect(r.body).not.toMatch(/\btop:/);
+    expect(r.body).not.toContain("text-decoration");
+    // Bottom edge from the SAME offset as the underline (derived from the reader font), so it does not move
+    // with the number's own size: `.25em` of the number itself rose by several px as the slider went down.
+    expect(r.body).toMatch(/bottom:\s*calc\(-1 \* \(var\(--cci-eink-ul\)/);
+  });
+
+  it("keeps a numbered plain word whole, so its number can never be separated from it", () => {
+    // An out-of-flow number belongs to the whole line-spanning box when a word wraps mid-word and was stranded
+    // at the far edge of the line. Whole word = one box = one anchor.
+    const r = rules.find((x) => x.selectors.length === 1 && x.selectors[0].includes(".cci-word:not(.cci-stack):is(") && x.body.includes("white-space"))!;
+    expect(r, "no nowrap rule for numbered plain words").toBeTruthy();
+    expect(r.body).toContain("white-space: nowrap");
+    expect(r.body).toContain("position: relative");
+    // ...and it holds a gutter, derived from the number's size, so the digit has room.
+    expect(r.body).toContain("padding-right: calc(var(--cci-eink-num)");
+    // Only words that carry a number: Status mode wraps exactly as before.
+    expect(r.selectors[0]).not.toMatch(/cci-color-(known|partial|unknown|new)\b/);
+  });
+
+  it("uses no word joiner: with the word kept whole there is nothing to hold together", () => {
+    expect(css).not.toContain("\\2060");
   });
 
   it("does not generate content while the view is editable", () => {

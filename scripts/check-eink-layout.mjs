@@ -10,14 +10,16 @@
  * Chromium and measures, over every combination of those controls at their
  * extremes and defaults, that E-ink mode:
  *
- *   - never changes the line height, for either the number (the reason the plain-word
- *     number is `vertical-align: middle` and the stacked one out of flow) or the
- *     underline (a text-decoration; a thicker border used to grow the line)
+ *   - never changes the line height, for either the number (out of flow in both kinds
+ *     of word) or the underline (a text-decoration; a thicker border used to grow the line)
  *   - leaves the annotation rows exactly as they were        (the 0.7.7 sizing feature)
  *   - draws the SAME underline under plain and annotated words (a border put them at
  *     different heights, by an amount that depends on the font)
- *   - shows exactly one number per word, in BOTH widget layouts, even when a word
- *     wraps across two lines, and never lets the number drop to the next line alone
+ *   - shows exactly one number per word, in BOTH widget layouts, and never splits a
+ *     numbered word across two lines, so the number cannot be separated from it
+ *   - draws the number's bottom edge level with the underline's bottom edge, and keeps
+ *     it there as the size slider moves (measured from a screenshot: a decoration has
+ *     no DOM rect), in every CJK font installed on the machine
  *   - leaves a gutter at least as wide as the number, and never lets the number
  *     approach the size of the character
  *   - keeps every click on the word it was aimed at
@@ -37,6 +39,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { inflateSync } from "node:zlib";
 import { tmpdir, homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,6 +140,32 @@ const accBody = (attr) =>
 page("acc_snippet.html", css.slice(0, BEGIN) + snippet, accBody(""));
 page("acc_ours.html", css, accBody("data-eink"));
 
+// Underline red, digit blue: the two can then be told apart in a screenshot.
+page("align.html", css + ".cci-view[data-eink] .cci-word:not(.cci-stack),.cci-view[data-eink] .cci-stack .cci-stack-chars{text-decoration-color:#f00!important}.cci-view[data-eink] .cci-word::after,.cci-view[data-eink] .cci-stack-cell::after{color:#00f!important}");
+
+/** Minimal PNG reader (8-bit, RGB or RGBA, non-interlaced): enough for a headless screenshot, no dependency. */
+function decodePng(buf) {
+  let pos = 8, w = 0, h = 0, ct = 0; const idat = [];
+  while (pos < buf.length) {
+    const len = buf.readUInt32BE(pos), type = buf.toString("latin1", pos + 4, pos + 8), data = buf.subarray(pos + 8, pos + 8 + len);
+    if (type === "IHDR") { w = data.readUInt32BE(0); h = data.readUInt32BE(4); ct = data[9]; if (data[8] !== 8 || data[12] !== 0 || (ct !== 2 && ct !== 6)) throw new Error("unsupported PNG"); }
+    else if (type === "IDAT") idat.push(data);
+    pos += 12 + len;
+  }
+  const bpp = ct === 6 ? 4 : 3, stride = w * bpp, raw = inflateSync(Buffer.concat(idat)), out = Buffer.alloc(stride * h);
+  for (let y = 0; y < h; y++) {
+    const f = raw[y * (stride + 1)], src = y * (stride + 1) + 1, dst = y * stride;
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? out[dst + x - bpp] : 0, b = y ? out[dst - stride + x] : 0, c = x >= bpp && y ? out[dst - stride + x - bpp] : 0;
+      let v = raw[src + x];
+      if (f === 1) v += a; else if (f === 2) v += b; else if (f === 3) v += (a + b) >> 1;
+      else if (f === 4) { const p = a + b - c, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - c); v += pa <= pb && pa <= pc ? a : pb <= pc ? b : c; }
+      out[dst + x] = v & 255;
+    }
+  }
+  return { w, h, bpp, px: out };
+}
+
 // ---- run ----
 const unescape = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&amp;/g, "&");
 function run(pageName, query = "") {
@@ -171,8 +200,59 @@ for (const mode of ["none", "two-line", "three-line"]) {
 
 const extras = run("full.html", "task=extras&floor=" + FLOOR);
 note(extras.edit.editable === "none" && extras.edit.readonly.startsWith('"'), "edit mode generates no number", `editable=${extras.edit.editable} readonly=${extras.edit.readonly}`);
-note(extras.split.widths > 0 && extras.split.wrong === 0, "a word split across two lines keeps exactly one number", `${extras.split.widths} splitting widths, ${extras.split.wrong} wrong`);
-note(extras.split.detached === 0, "the number never drops to the next line without its word", `${extras.split.detached} of ${extras.split.widths} splitting widths`);
+note(extras.split.wrapped > 0 && extras.split.wrong === 0, "every numbered word carries exactly one number, wrapped or not", `${extras.split.wrapped} wrapping widths, ${extras.split.wrong} wrong`);
+note(extras.split.split === 0, "a numbered word is never split across two lines", `${extras.split.split} of ${extras.split.wrapped} wrapping widths`);
+
+// ---- the digit's bottom edge against the underline's bottom edge, from pixels ----
+const SCALE = 4;           // device pixels per CSS pixel: 0.25px resolution
+const ALIGN_TOL = 1.0;     // |digit bottom - underline bottom| in CSS px (measured worst: 0.5)
+const SWING_TOL = 0.75;    // how far the digit may move across the whole size slider (measured worst: 0.5)
+const FONTS = ["sans-serif", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "STSong", "Songti SC", "Songti TC", "Arial Unicode MS", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei"];
+// A 4x screenshot of every row at once exceeds the browser's texture limit, so each widget kind is shot on its own,
+// at the two ends of the slider and two points between.
+const ALIGN_SCALES = [...new Set([MIN, 80, 100, MAX])].filter((v) => v >= MIN && v <= MAX).sort((x, y) => x - y);
+function align(ff, kind) {
+  const q = `task=geom&floor=${FLOOR}&scales=${ALIGN_SCALES.join(",")}&kinds=${kind}&ff=${encodeURIComponent(ff)}`;
+  const g = run("align.html", q);
+  if (!g.installed) return null;
+  const png = join(tmp, "align.png");
+  execFileSync(chrome, ["--headless", "--disable-gpu", "--hide-scrollbars", `--force-device-scale-factor=${SCALE}`, `--window-size=1130,${Math.ceil(g.height) + 40}`, "--virtual-time-budget=900000", `--screenshot=${png}`, `file://${join(tmp, "align.html")}?${q}`], { stdio: "ignore", timeout: 900000 });
+  const im = decodePng(readFileSync(png));
+  const at = (x, y) => { const i = (y * im.w + x) * im.bpp; return [im.px[i], im.px[i + 1], im.px[i + 2]]; };
+  const per = new Map(); let worst = 0, unmeasured = 0;
+  for (const row of g.rows) for (const w of row.words) {
+    if (![2, 4, 6].includes(w.lvl)) continue;
+    const ref = w.stack ? w.charsBottom : w.bottom, x1 = w.stack ? w.cellRight : w.right;
+    const red = new Map(), blue = new Set();
+    for (let y = Math.max(0, Math.floor((ref - 14) * SCALE)); y < Math.min(im.h, Math.ceil((ref + 26) * SCALE)); y++)
+      for (let x = Math.floor(w.left * SCALE); x < Math.min(im.w, Math.ceil((x1 + w.num * 1.6 + 6) * SCALE)); x++) {
+        const [r, gg, b] = at(x, y);
+        if (r > 200 && gg < 90 && b < 90) red.set(y, (red.get(y) ?? 0) + 1); else if (b > 150 && r < 110 && gg < 110) blue.add(y);
+      }
+    const ur = [...red].filter(([, c]) => c >= (3 * SCALE) / 2).map(([y]) => y);
+    if (!ur.length || !blue.size) { unmeasured++; if (process.env.DEBUG_ALIGN) console.log("   unmeasurable", ff, row.kind, row.size, row.scale, "lvl", w.lvl, "red", ur.length, "blue", blue.size, "x", w.left.toFixed(1), (x1).toFixed(1), "ref", ref.toFixed(1)); continue; }
+    const err = (Math.max(...blue) + 1) / SCALE - (Math.max(...ur) + 1) / SCALE;
+    worst = Math.max(worst, Math.abs(err));
+    const key = `${row.kind}/${row.size}/${w.lvl}`;
+    (per.get(key) ?? per.set(key, []).get(key)).push(err);
+  }
+  let swing = 0;
+  for (const errs of per.values()) swing = Math.max(swing, Math.max(...errs) - Math.min(...errs));
+  return { worst, swing, unmeasured, rows: g.rows.length };
+}
+let fontsChecked = 0;
+for (const ff of FONTS) {
+  // Very tall headless screenshots occasionally come back with unpainted (blank) bands. A band with neither underline nor digit
+  // is a capture glitch, not a layout result, so a kind that has any is shot again; a real defect would repeat every time.
+  const shoot = (k) => { let r; for (let i = 0; i < 4; i++) { r = align(ff, k); if (!r || r.unmeasured === 0) break; } return r; };
+  const parts = ["plain", "stack", "stack3", "wordcell"].map(shoot);
+  if (parts.some((r) => !r)) continue;
+  const r = { worst: Math.max(...parts.map((p) => p.worst)), swing: Math.max(...parts.map((p) => p.swing)), unmeasured: parts.reduce((n, p) => n + p.unmeasured, 0) };
+  fontsChecked++;
+  note(r.unmeasured === 0 && r.worst <= ALIGN_TOL && r.swing <= SWING_TOL, `digit level with the underline, steady across ${MIN}–${MAX}%: ${ff}`,
+    `worst ${r.worst.toFixed(2)}px (limit ${ALIGN_TOL}), size swing ${r.swing.toFixed(2)}px (limit ${SWING_TOL})${r.unmeasured ? `, ${r.unmeasured} unmeasurable` : ""}`);
+}
+note(fontsChecked > 0, "at least one font could be measured", `${fontsChecked} of ${FONTS.length} fonts installed`);
 
 const a = run("base.html", "task=rects").rects;
 const b = run("full.html", "task=rects").rects;
