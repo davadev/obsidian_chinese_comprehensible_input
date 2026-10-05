@@ -67,6 +67,19 @@ setup:
 - **Line spacing** — how far apart the lines sit.
 - **Annotation size (%)** — the pinyin and translation rows only.
 
+A fourth appears only in [E-ink mode](#e-ink-mode) with HSK colours:
+
+- **Level-number size (%)** — the small HSK level number beside each word, and nothing else.
+
+They are independent on purpose, and each moves exactly one thing:
+
+| Control | Moves | Does not move |
+|---|---|---|
+| Reader font size | every character, and the level number (it is sized relative to the characters) | — |
+| Line spacing | line height | the size of anything |
+| Annotation size | the pinyin / translation rows, and word width when a row is the widest | the characters, the level number |
+| Level-number size | the number and the small gap that holds it | line height, the annotation rows, the characters |
+
 ### Making the Chinese bigger without enlarging the annotations
 
 This is the usual request: Han glyphs pack far more stroke detail into the
@@ -101,6 +114,11 @@ the characters and the rows in step, so their relative widths don't change.
 
 If the translations themselves are what's making words too wide, try
 **Shorten translations** (below).
+
+[E-ink mode](#e-ink-mode) with HSK colours adds one more thing that affects word width: a
+small gap beside each annotated word to hold its level number. It widens a word **only
+when the characters are the widest row** — a word whose translation is wider already has
+room — so most words don't move.
 
 ## What goes on each line
 
@@ -245,6 +263,23 @@ This lives in settings only, not in the view toolbar: it's a "set it
 once" preference, unlike the display mode. Background tints, highlights,
 and text colors all combine, so a red-tinted unknown word can still have
 black characters.
+
+### E-ink mode
+
+**Settings → Display → E-ink mode.** Underlines instead of coloured tints, for e-ink and
+other black-and-white screens (it is also useful when colours are hard to tell apart). Full
+details, what it looks like, and its limits are on the [E-ink readers](./e-ink.md) page; the
+short version:
+
+- **Status colour mode:** known = light underline, partial = dotted, unknown = solid, new =
+  unmarked.
+- **HSK colour mode:** one underline, plus the level (1–7; 7 = 7–9) as a small number beside
+  the word. The size is the **Level-number size** slider.
+- It **changes none of your other settings** and applies to **this device only** — it is not
+  synced. The colour pickers are greyed out while it is on (the reading view no longer uses
+  them) and return when you turn it off. The "Color … words" switches keep working: they decide
+  which words get an underline.
+- A highlighted word keeps its highlight and shows no underline, as it does in colour mode.
 
 ## Behaviour toggles
 

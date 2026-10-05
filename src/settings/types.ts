@@ -321,6 +321,15 @@ export interface CciSettings {
   };
   /** Pick which color scheme the reader and stats use. */
   colorMode: ColorMode;
+  /**
+   * E-ink mode (#112): underlines instead of coloured tints; in HSK colour mode
+   * the level is shown as a small number. Device-local — see FILTER_OUT in
+   * SettingsIO.ts. An overlay, not a preset: it rewrites no other setting.
+   */
+  einkMode: boolean;
+  /** Size of the HSK level number in E-ink mode, as a percentage of its default.
+   *  Range in src/view/einkMode.ts. Device-local, like `einkMode`. */
+  einkNumberScalePercent: number;
   /** User-customizable colors per status bucket and HSK level. */
   customColors: CustomColors;
   /** Font colors for the characters / pinyin / English rows (#22).

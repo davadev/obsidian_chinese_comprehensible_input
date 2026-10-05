@@ -23,6 +23,12 @@ import {
 } from "./defaults";
 import { DEFAULT_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
+import {
+  EINK_NUMBER_SCALE_MAX,
+  EINK_NUMBER_SCALE_MIN,
+  EINK_NUMBER_SCALE_STEP,
+  isEinkMode,
+} from "../view/einkMode";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
 import type { ScriptVariant } from "./types";
@@ -50,7 +56,12 @@ const DOCS_BASE =
 /** Settings whose only effect is a CSS custom property on the view root. They
  *  need the view's appearance re-applied, which `refreshChineseViews()` does
  *  not do — see the branch in `persist()`. */
-const APPEARANCE_KEYS = new Set(["readerFontPx", "readerLineSpacing", "annotationScalePercent"]);
+const APPEARANCE_KEYS = new Set([
+  "readerFontPx",
+  "readerLineSpacing",
+  "annotationScalePercent",
+  "einkNumberScalePercent",
+]);
 
 const SECRET_PREFIX = "secret:";
 const UI_PREFIX = "ui:";
@@ -138,8 +149,18 @@ export class CciSettingsTab extends PluginSettingTab {
       // redecorate a second time, since these are sliders and the refresh above
       // has already done it for this tick.
       this.plugin.refreshChineseViewAppearance();
-    } else if (key === "line2Content" || key === "line3Content") {
-      // Re-evaluate the duplicate-content warning's `visible` predicate.
+    } else if (key === "einkMode") {
+      // Two things, both needed. The attribute and size variable are applied
+      // through the same appearance path as the sizes, and `refreshDomState()`
+      // re-evaluates the `disabled` / `visible` predicates that depend on this
+      // key (the greyed colour pickers, the slider's visibility). It cannot just
+      // join APPEARANCE_KEYS: that is the first branch of this chain and would
+      // skip the second call.
+      this.plugin.refreshChineseViewAppearance();
+      this.refreshDomState();
+    } else if (key === "line2Content" || key === "line3Content" || key === "colorMode") {
+      // Re-evaluate the duplicate-content warning's `visible` predicate (and,
+      // for colorMode, the level-number slider's `disabled` state).
       // `refreshDomState()` and not `update()`: this changes no definition
       // structure, only whether one existing row is shown, and it is documented
       // as the cheap in-place path — `update()` re-runs getSettingDefinitions()
@@ -182,6 +203,9 @@ export class CciSettingsTab extends PluginSettingTab {
   // ───────────────────────────── item helpers ─────────────────────────────
 
   /** A "Read the guide →" row linking into the repo's docs/ folder. */
+  /** Evaluated by `visible` / `disabled` predicates on every render and on `refreshDomState()`. */
+  private readonly einkOn = (): boolean => isEinkMode(this.plugin.settings);
+
   private docLink(name: string, blurb: string, docFile: string): SettingDefinitionEmpty {
     const desc = createFragment((f) => {
       f.createSpan({ text: blurb + " " });
@@ -332,6 +356,34 @@ export class CciSettingsTab extends PluginSettingTab {
             "controls, pinyin styles, and what each color toggle controls.",
           "display-modes.md"
         ),
+        {
+          name: "E-ink mode",
+          desc:
+            "Underlines instead of coloured highlights, for e-ink and other black-and-white " +
+            "screens (also handy if colours are hard to tell apart). Status mode: known = light " +
+            "underline, partial = dotted, unknown = solid, new = none. HSK mode: one underline " +
+            "plus the level (1\u20137) as a small number. This device only. The colour pickers are " +
+            "switched off while this is on and come back when you turn it off.",
+          control: { type: "toggle", key: "einkMode" },
+        },
+        {
+          name: "Level-number size",
+          desc:
+            "Size of the small HSK level number next to each word, as a percentage of the " +
+            "default. Only used in HSK colour mode.",
+          visible: this.einkOn,
+          control: {
+            type: "slider",
+            key: "einkNumberScalePercent",
+            min: EINK_NUMBER_SCALE_MIN,
+            max: EINK_NUMBER_SCALE_MAX,
+            step: EINK_NUMBER_SCALE_STEP,
+            // The number only exists in HSK colour mode. A slider that silently does
+            // nothing in Status mode would be exactly the kind of setting that lies
+            // that #126 removed, so it is greyed instead.
+            disabled: () => this.plugin.settings.colorMode !== "hsk",
+          },
+        },
         {
           name: "Default display mode",
           desc:
@@ -498,10 +550,18 @@ export class CciSettingsTab extends PluginSettingTab {
     ];
     return [
       { type: "group", heading: "Status colors", items: [] },
+      {
+        ...this.prose(
+          "E-ink mode is on. The reading view uses underlines, so these colour pickers are " +
+            "switched off here \u2014 they still tint the statistics view. The \u201cColor \u2026 " +
+            "words\u201d switches below decide which words get an underline."
+        ),
+        visible: this.einkOn,
+      },
       ...buckets.map(
         ([bucket, label]): SettingDefinitionItem => ({
           name: label,
-          control: { type: "color", key: `customColors.${bucket}` },
+          control: { type: "color", key: `customColors.${bucket}`, disabled: this.einkOn },
         })
       ),
       {
@@ -568,7 +628,7 @@ export class CciSettingsTab extends PluginSettingTab {
       ...levels.flatMap((level): SettingDefinitionItem[] => [
         {
           name: `HSK ${level} color`,
-          control: { type: "color", key: `customColors.hsk.${level}` },
+          control: { type: "color", key: `customColors.hsk.${level}`, disabled: this.einkOn },
         },
         {
           name: `Show HSK ${level} color`,
@@ -578,6 +638,7 @@ export class CciSettingsTab extends PluginSettingTab {
       {
         name: "Reset HSK colors to accent gradient",
         desc: "Re-derive HSK 1–7 from your current Obsidian accent color (light → dark).",
+        disabled: this.einkOn,
         action: () => {
           void (async () => {
             this.plugin.settings.customColors.hsk = deriveHskColorsFromAccent();
@@ -590,6 +651,7 @@ export class CciSettingsTab extends PluginSettingTab {
       {
         name: "Reset all colors to defaults",
         desc: "Reset status colors AND HSK colors. HSK re-derives from the accent.",
+        disabled: this.einkOn,
         action: () => {
           void (async () => {
             this.plugin.settings.customColors = {

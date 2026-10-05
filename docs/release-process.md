@@ -42,6 +42,7 @@ Naming: `X.Y.Z-beta.N`, where `X.Y.Z` is the *next* stable version and `N` start
 ```bash
 git checkout main && git pull
 npm run check-release -- --with-build     # local pre-flight; no tag argument
+npm run check:layout                      # if this release touches styles.css or RubyWidget (see below)
 git tag 0.7.0-beta.1
 git push origin 0.7.0-beta.1
 ```
@@ -49,6 +50,15 @@ git push origin 0.7.0-beta.1
 The `Release` workflow then: stamps the version → lint → build → test → `check-release --tag <tag> --with-build --strict` → validates the three artifacts on disk → attests provenance → publishes a **prerelease** with `main.js`, `manifest.json`, `styles.css`.
 
 Nothing is committed to `main`. Files changed on the default branch: **none**.
+
+**`npm run check:layout`** is a real-browser layout check for E-ink mode (#112): it mounts real
+CodeMirror editors using the real `RubyWidget` and the real `styles.css` in headless Chromium and
+measures, across every combination of reader font, line spacing, annotation size, display mode and
+level-number size, that the mode never changes line height, leaves the annotation rows alone, shows
+exactly one number per word, and is inert when off. Run it before any release that touches
+`styles.css` or `RubyWidget` — those are the two things that can break it, and CI cannot see layout
+(no DOM harness, #119). It is deliberately **not** in CI (the runner has no browser), and it exits 0
+with a notice when no Chromium is installed, so it can never block a machine that lacks one.
 
 ### Stage 3 — install and test the prerelease
 

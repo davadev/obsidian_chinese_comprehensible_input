@@ -606,6 +606,97 @@
   opacity: 0.7;
 }
 
+/* eink:begin
+ *
+ * E-ink mode (#112): underlines instead of coloured tints; in HSK colour mode the
+ * level is a small number beside the word. Everything here is scoped under
+ * `.cci-view[data-eink]`, and the attribute exists only while the mode is on, so
+ * with it off none of this matches anything.
+ *
+ * Measured over 7,500 layout combinations (reader font 12-48px, line spacing
+ * 0.15-1.5x, annotation size 50-200%, three display modes, both widget DOM
+ * branches) in real CodeMirror: the number never changes the line height. See
+ * scripts/check-eink-layout.mjs, which reruns that matrix. Notes on why it is
+ * written this way, because most of the obvious alternatives were tried and broke:
+ *
+ *  - Selectors name the classes. Substring matches such as [class*="known"] also
+ *    match "unknown", and are the bug in the snippet this feature replaced.
+ *  - background-color, not the `background` shorthand, which would also clear any
+ *    background-image.
+ *  - Plain words get an INLINE number so it follows the LAST fragment of a word
+ *    that wraps across lines. An absolutely positioned one belongs to the whole
+ *    line-spanning box and is stranded at the far edge of the line; CJK words
+ *    wrap mid-word constantly. `vertical-align: middle` with a relative offset
+ *    keeps it out of the line-height calculation, which `sub` and a plain relative
+ *    offset both failed at 0.15x spacing.
+ *  - The offset is .25em because the underline is the word's own border and runs
+ *    under its trailing number: larger offsets put the digit on the line.
+ *  - Annotated words are atomic inline-blocks and cannot wrap, so there the number
+ *    is out of flow on the LAST cell (present in both widget branches; the
+ *    per-character branch has no .cci-stack-cell-word) with a gutter that reserves
+ *    room for it. The number's size and the gutter derive from ONE variable so
+ *    they cannot drift apart.
+ *  - 9px floor: a 10px floor reaches 0.83 of the character size at a 12px reader
+ *    font; the cap is 0.8.
+ *  - Edit mode: generated content beside a live caret shifts it (measured 7.3px at
+ *    every word end), so none is generated while the view is editable.
+ */
+.cci-view[data-eink] {
+  --cci-eink-num: max(calc(.55em * var(--cci-eink-number-scale, 1)), var(--cci-eink-floor, 9px));
+}
+
+.cci-view[data-eink] .cci-word:is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) {
+  background-color: transparent;
+  border-bottom: 3px solid var(--text-normal);
+}
+/* ~#aaa on a white page (the value confirmed readable on e-ink), but derived from
+   the theme so it stays light-on-dark in dark themes; --text-faint varies by theme. */
+.cci-view[data-eink] .cci-word.cci-color-known {
+  border-bottom: 3px solid color-mix(in srgb, var(--text-normal) 38%, var(--background-primary));
+}
+.cci-view[data-eink] .cci-word.cci-color-partial { border-bottom: 3px dotted var(--text-normal); }
+.cci-view[data-eink] .cci-word.cci-color-new { border-bottom: none; }
+
+.cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7)::after {
+  font-size: var(--cci-eink-num);
+  font-weight: 700;
+  line-height: 0;
+  vertical-align: middle;
+  position: relative;
+  top: .25em;
+}
+
+.cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child {
+  position: relative;
+  padding-right: calc(var(--cci-eink-num) * .75);
+}
+.cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child::after {
+  position: absolute;
+  right: .05em;
+  bottom: .05em;
+  font-size: var(--cci-eink-num);
+  font-weight: 700;
+}
+
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-1::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-1 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "1"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-2::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-2 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "2"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-3::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-3 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "3"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-4::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-4 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "4"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-5::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-5 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "5"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-6::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-6 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "6"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-7::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-7 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "7"; }
+
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word::after,
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-stack-cell:last-child::after { content: none !important; }
+/* eink:end */
+
 /*
  * Annotated word widget.
  *

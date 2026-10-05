@@ -202,3 +202,41 @@ describe("settings import/export", () => {
     expect(refreshStatsViews).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * E-ink mode is a choice made because of ONE device's screen, so it must never
+ * travel. Appearance settings such as the reader font do sync; sharing these
+ * would force underlines onto the same person's phone because they switched
+ * their e-ink reader to it (#112).
+ */
+describe("E-ink mode is device-local", () => {
+  it("is absent from what the settings mirror and exports share", () => {
+    const s = cloneDefaults();
+    s.einkMode = true;
+    s.einkNumberScalePercent = 120;
+    const out = filterSettingsForSharing(s) as any;
+    expect(out.einkMode).toBeUndefined();
+    expect(out.einkNumberScalePercent).toBeUndefined();
+  });
+
+  it("does not change the shared-settings fingerprint, so it neither marks settings as touched nor schedules a mirror write", () => {
+    // main.ts saveSettings() compares exactly this fingerprint to decide whether
+    // a change is shareable. A device-local change must compare equal.
+    const off = cloneDefaults();
+    const on = cloneDefaults();
+    on.einkMode = true;
+    on.einkNumberScalePercent = 130;
+    expect(JSON.stringify(filterSettingsForSharing(on))).toBe(JSON.stringify(filterSettingsForSharing(off)));
+  });
+
+  it("still shares the settings E-ink mode sits beside", () => {
+    // Guards the opposite mistake: filtering too much.
+    const s = cloneDefaults();
+    s.einkMode = true;
+    s.colorMode = "hsk";
+    s.readerFontPx = 31;
+    const out = filterSettingsForSharing(s) as any;
+    expect(out.colorMode).toBe("hsk");
+    expect(out.readerFontPx).toBe(31);
+  });
+});
