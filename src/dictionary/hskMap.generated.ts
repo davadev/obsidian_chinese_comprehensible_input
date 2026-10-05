@@ -1,6 +1,7 @@
 // GENERATED FILE — do not edit by hand. Run `npm run build:hsk` to regenerate.
 // Source: https://github.com/glxxyz/hskhsk.com  (data/lists)
 // License: MIT, (c) 2020 Alan Davies.
+// Edition: the HSK 2.0 lists as revised in late 2012, not the original 2009-10 lists.
 // Only the simplified-term -> HSK-level mapping is imported; no
 // definitions, pinyin, examples, audio, or frequency data are used.
 
