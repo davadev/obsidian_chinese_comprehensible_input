@@ -30,11 +30,12 @@ as they are in colour mode.
   on they decide *which* words get an underline.
 - **Level-number size.** In E-ink mode with HSK colours there is a size slider, in
   Settings → Display and in the reading view's **…** menu beside the other size sliders,
-  from 80 % to 130 % of the default. The number follows the reader font size (it is
+  from 50 % to 130 % of the default. The number follows the reader font size (it is
   sized relative to the characters, so the "bigger Chinese, smaller annotations" recipe
   in [Display modes](./display-modes.md#text-size) keeps it in proportion) and ignores
-  annotation size. It never goes below 9 px, so at small font sizes the low end of the
-  slider does nothing; the cap at 130 % is where the number would start to rival the
+  annotation size. It never goes below 6 px, which is also where 50 % lands at the
+  default 22 px font, so at smaller reader fonts the low end of the slider stops
+  changing anything; the cap at 130 % is where the number would start to rival the
   character.
 - **It works in every display mode** — plain, two-line and three-line.
 - If you already use the snippet below, **remove it when you turn E-ink mode on**. The
@@ -48,12 +49,17 @@ Things to know:
   highlight), exactly as in colour mode.
 - In HSK mode you lose the known / unknown signal, as you do in HSK colour mode. Use
   Status mode when you want it.
-- In two-line and three-line mode, turning E-ink mode on can add **one or two pixels** to
-  a line when your line spacing is turned down to 0.5× or less (never at the default),
-  because the underline is thicker than the 1 px tint border it replaces.
+- **Underlines are drawn under the characters.** Plain and annotated words get exactly the
+  same underline, at the same height, in any font. In the default two-line layout, a word
+  whose pinyin is wider than its characters (聊 天) is underlined character by character, so
+  the line can look broken where the pinyin pushes them apart.
+- **A word's number stays with the word.** If a word wraps across two lines, the number follows
+  its last part; it never drops to the next line on its own.
+- E-ink mode never changes how tall a line is, whatever your font size, line spacing or
+  annotation size.
 - In HSK mode, each annotated word gains a small gap for its number, so text can re-wrap
   slightly when you switch the mode on.
-- Dotted 3 px lines and ~10 px numbers are unproven on real e-paper. If something reads
+- Dotted 3 px lines and numbers as small as 6 px are unproven on real e-paper. If something reads
   badly on your device, please say so on
   [#112](https://github.com/davadev/obsidian_chinese_comprehensible_input/issues/112).
 

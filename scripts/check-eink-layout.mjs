@@ -10,11 +10,14 @@
  * Chromium and measures, over every combination of those controls at their
  * extremes and defaults, that E-ink mode:
  *
- *   - never changes the line height because of the number   (the reason the plain-word
- *     number is `vertical-align: middle`, and the stacked one out of flow)
+ *   - never changes the line height, for either the number (the reason the plain-word
+ *     number is `vertical-align: middle` and the stacked one out of flow) or the
+ *     underline (a text-decoration; a thicker border used to grow the line)
  *   - leaves the annotation rows exactly as they were        (the 0.7.7 sizing feature)
+ *   - draws the SAME underline under plain and annotated words (a border put them at
+ *     different heights, by an amount that depends on the font)
  *   - shows exactly one number per word, in BOTH widget layouts, even when a word
- *     wraps across two lines
+ *     wraps across two lines, and never lets the number drop to the next line alone
  *   - leaves a gutter at least as wide as the number, and never lets the number
  *     approach the size of the character
  *   - keeps every click on the word it was aimed at
@@ -128,7 +131,9 @@ const statuses = ["known", "partial", "unknown", "new"];
 const accBody = (attr) =>
   `<div class="cci-view" data-display="none" ${attr} style="--cci-reader-font:22px;--cci-line-spacing:1"><div class="cci-editor"><div class="cm-content">` +
   statuses.map((k) => `<span class="cci-word cci-color-${k}" id="${k}">词</span> `).join("") +
-  `</div></div></div><script>const o={};for(const k of ${JSON.stringify(statuses)}){const c=getComputedStyle(document.getElementById(k));o[k]={w:c.borderBottomWidth,s:c.borderBottomStyle,c:c.borderBottomColor}}document.documentElement.setAttribute("data-result",JSON.stringify(o));</script>`;
+  // The snippet draws its underline as a border; E-ink mode draws it as a text-decoration. Both are read
+  // into the same {width, style, colour} so what they LOOK like can be compared.
+  `</div></div></div><script>const o={};for(const k of ${JSON.stringify(statuses)}){const c=getComputedStyle(document.getElementById(k));const dec=c.textDecorationLine.includes("underline");const bord=c.borderBottomStyle!=="none"&&c.borderBottomWidth!=="0px"&&c.borderBottomColor!=="rgba(0, 0, 0, 0)";o[k]=dec?{w:c.textDecorationThickness,s:c.textDecorationStyle,c:c.textDecorationColor}:bord?{w:c.borderBottomWidth,s:c.borderBottomStyle,c:c.borderBottomColor}:{w:"0px",s:"none",c:"rgba(0, 0, 0, 0)"}}document.documentElement.setAttribute("data-result",JSON.stringify(o));</script>`;
 page("acc_snippet.html", css.slice(0, BEGIN) + snippet, accBody(""));
 page("acc_ours.html", css, accBody("data-eink"));
 
@@ -161,12 +166,13 @@ for (const mode of ["none", "two-line", "three-line"]) {
   const names = Object.keys(r.fails);
   note(names.length === 0, `${mode}: ${r.stat.cells} combinations`,
     names.length ? names.map((k) => `${k} ×${r.fails[k].n} e.g. ${r.fails[k].ex[0]}`).join("; ")
-      : `number's line effect ${r.stat.maxNumberLineDelta.toFixed(2)}px, underline's ${r.stat.maxUnderlineLineDelta.toFixed(2)}px, worst number/character ${r.stat.maxRatio.toFixed(2)}`);
+      : `line height effect: number ${r.stat.maxNumberLineDelta.toFixed(2)}px, underline ${r.stat.maxUnderlineLineDelta.toFixed(2)}px; worst number/character ${r.stat.maxRatio.toFixed(2)}`);
 }
 
 const extras = run("full.html", "task=extras&floor=" + FLOOR);
 note(extras.edit.editable === "none" && extras.edit.readonly.startsWith('"'), "edit mode generates no number", `editable=${extras.edit.editable} readonly=${extras.edit.readonly}`);
 note(extras.split.widths > 0 && extras.split.wrong === 0, "a word split across two lines keeps exactly one number", `${extras.split.widths} splitting widths, ${extras.split.wrong} wrong`);
+note(extras.split.detached === 0, "the number never drops to the next line without its word", `${extras.split.detached} of ${extras.split.widths} splitting widths`);
 
 const a = run("base.html", "task=rects").rects;
 const b = run("full.html", "task=rects").rects;

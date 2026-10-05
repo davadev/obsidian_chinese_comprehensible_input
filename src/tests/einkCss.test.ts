@@ -80,6 +80,51 @@ describe("e-ink CSS block", () => {
     expect(css).toContain("background-color: transparent");
   });
 
+  it("draws the underline as a text-decoration, never as a visible border", () => {
+    // A border sits at the bottom of its box, and the two kinds of word have different boxes: the gap
+    // is (ascent + descent - 1)/2 em of the font in use (1px in one font, ~5px in another), so no
+    // fixed offset can align them. A text-decoration is drawn from the baseline by the same engine for
+    // both. It also has no layout effect, where a thicker border grew the line.
+    const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
+    expect(deco, "no underline rule").toBeTruthy();
+    expect(deco.body).toContain("text-decoration-thickness: 3px");
+    expect(deco.body).toContain("text-decoration-skip-ink: none");
+    expect(deco.body).toContain("text-underline-offset: .2em");
+    expect(css).not.toMatch(/border-bottom:\s*\d+px\s+(solid|dotted)\s+(?!transparent)/);
+  });
+
+  it("keeps the base 1px border, transparent, so layout is identical to colour mode", () => {
+    // Setting it to `none` removed 1px from every annotated word (an inline-block: its border is part
+    // of its height) and made lines 1px shorter in two/three-line mode at tight spacing.
+    const tint = rules.find((r) => r.selectors.some((s) => s.startsWith(`${SC} .cci-word:is(`)) && r.body.includes("background-color"))!;
+    expect(tint.body).toContain("border-bottom: 1px solid transparent");
+  });
+
+  it("underlines the characters row of an annotated word, never the word's own box", () => {
+    // Declared on the inline-block, a decoration would also underline the pinyin and translation rows.
+    const deco = rules.find((r) => r.body.includes("text-decoration-line: underline"))!;
+    const sels = deco.selectors;
+    expect(sels.some((s) => s.includes(".cci-word:not(.cci-stack):is("))).toBe(true);
+    expect(sels.some((s) => s.includes(".cci-stack:is(") && s.endsWith(".cci-stack-chars"))).toBe(true);
+    // No decoration rule may select a .cci-stack on its own.
+    for (const r of rules.filter((x) => /text-decoration-(line|style|color)/.test(x.body))) {
+      for (const s of r.selectors) {
+        // `:not(.cci-stack)` is how the plain-word selector EXCLUDES annotated words; strip it before
+        // asking whether a selector reaches one.
+        const reachesAnnotated = s.replace(/:not\(\.cci-stack\)/g, "").includes(".cci-stack");
+        if (reachesAnnotated) expect(s, "decoration on the annotated word's own box").toContain(".cci-stack-chars");
+      }
+    }
+  });
+
+  it("styles the status variants on both kinds of word", () => {
+    for (const status of ["known", "partial", "new"]) {
+      const r = rules.find((x) => x.selectors.some((s) => s.includes(`.cci-color-${status}:not(.cci-stack)`)))!;
+      expect(r, `no ${status} rule`).toBeTruthy();
+      expect(r.selectors.some((s) => s.includes(`.cci-stack.cci-color-${status} .cci-stack-chars`))).toBe(true);
+    }
+  });
+
   it("uses !important exactly once: the edit-mode guard", () => {
     const important = rules.filter((r) => r.body.includes("!important"));
     expect(important.length).toBe(1);
@@ -90,7 +135,10 @@ describe("e-ink CSS block", () => {
     for (let n = 1; n <= 7; n++) {
       const r = ruleWith(`.cci-color-hsk-${n}::after`);
       expect(r, `no number rule for hsk-${n}`).toBeTruthy();
-      expect(r!.body).toContain(`content: "${n}"`);
+      // Leading word joiner: without it a line break was allowed between the last character and the
+      // number, and at the end of a line the number dropped to the next line on its own (41% of the
+      // widths where a word wraps).
+      expect(r!.body).toContain(`content: "\\2060" "${n}"`);
       const sel = r!.selectors.join(" | ");
       // Plain words AND annotated words: dropping either loses the number there.
       expect(sel).toContain(`.cci-word:not(.cci-stack).cci-color-hsk-${n}::after`);
@@ -164,7 +212,7 @@ describe("e-ink CSS block", () => {
     // (colorShouldShow returns false for it) — both are deliberately unmarked.
     const needed = [...produced].filter((k) => k !== "ignored" && k !== "hsk-none");
     expect(needed.length).toBeGreaterThanOrEqual(11);
-    const underline = rules.find((r) => r.selectors.some((s) => s.startsWith(`${SC} .cci-word:is(`)) && r.body.includes("border-bottom: 3px solid"))!;
+    const underline = rules.find((r) => r.selectors.some((s) => s.startsWith(`${SC} .cci-word:not(.cci-stack):is(`)) && r.body.includes("text-decoration-line: underline"))!;
     const text = underline.selectors.join(" ");
     for (const key of needed) expect(text, `no e-ink underline for .cci-color-${key}`).toContain(`.cci-color-${key}`);
   });
