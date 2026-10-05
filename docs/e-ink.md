@@ -53,8 +53,14 @@ Things to know:
   same underline, at the same height, in any font. In the default two-line layout, a word
   whose pinyin is wider than its characters (聊 天) is underlined character by character, so
   the line can look broken where the pinyin pushes them apart.
-- **A word's number stays with the word.** If a word wraps across two lines, the number follows
-  its last part; it never drops to the next line on its own.
+- **The number sits level with the underline, and is not underlined itself.** Its bottom
+  edge lines up with the bottom edge of the underline next to it, and it stays there at any
+  size on the slider, in plain and annotated words alike (measured in pixels, within half a
+  pixel, in every CJK font the check could find).
+- **A numbered word is never split across two lines.** In HSK mode a word that carries a
+  number moves to the next line as a whole, so its number can never end up on a different
+  line. The cost: line ends can be a few characters ragged, and text wraps slightly
+  differently from colour mode. Status mode wraps exactly as before.
 - E-ink mode never changes how tall a line is, whatever your font size, line spacing or
   annotation size.
 - In HSK mode, each annotated word gains a small gap for its number, so text can re-wrap

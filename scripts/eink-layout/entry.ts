@@ -64,8 +64,8 @@ const shown = (c: string) => !!c && c !== "none" && c !== "normal" && c !== '""'
  *  out-of-band CSS change and posAtCoords resolves to the wrong word (measured: 38 mis-hits). */
 const settle = (v: EditorView) => (v as any).measure(true);
 
-function mount(cfg: Cfg, editable = false) {
-  document.body.innerHTML = "";
+function mount(cfg: Cfg, editable = false, keep = false) {
+  if (!keep) document.body.innerHTML = "";
   const toks: any[] = [];
   let doc = "我";
   WORDS[cfg.len].forEach((w, i) => {
@@ -173,12 +173,12 @@ function runConfig(cfg: Cfg) {
         const el = (stack ? w.querySelector(".cci-stack-chars") : w) as HTMLElement;
         const c = getComputedStyle(el);
         const own = getComputedStyle(w);
-        return { stack, line: c.textDecorationLine, style: c.textDecorationStyle, thick: c.textDecorationThickness, offset: c.textUnderlineOffset, colour: c.textDecorationColor, font: c.fontSize + c.fontFamily, border: own.borderBottomWidth + " " + own.borderBottomColor, ownLine: own.textDecorationLine };
+        return { stack, line: c.textDecorationLine, style: c.textDecorationStyle, thick: c.textDecorationThickness, offset: c.textUnderlineOffset, pos: c.textUnderlinePosition, colour: c.textDecorationColor, font: c.fontSize + c.fontFamily, border: own.borderBottomWidth + " " + own.borderBottomColor, ownLine: own.textDecorationLine };
       };
       const sigs = on.words.map((o) => sig(o.w));
       const ref = sigs[0];
       sigs.forEach((g, i) => {
-        const same = g.line === ref.line && g.style === ref.style && g.thick === ref.thick && g.offset === ref.offset && g.colour === ref.colour && g.font === ref.font;
+        const same = g.line === ref.line && g.style === ref.style && g.thick === ref.thick && g.offset === ref.offset && g.pos === ref.pos && g.colour === ref.colour && g.font === ref.font;
         if (!same) fail("underline-differs-between-kinds-of-word", key, `word${i + 1} ${JSON.stringify(g)} vs ${JSON.stringify(ref)}`);
         // The border stays (1px, to keep the layout identical to colour mode) but must be invisible; a visible one
         // would be a second underline at a different height.
@@ -221,6 +221,17 @@ function runConfig(cfg: Cfg) {
         const dW = o.width - off.words[i].width;
         const expect = Math.max(0, cellsW + gutter - off.words[i].width);
         if (Math.abs(dW - expect) > 0.6) fail("word-width-delta-unexplained", k, `word${level} ${dW.toFixed(2)} vs ${expect.toFixed(2)}`);
+      } else {
+        // A plain word's number is out of flow in a gutter on the word itself. The gutter must hold the digit
+        // (else it overlaps the next character), the word must not wrap (so the number cannot be separated
+        // from it), and the word is exactly one gutter wider than without E-ink mode.
+        const cs = getComputedStyle(w);
+        const gutter = px(cs.paddingRight);
+        const dw = probeWidth(root, String(level), numPx);
+        if (gutter + 0.01 < dw + 0.05 * numPx + 1) fail("gutter-narrower-than-number", k, `plain word${level} ${gutter.toFixed(2)} < ${dw.toFixed(2)}+${(0.05 * numPx).toFixed(2)}+1`);
+        if (cs.whiteSpace !== "nowrap" && cs.whiteSpace !== "pre") fail("numbered-word-may-wrap", k, `word${level} white-space ${cs.whiteSpace}`);
+        const dW = o.width - off.words[i].width;
+        if (Math.abs(dW - gutter) > 0.6) fail("plain-word-width-delta-unexplained", k, `word${level} ${dW.toFixed(2)} vs gutter ${gutter.toFixed(2)}`);
       }
     });
 
@@ -267,33 +278,61 @@ function editModeGuard() {
   return out;
 }
 
-/** CJK words wrap mid-word constantly. At every container width where one does, each word must
- *  still carry exactly one number. (An absolutely positioned number was stranded in exactly
- *  these cases.) */
+/** CJK words wrap mid-word constantly, so a number that is out of flow was once stranded at the far edge
+ *  of the line. A numbered plain word is `white-space: nowrap` now. At every container width: it must
+ *  never be split across two lines (so the number can never be separated from it), it must carry exactly
+ *  one number, and the text must still wrap somewhere (otherwise the check proves nothing). */
 function splitWords() {
-  let widths = 0, wrong = 0, detached = 0;
+  let wrapped = 0, wrong = 0, split = 0;
   for (let w = 300; w <= 700; w += 2) {
     const { view, root } = mount({ mode: "none", branch: "plain", len: 2, font: 22, spacing: 1, annot: 100 });
     root.style.width = w + "px";
     root.setAttribute("data-eink", "");
     settle(view);
     const els = [...view.contentDOM.querySelectorAll(".cci-word")] as HTMLElement[];
-    if (els.some((e) => e.getClientRects().length > 1)) {
-      widths++;
-      if (els.filter((e) => shown(getComputedStyle(e, "::after").content)).length !== els.length) wrong++;
-      // The number must stay with its word. Without a word joiner a break was allowed between the last
-      // character and the number, and at the end of a line the number dropped to the next line alone:
-      // its piece of the word is then no wider than the digit.
-      let bad = false;
-      for (const e of els) {
-        const rs = [...e.getClientRects()];
-        if (rs.length > 1) { const numPx = parseFloat(getComputedStyle(e, "::after").fontSize); if (rs[rs.length - 1].width <= numPx * 1.3) bad = true; }
-      }
-      if (bad) detached++;
-    }
+    if (new Set(els.map((e) => Math.round(e.getBoundingClientRect().top))).size > 1) wrapped++;
+    if (els.filter((e) => shown(getComputedStyle(e, "::after").content)).length !== els.length) wrong++;
+    if (els.some((e) => e.getClientRects().length > 1)) split++;
     view.destroy();
   }
-  return { widths, wrong, detached };
+  return { wrapped, wrong, split };
+}
+
+/** Where the underline and the digit are drawn, so the PIXELS can be compared by the caller. A decoration
+ *  has no DOM rect, so this reports each word's box and the screenshot supplies the rest. `installed` is
+ *  false when `ff` is not a font on this machine (its Latin glyphs would then be the same fallback under two
+ *  different generic families), so the caller skips fonts that silently fell back. */
+function fontInstalled(ff: string) {
+  if (ff === "sans-serif") return true;
+  const probe = (fallback: string) => { const s = document.createElement("span"); s.textContent = "mmmmmmWWWWiiii"; s.style.cssText = `position:absolute;visibility:hidden;font-size:40px;font-family:"${ff}",${fallback}`; document.body.appendChild(s); const w = s.getBoundingClientRect().width; s.remove(); return w; };
+  return probe("serif") === probe("monospace");
+}
+function geom() {
+  document.body.innerHTML = "";
+  document.body.style.cssText = "margin:0;padding:8px;background:#fff;color:#000";
+  const ff = Q.get("ff") ?? "sans-serif";
+  if (!fontInstalled(ff)) return { installed: false, rows: [], height: 0 };
+  const sizes = (Q.get("sizes") ?? "14,22,40,48").split(",").map(Number);
+  const rows: any[] = [];
+  for (const kind of (Q.get("kinds") ?? "plain,stack,stack3,wordcell").split(",")) for (const size of sizes) for (const sc of SCALES) {
+    const cfg: Cfg = kind === "plain" ? { mode: "none", branch: "plain", len: 2, font: size, spacing: 1, annot: 100 }
+      : kind === "stack3" ? { mode: "three-line", branch: "perchar", len: 2, font: size, spacing: 1, annot: 100 }
+      : kind === "wordcell" ? { mode: "two-line", branch: "wordcell", len: 2, font: size, spacing: 1, annot: 100 }
+      : { mode: "two-line", branch: "perchar", len: 2, font: size, spacing: 1, annot: 100 };
+    const m = mount(cfg, false, true);
+    m.root.style.fontFamily = `"${ff}"`; m.root.style.width = "1100px"; m.root.style.margin = "6px 0";
+    m.root.setAttribute("data-eink", ""); m.root.style.setProperty("--cci-eink-number-scale", String(sc / 100)); settle(m.view);
+    const words = ([...m.view.contentDOM.querySelectorAll(".cci-word")] as HTMLElement[]).map((w, i) => {
+      const stack = w.classList.contains("cci-stack");
+      const r = w.getBoundingClientRect();
+      const cells = [...w.querySelectorAll(".cci-stack-cell")] as HTMLElement[];
+      const chars = stack ? (w.querySelector(".cci-stack-chars") as HTMLElement).getBoundingClientRect() : null;
+      const num = parseFloat(getComputedStyle(stack ? cells[cells.length - 1] : w, "::after").fontSize);
+      return { lvl: i + 1, stack, left: r.left, right: r.right, bottom: r.bottom, cellRight: stack ? cells[cells.length - 1].getBoundingClientRect().right : null, charsBottom: chars?.bottom, num };
+    });
+    rows.push({ kind, size, scale: sc, words });
+  }
+  return { installed: true, rows, height: document.documentElement.scrollHeight };
 }
 
 function rects() {
@@ -315,6 +354,8 @@ if (task === "matrix") {
   result = { task, ms: Math.round(performance.now() - t0), stat, fails };
 } else if (task === "extras") {
   result = { task, edit: editModeGuard(), split: splitWords() };
+} else if (task === "geom") {
+  result = { task, ...geom() };
 } else if (task === "rects") {
   result = { task, rects: rects() };
 }
