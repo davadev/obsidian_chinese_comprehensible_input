@@ -2,12 +2,12 @@ import { Notice, Platform, TextFileView, WorkspaceLeaf } from "obsidian";
 import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
-import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { tags as t } from "@lezer/highlight";
+import { syntaxHighlighting } from "@codemirror/language";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
 import { applyEinkToRoot } from "./einkMode";
+import { cciMarkdownHighlight } from "../editor/markdownHighlight";
 import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
@@ -18,28 +18,6 @@ import {
   formattingPreservesContent,
 } from "../editor/formatApply";
 import type { HighlightWrap } from "../editor/highlightPalette";
-
-/**
- * Markdown syntax highlighting tuned for the Chinese reader.
- * Larger headings, bold/italic, code dim, list markers de-emphasized.
- */
-const cciMarkdownHighlight = HighlightStyle.define([
-  { tag: t.heading1, fontSize: "1.7em", fontWeight: "700", color: "var(--text-normal)" },
-  { tag: t.heading2, fontSize: "1.45em", fontWeight: "700", color: "var(--text-normal)" },
-  { tag: t.heading3, fontSize: "1.25em", fontWeight: "700", color: "var(--text-normal)" },
-  { tag: t.heading4, fontSize: "1.1em", fontWeight: "700", color: "var(--text-normal)" },
-  { tag: t.heading5, fontSize: "1em", fontWeight: "700", color: "var(--text-normal)" },
-  { tag: t.heading6, fontSize: "1em", fontWeight: "700", color: "var(--text-muted)" },
-  { tag: t.strong, fontWeight: "700" },
-  { tag: t.emphasis, fontStyle: "italic" },
-  { tag: t.strikethrough, textDecoration: "line-through", color: "var(--text-muted)" },
-  { tag: t.link, color: "var(--text-accent)" },
-  { tag: t.url, color: "var(--text-accent)" },
-  { tag: t.monospace, fontFamily: "var(--font-monospace, ui-monospace, monospace)", background: "var(--background-secondary)" },
-  { tag: t.quote, color: "var(--text-muted)", fontStyle: "italic" },
-  { tag: t.list, color: "var(--text-muted)" },
-  { tag: t.processingInstruction, color: "var(--text-faint)" }, // markdown markers like # *
-]);
 
 /**
  * Splits a Markdown file's YAML `---` … `---` frontmatter from its body.

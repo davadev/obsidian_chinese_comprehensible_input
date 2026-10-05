@@ -32,6 +32,7 @@ const ROW_CLASS: Record<LineContent, string> = {
   mnemonic: "cci-stack-gloss cci-stack-mnemonic",
 };
 import { axesFromStatus, colorClassKey, ColorClassKey, colorOf } from "../vocabulary/axes";
+import { wordMarkClass } from "./wordMarkClass";
 import { DEFAULT_HIGHLIGHT_BG, findHighlightSpans, resolveHighlightPalette } from "./highlightPalette";
 
 /**
@@ -436,7 +437,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             tok.start,
             tok.end,
             Decoration.mark({
-              class: `cci-word cci-color-${colorKey}${hlClass}`,
+              class: wordMarkClass({ colorKey, headingLevel, hlClass }),
               attributes: {
                 "data-cci-surface": tok.surface,
                 "data-cci-color": colorKey,
@@ -461,7 +462,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             tok.start,
             tok.end,
             Decoration.mark({
-              class: `cci-word${hlClass}`,
+              class: wordMarkClass({ headingLevel, hlClass }),
               attributes: { "data-cci-surface": tok.surface, ...posAttrs, ...hlAttrs },
             })
           );

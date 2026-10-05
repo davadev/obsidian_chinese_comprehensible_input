@@ -214,6 +214,22 @@ note(hl.on.otherRow === "rgb(0, 0, 0)" && hl.off.otherRow !== hl.on.otherRow, "E
 note(hl.off.plain !== GREY && hl.off.coloured.includes("255, 85, 130") && hl.off.link.includes("255, 85, 130") && hl.off.band.includes("255, 85, 130"),
   "E-ink off: highlight colours are untouched", JSON.stringify(hl.off));
 
+// ---- plain word marks inside Markdown headings: the tint must cover the whole enlarged word ----
+{
+  const hd = run("full.html", "task=headings&floor=" + FLOOR).hd;
+  let small = 0, total = 0, lineMoved = 0, first = "", firstLine = "", inside = 0;
+  for (const c of hd) {
+    for (const r of c.rows) {
+      total++;
+      if (r.markPx + 0.01 < r.glyphPx) { small++; if (!first) first = `${c.key}: mark ${r.markPx}px holds ${r.glyphPx}px text`; }
+      if (r.inside) inside++;
+    }
+    if (Math.abs(c.lineH - c.bareH) > 0.01) { lineMoved++; if (!firstLine) firstLine = `${c.key}: line ${c.lineH} vs ${c.bareH} without marks`; }
+  }
+  note(small === 0, `heading word marks are as big as the text inside them: ${total} marks in ${hd.length} headings`, small ? `${small} too small, e.g. ${first}` : `${inside} hold a nested heading span`);
+  note(lineMoved === 0, "marking words in a heading does not change the line height", lineMoved ? `${lineMoved} headings, e.g. ${firstLine}` : "");
+}
+
 // ---- a highlighted word beside numbered ones; headings; edit mode ----
 const hn = run("full.html", "task=hlneighbours&floor=" + FLOOR).hn;
 for (const name of ["plain", "heading", "edit"]) {

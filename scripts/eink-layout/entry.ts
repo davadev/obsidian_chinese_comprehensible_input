@@ -14,12 +14,16 @@
  *   extras  edit-mode guard, and one-number-per-word at every width that splits a word
  *   rects   layout of every config with E-ink OFF, for the "off is inert" comparison
  *   highlight  computed colours of every kind of highlight, E-ink on and off
+ *   headings   plain word marks inside Markdown headings: is the mark as big as the text in it?
  *   rows       computed colours of the pinyin / translation / mnemonic / characters rows
  */
 import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration } from "@codemirror/view";
 import { RubyWidget } from "../../src/editor/chineseDecorations";
 import { DEFAULT_SETTINGS } from "../../src/settings/defaults";
+import { markdown } from "@codemirror/lang-markdown";
+import { syntaxHighlighting } from "@codemirror/language";
+import { cciMarkdownHighlight } from "../../src/editor/markdownHighlight";
 
 // ---- Obsidian augments the DOM with these; RubyWidget.toDOM() relies on them. Same
 // semantics as the app: the global form makes a DETACHED element, the method form
@@ -454,6 +458,62 @@ function highlightNeighbours() {
   return out;
 }
 
+/** Plain word marks inside a heading, in the real editor with the real markdown parser and the real
+ *  heading HighlightStyle. The tint is the mark's own inline box, so a mark smaller than the text inside it
+ *  paints only part of the word (the beta.8 bug: green at body-text height under a 1.7x heading). Reports,
+ *  for every mark, its font-size against the size of the text it holds, and the line height against the
+ *  same heading with no marks at all. */
+function headings() {
+  const WORDS = ["一个", "勇敢", "的", "故事"];
+  const out: any[] = [];
+  for (const eink of [false, true]) for (const level of [1, 2, 3, 4, 5, 6]) for (const font of [14, 22, 40]) for (const spacing of [0.15, 1.0]) for (const mode of ["none", "two-line", "three-line"]) {
+    const build = (marked: boolean) => {
+      document.body.innerHTML = "";
+      const root = document.createElement("div");
+      root.className = "cci-view";
+      root.setAttribute("data-display", mode);
+      if (eink) root.setAttribute("data-eink", "");
+      root.style.cssText = `width:900px;--cci-reader-font:${font}px;--cci-line-spacing:${spacing};--cci-annotation-scale:1;`;
+      const host = document.createElement("div");
+      host.className = "cci-editor";
+      root.appendChild(host);
+      document.body.appendChild(root);
+      const doc = `${"#".repeat(level)} ${WORDS.join("")}`;
+      const b = new RangeSetBuilder<Decoration>();
+      if (marked) {
+        let at = level + 1;
+        for (const w of WORDS) {
+          b.add(at, at + w.length, Decoration.mark({ class: "cci-word cci-color-known" + (level <= 4 ? ` cci-word-h${level}` : ""), attributes: { "data-cci-surface": w } }));
+          at += w.length;
+        }
+      }
+      const deco = b.finish();
+      const view = new EditorView({ parent: host, state: EditorState.create({ doc, extensions: [markdown(), syntaxHighlighting(cciMarkdownHighlight), EditorView.lineWrapping, EditorView.decorations.of(deco)] }) });
+      settle(view);
+      return view;
+    };
+    const bare = build(false);
+    const bareH = (bare.contentDOM.querySelector(".cm-line") as HTMLElement).getBoundingClientRect().height;
+    bare.destroy();
+    const view = build(true);
+    const lineH = (view.contentDOM.querySelector(".cm-line") as HTMLElement).getBoundingClientRect().height;
+    const marks = [...view.contentDOM.querySelectorAll(".cci-word")] as HTMLElement[];
+    const rows = marks.map((m) => {
+      // the element that directly holds the text: it carries the size the glyphs are drawn at
+      const holder = (m.firstElementChild && m.firstElementChild.textContent === m.textContent ? m.firstElementChild : m) as HTMLElement;
+      const glyphPx = px(getComputedStyle(holder).fontSize);
+      const markPx = px(getComputedStyle(m).fontSize);
+      const walker = document.createTreeWalker(m, NodeFilter.SHOW_TEXT);
+      const t = walker.nextNode() as Text;
+      const glyphParentPx = px(getComputedStyle(t.parentElement!).fontSize);
+      return { markPx, glyphPx: Math.max(glyphPx, glyphParentPx), inside: holder !== m, h: m.getBoundingClientRect().height };
+    });
+    out.push({ key: `${eink ? "eink" : "off"} h${level} ${font}px x${spacing} ${mode}`, level, font, bareH, lineH, rows });
+    view.destroy();
+  }
+  return out;
+}
+
 /** Colour of each annotation row under every combination of E-ink, custom text colours (root custom
  *  properties, as the plugin writes them) and theme. */
 function rowColours() {
@@ -490,6 +550,8 @@ if (task === "matrix") {
   result = { task, over: overflow() };
 } else if (task === "geom") {
   result = { task, ...geom() };
+} else if (task === "headings") {
+  result = { task, hd: headings() };
 } else if (task === "hlneighbours") {
   result = { task, hn: highlightNeighbours() };
 } else if (task === "rows") {
