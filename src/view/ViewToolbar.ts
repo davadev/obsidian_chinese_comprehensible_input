@@ -3,7 +3,12 @@ import type CciPlugin from "../main";
 import { ColorMode, DisplayMode, LineContent, ScriptVariant, ViewMode } from "../settings/types";
 import { indexedSetChanged } from "../settings/scriptChange";
 import { conflictDisabled } from "../editor/formatApply";
-import { orderedFormatOptions } from "../editor/formatOptions";
+import {
+  effectiveFormats,
+  orderedFormatOptions,
+  pickerFormatOptions,
+  toggleFormat,
+} from "../editor/formatOptions";
 import { normalizeLine2Content, normalizeLine3Content } from "../editor/annotationLines";
 import { overflowMenuTopPx } from "./overflowMenuLayout";
 import {
@@ -315,7 +320,7 @@ export class ViewToolbar {
   }
 
   private formatBannerText(): string {
-    const enabled = this.plugin.settings.enabledFormats;
+    const enabled = effectiveFormats(this.plugin.settings);
     const reverse = this.plugin.settings.formatReverseMode;
     const pending = this.plugin.pendingFormatStart != null;
     const verb =
@@ -419,10 +424,10 @@ export class ViewToolbar {
       const hint = menu.createDiv({ cls: "cci-overflow-hint" });
       hint.setText(reverse ? "Formats to remove" : "Formats to apply (none = remove)");
 
-      const options = orderedFormatOptions(this.plugin.app, this.plugin.settings, false);
+      const options = pickerFormatOptions(this.plugin.app, this.plugin.settings);
       for (const opt of options) {
         const id = opt.id;
-        const enabled = this.plugin.settings.enabledFormats;
+        const enabled = effectiveFormats(this.plugin.settings);
         const item = menu.createDiv({ cls: "cci-overflow-item" });
         const cb = item.createEl("input", { type: "checkbox" });
         cb.checked = enabled.includes(id);
@@ -437,10 +442,11 @@ export class ViewToolbar {
         const toggle = () => {
           if (cb.disabled) return;
           void (async () => {
-            const cur = this.plugin.settings.enabledFormats;
-            this.plugin.settings.enabledFormats = cb.checked
-              ? [...cur, id]
-              : cur.filter((f) => f !== id);
+            this.plugin.settings.enabledFormats = toggleFormat(
+              this.plugin.settings,
+              id,
+              cb.checked
+            );
             await this.plugin.saveSettings();
             populate();
             if (this.formatLabelEl) this.formatLabelEl.setText(this.formatBannerText());

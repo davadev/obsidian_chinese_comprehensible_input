@@ -3,7 +3,11 @@ import type { App } from "obsidian";
 import {
   BASE_FORMAT_IDS,
   availableFormatOptions,
+  effectiveFormats,
+  einkPickerNotice,
   orderedFormatOptions,
+  pickerFormatOptions,
+  toggleFormat,
 } from "../editor/formatOptions";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import type { CciSettings } from "../settings/types";
@@ -129,5 +133,61 @@ describe("orderedFormatOptions", () => {
     expect(visible).toHaveLength(16);
     expect(visible.map((o) => o.id)).not.toContain("hl:pink");
     expect(visible.map((o) => o.id)).toContain("hl:red");
+  });
+});
+
+describe("E-ink picker overlay (#112)", () => {
+  const COLOURS = { showHighlightColorsWithoutPlugin: true };
+  const ids = (o: { id: string }[]) => o.map((x) => x.id);
+
+  it("off: the picker is exactly the saved one", () => {
+    const s = settings({ ...COLOURS, formatHidden: ["bold"] });
+    expect(pickerFormatOptions(NO_PLUGINS, s)).toEqual(orderedFormatOptions(NO_PLUGINS, s, false));
+    expect(effectiveFormats(settings({ enabledFormats: ["hl:pink", "bold"] }))).toEqual([
+      "hl:pink",
+      "bold",
+    ]);
+  });
+
+  it("on: coloured highlights are gone, the plain one stays", () => {
+    const out = pickerFormatOptions(NO_PLUGINS, settings({ ...COLOURS, einkMode: true }));
+    expect(ids(out).some((i) => i.startsWith("hl:"))).toBe(false);
+    expect(ids(out)).toContain("highlight");
+  });
+
+  it("on: the plain highlight shows even when the user hid it; other hidden stay hidden", () => {
+    const s = settings({ einkMode: true, formatHidden: ["highlight", "bold"] });
+    const out = ids(pickerFormatOptions(NO_PLUGINS, s));
+    expect(out).toContain("highlight");
+    expect(out).not.toContain("bold");
+    // overlay only: the saved list is untouched, and the settings list still sees the truth
+    expect(s.formatHidden).toEqual(["highlight", "bold"]);
+    expect(ids(orderedFormatOptions(NO_PLUGINS, s, true))).toContain("bold");
+  });
+
+  it("on: an armed colour maps to the plain highlight and never empties the list", () => {
+    // [] would mean "clear all formatting" to the tap-to-format flow.
+    const out = effectiveFormats(settings({ einkMode: true, enabledFormats: ["hl:pink"] }));
+    expect(out).toEqual(["highlight"]);
+    expect(
+      effectiveFormats(settings({ einkMode: true, enabledFormats: ["hl:pink", "highlight", "bold"] }))
+    ).toEqual(["highlight", "bold"]);
+    expect(effectiveFormats(settings({ einkMode: true, enabledFormats: [] }))).toEqual([]);
+  });
+
+  it("toggle: unticking the plain highlight in E-ink clears a hidden armed colour too", () => {
+    const on = settings({ einkMode: true, enabledFormats: ["hl:pink", "bold"] });
+    expect(toggleFormat(on, "highlight", false)).toEqual(["bold"]);
+    expect(toggleFormat(on, "highlight", true)).toEqual(["hl:pink", "bold", "highlight"]);
+    const off = settings({ enabledFormats: ["hl:pink", "bold"] });
+    expect(toggleFormat(off, "bold", false)).toEqual(["hl:pink"]);
+  });
+
+  it("notice: only when the picker will look different", () => {
+    expect(einkPickerNotice(NO_PLUGINS, settings())).toBeNull();
+    expect(einkPickerNotice(NO_PLUGINS, settings(COLOURS))).toMatch(/plain highlight/);
+    expect(einkPickerNotice(NO_PLUGINS, settings({ formatHidden: ["highlight"] }))).toMatch(
+      /Turn E-ink mode off/
+    );
   });
 });

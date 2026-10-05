@@ -97,10 +97,6 @@ export class SettingsMirror {
     await this.write();
   }
 
-  /** Explicit user-initiated push that bypasses the touched gate. Used
-   *  by the "Push settings to mirror now" button to unstick users whose
-   *  device made changes pre-0.1.95 (touched flag didn't exist yet, so
-   *  the file was never written). */
   /**
    * Re-read the mirror and apply it, ignoring `lastWrittenHash`.
    *
@@ -122,6 +118,10 @@ export class SettingsMirror {
     return await this.applyEnvelope(content);
   }
 
+  /** Explicit user-initiated push that bypasses the touched gate. Used
+   *  by the "Push settings to mirror now" button to unstick users whose
+   *  device made changes pre-0.1.95 (touched flag didn't exist yet, so
+   *  the file was never written). */
   async forcePushNow(): Promise<void> {
     if (this.writeTimer != null) {
       window.clearTimeout(this.writeTimer);
