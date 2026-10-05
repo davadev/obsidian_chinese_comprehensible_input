@@ -179,6 +179,8 @@ function run(pageName, query = "") {
   return JSON.parse(unescape(m[1]));
 }
 
+// Every font the pixel and tint checks try; those not installed on the machine are skipped.
+const FONTS = ["sans-serif", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "STSong", "Songti SC", "Songti TC", "Arial Unicode MS", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei"];
 const failures = [];
 const note = (ok, label, detail = "") => {
   console.log(`  ${ok ? "PASS" : "FAIL"}  ${label}${detail ? "  — " + detail : ""}`);
@@ -213,6 +215,35 @@ note(hl.on.plainText === "rgb(0, 0, 0)" && hl.on.colouredText === "rgb(0, 0, 0)"
 note(hl.on.otherRow === "rgb(0, 0, 0)" && hl.off.otherRow !== hl.on.otherRow, "E-ink: pinyin / gloss rows of a highlighted word are black like the others (and only the highlight band is grey)", `${hl.on.otherRow} vs ${hl.off.otherRow}`);
 note(hl.off.plain !== GREY && hl.off.coloured.includes("255, 85, 130") && hl.off.link.includes("255, 85, 130") && hl.off.band.includes("255, 85, 130"),
   "E-ink off: highlight colours are untouched", JSON.stringify(hl.off));
+
+// ---- a plain word's tint and an annotated word's tint end on the same line, in every font ----
+{
+  const TOL = 0.5;
+  let fontsDone = 0, missed = 0, firstMiss = "", bad = 0, worst = 0, first = "", worstFont = "", moved = 0, firstMoved = "";
+  for (const ff of FONTS) {
+    const q = (inline) => `task=bottoms&floor=${FLOOR}&ff=${encodeURIComponent(ff)}${inline ? "&inline=1" : ""}`;
+    const cur = run("full.html", q(false));
+    if (!cur.installed) continue;
+    fontsDone++;
+    const was = run("full.html", q(true));
+    cur.rows.forEach((r, i) => {
+      if (!r.hit) { missed++; firstMiss = firstMiss || r.key; }
+      if (r.stacks.length && r.plain.length) {
+        const d = Math.abs(r.plain[0].bottom - r.stacks[0].bottom);
+        if (d > worst) { worst = d; worstFont = r.key; }
+        if (d > TOL) { bad++; if (!first) first = `${r.key}: plain ends ${(r.plain[0].bottom - r.stacks[0].bottom).toFixed(2)}px from annotated`; }
+      }
+      // changing the plain word's box type must not move anything else
+      const w = was.rows[i];
+      const same = Math.abs(r.lineH - w.lineH) < 0.01 && r.plain.every((p, k) => Math.abs(p.left - w.plain[k].left) < 0.01 && Math.abs(p.width - w.plain[k].width) < 0.01)
+        && r.stacks.every((p, k) => Math.abs(p.left - w.stacks[k].left) < 0.01 && Math.abs(p.width - w.stacks[k].width) < 0.01);
+      if (!same) { moved++; if (!firstMoved) firstMoved = `${r.key}: line ${r.lineH} vs ${w.lineH}`; }
+    });
+  }
+  note(fontsDone > 0 && bad === 0, `plain and annotated tints end on the same line (within ${TOL}px): ${fontsDone} fonts`, bad ? `${bad} lines off, worst ${worst.toFixed(2)}px (${worstFont}), e.g. ${first}` : `worst ${worst.toFixed(2)}px`);
+  note(missed === 0, "a tap in the middle of a plain word lands on that word", missed ? `${missed} lines, e.g. ${firstMiss}` : "");
+  note(moved === 0, "the plain word's box type moves nothing: line height and every word's left/width identical to inline", moved ? `${moved} lines changed, e.g. ${firstMoved}` : "");
+}
 
 // ---- plain word marks inside Markdown headings: the tint must cover the whole enlarged word ----
 {
@@ -256,7 +287,6 @@ for (const custom of ["custom", "theme"]) {
 const SCALE = 4;           // device pixels per CSS pixel: 0.25px resolution
 const ALIGN_TOL = 1.0;     // |digit bottom - underline bottom| in CSS px (measured worst: 0.5)
 const SWING_TOL = 0.75;    // how far the digit may move across the whole size slider (measured worst: 0.5)
-const FONTS = ["sans-serif", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "STSong", "Songti SC", "Songti TC", "Arial Unicode MS", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei"];
 // A 4x screenshot taller than a few thousand device pixels comes back partly blank, so each widget kind AND reader size is
 // shot on its own, at the two ends of the slider and two points between.
 const ALIGN_SCALES = [...new Set([MIN, 80, 100, MAX])].filter((v) => v >= MIN && v <= MAX).sort((x, y) => x - y);
