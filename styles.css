@@ -565,6 +565,29 @@
   transition: background 60ms linear;
 }
 
+/* A plain word (not an annotated stack) is an inline-block with line-height 1, the same box as an
+   annotated word's characters row. Both are tinted by the same rule below (background + 1px border), and
+   an inline element's background is the font's content area (ascent + descent) while the stack's is a 1em
+   line box, so the two ended on different lines: by (ascent + descent - 1)/2 em, which depends on the font
+   (1px in one, 13px in a 1.7x heading in another). The same box gives the same bottom in any font, with
+   nothing measured. Words already wrap between inline-blocks (annotated words do). Edit mode keeps live
+   inline text, as the E-ink rules do: a caret beside an inline-block misbehaves, and there are no stacks
+   in edit mode to line up with. */
+.cci-view .cci-word:not(.cci-stack) {
+  display: inline-block;
+  line-height: 1;
+  /* An inline-block's margin box sets the line's height, an inline element's does not. At a small
+     line-spacing the box (1em + the border) is taller than the line and would stretch every line of
+     plain words (measured: 8.9px -> 24.8px under a heading). -1em top and bottom makes the margin box
+     contribute nothing, as on the E-ink level number, and moves no painted pixel. */
+  margin-block: -1em;
+}
+.cci-view .cm-content[contenteditable="true"] .cci-word:not(.cci-stack) {
+  display: inline;
+  line-height: inherit;
+  margin-block: 0;
+}
+
 /* Three-state color coding: green = known, red = unknown, yellow = partial. */
 .cci-word.cci-color-known {
   background: color-mix(in srgb, var(--cci-color-known) 16%, transparent);

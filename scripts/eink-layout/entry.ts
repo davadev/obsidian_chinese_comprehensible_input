@@ -14,6 +14,7 @@
  *   extras  edit-mode guard, and one-number-per-word at every width that splits a word
  *   rects   layout of every config with E-ink OFF, for the "off is inert" comparison
  *   highlight  computed colours of every kind of highlight, E-ink on and off
+ *   bottoms    where a plain word's tint ends vs an annotated word's, per font and heading level
  *   headings   plain word marks inside Markdown headings: is the mark as big as the text in it?
  *   rows       computed colours of the pinyin / translation / mnemonic / characters rows
  */
@@ -24,6 +25,7 @@ import { DEFAULT_SETTINGS } from "../../src/settings/defaults";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { cciMarkdownHighlight } from "../../src/editor/markdownHighlight";
+import { wordMarkClass } from "../../src/editor/wordMarkClass";
 
 // ---- Obsidian augments the DOM with these; RubyWidget.toDOM() relies on them. Same
 // semantics as the app: the global form makes a DETACHED element, the method form
@@ -458,6 +460,67 @@ function highlightNeighbours() {
   return out;
 }
 
+/** The tint of a plain word and of an annotated word on the SAME line must end on the same line: both are
+ *  styled by `.cci-word.cci-color-X` (background + 1px border), but a plain word is an inline box (its
+ *  background is the font's content area, ascent + descent) and an annotated word is an inline-block whose
+ *  last row is `line-height: 1`. The two bottoms differ by (ascent + descent - 1)/2 em, which depends on the
+ *  font. Reports mark.bottom - stack.bottom for every font installed here, body text and headings 1-4, and
+ *  the line height, with the plain-word box either as shipped or forced back to inline (`inline=1`) so the
+ *  caller can require that changing the box type moves nothing else. */
+function bottoms() {
+  const ff = Q.get("ff") ?? "sans-serif";
+  if (!fontInstalled(ff)) return { installed: false, rows: [] };
+  const forceInline = Q.get("inline") === "1";
+  const rows: any[] = [];
+  const WORDS = ["一个", "勇敢", "的", "故事", "朋友", "学习"];
+  for (const level of [0, 1, 2, 3, 4]) for (const font of [16, 22, 40]) for (const spacing of [0.15, 1.0]) for (const mode of ["none", "two-line", "three-line"] as const) for (const status of ["known", "partial", "unknown", "new"]) {
+    document.body.innerHTML = "";
+    document.body.style.cssText = "margin:0;padding:8px;background:#fff;color:#000";
+    const root = document.createElement("div");
+    root.className = "cci-view";
+    root.setAttribute("data-display", mode);
+    root.style.cssText = `width:1100px;--cci-reader-font:${font}px;--cci-line-spacing:${spacing};--cci-annotation-scale:1;`;
+    if (forceInline) { const st = document.createElement("style"); st.textContent = ".cci-view .cci-word:not(.cci-stack){display:inline !important;line-height:inherit !important}"; root.appendChild(st); }
+    const host = document.createElement("div");
+    host.className = "cci-editor";
+    root.appendChild(host);
+    document.body.appendChild(root);
+    const prefix = level ? "#".repeat(level) + " " : "";
+    let doc = prefix;
+    const b = new RangeSetBuilder<Decoration>();
+    const settings: any = { ...DEFAULT_SETTINGS, line2Content: "pinyin", line3Content: "english", pinyinStyle: "marks", stripGlossParentheticals: false };
+    WORDS.forEach((w, i) => {
+      const start = doc.length;
+      doc += w;
+      const tok: any = { start, end: start + w.length, surface: w, isWord: true, confidence: 1, candidates: [], selected: { simplified: w, pinyin: Array.from(w).map((_, k) => SYL[(i * 3 + k) % SYL.length]).join(" "), definitions: ["gloss"] } };
+      const plain = mode === "none" || i % 2 === 0;
+      if (plain) b.add(start, start + w.length, Decoration.mark({ class: wordMarkClass({ colorKey: status, headingLevel: level }), attributes: { "data-cci-surface": w } }));
+      else {
+        const rec: any = { status: "unknown", axes: { chars: false, pinyin: false, meaning: false }, surfaces: [w] };
+        b.add(start, start + w.length, Decoration.replace({ widget: new RubyWidget(w, tok, rec, mode, settings, level, status as any, undefined), inclusive: false }));
+      }
+    });
+    const deco = b.finish();
+    const view = new EditorView({ parent: host, state: EditorState.create({ doc, extensions: [markdown(), syntaxHighlighting(cciMarkdownHighlight), EditorView.lineWrapping, EditorView.editable.of(false), EditorView.decorations.of(deco), EditorView.atomicRanges.of(() => deco)] }) });
+    view.scrollDOM.style.fontFamily = ff === "sans-serif" ? ff : `"${ff}", sans-serif`;
+    settle(view);
+    const line = view.contentDOM.querySelector(".cm-line") as HTMLElement;
+    const words = [...view.contentDOM.querySelectorAll(".cci-word")] as HTMLElement[];
+    const plainEl = words.filter((w) => !w.classList.contains("cci-stack"));
+    const stackEl = words.filter((w) => w.classList.contains("cci-stack"));
+    rows.push({
+      key: `${ff} h${level} ${font}px x${spacing} ${mode} ${status}`, level, font, mode, status,
+      lineH: line.getBoundingClientRect().height,
+      // a tap lands on the word: the plugin finds it with `target.closest(".cci-word")`
+      hit: plainEl.every((w) => { const r = w.getBoundingClientRect(); const t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return t?.closest(".cci-word") === w; }),
+      plain: plainEl.map((w) => { const r = w.getBoundingClientRect(); return { left: r.left, width: r.width, bottom: r.bottom }; }),
+      stacks: stackEl.map((w) => { const r = w.getBoundingClientRect(); return { left: r.left, width: r.width, bottom: r.bottom }; }),
+    });
+    view.destroy();
+  }
+  return { installed: true, rows };
+}
+
 /** Plain word marks inside a heading, in the real editor with the real markdown parser and the real
  *  heading HighlightStyle. The tint is the mark's own inline box, so a mark smaller than the text inside it
  *  paints only part of the word (the beta.8 bug: green at body-text height under a 1.7x heading). Reports,
@@ -488,7 +551,7 @@ function headings() {
         }
       }
       const deco = b.finish();
-      const view = new EditorView({ parent: host, state: EditorState.create({ doc, extensions: [markdown(), syntaxHighlighting(cciMarkdownHighlight), EditorView.lineWrapping, EditorView.decorations.of(deco)] }) });
+      const view = new EditorView({ parent: host, state: EditorState.create({ doc, extensions: [markdown(), syntaxHighlighting(cciMarkdownHighlight), EditorView.lineWrapping, EditorView.editable.of(false), EditorView.decorations.of(deco)] }) });
       settle(view);
       return view;
     };
@@ -550,6 +613,8 @@ if (task === "matrix") {
   result = { task, over: overflow() };
 } else if (task === "geom") {
   result = { task, ...geom() };
+} else if (task === "bottoms") {
+  result = { task, ...bottoms() };
 } else if (task === "headings") {
   result = { task, hd: headings() };
 } else if (task === "hlneighbours") {
