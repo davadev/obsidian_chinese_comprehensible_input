@@ -152,6 +152,19 @@ describe("E-ink mode settings", () => {
       }
     });
 
+    it("greys the pinyin and translation pickers (E-ink draws those rows black), not the characters one", () => {
+      const { tab, plugin } = makeTab();
+      const all = definitions(tab);
+      for (const key of ["textColors.pinyin", "textColors.gloss"]) {
+        const item = byKey(all, key);
+        expect(item, key).toBeTruthy();
+        plugin.settings.einkMode = false;
+        expect(evalFlag(item!.control!.disabled), `${key} off`).toBe(false);
+        plugin.settings.einkMode = true;
+        expect(evalFlag(item!.control!.disabled), `${key} on`).toBe(true);
+      }
+    });
+
     it("greys both reset-colour buttons", () => {
       const { tab, plugin } = makeTab();
       const all = definitions(tab);
@@ -169,7 +182,9 @@ describe("E-ink mode settings", () => {
       // The guard against over-greying. These still have an effect in E-ink mode:
       // colorMode picks underline-styles vs numbers; the per-status and per-level
       // switches decide WHICH words get marked; highlightOverridesStatus decides
-      // whether a highlight or an underline shows; text colours are unrelated.
+      // whether a highlight or an underline shows; the text-colour toggle and the
+      // characters colour are unrelated (the pinyin / translation pickers are not:
+      // E-ink draws those rows black, see the test below).
       const { tab } = makeTab();
       const all = definitions(tab);
       const mustStayLive = [
@@ -181,8 +196,6 @@ describe("E-ink mode settings", () => {
         "highlightOverridesStatus",
         "textColors.enabled",
         "textColors.chars",
-        "textColors.pinyin",
-        "textColors.gloss",
         ...["1", "2", "3", "4", "5", "6", "7"].map((l) => `showHskColors.${l}`),
       ];
       for (const key of mustStayLive) {

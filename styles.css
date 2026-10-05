@@ -773,6 +773,23 @@
 .cci-view[data-eink] .cci-stack-hl .cci-stack-chars {
   color: #000;
 }
+
+/* Rows above the characters (pinyin, translation, mnemonic): black. They default to the theme's
+   grey, or to the user's own "Pinyin / English translation color", and small grey text is hard to
+   read on e-paper. A class rule is enough: the rows carry no inline colour, the custom colours
+   arrive as root custom properties. A dark theme keeps its own text colour, since black on a dark
+   background would vanish (the :is() keeps every selector starting at the scope, which the
+   off-means-off test relies on). The characters row is left alone. */
+.cci-view[data-eink] .cci-stack-pinyin,
+.cci-view[data-eink] .cci-stack-mnemonic,
+.cci-view[data-eink] .cci-stack-gloss {
+  color: #000;
+}
+.cci-view[data-eink]:is(.theme-dark .cci-view) .cci-stack-pinyin,
+.cci-view[data-eink]:is(.theme-dark .cci-view) .cci-stack-mnemonic,
+.cci-view[data-eink]:is(.theme-dark .cci-view) .cci-stack-gloss {
+  color: var(--text-normal);
+}
 /* eink:end */
 
 /*

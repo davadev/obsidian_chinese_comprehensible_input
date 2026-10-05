@@ -259,6 +259,9 @@ and you get black characters with grey pinyin and grey translation, each
 adjustable with a color picker. Turning it back off restores the theme's
 colors immediately.
 
+In [E-ink mode](./e-ink.md#annotation-rows) the pinyin and translation rows are drawn black
+whatever you chose here, and their two pickers are switched off; the characters color still applies.
+
 This lives in settings only, not in the view toolbar: it's a "set it
 once" preference, unlike the display mode. Background tints, highlights,
 and text colors all combine, so a red-tinted unknown word can still have

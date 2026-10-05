@@ -210,9 +210,21 @@ note(hl.on.plain === GREY && hl.on.coloured === GREY && hl.on.link === GREY && h
   "E-ink: plain, coloured and link highlights and the annotated-word band are all the one grey", JSON.stringify(hl.on));
 note(hl.on.plainText === "rgb(0, 0, 0)" && hl.on.colouredText === "rgb(0, 0, 0)" && hl.on.chars === "rgb(0, 0, 0)",
   "E-ink: highlighted text is black", `${hl.on.plainText} ${hl.on.colouredText} ${hl.on.chars}`);
-note(hl.on.otherRow === hl.off.otherRow, "E-ink: pinyin / gloss rows of a highlighted word keep their colour", `${hl.on.otherRow} vs ${hl.off.otherRow}`);
+note(hl.on.otherRow === "rgb(0, 0, 0)" && hl.off.otherRow !== hl.on.otherRow, "E-ink: pinyin / gloss rows of a highlighted word are black like the others (and only the highlight band is grey)", `${hl.on.otherRow} vs ${hl.off.otherRow}`);
 note(hl.off.plain !== GREY && hl.off.coloured.includes("255, 85, 130") && hl.off.link.includes("255, 85, 130") && hl.off.band.includes("255, 85, 130"),
   "E-ink off: highlight colours are untouched", JSON.stringify(hl.off));
+
+// ---- annotation rows: black in E-ink (light theme), theme text on dark, untouched when off ----
+const rows = run("full.html", "task=rows&floor=" + FLOOR).rows;
+const BLACK = "rgb(0, 0, 0)";
+const REST = ["pinyin", "gloss", "mnemonic"];
+for (const custom of ["custom", "theme"]) {
+  const on = rows[`eink|${custom}|light`], dk = rows[`eink|${custom}|dark`], off = rows[`off|${custom}|light`];
+  note(REST.every((k) => on[k] === BLACK), `E-ink, ${custom} text colours: pinyin, translation and mnemonic rows are black`, JSON.stringify(on));
+  note(REST.every((k) => dk[k] === "rgb(238, 238, 238)"), `E-ink, ${custom} text colours, dark theme: rows use the theme text colour`, JSON.stringify(dk));
+  note(REST.every((k) => off[k] !== BLACK) && on.chars === off.chars && dk.chars === rows[`off|${custom}|dark`].chars,
+    `E-ink off, ${custom} text colours: rows keep their own colour; the characters row never changes`, JSON.stringify(off));
+}
 
 // ---- the digit's bottom edge against the underline's bottom edge, from pixels ----
 const SCALE = 4;           // device pixels per CSS pixel: 0.25px resolution

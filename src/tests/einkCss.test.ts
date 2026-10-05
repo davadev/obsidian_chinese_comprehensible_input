@@ -293,4 +293,18 @@ describe("e-ink CSS block", () => {
     // black on the pinyin / gloss rows would vanish on a dark theme
     expect(css).not.toMatch(/\.cci-stack-hl\s*\{[^}]*color:/);
   });
+
+  it("draws the pinyin, translation and mnemonic rows black, with a dark-theme way out", () => {
+    // Class rules suffice (the rows carry no inline colour; custom colours are root
+    // properties), so this must not need !important - the count test above pins that.
+    for (const prefix of ["", ".cci-view[data-eink]:is(.theme-dark .cci-view) "]) {
+      const base = prefix.trim() || SC;
+      const rule = rules.find((r) => r.selectors.includes(`${base} .cci-stack-pinyin`))!;
+      expect(rule, `${prefix}pinyin rule`).toBeTruthy();
+      for (const row of ["pinyin", "mnemonic", "gloss"]) expect(rule.selectors).toContain(`${base} .cci-stack-${row}`);
+      expect(rule.body).toMatch(prefix ? /color:\s*var\(--text-normal\)/ : /color:\s*#000\b/);
+    }
+    // the characters row is not part of it
+    expect(rules.some((r) => r.selectors.some((x) => /\.cci-stack-chars$/.test(x) && !x.includes("-hl")) && /(^|[;\s])color:/.test(r.body))).toBe(false);
+  });
 });
