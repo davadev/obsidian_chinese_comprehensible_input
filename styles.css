@@ -413,6 +413,20 @@
 .cci-view .cci-stack-h2.cci-stack-hl { background-size: 100% 1.45em; }
 .cci-view .cci-stack-h3.cci-stack-hl { background-size: 100% 1.25em; }
 .cci-view .cci-stack-h4.cci-stack-hl { background-size: 100% 1.1em; }
+/* Plain word marks inside a heading (known words in the ruby modes, every word in mode "none").
+   A mark's tint is its own inline box, and its height is set by the mark's OWN font-size. The heading's
+   larger size is on a CodeMirror syntax-highlight span nested inside the mark, so without these rules the
+   mark kept the body size and tinted only the bottom of a larger word (0.7.8-beta.8 and earlier).
+   Sized from `--cci-reader-font` (which is `.cm-content`'s font-size) instead of `em`, so the result is the
+   same whichever of the two ends up outermost; the span inside is told to inherit so it cannot compound. */
+.cci-view .cci-word-h1 { font-size: calc(var(--cci-reader-font) * 1.7); }
+.cci-view .cci-word-h2 { font-size: calc(var(--cci-reader-font) * 1.45); }
+.cci-view .cci-word-h3 { font-size: calc(var(--cci-reader-font) * 1.25); }
+.cci-view .cci-word-h4 { font-size: calc(var(--cci-reader-font) * 1.1); }
+.cci-view .cci-word-h1 span,
+.cci-view .cci-word-h2 span,
+.cci-view .cci-word-h3 span,
+.cci-view .cci-word-h4 span { font-size: inherit; }
 /* A link widget (wikilink / embed) sitting inside a highlight paints its own
    background inline (dynamic color); this just rounds the corners. */
 .cci-view .cci-md-link-hl {
@@ -882,10 +896,10 @@
    so the heading still reads as a heading in 2-line / 3-line modes. Pinyin
    and gloss stay proportionally small.
  *
- * This 1.7 / 1.45 / 1.25 / 1.1 series exists in THREE places: here, on the
- * highlight band above, and in ChineseTextFileView.ts (the CodeMirror
- * HighlightStyle for PLAIN heading text). They must be kept in step by hand;
- * nothing enforces it. */
+ * This 1.7 / 1.45 / 1.25 / 1.1 series is written in four places: here, on the
+ * highlight band, on the plain word marks (.cci-word-h{n}), and in the CodeMirror
+ * HighlightStyle for plain heading text. All of them come from HEADING_SCALE in
+ * src/editor/headingScale.ts; headingScale.test.ts fails if any drifts. */
 .cci-stack-h1 .cci-stack-chars { font-size: 1.7em;  font-weight: 700; }
 .cci-stack-h2 .cci-stack-chars { font-size: 1.45em; font-weight: 700; }
 .cci-stack-h3 .cci-stack-chars { font-size: 1.25em; font-weight: 700; }
