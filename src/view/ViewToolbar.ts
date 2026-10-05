@@ -6,6 +6,13 @@ import { conflictDisabled } from "../editor/formatApply";
 import { orderedFormatOptions } from "../editor/formatOptions";
 import { normalizeLine2Content, normalizeLine3Content } from "../editor/annotationLines";
 import { overflowMenuTopPx } from "./overflowMenuLayout";
+import {
+  EINK_NUMBER_SCALE_MAX,
+  EINK_NUMBER_SCALE_MIN,
+  EINK_NUMBER_SCALE_STEP,
+  clampEinkNumberScale,
+  isEinkMode,
+} from "./einkMode";
 
 /**
  * Compact toolbar.
@@ -706,6 +713,24 @@ export class ViewToolbar {
       format: (v) => `${v}%`,
       apply: (v) => (this.plugin.settings.annotationScalePercent = v),
     });
+
+    // E-ink mode's level number, beside the other size controls for the same
+    // reason annotation size is here: it can only be judged by looking at the
+    // page. Present only when the numbers exist — E-ink mode on AND HSK colour
+    // mode — so it is never a slider that does nothing. The menu is rebuilt each
+    // time it opens, so this is evaluated fresh. Goes through the same onChange()
+    // as its neighbours, which redecorates (CodeMirror re-measures) and restores
+    // the reader's place.
+    if (isEinkMode(this.plugin.settings) && this.plugin.settings.colorMode === "hsk") {
+      sliderRow("Level-number size", {
+        min: EINK_NUMBER_SCALE_MIN,
+        max: EINK_NUMBER_SCALE_MAX,
+        step: EINK_NUMBER_SCALE_STEP,
+        value: clampEinkNumberScale(this.plugin.settings.einkNumberScalePercent),
+        format: (v) => `${v}%`,
+        apply: (v) => (this.plugin.settings.einkNumberScalePercent = v),
+      });
+    }
 
     const sep2 = menu.createDiv({ cls: "cci-overflow-sep" });
     sep2.setAttr("role", "separator");

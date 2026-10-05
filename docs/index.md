@@ -41,8 +41,9 @@ the whole tree from here.
 - [Formatting and highlighting](./formatting.md) — the tap-to-format mode:
   the add/remove/off highlighter button, colored highlights + Highlightr,
   reordering the picker, and how highlights render in the reader.
-- [E-ink readers](./e-ink.md) — a supported CSS snippet that swaps the
-  status colours for underlines, contributed by huwhowell.
+- [E-ink readers](./e-ink.md) — the built-in E-ink mode (underlines instead
+  of colour tints, HSK level as a number), and the CSS snippet it grew out of,
+  contributed by huwhowell.
 - [Themes and plugin compatibility](./compatibility.md) — Things-style
   task checkboxes, Highlightr, sync tools, BRAT, and what other plugins
   can and cannot do inside the Chinese view.

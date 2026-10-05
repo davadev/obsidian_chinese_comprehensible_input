@@ -7,6 +7,7 @@ import { tags as t } from "@lezer/highlight";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
 import { ViewToolbar } from "./ViewToolbar";
+import { applyEinkToRoot } from "./einkMode";
 import { buildChineseDecorations, cciRedecorateEffect, cciReTokenizeEffect } from "../editor/chineseDecorations";
 import { wordInteractionPlugin } from "../editor/wordInteractionPlugin";
 import { buildMarkdownRendering, markdownLinkClickHandler } from "../editor/markdownRendering";
@@ -309,6 +310,14 @@ export class ChineseTextFileView extends TextFileView {
   applyDisplayAttr(): void {
     const root = this.containerEl.children[1] as HTMLElement;
     root.setAttribute("data-display", this.plugin.settings.defaultDisplayMode);
+    // E-ink mode rides the same path as the display attribute: this runs from
+    // onOpen() and from handleToolbarChange(), so first paint and every live
+    // change are both covered with no new call site. It must stay on that path
+    // rather than become a bare CSS-variable write: handleToolbarChange and the
+    // persist() that precedes it redecorate, which makes CodeMirror re-measure.
+    // Without that, a change that rewraps text leaves its cached line heights
+    // stale and clicks land on the wrong word (measured: 38 mis-hits -> 0).
+    applyEinkToRoot(root, this.plugin.settings);
   }
 
   async onClose(): Promise<void> {

@@ -13,6 +13,7 @@
 		"lint": "eslint 'src/**/*.ts'",
 		"lint:fix": "eslint 'src/**/*.ts' --fix",
 		"lint:cloud-parity": "node scripts/lint-cloud-parity.mjs",
+		"check:layout": "node scripts/check-eink-layout.mjs",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:cov": "vitest run --coverage",

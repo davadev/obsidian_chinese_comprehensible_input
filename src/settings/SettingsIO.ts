@@ -33,6 +33,11 @@ const FILTER_OUT = {
     // it. Sharing it would let one device's completed baseline pass suppress
     // another's, which has its own records to adopt.
     "trackedBaselineRepaired",
+    // A choice made because of THIS device's screen. Appearance settings such as
+    // the reader font do sync, but sharing these would force underlines onto the
+    // same person's phone just because they switched their e-ink reader to it.
+    "einkMode",
+    "einkNumberScalePercent",
   ] as const,
 };
 
