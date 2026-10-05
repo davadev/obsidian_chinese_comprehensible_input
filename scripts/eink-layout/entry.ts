@@ -13,6 +13,7 @@
  *   matrix  one display mode, every font x spacing x annotation x number-size cell
  *   extras  edit-mode guard, and one-number-per-word at every width that splits a word
  *   rects   layout of every config with E-ink OFF, for the "off is inert" comparison
+ *   highlight  computed colours of every kind of highlight, E-ink on and off
  */
 import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { EditorView, Decoration } from "@codemirror/view";
@@ -386,6 +387,44 @@ function rects() {
   return all;
 }
 
+/** Every kind of highlight the plugin can paint, with the inline colours it paints them with, read back
+ *  as computed style with E-ink on and off: on must be ONE grey, off must be the original colours. */
+function highlights() {
+  const out: Record<string, any> = {};
+  for (const eink of [true, false]) {
+    const { view, root } = mount({ mode: "two-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100 });
+    if (eink) root.setAttribute("data-eink", "");
+    const stack = view.contentDOM.querySelector(".cci-stack") as HTMLElement;
+    // A highlighted word carries no colour class (the plugin drops it, `highlightOverridesStatus`); the
+    // colour classes' `background` shorthand would also clear the band.
+    stack.classList.remove(...[...stack.classList].filter((c) => c.startsWith("cci-color-")));
+    stack.classList.add("cci-stack-hl");
+    stack.style.setProperty("--cci-hl", "rgba(255, 85, 130, 0.65)");
+    const mk = (cls: string, style: string) => {
+      const el = document.createElement("span");
+      el.className = cls;
+      el.setAttribute("style", style);
+      el.textContent = "字";
+      view.contentDOM.querySelector(".cm-line")!.appendChild(el);
+      return getComputedStyle(el);
+    };
+    const plain = mk("cci-md-highlight", "");
+    const coloured = mk("cci-md-highlight cci-md-colored", "background-color:rgba(255, 85, 130, 0.65);");
+    const link = mk("cci-md-link-hl", "background-color:rgba(255, 85, 130, 0.65);");
+    const chars = getComputedStyle(stack.querySelector(".cci-stack-chars") as HTMLElement);
+    const row = getComputedStyle(stack.querySelector(".cci-stack-cell > *:not(.cci-stack-chars)") ?? stack);
+    out[eink ? "on" : "off"] = {
+      plain: plain.backgroundColor, plainText: plain.color,
+      coloured: coloured.backgroundColor, colouredText: coloured.color,
+      link: link.backgroundColor,
+      band: getComputedStyle(stack).backgroundImage,
+      chars: chars.color, otherRow: row.color,
+    };
+    view.destroy();
+  }
+  return out;
+}
+
 const task = Q.get("task") ?? "matrix";
 const t0 = performance.now();
 let result: any;
@@ -398,6 +437,8 @@ if (task === "matrix") {
   result = { task, over: overflow() };
 } else if (task === "geom") {
   result = { task, ...geom() };
+} else if (task === "highlight") {
+  result = { task, hl: highlights() };
 } else if (task === "rects") {
   result = { task, rects: rects() };
 }

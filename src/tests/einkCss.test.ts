@@ -140,10 +140,14 @@ describe("e-ink CSS block", () => {
     }
   });
 
-  it("uses !important exactly once: the edit-mode guard", () => {
+  it("uses !important in exactly two places: the edit-mode guard and the highlight grey", () => {
+    // Both exist to beat INLINE styles (the caret guard's generated content; coloured marks'
+    // style attribute). Anywhere else it would hide a specificity mistake.
     const important = rules.filter((r) => r.body.includes("!important"));
-    expect(important.length).toBe(1);
-    expect(important[0].selectors.join(" ")).toContain('[contenteditable="true"]');
+    expect(important.length).toBe(2);
+    const where = important.map((r) => r.selectors.join(" "));
+    expect(where.some((w) => w.includes('[contenteditable="true"]'))).toBe(true);
+    expect(where.some((w) => w.includes(".cci-md-highlight"))).toBe(true);
   });
 
   it("generates content for each HSK level 1-7, on both kinds of word", () => {
@@ -268,5 +272,25 @@ describe("e-ink CSS block", () => {
     const underline = rules.find((r) => r.selectors.some((s) => s.startsWith(`${SC} .cci-word:not(.cci-stack):is(`)) && r.body.includes("text-decoration-line: underline"))!;
     const text = underline.selectors.join(" ");
     for (const key of needed) expect(text, `no e-ink underline for .cci-color-${key}`).toContain(`.cci-color-${key}`);
+  });
+
+  it("draws every highlight in the one e-ink grey, beating the inline colours", () => {
+    // Coloured <mark> carries style="background-color:..." and link widgets set an inline
+    // background, so the plain-class rules lose without !important; the stack band is a
+    // gradient fed by the inline --cci-hl, so that one restyles background-image instead.
+    const flat = ruleWith(`${SC} .cci-md-highlight`)!;
+    expect(flat.selectors).toContain(`${SC} .cci-md-link-hl`);
+    expect(flat.body).toMatch(/background-color:\s*var\(--cci-eink-highlight\)\s*!important/);
+    const band = ruleWith(`${SC} .cci-stack-hl`)!;
+    expect(band.body).toMatch(/background-image:\s*linear-gradient\(var\(--cci-eink-highlight\)/);
+    expect(band.body).not.toContain("--cci-hl");
+    expect(ruleWith(`${SC} {`) ?? rules.find((r) => r.body.includes("--cci-eink-highlight:"))).toBeTruthy();
+  });
+
+  it("keeps highlight text legible on the grey without touching the annotation rows", () => {
+    const chars = ruleWith(`${SC} .cci-stack-hl .cci-stack-chars`)!;
+    expect(chars.body).toContain("color: #000");
+    // black on the pinyin / gloss rows would vanish on a dark theme
+    expect(css).not.toMatch(/\.cci-stack-hl\s*\{[^}]*color:/);
   });
 });

@@ -46,7 +46,7 @@ Things to know:
 
 - A highlighted word keeps its highlight and shows no underline or number: when a
   highlight and a status colour would both show, the plugin shows only one (by default the
-  highlight), exactly as in colour mode.
+  highlight), exactly as in colour mode. See [Highlighting](#highlighting).
 - In HSK mode you lose the known / unknown signal, as you do in HSK colour mode. Use
   Status mode when you want it.
 - **Underlines are drawn under the characters.** Plain and annotated words get exactly the
@@ -69,6 +69,25 @@ Things to know:
   slightly when you switch the mode on.
 - Dotted 3 px lines and numbers as small as 6 px are unproven on real e-paper. If something reads
   badly on your device, please say so on
+  [#112](https://github.com/davadev/obsidian_chinese_comprehensible_input/issues/112).
+
+## Highlighting
+
+Coloured highlights are pastel tints, which all print as the same light grey on e-paper, so
+in E-ink mode there is **one highlight, in one grey**:
+
+- Every highlight is drawn in that grey with black text, including coloured ones already in
+  your notes (`<mark style=…>`). Nothing in the note is changed; turn E-ink mode off and the
+  colours are back.
+- The formatting picker offers only the plain highlight (`==text==`), and offers it **even if
+  you hid it** in Settings → Formatting picker, so the picker never comes up without a
+  highlight. The coloured options are not listed; a colour you had armed is applied as the plain
+  highlight. Your saved picker order and hidden list are not touched. The "Show highlight colors
+  without Highlightr" switch is greyed out while E-ink mode is on.
+- Turning E-ink mode on shows a one-time notice when the picker will look different. To get your
+  own picker back, turn E-ink mode off.
+- The grey is `#c4c4c4`, a first guess made without an e-paper screen. If it is too faint or too
+  dark on yours, please say so on
   [#112](https://github.com/davadev/obsidian_chinese_comprehensible_input/issues/112).
 
 ## The CSS snippet
@@ -138,8 +157,9 @@ Three things this cannot reach, so you know before you wonder:
   snippet does not.
 - **A highlighted word keeps its highlight.** When a highlight and a status colour
   would both show, the plugin shows only one — by default the highlight — so a
-  highlighted word carries no status class for this snippet to restyle. If you want the
-  highlight band gone too, add `.cci-view .cci-stack-hl { background-image: none; }` —
+  highlighted word carries no status class for this snippet to restyle. The snippet leaves
+  highlight colours alone (the built-in mode greys them, see [Highlighting](#highlighting)).
+  If you want the highlight band gone, add `.cci-view .cci-stack-hl { background-image: none; }` —
   but then you lose highlights entirely, which may be worse. Your call.
 - **Annotated and plain words render through different paths.** The snippet
   above targets the word element, which both share; anything you add for the

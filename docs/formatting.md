@@ -85,6 +85,12 @@ word has annotations or not, and it scales up inside headings. Digits and
 punctuation at the edges of a selection (e.g. a line like `1. 你好？`) are
 included.
 
+### On e-ink screens
+
+With [E-ink mode](./e-ink.md#highlighting) on, every highlight is drawn in one grey and the
+picker offers only the plain `==` highlight (even if you hid it); coloured options come back
+when you turn E-ink mode off. Notes are not changed.
+
 ### Highlight vs. status / HSK colors
 
 If a word has both a highlight and a status or HSK color, the

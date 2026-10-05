@@ -41,6 +41,7 @@ import {
   resolveHighlightPalette,
   type HighlightWrap,
 } from "./editor/highlightPalette";
+import { effectiveFormats } from "./editor/formatOptions";
 import { StatsView } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
@@ -1204,7 +1205,7 @@ export default class CciPlugin extends Plugin {
     // produces a valid non-empty range.
     const start = Math.min(anchor, endPos);
     endPos = Math.max(anchor, endPos);
-    const formats = this.settings.enabledFormats;
+    const formats = effectiveFormats(this.settings);
     const view = this.app.workspace
       .getLeavesOfType(VIEW_TYPE_CHINESE)
       .map((l) => l.view)

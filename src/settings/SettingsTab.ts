@@ -14,7 +14,7 @@ import { indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 import { indexedSetChanged } from "./scriptChange";
 import { renderStatusPriorityList } from "./StatusPriorityList";
 import { renderFormatOptionsList } from "./FormatOptionsList";
-import { orderedFormatOptions } from "../editor/formatOptions";
+import { einkPickerNotice, orderedFormatOptions } from "../editor/formatOptions";
 import {
   DEFAULT_CUSTOM_COLORS,
   DEFAULT_SETTINGS,
@@ -158,6 +158,12 @@ export class CciSettingsTab extends PluginSettingTab {
       // skip the second call.
       this.plugin.refreshChineseViewAppearance();
       this.refreshDomState();
+      if (isEinkMode(this.plugin.settings)) {
+        // The picker changes under the user's hands (colours gone, plain highlight
+        // always there); say so once, with the way back.
+        const notice = einkPickerNotice(this.plugin.app, this.plugin.settings);
+        if (notice) new Notice(notice);
+      }
     } else if (key === "line2Content" || key === "line3Content" || key === "colorMode") {
       // Re-evaluate the duplicate-content warning's `visible` predicate (and,
       // for colorMode, the level-number slider's `disabled` state).
@@ -702,8 +708,13 @@ export class CciSettingsTab extends PluginSettingTab {
         name: "Show highlight colors without Highlightr",
         desc:
           "Expose highlight color options even when the Highlightr plugin is not installed. " +
-          "Colors render inside the Chinese view; install Highlightr to render them elsewhere and to customize the palette.",
-        control: { type: "toggle", key: "showHighlightColorsWithoutPlugin" },
+          "Colors render inside the Chinese view; install Highlightr to render them elsewhere and to customize the palette. " +
+          "Not used while E-ink mode is on: it offers only the plain highlight, in grey.",
+        control: {
+          type: "toggle",
+          key: "showHighlightColorsWithoutPlugin",
+          disabled: this.einkOn,
+        },
       },
       {
         name: "Highlight overrides status / HSK colors",

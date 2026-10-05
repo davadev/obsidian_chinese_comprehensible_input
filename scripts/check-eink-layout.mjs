@@ -203,6 +203,17 @@ note(extras.edit.editable === "none" && extras.edit.readonly.startsWith('"'), "e
 note(extras.split.wrapped > 0 && extras.split.wrong === 0, "every numbered word carries exactly one number, wrapped or not", `${extras.split.wrapped} wrapping widths, ${extras.split.wrong} wrong`);
 note(extras.split.split === 0, "a numbered word is never split across two lines", `${extras.split.split} of ${extras.split.wrapped} wrapping widths`);
 
+// ---- highlighting: one grey in E-ink mode, the original colours with it off ----
+const GREY = "rgb(196, 196, 196)";
+const hl = run("full.html", "task=highlight&floor=" + FLOOR).hl;
+note(hl.on.plain === GREY && hl.on.coloured === GREY && hl.on.link === GREY && hl.on.band.includes(GREY),
+  "E-ink: plain, coloured and link highlights and the annotated-word band are all the one grey", JSON.stringify(hl.on));
+note(hl.on.plainText === "rgb(0, 0, 0)" && hl.on.colouredText === "rgb(0, 0, 0)" && hl.on.chars === "rgb(0, 0, 0)",
+  "E-ink: highlighted text is black", `${hl.on.plainText} ${hl.on.colouredText} ${hl.on.chars}`);
+note(hl.on.otherRow === hl.off.otherRow, "E-ink: pinyin / gloss rows of a highlighted word keep their colour", `${hl.on.otherRow} vs ${hl.off.otherRow}`);
+note(hl.off.plain !== GREY && hl.off.coloured.includes("255, 85, 130") && hl.off.link.includes("255, 85, 130") && hl.off.band.includes("255, 85, 130"),
+  "E-ink off: highlight colours are untouched", JSON.stringify(hl.off));
+
 // ---- the digit's bottom edge against the underline's bottom edge, from pixels ----
 const SCALE = 4;           // device pixels per CSS pixel: 0.25px resolution
 const ALIGN_TOL = 1.0;     // |digit bottom - underline bottom| in CSS px (measured worst: 0.5)
