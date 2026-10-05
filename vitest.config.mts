@@ -34,7 +34,6 @@ export default defineConfig({
         "src/editor/chineseDecorations.ts",
         "src/editor/markdownRendering.ts",
         "src/editor/wordInteractionPlugin.ts",
-        "src/settings/SettingsMirror.ts",
         "src/settings/SettingsTab.ts",
         "src/settings/StatusPriorityList.ts",
         "src/settings/FormatOptionsList.ts",
@@ -44,7 +43,6 @@ export default defineConfig({
         "src/ui/modalLayer.ts",
         "src/ui/GenerateStoryModal.ts",
         "src/ui/PathPickers.ts",
-        "src/ui/SettingsConflictModal.ts",
         "src/ui/StatsGraph.ts",
         "src/ui/StatsView.ts",
         "src/ui/WordPopup.ts",
@@ -68,15 +66,17 @@ export default defineConfig({
       // 87.71 stmts / 82.92 br / 87.95 fn / 90.05 lines; the floors below sit
       // just under that so an accidental regression fails CI.
       //
-      // The one gap deliberately left IN the denominator rather than excluded:
-      //   - src/dictionary/DictionaryDownloader.ts (~23%) network/parse logic,
-      //     which needs vi.mock("obsidian") plus gzip/ZIP byte fixtures.
-      // Raise these numbers by testing that, not by widening `exclude`.
+      // 0.7.8 moved SettingsMirror.ts and SettingsConflictModal.ts INTO the denominator (both are
+      // unit-tested now, and both carry the #123 / #124 fixes), added the dictionary download
+      // pipeline (real gzip / ZIP bytes, no network) and the vault-mirror / import failure paths.
+      // Measured 97.56 stmts / 91.34 br / 98.49 fn / 99.2 lines; the floors sit just under that.
+      // DictionaryDownloader used to be the one gap left in the denominator on purpose; it is
+      // covered now. Raise these numbers by testing, not by widening `exclude`.
       thresholds: {
-        lines: 89,
-        functions: 87,
-        branches: 82,
-        statements: 87,
+        lines: 98,
+        functions: 97,
+        branches: 90,
+        statements: 96,
       },
     },
   },

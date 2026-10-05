@@ -214,6 +214,16 @@ note(hl.on.otherRow === "rgb(0, 0, 0)" && hl.off.otherRow !== hl.on.otherRow, "E
 note(hl.off.plain !== GREY && hl.off.coloured.includes("255, 85, 130") && hl.off.link.includes("255, 85, 130") && hl.off.band.includes("255, 85, 130"),
   "E-ink off: highlight colours are untouched", JSON.stringify(hl.off));
 
+// ---- a highlighted word beside numbered ones; headings; edit mode ----
+const hn = run("full.html", "task=hlneighbours&floor=" + FLOOR).hn;
+for (const name of ["plain", "heading", "edit"]) {
+  note(hn[name].band.includes(GREY), `E-ink highlight band is the grey: ${name}`, hn[name].band);
+}
+note(hn.plain.hlNumber === "none" || hn.plain.hlNumber === "normal" || hn.plain.hlNumber === '""',
+  "E-ink HSK: a highlighted word carries no level number", hn.plain.hlNumber);
+note(/^"[1-7]"$/.test(hn.plain.neighbourNumber), "E-ink HSK: its un-highlighted neighbour still does", hn.plain.neighbourNumber);
+note(!/^"[1-7]"$/.test(hn.edit.neighbourNumber), "E-ink edit mode: still no generated number beside a highlight", hn.edit.neighbourNumber);
+
 // ---- annotation rows: black in E-ink (light theme), theme text on dark, untouched when off ----
 const rows = run("full.html", "task=rows&floor=" + FLOOR).rows;
 const BLACK = "rgb(0, 0, 0)";

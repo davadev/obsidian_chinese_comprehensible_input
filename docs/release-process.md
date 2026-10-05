@@ -319,6 +319,16 @@ excluded away: `src/editor/formatOptions.ts` (~5%) and
 `src/dictionary/DictionaryDownloader.ts` (~23%). Raise the numbers by testing
 those, never by widening `exclude`.
 
+**0.7.8 update.** Both of those gaps are closed, and two modules that had been excluded
+although they carry release-critical logic — `SettingsMirror.ts` and
+`SettingsConflictModal.ts` (the #123 / #124 fixes) — are back in the denominator. Measured
+97.56 statements / 91.34 branches / 98.49 functions / 99.2 lines; the floors are 96 / 90 / 97 / 98.
+The remaining exclusions are the Obsidian / DOM shells (`main.ts`, `ViewToolbar.ts`,
+`chineseDecorations.ts`, `SettingsTab.ts` and similar), which need a jsdom + Obsidian harness
+(#119). Decisions inside them that can be made without a DOM live in pure helpers
+(`formatOptions.ts`, `einkMode.ts`) and are tested there; `check:layout` covers the E-ink CSS in a
+real browser.
+
 ## Why `npm run lint` is 0/0 while the auto-review reports thousands
 
 The community-plugin auto-review can report several thousand
