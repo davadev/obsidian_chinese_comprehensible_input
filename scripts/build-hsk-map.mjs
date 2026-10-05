@@ -8,7 +8,7 @@
  *         "HSK Official 2012 L{1..6}.txt"
  * License: MIT, © 2020 Alan Davies.
  * Edition: the HSK 2.0 lists as Hanban revised them in late 2012, not the
- *          original 2009–10 lists (registry identifier `hsk-2012`).
+ *          original 2009–10 lists.
  *
  * Only the simplified term → HSK-level mapping is extracted. No
  * definitions / pinyin / examples / audio / frequency are imported.
@@ -70,8 +70,7 @@ function emitModule(map, counts) {
   lines.push("// GENERATED FILE — do not edit by hand. Run `npm run build:hsk` to regenerate.");
   lines.push("// Source: https://github.com/glxxyz/hskhsk.com  (data/lists)");
   lines.push("// License: MIT, (c) 2020 Alan Davies.");
-  lines.push("// standard: hsk-2012 (the HSK 2.0 lists as revised in late 2012; identifier from");
-  lines.push("// https://github.com/harukicoder/hsk30/blob/main/spec/standards.json, CC0)");
+  lines.push("// Edition: the HSK 2.0 lists as revised in late 2012, not the original 2009-10 lists.");
   lines.push("// Only the simplified-term -> HSK-level mapping is imported; no");
   lines.push("// definitions, pinyin, examples, audio, or frequency data are used.");
   lines.push("");
