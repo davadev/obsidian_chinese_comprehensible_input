@@ -101,6 +101,27 @@ export async function exportSettings(plugin: CciPlugin, path: string): Promise<v
   await plugin.app.vault.adapter.write(norm, content);
 }
 
+function isPlainObject(v: unknown): v is JsonRecord {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
+/** Remove, in place, every key of `patch` whose kind (object / array / primitive type) differs from
+ *  the default's. Keys the defaults do not have, and defaults that are null, are left alone. */
+function dropWrongShapes(patch: JsonRecord, defaults: JsonRecord, prefix: string, dropped: string[]): void {
+  for (const k of Object.keys(patch)) {
+    const dv = defaults?.[k];
+    const pv = patch[k];
+    if (dv == null || pv == null) continue;
+    const kind = (v: unknown) => (Array.isArray(v) ? "array" : typeof v);
+    if (kind(dv) !== kind(pv)) {
+      dropped.push(`${prefix}${k} (wrong type)`);
+      delete patch[k];
+    } else if (isPlainObject(dv) && isPlainObject(pv)) {
+      dropWrongShapes(pv, dv, `${prefix}${k}.`, dropped);
+    }
+  }
+}
+
 /** Deep-merge `patch` into `into` in place. Arrays are replaced, not merged. */
 function deepMerge(into: JsonRecord, patch: JsonRecord): void {
   for (const k of Object.keys(patch ?? {})) {
@@ -127,16 +148,25 @@ export async function importSettings(
   }
   const raw = await plugin.app.vault.adapter.read(norm);
   const parsed = JSON.parse(raw) as unknown;
+  if (!isPlainObject(parsed)) {
+    // `"text"`, `7`, `null`, `[]`: valid JSON, not a settings file. Without this a string or
+    // number died with "Cannot use 'in' operator", and null / [] were silently "imported".
+    throw new Error("this is not a settings file (expected a JSON object)");
+  }
   // Accept either the wrapped export shape {settings: ...} or a bare partial.
   const wrapped =
-    parsed && typeof parsed === "object" && "settings" in parsed && typeof (parsed as JsonRecord).settings === "object"
-      ? ((parsed as JsonRecord).settings as JsonRecord)
-      : (parsed as JsonRecord);
+    parsed && typeof parsed === "object" && "settings" in parsed && typeof (parsed).settings === "object"
+      ? ((parsed).settings as JsonRecord)
+      : (parsed);
   const incoming: JsonRecord = wrapped ?? {};
   // Apply the sensitive-key filter on the incoming side too, so a hand-
   // edited import file can't slip in credentials or device paths.
   const safe = filterSettingsForSharing(incoming as unknown as CciSettings);
   const skipped: string[] = [];
+  // A value of the wrong kind (a string where colours go, an array where an object goes) would
+  // be merged in and then crash applyCustomColors AFTER plugin.settings had been replaced,
+  // leaving this session on half-imported settings. Drop those and say which.
+  dropWrongShapes(safe, DEFAULT_SETTINGS as unknown as JsonRecord, "", skipped);
   for (const k of FILTER_OUT.top) if (k in incoming) skipped.push(k);
   for (const k of FILTER_OUT.ai) if (hasDottedPath(incoming, `ai.${k}`)) skipped.push(`ai.${k}`);
   const incomingSync = incoming.sync;

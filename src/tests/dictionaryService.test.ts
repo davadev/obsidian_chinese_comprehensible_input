@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
 
@@ -185,5 +185,77 @@ describe("DictionaryService.distinctTraditionalForms", () => {
       simplified: "发", traditional: "髮", pinyin: "fà", definitions: ["hair"],
     });
     expect(service.distinctTraditionalForms("发")).toBe(2);
+  });
+});
+
+describe("DictionaryService loading edges", () => {
+  const svc = (adapter: Record<string, unknown>) =>
+    new DictionaryService({ vault: { adapter } } as any);
+
+  it("a missing vault dictionary leaves the built-in seed usable", async () => {
+    const s = svc({ exists: async () => false, read: async () => "[]" });
+    await s.ensureLoaded();
+    expect(s.size()).toBeGreaterThan(0);
+  });
+
+  it("a corrupt vault dictionary is ignored, not fatal", async () => {
+    const s = svc({ exists: async () => true, read: async () => "{ truncated" });
+    await expect(s.ensureLoaded()).resolves.toBeUndefined();
+    expect(s.size()).toBeGreaterThan(0);
+  });
+
+  it("a vault dictionary that is JSON but not a list is ignored", async () => {
+    const s = svc({ exists: async () => true, read: async () => '{"a":1}' });
+    const before = svc({ exists: async () => false, read: async () => "[]" });
+    await before.ensureLoaded();
+    await s.ensureLoaded();
+    expect(s.size()).toBe(before.size());
+  });
+
+  it("skips malformed entries but keeps the good ones", async () => {
+    const good = { simplified: "测试词", traditional: "測試詞", pinyin: "cè shì cí", definitions: ["test word"] };
+    const s = svc({
+      exists: async () => true,
+      read: async () => JSON.stringify([null, 5, { simplified: 1, pinyin: "x" }, { simplified: "无拼音" }, good]),
+    });
+    await s.ensureLoaded();
+    expect(s.lookup("测试词")).toHaveLength(1);
+    expect(s.has("无拼音")).toBe(false);
+  });
+
+  it("concurrent ensureLoaded calls share one load", async () => {
+    const read = vi.fn(async () => "[]");
+    const s = svc({ exists: async () => true, read });
+    await Promise.all([s.ensureLoaded(), s.ensureLoaded(), s.ensureLoaded()]);
+    expect(read).toHaveBeenCalledTimes(1);
+    await s.ensureLoaded();
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("reload re-reads the file, so a fresh download is picked up", async () => {
+    let content = "[]";
+    const s = svc({ exists: async () => true, read: async () => content });
+    await s.ensureLoaded();
+    expect(s.has("新下载词")).toBe(false);
+    content = JSON.stringify([{ simplified: "新下载词", traditional: "新下載詞", pinyin: "xīn", definitions: ["x"] }]);
+    await s.reload();
+    expect(s.has("新下载词")).toBe(true);
+  });
+
+  it("isOnDisk reflects the file, and is false (not a throw) when the adapter fails", async () => {
+    expect(await svc({ exists: async () => true, read: async () => "[]" }).isOnDisk()).toBe(true);
+    expect(await svc({ exists: async () => false, read: async () => "[]" }).isOnDisk()).toBe(false);
+    expect(await svc({ exists: async () => { throw new Error("io"); }, read: async () => "[]" }).isOnDisk()).toBe(false);
+  });
+
+  it("has() sees custom words, simplified and traditional forms; lookupRaw ignores the overlay", async () => {
+    const s = svc({ exists: async () => false, read: async () => "[]" });
+    s.setOverlay(() => ({}), () => ({
+      自定义: { simplified: "自定义", traditional: "自定義", pinyin: "zì dìng yì", definitions: ["custom"], createdAt: "t", updatedAt: "t" },
+    }));
+    await s.ensureLoaded();
+    expect(s.has("自定义")).toBe(true);
+    expect(s.lookupRaw("自定义")).toEqual([]);
+    expect(s.has("没有这个词")).toBe(false);
   });
 });

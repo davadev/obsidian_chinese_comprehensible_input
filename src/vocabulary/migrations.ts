@@ -27,6 +27,12 @@ export function migrateVocab(raw: unknown): PersistedVocabData {
     v = 3;
   }
 
+  // A file that says "schema 3" but carries no `words` (a truncated or hand-edited mirror, or a
+  // sync tool's half-written copy that still parses) used to reach the merge as `undefined` and
+  // throw "Cannot convert undefined or null to object" out of the poll and the vault-modify
+  // handler. An absent store is an empty store.
+  if (data.words == null) data.words = {};
+
   return data as PersistedVocabData;
 }
 

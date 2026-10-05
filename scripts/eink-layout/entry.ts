@@ -426,6 +426,34 @@ function highlights() {
   return out;
 }
 
+/** A highlighted word next to a normal one, in HSK colours, plain and heading: the highlight must show
+ *  no level number (the plugin drops the colour class on it), its neighbour must, and the grey band
+ *  must reach heading-sized words and survive the edit-mode caret guard. */
+function highlightNeighbours() {
+  const out: Record<string, any> = {};
+  for (const [name, cfg, editable] of [
+    ["plain", { mode: "two-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100 }, false],
+    ["heading", { mode: "two-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100, heading: 1 }, false],
+    ["edit", { mode: "two-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100 }, true],
+  ] as const) {
+    const { view, root } = mount({ ...cfg, adjacent: 2 } as Cfg, editable);
+    root.setAttribute("data-eink", "");
+    const stacks = [...view.contentDOM.querySelectorAll(".cci-stack")] as HTMLElement[];
+    const hl = stacks[0];
+    hl.classList.remove(...[...hl.classList].filter((c) => c.startsWith("cci-color-")));
+    hl.classList.add("cci-stack-hl");
+    hl.style.setProperty("--cci-hl", "rgba(255, 85, 130, 0.65)");
+    const lastChars = (s: HTMLElement) => [...s.querySelectorAll(".cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars")].pop() as HTMLElement;
+    out[name] = {
+      band: getComputedStyle(hl).backgroundImage,
+      hlNumber: getComputedStyle(lastChars(hl), "::after").content,
+      neighbourNumber: getComputedStyle(lastChars(stacks[1]), "::after").content,
+    };
+    view.destroy();
+  }
+  return out;
+}
+
 /** Colour of each annotation row under every combination of E-ink, custom text colours (root custom
  *  properties, as the plugin writes them) and theme. */
 function rowColours() {
@@ -462,6 +490,8 @@ if (task === "matrix") {
   result = { task, over: overflow() };
 } else if (task === "geom") {
   result = { task, ...geom() };
+} else if (task === "hlneighbours") {
+  result = { task, hn: highlightNeighbours() };
 } else if (task === "rows") {
   result = { task, rows: rowColours() };
 } else if (task === "highlight") {

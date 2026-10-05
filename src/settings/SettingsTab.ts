@@ -1653,7 +1653,7 @@ export class CciSettingsTab extends PluginSettingTab {
     if (!ok) return;
     try {
       const { applied, skipped } = await importSettings(this.plugin, this.importPath);
-      const skip = skipped.length ? ` (skipped sensitive: ${skipped.join(", ")})` : "";
+      const skip = skipped.length ? ` (skipped: ${skipped.join(", ")})` : "";
       new Notice(`Imported ${applied} top-level keys${skip}.`);
       this.update();
     } catch (e) {
