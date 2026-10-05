@@ -121,7 +121,7 @@ const THEME =
   ":root{--background-primary:#fff;--background-primary-alt:#f5f5f5;--background-modifier-border:#e0e0e0;--text-normal:#222;--text-muted:#7a7a7a;--text-faint:#a0a0a0;--interactive-accent:#7f6df2;font-family:-apple-system,sans-serif}html,body{margin:0;background:#fff}";
 // Test-only: lets the harness measure the underline alone, to separate what the NUMBER does from
 // what the thicker underline does.
-const NO_NUM = ".cci-view.no-num .cci-word::after,.cci-view.no-num .cci-stack-cell::after{content:none!important}";
+const NO_NUM = ".cci-view.no-num .cci-word::after,.cci-view.no-num .cci-stack-chars::after{content:none!important}";
 const page = (name, styles, body = '<script src="bundle.js"></script>') =>
   writeFileSync(join(tmp, name), `<!doctype html><meta charset="utf-8"><style>${THEME}${styles}${NO_NUM}</style><body>${body}</body>`);
 page("full.html", css);
@@ -141,7 +141,7 @@ page("acc_snippet.html", css.slice(0, BEGIN) + snippet, accBody(""));
 page("acc_ours.html", css, accBody("data-eink"));
 
 // Underline red, digit blue: the two can then be told apart in a screenshot.
-page("align.html", css + ".cci-view[data-eink] .cci-word:not(.cci-stack),.cci-view[data-eink] .cci-stack .cci-stack-chars{text-decoration-color:#f00!important}.cci-view[data-eink] .cci-word::after,.cci-view[data-eink] .cci-stack-cell::after{color:#00f!important}");
+page("align.html", css + ".cci-view[data-eink] .cci-word:not(.cci-stack),.cci-view[data-eink] .cci-stack .cci-stack-chars{text-decoration-color:#f00!important}.cci-view[data-eink] .cci-word::after,.cci-view[data-eink] .cci-stack-chars::after{color:#00f!important}");
 
 /** Minimal PNG reader (8-bit, RGB or RGBA, non-interlaced): enough for a headless screenshot, no dependency. */
 function decodePng(buf) {
@@ -208,11 +208,11 @@ const SCALE = 4;           // device pixels per CSS pixel: 0.25px resolution
 const ALIGN_TOL = 1.0;     // |digit bottom - underline bottom| in CSS px (measured worst: 0.5)
 const SWING_TOL = 0.75;    // how far the digit may move across the whole size slider (measured worst: 0.5)
 const FONTS = ["sans-serif", "Hiragino Sans GB", "Heiti SC", "Heiti TC", "STSong", "Songti SC", "Songti TC", "Arial Unicode MS", "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei"];
-// A 4x screenshot of every row at once exceeds the browser's texture limit, so each widget kind is shot on its own,
-// at the two ends of the slider and two points between.
+// A 4x screenshot taller than a few thousand device pixels comes back partly blank, so each widget kind AND reader size is
+// shot on its own, at the two ends of the slider and two points between.
 const ALIGN_SCALES = [...new Set([MIN, 80, 100, MAX])].filter((v) => v >= MIN && v <= MAX).sort((x, y) => x - y);
-function align(ff, kind) {
-  const q = `task=geom&floor=${FLOOR}&scales=${ALIGN_SCALES.join(",")}&kinds=${kind}&ff=${encodeURIComponent(ff)}`;
+function align(ff, kind, size) {
+  const q = `task=geom&floor=${FLOOR}&scales=${ALIGN_SCALES.join(",")}&kinds=${kind}&sizes=${size}&ff=${encodeURIComponent(ff)}`;
   const g = run("align.html", q);
   if (!g.installed) return null;
   const png = join(tmp, "align.png");
@@ -224,7 +224,7 @@ function align(ff, kind) {
     if (![2, 4, 6].includes(w.lvl)) continue;
     const ref = w.stack ? w.charsBottom : w.bottom, x1 = w.stack ? w.cellRight : w.right;
     const red = new Map(), blue = new Set();
-    for (let y = Math.max(0, Math.floor((ref - 14) * SCALE)); y < Math.min(im.h, Math.ceil((ref + 26) * SCALE)); y++)
+    for (let y = Math.max(0, Math.floor((ref - (w.stack ? 14 : 34)) * SCALE)); y < Math.min(im.h, Math.ceil((ref + (w.stack ? 26 : 14)) * SCALE)); y++)
       for (let x = Math.floor(w.left * SCALE); x < Math.min(im.w, Math.ceil((x1 + w.num * 1.6 + 6) * SCALE)); x++) {
         const [r, gg, b] = at(x, y);
         if (r > 200 && gg < 90 && b < 90) red.set(y, (red.get(y) ?? 0) + 1); else if (b > 150 && r < 110 && gg < 110) blue.add(y);
@@ -244,8 +244,8 @@ let fontsChecked = 0;
 for (const ff of FONTS) {
   // Very tall headless screenshots occasionally come back with unpainted (blank) bands. A band with neither underline nor digit
   // is a capture glitch, not a layout result, so a kind that has any is shot again; a real defect would repeat every time.
-  const shoot = (k) => { let r; for (let i = 0; i < 4; i++) { r = align(ff, k); if (!r || r.unmeasured === 0) break; } return r; };
-  const parts = ["plain", "stack", "stack3", "wordcell"].map(shoot);
+  const shoot = ([k, sz]) => { let r; for (let i = 0; i < 4; i++) { r = align(ff, k, sz); if (!r || r.unmeasured === 0) break; } return r; };
+  const parts = ["plain", "stack", "stack3", "wordcell"].flatMap((k) => [14, 22, 40, 48].map((sz) => [k, sz])).map(shoot);
   if (parts.some((r) => !r)) continue;
   const r = { worst: Math.max(...parts.map((p) => p.worst)), swing: Math.max(...parts.map((p) => p.swing)), unmeasured: parts.reduce((n, p) => n + p.unmeasured, 0) };
   fontsChecked++;
@@ -253,6 +253,13 @@ for (const ff of FONTS) {
     `worst ${r.worst.toFixed(2)}px (limit ${ALIGN_TOL}), size swing ${r.swing.toFixed(2)}px (limit ${SWING_TOL})${r.unmeasured ? `, ${r.unmeasured} unmeasurable` : ""}`);
 }
 note(fontsChecked > 0, "at least one font could be measured", `${fontsChecked} of ${FONTS.length} fonts installed`);
+
+// ---- text must wrap to the container: a run of ADJACENT numbered words, no filler between them ----
+const ov = run("full.html", "task=overflow&floor=" + FLOOR).over;
+for (const [name, r] of Object.entries(ov)) {
+  note(r.over === 0 && r.multi > 0, `wraps to the screen, no sideways scroll: ${name}`,
+    `${r.widths} widths, ${r.over} overflow${r.over ? ` (worst ${r.worst.toFixed(0)}px)` : ""}, wraps at ${r.multi}`);
+}
 
 const a = run("base.html", "task=rects").rects;
 const b = run("full.html", "task=rects").rects;

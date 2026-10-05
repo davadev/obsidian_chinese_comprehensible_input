@@ -634,27 +634,29 @@
  *    match "unknown", and are the bug in the snippet this feature replaced.
  *  - background-color, not the `background` shorthand, which would also clear any
  *    background-image.
- *  - The underline is placed `under` (from the bottom of the font's content area) with an
- *    offset taken from the READER font, in both kinds of word, so both draw it at the same
- *    height whatever the font. `.2em` was relative to the underlined text itself.
- *  - The number is OUT OF FLOW in both kinds of word, so it is not underlined (a child
- *    cannot opt out of a parent's text-decoration, but absolutely positioned boxes are not
- *    decorated), and it takes no part in line height at any spacing. Its bottom edge is
- *    anchored to the underline's bottom edge, measured in pixels over 8 CJK fonts, reader
- *    fonts 14-48px, 50-130% and every widget layout: within 0.5px, and it moves at most
- *    0.5px as the slider moves (the old `vertical-align: middle; top: .25em` rose by
- *    several px when the number shrank, because both depend on the number's own size).
- *  - A plain word that carries a number is `white-space: nowrap`: an out-of-flow number
- *    belongs to the whole line-spanning box when a word wraps and was stranded at the far
- *    edge of the line, and an inline one needed a word joiner to stay attached. Keeping
- *    the word whole means the number can never detach. Cost: ragged line ends, and only in
- *    E-ink + HSK mode.
- *  - The gutter is .8 of the number's size: .75 was 0.14px too narrow at the 6px floor,
- *    where the 1px safety margin is large relative to the digit.
- *  - Annotated words are atomic inline-blocks and cannot wrap, so there the number
- *    is out of flow on the LAST cell (present in both widget branches; the
- *    per-character branch has no .cci-stack-cell-word) with a gutter that reserves
- *    room for it. The number's size and the gutter derive from ONE variable so
+ *  - Underline AND number are anchored to the BASELINE, never to a box edge. The underline is
+ *    `text-underline-offset: <px>` from the baseline (default text-underline-position); the
+ *    number is a zero-width inline-block after the characters, moved down by the same px
+ *    amount. Anchors measured from a box edge (bottom of the content area, bottom of a
+ *    line-height:1 box) depend on the font's ascent + descent, which differ per font: the
+ *    first versions were 3-10px off in real CJK fonts (and the check that said otherwise was
+ *    not applying the font: CodeMirror's .cm-scroller sets its own font-family).
+ *  - The number is an atomic inline-block, so it is NOT underlined (a decoration is not
+ *    propagated into atomic inline-level boxes), and it is zero-width, so the gutter beside
+ *    the word (padding-right) is what holds it: layout is identical whatever the digit.
+ *  - A plain word that carries a number is an atomic `inline-block`, exactly like an
+ *    annotated word, so the number cannot be separated from it and the line may still
+ *    break before and after it. Do NOT use `white-space: nowrap` on the word for this
+ *    (beta.4 did): in WebKit (iPhone) it removes the break opportunity between adjacent
+ *    words, so a paragraph of numbered words had NO legal break and scrolled sideways.
+ *    (Blink tolerates it, which is why desktop checks passed.) check:layout wraps a run of
+ *    adjacent words at every width, in both engines' terms, and fails on sideways overflow.
+ *  - The gutter is .9 of the number's size. Digits are wider in WebKit's system font (up to 4.38px
+ *    at the 6px floor) than in the font the layout check first ran in, and .8 left only 0.39px
+ *    beyond the digit there; .75 had already been too narrow before that.
+ *  - Annotated words are atomic inline-blocks and cannot wrap. The number follows the characters row of
+ *    the LAST cell (present in both widget branches; the per-character branch has no
+ *    .cci-stack-cell-word), with a gutter on that cell that reserves room for it. The number's size and the gutter derive from ONE variable so
  *    they cannot drift apart.
  *  - 6px floor. The slider goes down to 50%, which is 6.05px at the default 22px
  *    font. At small reader fonts the floor wins and the low end of the slider does
@@ -663,8 +665,12 @@
  *    every word end), so none is generated while the view is editable.
  */
 .cci-view[data-eink] {
-  --cci-eink-num: max(calc(.55em * var(--cci-eink-number-scale, 1)), var(--cci-eink-floor, 6px));
+  /* px from the reader font, not `em`: an em would resolve where it is USED, and the gutter (on the cell) and the
+     digit (on the characters row, 1.7x larger in a heading) would disagree. */
+  --cci-eink-num: max(calc(var(--cci-reader-font) * .55 * var(--cci-eink-number-scale, 1)), var(--cci-eink-floor, 6px));
   --cci-eink-ul: calc(var(--cci-reader-font) * .08);
+  /* from the baseline to the BOTTOM edge of the 3px underline */
+  --cci-eink-dn: calc(var(--cci-eink-ul) + 3px);
 }
 
 .cci-view[data-eink] .cci-word:is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) {
@@ -682,7 +688,6 @@
   text-decoration-thickness: 3px;
   text-decoration-color: var(--text-normal);
   text-decoration-skip-ink: none;
-  text-underline-position: under;
   text-underline-offset: var(--cci-eink-ul);
 }
 /* ~#aaa on a white page (the value confirmed readable on e-ink), but derived from
@@ -701,49 +706,50 @@
 }
 
 .cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) {
+  display: inline-block;
   white-space: nowrap;
-  position: relative;
-  padding-right: calc(var(--cci-eink-num) * .8);
+  /* An inline's border has no layout effect; an inline-block's would, and made lines 1px taller. */
+  border-bottom: 0;
+  padding-right: calc(var(--cci-eink-num) * .9);
 }
-.cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7)::after {
-  position: absolute;
-  right: .05em;
-  bottom: calc(-1 * (var(--cci-eink-ul) + 3.18px) - .155em);
-  font-size: var(--cci-eink-num);
-  font-weight: 700;
-  line-height: 1;
-}
-
 .cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child {
-  position: relative;
-  padding-right: calc(var(--cci-eink-num) * .8);
+  padding-right: calc(var(--cci-eink-num) * .9);
 }
-.cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child::after {
-  position: absolute;
-  right: .05em;
-  bottom: calc(-1 * (var(--cci-eink-ul) + 3.11px + var(--cci-reader-font) * .084) - .157em);
+.cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7)::after,
+.cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after {
+  display: inline-block;
+  width: 0;
+  white-space: nowrap;
+  /* The UI font, not the reader's: lining digits that sit ON the baseline. Some CJK fonts' digits sit above or
+     below it, which put the number 1-2px off the underline. */
+  font-family: var(--font-interface, system-ui, sans-serif);
   font-size: var(--cci-eink-num);
   font-weight: 700;
-  line-height: 1;
+  line-height: 0;
+  position: relative;
+  top: var(--cci-eink-dn);
+  margin-block: -1em;
 }
 
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-1::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-1 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "1"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-1 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "1"; }
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-2::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-2 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "2"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-2 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "2"; }
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-3::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-3 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "3"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-3 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "3"; }
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-4::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-4 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "4"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-4 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "4"; }
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-5::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-5 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "5"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-5 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "5"; }
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-6::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-6 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "6"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-6 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "6"; }
 .cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-7::after,
-.cci-view[data-eink] .cci-stack.cci-color-hsk-7 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "7"; }
+.cci-view[data-eink] .cci-stack.cci-color-hsk-7 .cci-stack-cells > .cci-stack-cell:last-child .cci-stack-chars::after { content: "7"; }
 
+/* A box around live text disturbs the caret and selection: while editable a word is a plain inline span again. */
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word:not(.cci-stack) { display: inline; white-space: inherit; padding-right: 0; }
 .cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word::after,
-.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-stack-cell:last-child::after { content: none !important; }
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-stack-chars::after { content: none !important; }
 /* eink:end */
 
 /*
