@@ -106,6 +106,12 @@ sparingly — it skips conflict detection.
 
 That's covered by [conflict resolution](./conflicts.md).
 
+Whatever the rule, both devices reach the **same answer**: the merge gives the same result whichever device is
+doing the merging, so a disagreement is settled once and then both sides go quiet instead of rewriting the file at
+each other. For the descriptive fields (`definitions`, `pinyin`, `hsk`, `notes`, …) the record edited later wins; if
+the timestamps are equal, the value that sorts first wins. `surfaces[0]` (the form you first met the word in) comes
+from the device that saw the word first; the other surfaces are kept sorted.
+
 ## See also
 
 - [Conflict resolution](./conflicts.md)
