@@ -350,8 +350,9 @@ describe("VocabularyStore", () => {
    *          for good.
    *  - A1    every absorb scheduled a mirror write back, and the whole-store
    *          merge is order-dependent and (for `definitions` and friends) not
-   *          commutative — so two devices never converge on identical bytes and
-   *          would have ping-ponged multi-megabyte writes once #122 was fixed.
+   *          commutative (until #135) — so two devices never converged on
+   *          identical bytes and would have ping-ponged multi-megabyte writes
+   *          once #122 was fixed.
    *  - A2    a remotely-save conflict file was deleted before the merged data
    *          had been persisted.
    */
@@ -624,9 +625,12 @@ describe("VocabularyStore", () => {
     });
 
     it("does NOT bounce a write back over a field the two devices disagree on (A1)", async () => {
-      // `mergeForSync` resolves `definitions` as `a.definitions ?? b.definitions`
-      // with the LOCAL record as `a`, so each device keeps its own and the file
-      // can never converge. Harmless only because neither side now writes.
+      // Historical (#135): `mergeForSync` used to resolve `definitions` as
+      // `a.definitions ?? b.definitions` with the LOCAL record as `a`, so each
+      // device kept its own and the file never converged. It is commutative now
+      // (the smaller canonical value wins a timestamp tie), so this case is
+      // quiet because OURS happens to be the winner; the two-device behaviour
+      // in both directions is pinned in syncConvergence.test.ts.
       vi.useFakeTimers();
       try {
         const { store, adapter, mirrorFiles } = await setup(

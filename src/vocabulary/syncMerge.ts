@@ -10,7 +10,70 @@ import { PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
  * corpus). `mergeForSync` is for the two-device sync case where the same
  * remote snapshot may land more than once — every operation must be
  * idempotent (max / set-union / earliest / latest), never additive.
+ *
+ * It must also be COMMUTATIVE: `mergeForSync(a, b)` and `mergeForSync(b, a)` produce the same bytes. Each device
+ * calls it with its own record as `a`, so any rule of the form `a.x ?? b.x`, `a >= b ? a : b` or "a's items then
+ * b's" makes the two devices compute different winners and the mirror never converges (#135). Every choice below is
+ * therefore made on data both sides share (a timestamp, then a canonical serialisation as the last resort), never on
+ * which side happens to be local.
  */
+
+/** JSON with object keys sorted, so equal values serialise identically whatever order they were built in. */
+function canon(v: unknown): string {
+  return JSON.stringify(v, (_k, val) => {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const o = val as Record<string, unknown>;
+      return Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
+    }
+    return val;
+  });
+}
+
+/** Last-resort tie-break: the value with the smaller canonical form. Equal forms are interchangeable. */
+function pickCanon<T>(a: T, b: T): T {
+  return canon(a) <= canon(b) ? a : b;
+}
+
+/**
+ * Pick one record's value for a field that has no timestamp of its own: the side holding a value wins over one
+ * that does not; otherwise the side with the later record-level `updatedAt`; on a tie, the smaller canonical form.
+ */
+function pickFieldByRecord<T>(a: WordRecord, b: WordRecord, get: (r: WordRecord) => T | undefined): T | undefined {
+  const va = get(a);
+  const vb = get(b);
+  if (va === undefined) return vb;
+  if (vb === undefined) return va;
+  const ua = a.updatedAt ?? "";
+  const ub = b.updatedAt ?? "";
+  if (ua !== ub) return ua > ub ? va : vb;
+  return pickCanon(va, vb);
+}
+
+function sortedKeys<T>(o: Record<string, T>): Record<string, T> {
+  return Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
+}
+
+/**
+ * Merge two `surfaces` lists. `surfaces[0]` is the first form this word was ever seen in and callers rely on that
+ * (displaySurface(), the mnemonic storage key), so it is kept: it comes from the side that saw the word first, and
+ * only the remainder is sorted.
+ */
+function mergeSurfaces(a: WordRecord, b: WordRecord): string[] {
+  const sa = a.surfaces ?? [];
+  const sb = b.surfaces ?? [];
+  const all = new Set<string>([...sa, ...sb]);
+  const fa = sa[0];
+  const fb = sb[0];
+  let first: string | undefined;
+  if (fa === undefined) first = fb;
+  else if (fb === undefined) first = fa;
+  else if (a.firstSeenAt && b.firstSeenAt && a.firstSeenAt !== b.firstSeenAt) first = a.firstSeenAt < b.firstSeenAt ? fa : fb;
+  else if (a.firstSeenAt && !b.firstSeenAt) first = fa;
+  else if (!a.firstSeenAt && b.firstSeenAt) first = fb;
+  else first = fa <= fb ? fa : fb;
+  const rest = Array.from(all).filter((x) => x !== first).sort();
+  return first === undefined ? rest : [first, ...rest];
+}
 
 const STATUS_RANK: Record<WordStatus, number> = {
   new: 0,
@@ -37,7 +100,8 @@ export function resolveStatus(
   priority: WordStatus[]
 ): WordRecord {
   if (a.status === b.status) {
-    return a.updatedAt >= b.updatedAt ? a : b;
+    if (a.updatedAt !== b.updatedAt) return a.updatedAt > b.updatedAt ? a : b;
+    return pickCanon(a, b);
   }
   // Rule 1: classifying a word is always intentional, reverting to "new" is not.
   if (a.status === "new") return b;
@@ -55,8 +119,10 @@ export function resolveStatus(
     return a.updatedAt > b.updatedAt ? a : b;
   }
 
-  // Rule 4: fallback rank — matches legacy `pickWinningStatus`.
-  return STATUS_RANK[a.status] >= STATUS_RANK[b.status] ? a : b;
+  // Rule 4: fallback rank — matches legacy `pickWinningStatus`. Three statuses share a rank, so an equal rank is
+  // settled by the canonical form rather than by argument order.
+  if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) return STATUS_RANK[a.status] > STATUS_RANK[b.status] ? a : b;
+  return pickCanon(a, b);
 }
 
 function maxCounts(
@@ -99,7 +165,15 @@ function pickByInnerUpdatedAt<T extends { updatedAt?: string }>(
   if (!b) return a;
   const ua = a.updatedAt ?? "";
   const ub = b.updatedAt ?? "";
-  return ua >= ub ? a : b;
+  if (ua !== ub) return ua > ub ? a : b;
+  return pickCanon(a, b);
+}
+
+/** Smaller of two optional strings; an absent side never wins. */
+function pickMinDefined(a?: string, b?: string): string | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return a <= b ? a : b;
 }
 
 export interface SyncMergeOptions {
@@ -136,11 +210,11 @@ export function mergeForSync(
   // then propagated to their other device.
   const axes = statusWinner.axes ?? axesFromStatus(status);
 
-  const dailySeenCounts = maxCounts(a.dailySeenCounts, b.dailySeenCounts);
+  const dailySeenCounts = sortedKeys(maxCounts(a.dailySeenCounts, b.dailySeenCounts));
   const seenCount = Object.values(dailySeenCounts).reduce((s, n) => s + n, 0);
   const notesSeenCounts =
     a.notesSeenCounts || b.notesSeenCounts
-      ? maxCounts(a.notesSeenCounts, b.notesSeenCounts)
+      ? sortedKeys(maxCounts(a.notesSeenCounts, b.notesSeenCounts))
       : undefined;
 
   const recentSeenAt = unionSortedDedupe(
@@ -149,9 +223,7 @@ export function mergeForSync(
     opts.recentSeenAtCap
   );
 
-  const surfaces = Array.from(
-    new Set([...(a.surfaces ?? []), ...(b.surfaces ?? [])])
-  );
+  const surfaces = mergeSurfaces(a, b);
 
   const updatedAt = pickLater(a.updatedAt, b.updatedAt) ?? a.updatedAt;
   const firstSeenAt = pickEarlier(a.firstSeenAt, b.firstSeenAt);
@@ -166,17 +238,17 @@ export function mergeForSync(
   let ignoredReason: string | undefined;
   if (status === "ignored") {
     if (statusWinner.ignoredReason) ignoredReason = statusWinner.ignoredReason;
-    else ignoredReason = a.ignoredReason ?? b.ignoredReason;
+    else ignoredReason = pickMinDefined(a.ignoredReason, b.ignoredReason);
   }
 
   return {
     key: a.key,
     surfaces,
-    simplified: a.simplified ?? b.simplified,
-    traditional: a.traditional ?? b.traditional,
-    pinyin: a.pinyin ?? b.pinyin,
-    definitions: a.definitions ?? b.definitions,
-    hsk: a.hsk ?? b.hsk,
+    simplified: pickFieldByRecord(a, b, (r) => r.simplified),
+    traditional: pickFieldByRecord(a, b, (r) => r.traditional),
+    pinyin: pickFieldByRecord(a, b, (r) => r.pinyin),
+    definitions: pickFieldByRecord(a, b, (r) => r.definitions),
+    hsk: pickFieldByRecord(a, b, (r) => r.hsk),
     status,
     axes,
     firstSeenAt,
@@ -184,7 +256,7 @@ export function mergeForSync(
     // fact is about how the record was born, not about which side is newer.
     // Both merge functions build an explicit literal, so a field missing from
     // one of them is silently dropped on every sync.
-    backfilledAt: a.backfilledAt ?? b.backfilledAt,
+    backfilledAt: pickEarlier(a.backfilledAt, b.backfilledAt),
     lastSeenAt,
     knownAt,
     classifiedAt,
@@ -194,7 +266,7 @@ export function mergeForSync(
     notesSeenCounts,
     mnemonic,
     srs,
-    notes: a.notes ?? b.notes,
+    notes: pickFieldByRecord(a, b, (r) => r.notes),
     ignoredReason,
     updatedAt,
   };
@@ -208,7 +280,8 @@ function pickSrsByReview(
   if (!b) return a;
   const ra = a.lastReviewedAt ?? "";
   const rb = b.lastReviewedAt ?? "";
-  return ra >= rb ? a : b;
+  if (ra !== rb) return ra > rb ? a : b;
+  return pickCanon(a, b);
 }
 
 /**

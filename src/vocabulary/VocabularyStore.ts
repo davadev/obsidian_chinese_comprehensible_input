@@ -326,23 +326,24 @@ export class VocabularyStore {
     // Only push back when the merge actually moved OUR data.
     //
     // `flushSave()` schedules a mirror write, so absorbing used to push
-    // unconditionally — and the whole-store merge is order-dependent
-    // (`mergeStoresForSync` spreads the LOCAL words first) and, for
-    // `definitions` / `pinyin` / `hsk` / `notes`, not commutative: each device's
-    // merge prefers its own value. Two devices therefore never converge on
-    // identical bytes, so absorb-writes-back is an endless multi-megabyte
-    // ping-pong. It was only hidden because the #122 gate skipped most of those
-    // echoes; fixing #122 without this would have traded data loss for a write
-    // loop on mobile.
+    // unconditionally. That was an endless multi-megabyte ping-pong while the
+    // merge preferred each device's OWN value for `definitions` / `pinyin` /
+    // `notes` (the two devices never produced identical bytes), and it was only
+    // hidden because the #122 gate skipped most echoes.
+    //
+    // Since #135 `mergeForSync` is commutative: both devices compute the same
+    // winner for every field, so a disagreement is settled by ONE write from
+    // whichever device loses, after which the other side's merge changes nothing
+    // and stays quiet. `changed` can therefore be true once for a field the two
+    // sides disagree on, and once for the one-time canonical ordering of
+    // `surfaces` / count maps; it can no longer be true forever.
     //
     // This is the rule the other two mirrored payloads already follow —
     // `saveSettingsSilently` ("to avoid an echo loop") and
     // `mergeMirroredDictionaryData` ("Persist WITHOUT triggering another mirror
-    // write loop"). The vocabulary mirror was the only one missing it.
-    //
-    // It terminates because `mergeForSync` is monotone (max / set-union /
-    // earliest / latest): state only grows toward the union, so each device
-    // writes at most until it has nothing new to contribute.
+    // write loop"). Termination: the merge is monotone and commutative, so state
+    // only moves toward one shared value. src/tests/syncConvergence.test.ts runs
+    // two real stores against one shared file to pin this.
     await this.flushSave({ mirror: changed });
     return changed;
   }
