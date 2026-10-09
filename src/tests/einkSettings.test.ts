@@ -1,6 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { CciSettingsTab } from "../settings/SettingsTab";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
+import { installCreateFragmentStub } from "./__mocks__/obsidianDom";
 import {
   EINK_NUMBER_SCALE_MAX,
   EINK_NUMBER_SCALE_MIN,
@@ -69,12 +70,8 @@ const evalFlag = (f: boolean | (() => boolean) | undefined): boolean | undefined
   typeof f === "function" ? f() : f;
 
 beforeEach(() => {
-  // Obsidian's DOM global, used by SettingsTab.docLink(); same stub as settingsCoverage.test.ts.
-  (globalThis as { createFragment?: unknown }).createFragment = (cb: (f: unknown) => void) => {
-    const frag = { createSpan: () => frag, createEl: () => frag };
-    cb(frag);
-    return frag;
-  };
+  // Obsidian's DOM global, used by SettingsTab.docLink().
+  installCreateFragmentStub();
 });
 
 describe("E-ink mode settings", () => {

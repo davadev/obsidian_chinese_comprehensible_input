@@ -44,3 +44,8 @@ export function normalizePath(p: string): string { return p; }
 export async function requestUrl(_p: any): Promise<{ status: number; text: string; arrayBuffer: ArrayBuffer }> {
   return { status: 200, text: "", arrayBuffer: new ArrayBuffer(0) };
 }
+
+/** Records the icon name on the element instead of rendering an SVG; enough for tests that assert which icon a button got. */
+export function setIcon(el: { setAttribute?: (k: string, v: string) => void }, name: string): void {
+  el.setAttribute?.("data-icon", name);
+}

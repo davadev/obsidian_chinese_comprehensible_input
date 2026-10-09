@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CciSettingsTab } from "../settings/SettingsTab";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
+import { installCreateFragmentStub } from "./__mocks__/obsidianDom";
 import { getByPath, setByPath } from "../settings/settingsPath";
 
 /**
@@ -145,16 +146,7 @@ function headingOf(items: HeadingItem[], inherited = ""): Map<string, string> {
 
 describe("settings tab definitions", () => {
   beforeEach(() => {
-    (globalThis as unknown as { createFragment: unknown }).createFragment = (
-      cb: (f: unknown) => void
-    ) => {
-      const frag = {
-        createSpan: () => frag,
-        createEl: () => frag,
-      };
-      cb(frag);
-      return frag;
-    };
+    installCreateFragmentStub();
   });
 
   it("exposes a control for every user-editable setting", () => {
@@ -249,13 +241,7 @@ describe("settings tab definitions", () => {
  */
 describe("0.7.7 regression guards", () => {
   beforeEach(() => {
-    (globalThis as unknown as { createFragment: unknown }).createFragment = (
-      cb: (f: unknown) => void
-    ) => {
-      const frag = { createSpan: () => frag, createEl: () => frag };
-      cb(frag);
-      return frag;
-    };
+    installCreateFragmentStub();
   });
 
   it("puts the annotation-line settings under their own heading, and nothing else", () => {
