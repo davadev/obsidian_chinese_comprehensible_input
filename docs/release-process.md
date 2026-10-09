@@ -175,6 +175,7 @@ The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a
 - With `--with-build` (or `--with-lint`), the Obsidian-parity lint step runs `npm run lint --format json` and counts Errors vs Warnings — Errors fail the release guard, Warnings are reported as non-blocking.
 - `npm audit --omit=dev` reports no advisories. This covers exactly what ships: the plugin declares **no** runtime `dependencies`, so this passes today and is a regression guard for the day a runtime dependency is first added.
 - `package.json`'s `allowScripts` approves no package for install scripts. See [npm install-script policy](#npm-install-script-policy).
+- Dependency-age policy is still in place: `.github/dependabot.yml` has a `cooldown:` (`default-days` ≥ 14) for **both** the `npm` and `github-actions` ecosystems, `.npmrc` sets `min-release-age` ≥ 14, and the running npm is ≥ 11.10 (older npm ignores the key). See [Dependency-age policy](#dependency-age-policy).
 - `npm ls --all` exits 0, i.e. every installed version satisfies the ranges its dependents declare. See [Why the dependency-tree guard exists](#why-the-dependency-tree-guard-exists).
 
 ### Heuristic guards (WARN — review but don't block)
@@ -199,7 +200,31 @@ esbuild resolves its native binary through `optionalDependencies` (`@esbuild/<pl
 
 Record a decision with `npm install-scripts deny <pkg>` (or `approve`, which then needs the `check-release` allowlist updated too). `npm install-scripts ls` shows anything still unreviewed.
 
-Note this is enforced wherever npm ≥ 11 runs. CI currently pins Node 20, which ships npm 10, so CI does not yet enforce it — CI only runs `npm ci` from an already-committed lockfile, a much smaller surface. Enforcement extends to CI when Node is bumped to 24 (Node 22 ships npm 10.9 and would *not* be enough).
+Note this is enforced wherever npm ≥ 11 runs. CI and `release.yml` use Node 24 (npm 11.x), so they enforce it too. (This section used to say CI pinned Node 20 / npm 10; that went stale when the workflows moved to Node 24.)
+
+## Dependency-age policy
+
+Supply-chain attacks on npm packages and GitHub Actions usually look like this: a malicious version is published, is live for hours to a few days, then is noticed and pulled. The cheapest defence is not to adopt a new release immediately. Policy: **no dependency version is adopted until it is at least 14 days old (30 for npm majors).** Two controls, because they act at different points:
+
+| Control | Where | What it stops |
+|---|---|---|
+| `cooldown:` in `.github/dependabot.yml` (both ecosystems; `default-days: 14`, npm `semver-major-days: 30`) | what Dependabot may *propose* | a too-young version entering the lockfile via a Dependabot PR |
+| `min-release-age=14` in `.npmrc` | what `npm install` / `npm update` / `npm audit fix` may *resolve* | a too-young version entering the lockfile by hand |
+
+Measured facts this rests on (npm 11.19.1, 2026-10-09):
+
+- `min-release-age` was added in **npm 11.10.0** (11.9.0 prints `Unknown project config "min-release-age"`). npm 10 silently accepts it and `npm config get min-release-age` even echoes `7` — so that command is **not** a support probe; `check-release` compares the npm *version* instead.
+- It applies to ranges (`npm@^11` resolves to an older release) **and** to an explicit young version (`npm install npm@<9-day-old>` with a 30-day window fails `ETARGET`).
+- **`npm ci` ignores it.** `npm ci` installs exactly what `package-lock.json` pins, so the setting protects the moment the lockfile *changes*, not later installs. That is why the Dependabot cooldown is the matching control.
+- Dependabot applies an implicit 3-day cooldown if none is configured; the explicit block makes the real policy visible and enforceable. GitHub documents that cooldown covers *version* updates only: a Dependabot **security** update still arrives at once, which is what we want. The `github-actions` ecosystem takes `default-days` only in this repo.
+
+**Overriding on purpose** (an urgent *non-security* fix released less than 14 days ago): list the package under `min-release-age-exclude[]=<name>` in `.npmrc` and, if Dependabot should propose it, under `cooldown.exclude` — in the same PR, so the exception is visible in review and revertible, like the `ignore:` blocks. Never pass `--min-release-age=0` in a committed script or workflow.
+
+**What it does not do:** it does not catch a malicious version that stays unnoticed for longer than the window; it delays non-security fixes by the same amount; and it does not replace review — a Dependabot PR is still read, still run through `check-release --strict`, and a vitest/vite/rolldown bump is still compared against the lockfile for surprises.
+
+`check-release` fails if the Dependabot cooldown for either ecosystem, the `.npmrc` setting, or npm ≥ 11.10 is missing. The predicates are in `scripts/lib/supplyChainChecks.mjs` and unit-tested in `src/tests/supplyChainChecks.test.ts` (`check-release.mjs` itself runs on import and cannot be).
+
+Not done (separate design): a CI-only step that fails a PR adding a lockfile entry younger than the window, using registry publish times. It would also cover hand-edited lockfiles, but needs network in CI and must stay out of `release.yml`, which is offline by design.
 
 ## Pinning GitHub Actions
 
