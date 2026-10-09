@@ -17,6 +17,13 @@ import { readFile, stat, readdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { join, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  MIN_AGE_DAYS,
+  MIN_NPM_WITH_RELEASE_AGE,
+  checkDependabotCooldown,
+  checkNpmrc,
+  npmSupportsMinReleaseAge,
+} from "./lib/supplyChainChecks.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -790,6 +797,37 @@ if (manifest) {
       pass("npm install-script policy recorded", `install scripts denied for: ${denied.join(", ") || "none"}`);
     }
   }
+}
+
+
+// === Dependency-age policy (#150) ===
+//
+// A malicious npm/Actions release is usually live for hours to a few days
+// before it is pulled, so we do not adopt a version younger than MIN_AGE_DAYS.
+// Two controls, both read here so neither can vanish silently:
+//   - Dependabot `cooldown:` in BOTH ecosystems (what lands in the lockfile),
+//   - `.npmrc` min-release-age (what a local `npm install/update` may resolve).
+// These FAIL rather than warn: release.yml runs --strict, but ci.yml does not,
+// and a removed policy should stop the PR, not just the tag.
+{
+  const dep = checkDependabotCooldown(await readText(".github/dependabot.yml"));
+  if (dep.ok) pass("Dependabot cooldown (npm + github-actions)", `>= ${MIN_AGE_DAYS} days`);
+  else fail("Dependabot cooldown (npm + github-actions)", dep.problems.join("; "));
+
+  const rc = checkNpmrc(await readText(".npmrc"));
+  if (rc.ok) pass("npm min-release-age", `${rc.days} days`);
+  else fail("npm min-release-age", rc.problem);
+
+  // `npm config get min-release-age` echoes the value even on npm that ignores
+  // it (npm 10 printed 7), so the version is the only trustworthy probe.
+  const v = spawnSync("npm", ["-v"], { cwd: ROOT, encoding: "utf8" });
+  const npmVersion = v.status === 0 ? v.stdout.trim() : "";
+  if (npmSupportsMinReleaseAge(npmVersion)) pass("npm honours min-release-age", `npm ${npmVersion}`);
+  else
+    fail(
+      "npm honours min-release-age",
+      `npm ${npmVersion || "?"} is older than ${MIN_NPM_WITH_RELEASE_AGE}, so .npmrc would be a silent no-op — upgrade npm`
+    );
 }
 
 

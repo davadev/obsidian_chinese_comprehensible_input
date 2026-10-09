@@ -19,6 +19,17 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Do not adopt a new version immediately (#150). Supply-chain attacks are
+    # usually a malicious release that is live for hours to a few days before it
+    # is noticed and pulled. Without this block Dependabot still applies its own
+    # implicit 3-day default, which is too short to rely on and invisible in
+    # review. 7 days matches `min-release-age` in .npmrc; check-release fails
+    # if either disappears. GitHub documents that cooldown applies to VERSION
+    # updates only, so a Dependabot SECURITY update still arrives at once.
+    # Majors wait twice as long: they are the riskiest and are reviewed by hand.
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     groups:
       # vitest and @vitest/coverage-v8 must move TOGETHER, majors included:
       # coverage-v8 peer-pins vitest to an EXACT version, so a PR bumping one
@@ -91,3 +102,9 @@ updates:
     # 5, not 3: at 3 the fourth action (attest-build-provenance) was silently
     # never raised.
     open-pull-requests-limit: 5
+    # Actions are pinned to commit SHAs, and attestation would faithfully sign a
+    # build produced by a hijacked action, so the same waiting period applies.
+    # github-actions takes `default-days` only (GitHub's docs are ambiguous on
+    # semver-* keys for this ecosystem, so none are used).
+    cooldown:
+      default-days: 7
