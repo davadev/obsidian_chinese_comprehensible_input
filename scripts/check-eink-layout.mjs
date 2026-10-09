@@ -45,7 +45,7 @@ import { inflateSync } from "node:zlib";
 import { tmpdir, homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build } from "esbuild";
+import { bundleHarness, THEME } from "./eink-layout/bundle.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
@@ -105,33 +105,11 @@ if (!floorMatch) throw new Error("could not read the floor from the e-ink block"
 const FLOOR = Number(floorMatch[1]);
 const cssWithoutBlock = css.slice(0, BEGIN) + css.slice(END + "/* eink:end */".length);
 
-// ---- bundle the browser half from the REAL source ----
-const exportRubyWidget = {
-  name: "export-ruby-widget",
-  setup(b) {
-    // RubyWidget is private to chineseDecorations.ts. Expose it for this bundle only, in memory,
-    // so the widget under test is the real one and src/ stays untouched.
-    b.onLoad({ filter: /chineseDecorations\.ts$/ }, (args) => {
-      const src = readFileSync(args.path, "utf8");
-      if (!/^class RubyWidget extends/m.test(src)) throw new Error("RubyWidget declaration moved — update scripts/check-eink-layout.mjs");
-      return { contents: src.replace(/^class RubyWidget extends/m, "export class RubyWidget extends"), loader: "ts", resolveDir: dirname(args.path) };
-    });
-  },
-};
-const bundle = await build({
-  entryPoints: [join(ROOT, "scripts/eink-layout/entry.ts")],
-  bundle: true,
-  format: "iife",
-  write: false,
-  logLevel: "warning",
-  alias: { obsidian: join(ROOT, "src/tests/__mocks__/obsidian.ts") },
-  plugins: [exportRubyWidget],
-});
+// ---- bundle the browser half from the REAL source (shared with check-webkit-layout.mjs) ----
+const bundleText = await bundleHarness(ROOT);
 
 const tmp = mkdtempSync(join(tmpdir(), "cci-eink-"));
-writeFileSync(join(tmp, "bundle.js"), bundle.outputFiles[0].text);
-const THEME =
-  ":root{--background-primary:#fff;--background-primary-alt:#f5f5f5;--background-modifier-border:#e0e0e0;--text-normal:#222;--text-muted:#7a7a7a;--text-faint:#a0a0a0;--interactive-accent:#7f6df2;font-family:-apple-system,sans-serif}html,body{margin:0;background:#fff}";
+writeFileSync(join(tmp, "bundle.js"), bundleText);
 // Test-only: lets the harness measure the underline alone, to separate what the NUMBER does from
 // what the thicker underline does.
 const NO_NUM = ".cci-view.no-num .cci-word::after,.cci-view.no-num .cci-stack-chars::after{content:none!important}";
