@@ -176,6 +176,7 @@ The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a
 - `npm audit --omit=dev` reports no advisories. This covers exactly what ships: the plugin declares **no** runtime `dependencies`, so this passes today and is a regression guard for the day a runtime dependency is first added.
 - `package.json`'s `allowScripts` approves no package for install scripts. See [npm install-script policy](#npm-install-script-policy).
 - Dependency-age policy is still in place: `.github/dependabot.yml` has a `cooldown:` (`default-days` ≥ 14) for **both** the `npm` and `github-actions` ecosystems, `.npmrc` sets `min-release-age` ≥ 14, and the running npm is ≥ 11.10 (older npm ignores the key). See [Dependency-age policy](#dependency-age-policy).
+- `stylelint.config.mjs` still enables both Obsidian CSS checks; with `--with-lint`, `npm run lint:css` passes on `styles.css`.
 - `npm ls --all` exits 0, i.e. every installed version satisfies the ranges its dependents declare. See [Why the dependency-tree guard exists](#why-the-dependency-tree-guard-exists).
 
 ### Heuristic guards (WARN — review but don't block)
@@ -365,13 +366,32 @@ two kinds of finding, and 0.7.8 shipped 11 of them (8 `text-decoration` longhand
   `text-decoration: underline` is accepted, and so is a shorthand whose parts are `var()`s (what the E-ink underline
   uses).
 
-Both were reproduced offline with `stylelint` + `stylelint-no-unsupported-browser-features` targeting `chrome 138`
-plus `declaration-no-important`, which gives exactly the review's findings at the same lines on 0.7.8 and none on
-the fixed file. That tool is deliberately **not** a dependency here (see the supply-chain issue #150). Instead the
-two rules are enforced without it: `check-release` fails on them (`CSS_FORBIDDEN`), and `src/tests/cssLint.test.ts`
-fails the PR build. Anything else the review finds in the CSS that the repository does not yet know about can still
-slip through once; add its pattern to both places when it does. Real stylelint in CI would remove that, and is
-tracked as a follow-up.
+Since 0.8.0 this is checked by the same tool the review uses, not a hand-made list:
+
+```bash
+npm run lint:css     # stylelint styles.css  (also run by ci.yml, release.yml and check-release --with-lint)
+```
+
+`stylelint.config.mjs` enables `declaration-no-important` and `stylelint-no-unsupported-browser-features`, both at
+`error` (a warning in the review is still a finding on the plugin's page). Both packages are exact-pinned
+devDependencies, adopted under the [dependency-age policy](#dependency-age-policy) (17.15.0 / 8.1.2, no install
+scripts anywhere in the 165-package tree, `npm ls` clean, `npm audit --omit=dev` clean). `lint:css` is a separate
+script from `lint` on purpose: `check-release` parses `npm run lint` as ESLint JSON.
+
+**Browser target: `chrome 138`, calibrated by trial, not published.** Obsidian does not state which engine the review
+lints against. `chrome 138` is the target that reproduces the review's findings exactly: on `styles.css` from the 0.7.8
+tag it reports 11 problems at the same lines as the review (8 `text-decoration` longhands, 3 `!important`) and 0 on
+0.7.9. Re-check it whenever the review's target changes: put the previous release's `styles.css` through
+`npx stylelint` and compare with what the review reported.
+
+Known limits, measured: the feature check is property-name based, so `text-decoration-skip-ink: var(--x)` is still
+flagged, but a `text-decoration` shorthand whose parts are `var()`s is not inspected. The old curated
+`box-decoration-break` warning was dropped: `chrome 138` does not flag it and `styles.css` never used it.
+
+Dev-only advisories: stylelint's tree adds a `braces` high-severity advisory (GHSA-vfj7-8cjw-p6xm, published
+2026-09-18, **no patched version exists**; reached via stylelint → globby → fast-glob → micromatch). It affects
+glob-pattern handling in a build-time tool whose only input is our own `styles.css`, never ships, and
+`npm audit --omit=dev` stays clean. `check-release` reports dev advisories as a grey note and never blocks on them.
 
 ## Why `npm run lint` is 0/0 while the auto-review reports thousands
 

@@ -11,6 +11,7 @@ npm run test:cov:open                    # same, then opens the HTML report in y
 npm run test:watch                       # vitest watch mode
 npm run lint                             # local mirror of Obsidian's community-plugin auto-review
 npm run lint:fix                         # apply autofixable rules in place
+npm run lint:css                         # stylelint on styles.css, same checks as Obsidian's review (chrome 138 target)
 npm run check-release                    # pre-release validator — REQUIRED before tagging
 npm run check-release -- --tag 0.X.Y     # also checks tag matches manifest.version
 npm run check-release -- --with-build    # also runs `npm run build` + `npm test` + `npm run lint`

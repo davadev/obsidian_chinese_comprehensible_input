@@ -69,6 +69,8 @@ jobs:
 
       - name: Run lint (Obsidian-parity)
         run: npm run lint
+      - name: Lint styles.css (stylelint, as Obsidian's review does)
+        run: npm run lint:css
 
       - name: Run release guard
         run: env -u GITHUB_REF_NAME -u GITHUB_REF npm run check-release -- --with-lint
