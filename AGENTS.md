@@ -28,7 +28,7 @@ Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vi
 
 ### Coverage targets
 
-`npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. `vitest.config.ts` now tracks the unit-testable surface of the repo: pure logic modules stay inside coverage and the Obsidian runtime / DOM-heavy shells stay out until we add a dedicated jsdom + Obsidian harness. CI enforces the current thresholds, so raise them only after the new floor is proven stable locally.
+`npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. `vitest.config.ts` now tracks the unit-testable surface of the repo: pure logic modules stay inside coverage and the view layer (`ViewToolbar`, `ChineseTextFileView`) is tested under happy-dom (`src/tests/*.dom.test.ts`, shared fixtures in `src/tests/__mocks__/`) and is inside coverage; the remaining Obsidian-runtime shells stay out (see `docs/release-process.md`). `npm run check:layout` (real Chromium) runs on every PR as CI's `layout` job. CI enforces the current thresholds, so raise them only after the new floor is proven stable locally.
 
 ## Critical Constraints
 

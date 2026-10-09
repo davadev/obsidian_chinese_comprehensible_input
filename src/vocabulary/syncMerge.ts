@@ -20,7 +20,7 @@ import { PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
 
 /** JSON with object keys sorted, so equal values serialise identically whatever order they were built in. */
 function canon(v: unknown): string {
-  return JSON.stringify(v, (_k, val) => {
+  return JSON.stringify(v, (_k: string, val: unknown): unknown => {
     if (val && typeof val === "object" && !Array.isArray(val)) {
       const o = val as Record<string, unknown>;
       return Object.fromEntries(Object.keys(o).sort().map((k) => [k, o[k]]));
