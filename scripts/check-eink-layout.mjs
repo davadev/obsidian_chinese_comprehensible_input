@@ -28,16 +28,18 @@
  *     layout compared)
  *   - still reproduces the snippet that was confirmed working on a real e-ink device
  *
- * Run it before any release that touches styles.css or RubyWidget
- * (docs/release-process.md). It is not in CI: the runner has no browser, and adding
- * one is a larger change than this feature.
+ * It runs on every PR in ci.yml (the `layout` job): the GitHub runner has Google Chrome,
+ * and a check nobody is forced to run is a check that gets skipped (the beta.4 -> beta.5
+ * iPhone regression shipped exactly that way). It must NOT be part of check-release or
+ * release.yml, which have to stay offline and deterministic.
  *
- * Needs a headless Chromium: $CHROME_HEADLESS_SHELL, else the newest
- * chrome-headless-shell in Playwright's cache. With none it prints a notice and exits
- * 0, so it can never wedge a machine that lacks one. No new dependency: esbuild is
- * already here.
+ * Needs a Chromium: $CHROME_HEADLESS_SHELL (any Chrome/Chromium binary), else the newest
+ * chrome-headless-shell in Playwright's cache, else google-chrome / chromium on PATH.
+ * With none it prints a notice and exits 0 on a developer machine so it can never wedge
+ * one that lacks a browser, but FAILS when $CI is set: a green check that measured nothing
+ * is worse than a red one. No new dependency: esbuild is already here.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { inflateSync } from "node:zlib";
 import { tmpdir, homedir } from "node:os";
@@ -50,25 +52,36 @@ const read = (p) => readFileSync(join(ROOT, p), "utf8");
 
 function findChrome() {
   if (process.env.CHROME_HEADLESS_SHELL) return process.env.CHROME_HEADLESS_SHELL;
-  const cache = join(homedir(), "Library/Caches/ms-playwright");
-  if (!existsSync(cache)) return null;
-  const dirs = readdirSync(cache)
-    .filter((d) => d.startsWith("chromium_headless_shell-"))
-    .sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]));
-  for (const d of dirs)
-    for (const arch of ["mac-arm64", "mac-x64", "linux"]) {
-      const p = join(cache, d, `chrome-headless-shell-${arch}`, "chrome-headless-shell");
-      if (existsSync(p)) return p;
-    }
+  // Playwright's cache: macOS keeps it under Library/Caches, Linux under ~/.cache.
+  for (const cache of [join(homedir(), "Library/Caches/ms-playwright"), join(homedir(), ".cache/ms-playwright")]) {
+    if (!existsSync(cache)) continue;
+    const dirs = readdirSync(cache)
+      .filter((d) => d.startsWith("chromium_headless_shell-"))
+      .sort((a, b) => Number(b.split("-")[1]) - Number(a.split("-")[1]));
+    for (const d of dirs)
+      for (const arch of ["mac-arm64", "mac-x64", "linux", "linux64"]) {
+        const p = join(cache, d, `chrome-headless-shell-${arch}`, "chrome-headless-shell");
+        if (existsSync(p)) return p;
+      }
+  }
+  // A system browser (the GitHub runner ships Google Chrome).
+  for (const bin of ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]) {
+    const r = spawnSync("which", [bin], { encoding: "utf8" });
+    if (r.status === 0 && r.stdout.trim()) return r.stdout.trim();
+  }
   return null;
 }
 
 const chrome = findChrome();
 if (!chrome) {
-  console.log(
-    "check:layout skipped — no headless Chromium found.\n" +
-      "Set CHROME_HEADLESS_SHELL, or install Playwright's browsers (npx playwright install chromium)."
-  );
+  const msg =
+    "check:layout found no headless Chromium.\n" +
+    "Set CHROME_HEADLESS_SHELL, install Google Chrome / Chromium, or run `npx playwright install chromium`.";
+  if (process.env.CI) {
+    console.error(`${msg}\nFAILING because CI is set: a skipped layout check would look like a passing one.`);
+    process.exit(1);
+  }
+  console.log(`${msg}\nSkipped (not CI).`);
   process.exit(0);
 }
 
@@ -188,7 +201,7 @@ const note = (ok, label, detail = "") => {
 };
 
 console.log(`E-ink layout check — number size ${MIN}–${MAX}% (step ${STEP}), floor ${FLOOR}px`);
-console.log(`(${chrome.split("/").slice(-2, -1)[0]})\n`);
+console.log(`(${chrome})\n`);
 
 let cells = 0;
 for (const mode of ["none", "two-line", "three-line"]) {

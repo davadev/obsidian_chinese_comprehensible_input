@@ -26,22 +26,11 @@ import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import { cciMarkdownHighlight } from "../../src/editor/markdownHighlight";
 import { wordMarkClass } from "../../src/editor/wordMarkClass";
+import { installObsidianDom } from "../../src/tests/__mocks__/obsidianDom";
 
-// ---- Obsidian augments the DOM with these; RubyWidget.toDOM() relies on them. Same
-// semantics as the app: the global form makes a DETACHED element, the method form
-// makes AND appends.
-const mkEl = (tag: string, o?: any) => {
-  const el = document.createElement(tag);
-  if (o?.cls) el.className = Array.isArray(o.cls) ? o.cls.join(" ") : o.cls;
-  if (o?.text != null) el.textContent = o.text;
-  return el;
-};
-(globalThis as any).createSpan = (o?: any) => mkEl("span", o);
-(globalThis as any).createDiv = (o?: any) => mkEl("div", o);
-(globalThis as any).createEl = (t: string, o?: any) => mkEl(t, o);
-for (const [name, tag] of [["createSpan", "span"], ["createDiv", "div"]] as const)
-  (HTMLElement.prototype as any)[name] = function (o?: any) { const el = mkEl(tag, o); this.appendChild(el); return el; };
-(HTMLElement.prototype as any).createEl = function (t: string, o?: any) { const el = mkEl(t, o); this.appendChild(el); return el; };
+// Obsidian augments the DOM with createDiv/createSpan/createEl & co.; RubyWidget.toDOM() relies on them. The same
+// fixture the unit tests use, so the two cannot drift (src/tests/__mocks__/obsidianDom.ts).
+installObsidianDom();
 
 const Q = new URLSearchParams((window as any).__QS ?? location.search);
 
