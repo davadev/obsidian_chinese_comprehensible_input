@@ -66,7 +66,16 @@ Locally it finds `$CHROME_HEADLESS_SHELL`, Playwright's cache, or `google-chrome
 prints a notice and exits 0 on a developer machine, but **fails when `CI` is set** (a skipped check would look like a
 passing one). Run it locally before any release that touches `styles.css` or `RubyWidget`.
 
-It runs in Chromium only; **WebKit (iPhone) is not covered by it** and has already behaved differently once (a `white-space: nowrap` that Chromium tolerated removed every line break in WebKit), so a release touching `styles.css` should also be looked at on an iPhone.
+It runs in Chromium only, and WebKit (iPhone) has already behaved differently once (a `white-space: nowrap` that Chromium tolerated removed every line break in WebKit). That class of bug is covered by `npm run check:webkit`, below.
+
+**`npm run check:webkit`** runs the harness's wrapping measurement (a paragraph of adjacent numbered words must wrap at every width, three kinds of line) in Playwright's WebKit, as the `webkit` job in `ci.yml` (about 1¼ minutes). It checks two things, and the second is what makes the first mean anything:
+
+1. the real `styles.css` must wrap, with no sideways overflow;
+2. a **canary**, the 0.7.8-beta.4 stylesheet kept verbatim in `scripts/eink-layout/fixtures/`, must still overflow. If it does not, this WebKit cannot see the known bug, so the job **fails** instead of passing on nothing.
+
+Measured, not assumed (2026-10-09): on macOS WebKit 26.6 the beta.4 stylesheet overflows at 43 of 43 widths (beta.5 and current: 0 of 43; Chromium: 0 of 43 for all three, which is why the desktop check passed it). The Linux Playwright WebKit that CI uses reproduces it too: the same 43 of 43, worst 2004 px. Two things that did **not** reproduce it, which is why the canary is a whole file: a single `white-space: nowrap` rule added to the current stylesheet, and beta.4's e-ink block swapped into the current stylesheet. The bug needs beta.4's whole stylesheet.
+
+Limits to keep in mind: Playwright's WebKit is a different port from iOS Safari (it shares WebCore's line breaking, which is where this bug lived, but it is not the same engine build), so it is a gate for this class of bug and not a substitute for looking at a styles-touching release on an iPhone. It measures wrapping only; the E-ink pixel checks stay Chromium-only. The `playwright` package is an exact-pinned devDependency with install scripts denied; the browser itself is downloaded at job time (`npx playwright install --with-deps webkit`), never by `npm ci`, and, like `check:layout`, it is not part of `check-release` or `release.yml`.
 
 ### Stage 3 — install and test the prerelease
 
