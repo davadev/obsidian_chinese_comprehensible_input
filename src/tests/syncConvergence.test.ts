@@ -27,6 +27,8 @@ interface Shared {
   files: Map<string, string>;
   version: Map<string, number>;
   mirrorWrites: number;
+  /** Mirror writes that have started and not finished (see makeDevice). */
+  inflight: Set<Promise<unknown>>;
 }
 
 function makeDevice(shared: Shared, words: Record<string, unknown>) {
@@ -59,13 +61,22 @@ function makeDevice(shared: Shared, words: Record<string, unknown>) {
     sync: { ...DEFAULT_SETTINGS.sync, mirrorEnabled: true, mirrorPath: MIRROR },
   };
   const store = new VocabularyStore(plugin, { lookup: () => [] } as any, () => settings);
+  // Track every mirror write so the test can wait for exactly the writes that were started, instead of guessing a
+  // number of event-loop ticks: the write ends in a real async hash, whose duration depends on the machine.
+  const real = (store as any).writeMirror.bind(store) as () => Promise<void>;
+  (store as any).writeMirror = () => {
+    const p = real();
+    shared.inflight.add(p);
+    void p.finally(() => shared.inflight.delete(p));
+    return p;
+  };
   return store;
 }
 
-/** Fire the debounced mirror write and wait for it to land (it awaits a real, non-timer hash). */
-async function letWriteLand(): Promise<void> {
+/** Fire the debounced mirror writes and wait until every write they started has finished. */
+async function letWriteLand(shared: Shared): Promise<void> {
   await vi.advanceTimersByTimeAsync(6_000);
-  for (let i = 0; i < 5; i++) await new Promise<void>((r) => setImmediate(r));
+  while (shared.inflight.size > 0) await Promise.allSettled([...shared.inflight]);
 }
 
 /** Run absorb rounds (B then A, repeated) letting debounced writes fire; return the number of mirror writes made. */
@@ -75,7 +86,7 @@ async function settle(a: VocabularyStore, b: VocabularyStore, shared: Shared, ro
     const before = shared.mirrorWrites;
     for (const dev of [b, a]) {
       await dev.absorbExternalMirrorChange();
-      await letWriteLand();
+      await letWriteLand(shared);
     }
     perRound.push(shared.mirrorWrites - before);
   }
@@ -83,14 +94,14 @@ async function settle(a: VocabularyStore, b: VocabularyStore, shared: Shared, ro
 }
 
 async function twoDevices(wordsA: Record<string, unknown>, wordsB: Record<string, unknown>) {
-  const shared: Shared = { files: new Map(), version: new Map(), mirrorWrites: 0 };
+  const shared: Shared = { files: new Map(), version: new Map(), mirrorWrites: 0, inflight: new Set() };
   const a = makeDevice(shared, wordsA);
   const b = makeDevice(shared, wordsB);
   await a.load({ vocab: { schemaVersion: 1, words: wordsA } });
   await b.load({ vocab: { schemaVersion: 1, words: wordsB } });
   // Loading schedules debounced writes of its own (normalisation); let them land before the scenario starts, or
   // they fire mid-scenario and overwrite the file with data nobody has merged.
-  await letWriteLand();
+  await letWriteLand(shared);
   await a.flushMirrorNow(); // A is the first to put its data in the shared file
   shared.mirrorWrites = 0;
   return { a, b, shared };
