@@ -124,3 +124,39 @@ jobs:
       # Fails (does not skip) when no browser is found, because CI is set.
       - name: Check layout in Chromium
         run: npm run check:layout
+
+  # Text must wrap in WebKit too (#119). The iPhone runs WebKit, and 0.7.8-beta.4 shipped a stylesheet Blink tolerated
+  # and WebKit did not (no legal line break between adjacent numbered words -> sideways scroll). Runs the layout
+  # harness's overflow measurement in Playwright's WebKit against the real styles.css, and against the beta.4
+  # stylesheet as a CANARY that must still overflow: if this WebKit cannot see the known bug the job fails instead of
+  # passing on nothing. The browser is downloaded here, at job time, never by `npm ci`; the `playwright` package is
+  # exact-pinned with install scripts denied. Same rule as `layout`: a PR check, never part of release.yml.
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install WebKit
+        run: npx playwright install --with-deps webkit
+
+      # Fails (does not skip) when WebKit cannot start, because CI is set.
+      - name: Check wrapping in WebKit
+        run: npm run check:webkit
+

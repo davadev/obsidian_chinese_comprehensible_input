@@ -1,0 +1,1999 @@
+/* Chinese Comprehensible Input — view styles. Theme-friendly via Obsidian CSS variables. */
+
+/*
+ * Word-color custom properties. JS overrides these on document.body when the
+ * user picks new colors in Settings. Defaults match the historical hardcoded
+ * values so untouched installs look identical.
+ */
+:root {
+  --cci-color-known: #2ea043;
+  --cci-color-partial: #dcb41e;
+  --cci-color-unknown: #dc3c3c;
+  --cci-color-new: #58a6ff;
+  --cci-color-hsk-1: #dc3c3c;
+  --cci-color-hsk-2: #e08c2a;
+  --cci-color-hsk-3: #dcb41e;
+  --cci-color-hsk-4: #2ea043;
+  --cci-color-hsk-5: #3aa0c0;
+  --cci-color-hsk-6: #586bdc;
+  --cci-color-hsk-7: #9c4dc6;
+}
+
+
+.cci-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  --cci-reader-font: 22px;
+  --cci-line-spacing: 1;
+  /* Size of the annotation rows relative to the ratios this plugin shipped
+     with — pinyin 0.5em, translation 0.42em. 1 = unchanged. Written by
+     ChineseTextFileView.applyAnnotationScales() as percent / 100.
+     The line-height reserve below multiplies through it, so shrinking or
+     growing a row cannot desync the space reserved for it.
+     The CHARACTER size is not scaled here: that is `--cci-reader-font` on
+     .cm-content, which moves every character in the view whether or not the
+     word is annotated. A characters-only scale was tried in 0.7.7-beta.2 and
+     removed — it reached only the annotated words, so a known word stayed
+     small beside an unknown one. */
+  --cci-annotation-scale: 1;
+}
+
+.cci-view .cci-editor .cm-content {
+  font-size: var(--cci-reader-font);
+  line-height: calc(1.85 * var(--cci-line-spacing));
+}
+
+
+/* Reserve vertical space so unannotated CJK chars share baseline with
+   annotated ones; the larger line-height keeps stacked pinyin/gloss inside
+   the line box instead of pushing the next line down unevenly.
+ *
+ * Written as a DELTA from the values that shipped (2.4 / 3.1) rather than
+ * re-derived from the row heights, so at annotation scale 1 these evaluate to
+ * exactly what they always did. The coefficients are the measured stack-em
+ * height of each row — note a child's `em` margin is relative to its OWN
+ * font-size:
+ *   pinyin row  0.5  + margin 0.15 x 0.5  = 0.575
+ *   gloss row   0.462 + margin 0.45 x 0.42 = 0.651   (cumulative 1.226)
+ * Without this, growing a row makes neighbouring lines collide. */
+.cci-view[data-display="two-line"] .cci-editor .cm-content {
+  line-height: calc(
+    (2.4 + 0.575 * (var(--cci-annotation-scale, 1) - 1))
+    * var(--cci-line-spacing)
+  );
+}
+.cci-view[data-display="three-line"] .cci-editor .cm-content {
+  line-height: calc(
+    (3.1 + 1.226 * (var(--cci-annotation-scale, 1) - 1))
+    * var(--cci-line-spacing)
+  );
+}
+
+.cci-toolbar {
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 0.25rem 0.4rem;
+}
+
+.cci-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.cci-toolbar .cci-icon-btn {
+  min-width: 34px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.cci-toolbar .cci-icon-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+.cci-toolbar .cci-icon-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* Compact segmented color-mode switch. Sits flush next to the icon
+   buttons (same 32px height) and keeps tight padding so it does not
+   eat toolbar width on mobile. */
+.cci-toolbar .cci-color-mode-switch {
+  display: inline-flex;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  overflow: hidden;
+  height: 32px;
+  align-self: center;
+  margin: 0 0.15rem;
+  flex: 0 0 auto;
+}
+.cci-toolbar .cci-color-mode-pill {
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  border-radius: 0;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  padding: 0 0.45rem;
+  height: 100%;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+.cci-toolbar .cci-color-mode-pill + .cci-color-mode-pill {
+  border-left: 1px solid var(--background-modifier-border);
+}
+.cci-toolbar .cci-color-mode-pill:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-toolbar .cci-color-mode-pill.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.cci-overflow-hint {
+  padding: 0.25rem 0.7rem 0.1rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Edit-dictionary modal — small form layout. Constrain height + scroll
+   so iOS's on-screen keyboard never hides the Save button. dvh tracks
+   the dynamic viewport, shrinking when the keyboard slides in. */
+.cci-edit-dict-modal {
+  max-height: 70dvh;
+  overflow-y: auto;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
+.cci-edit-dict-modal h3 { margin-top: 0; }
+.cci-edit-dict-modal .cci-edit-dict-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+}
+.cci-edit-dict-modal .cci-edit-dict-row label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.cci-edit-dict-modal input[type="text"],
+.cci-edit-dict-modal textarea,
+.cci-edit-dict-modal select {
+  width: 100%;
+  font-size: 0.95rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-normal);
+}
+.cci-edit-dict-modal textarea { resize: vertical; min-height: 4em; }
+.cci-edit-dict-modal .cci-edit-dict-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+/* Hide-syntax markdown rendering inside the Chinese view. Mirrors
+   Obsidian Live Preview look without forking the markdown parser. */
+.cci-view .cm-line.cci-md-quote-line {
+  border-left: 3px solid var(--background-modifier-border-focus, var(--background-modifier-border));
+  padding-left: 0.8em;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.cci-view .cci-md-bullet {
+  display: inline-block;
+  min-width: 1em;
+  text-align: center;
+  color: var(--text-muted);
+}
+.cci-view .cci-md-hr {
+  border: 0;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: 0.6em 0;
+  height: 0;
+  display: block;
+}
+.cci-view .cci-md-link,
+.cci-view .cci-md-wikilink {
+  color: var(--text-accent);
+  cursor: pointer;
+  border-bottom: 1px dotted currentColor;
+}
+.cci-view .cci-md-link:hover,
+.cci-view .cci-md-wikilink:hover {
+  background: var(--background-modifier-hover);
+  border-radius: 3px;
+}
+.cci-view .cci-md-embed-card {
+  display: inline-block;
+  padding: 1px 0.5em;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-secondary);
+  color: var(--text-accent);
+  cursor: pointer;
+  font-size: 0.9em;
+}
+.cci-view .cci-md-embed-card:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-view .cci-md-embed-img {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+  border-radius: 4px;
+}
+.cci-view .cci-md-highlight {
+  background: var(--text-highlight-bg, rgba(255, 208, 0, 0.45));
+  color: var(--text-normal);
+  /* Used only by the "none" display-mode content tint (ruby modes use the
+     .cci-stack-hl band). Horizontal-only padding keeps a single-line highlight
+     the same height as the annotated band. We intentionally do not clone the
+     box decoration across line wraps (Obsidian 1.7.4 only partially supports
+     that feature); a wrapped highlight renders as one continuous band with
+     rounded ends instead. */
+  border-radius: 2px;
+  padding: 0 0.1em;
+}
+
+/* Things-theme style task checkboxes. The widget is a span containing a
+   lucide SVG via Obsidian's setIcon(); we size and color it inline. */
+.cci-view .cci-md-task {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  height: 1.2em;
+  margin: 0 0.3em 0 0;
+  color: var(--text-muted);
+  vertical-align: -0.2em;
+  flex: 0 0 auto;
+}
+.cci-view .cci-md-task svg {
+  width: 100%;
+  height: 100%;
+}
+.cci-view .cci-md-task.is-done { color: var(--text-success, var(--color-green, var(--text-accent))); }
+.cci-view .cci-md-task.is-cancel { color: var(--text-error, var(--color-red, var(--text-muted))); }
+.cci-view .cci-md-task-x,
+.cci-view .cci-md-task-X { color: var(--text-success, var(--color-green, var(--text-accent))); }
+.cci-view .cci-md-task-c33 { color: var(--text-error, var(--color-red, var(--text-muted))); } /* `!` important */
+.cci-view .cci-md-task-c42 { color: var(--color-yellow, var(--text-accent)); }                /* `*` star */
+.cci-view .cci-md-task-c63 { color: var(--text-accent); }                                      /* `?` question */
+
+.cci-known-badge {
+  margin-left: 0.3rem;
+  min-width: 44px;
+  padding: 0 0.4rem;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-on-accent);
+  background: var(--background-modifier-border);
+  cursor: pointer;
+  user-select: none;
+}
+.cci-known-badge[data-state="high"] { background: rgba(46, 160, 67, 0.85); }
+.cci-known-badge[data-state="mid"]  { background: rgba(220, 180, 30, 0.85); color: #111; }
+.cci-known-badge[data-state="low"]  { background: rgba(220, 60, 60, 0.85); }
+.cci-known-badge[data-state="empty"]{ background: var(--background-modifier-border); color: var(--text-muted); }
+
+.cci-note-stats-row {
+  flex: 1 1 auto;
+  min-height: 32px;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 0.82rem;
+  line-height: 1.25;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cci-note-stats-row[data-state="high"] { border-left: 4px solid rgba(46, 160, 67, 0.85); }
+.cci-note-stats-row[data-state="mid"]  { border-left: 4px solid rgba(220, 180, 30, 0.85); }
+.cci-note-stats-row[data-state="low"]  { border-left: 4px solid rgba(220, 60, 60, 0.85); }
+.cci-note-stats-row[data-state="empty"]{ color: var(--text-muted); }
+
+.cci-toolbar .cci-display-sel {
+  height: 32px;
+  flex: 0 1 auto;
+  min-width: 80px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+}
+
+/* Reserved banner slot so toggling a marking mode doesn't shift editor scroll. */
+.cci-banner-slot {
+  min-height: 36px;
+  margin-top: 0.3rem;
+  display: flex;
+  align-items: stretch;
+}
+.cci-banner-slot:empty {
+  /* keep height even with no banner */
+}
+.cci-toolbar .cci-banner {
+  flex: 1 1 auto;
+  padding: 0.3rem 0.5rem;
+  background: var(--color-orange, #d29922);
+  color: var(--text-on-accent);
+  border-radius: 6px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.cci-toolbar .cci-banner.is-known {
+  background: var(--color-green, #2ea043);
+}
+.cci-toolbar .cci-banner.is-partial {
+  background: var(--color-yellow, #d4a72c);
+}
+.cci-toolbar .cci-banner.is-format {
+  background: var(--color-blue, #2d7ff9);
+}
+.cci-toolbar .cci-banner.is-format.is-remove {
+  background: var(--color-red, #e5534b);
+}
+
+/* Tri-state highlighter button: blue = add, red = remove. Override the generic
+   .is-active accent background. */
+.cci-toolbar .cci-icon-btn.cci-format-add,
+.cci-toolbar .cci-icon-btn.cci-format-add.is-active {
+  background: var(--color-blue, #2d7ff9);
+  border-color: var(--color-blue, #2d7ff9);
+  color: var(--text-on-accent);
+}
+.cci-toolbar .cci-icon-btn.cci-format-remove,
+.cci-toolbar .cci-icon-btn.cci-format-remove.is-active {
+  background: var(--color-red, #e5534b);
+  border-color: var(--color-red, #e5534b);
+  color: var(--text-on-accent);
+}
+.cci-overflow-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+/* Highlight is ONE continuous band per annotated word, not a per-char tint:
+   the gradient fills the whole stack width (so it covers gloss/pinyin overhang
+   in 2-/3-line mode) and is anchored to the stack's bottom — the chars row — so
+   the strip stays one baseline-aligned height across no-pinyin and
+   pinyin/gloss words. margin:0 lets neighbouring highlighted stacks abut with no
+   gap. Color comes from the inline `--cci-hl` custom property. */
+.cci-view .cci-stack-hl {
+  margin-left: 0;
+  margin-right: 0;
+  background-image: linear-gradient(var(--cci-hl), var(--cci-hl));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1em;
+}
+/* Heading chars are scaled (see .cci-stack-h{n} .cci-stack-chars below), so the
+   band height must match. */
+.cci-view .cci-stack-h1.cci-stack-hl { background-size: 100% 1.7em; }
+.cci-view .cci-stack-h2.cci-stack-hl { background-size: 100% 1.45em; }
+.cci-view .cci-stack-h3.cci-stack-hl { background-size: 100% 1.25em; }
+.cci-view .cci-stack-h4.cci-stack-hl { background-size: 100% 1.1em; }
+/* A link widget (wikilink / embed) sitting inside a highlight paints its own
+   background inline (dynamic color); this just rounds the corners. */
+.cci-view .cci-md-link-hl {
+  border-radius: 2px;
+}
+.cci-format-swatch {
+  display: inline-block;
+  width: 0.9em;
+  height: 0.9em;
+  border-radius: 3px;
+  border: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
+.cci-toolbar .cci-banner button {
+  height: 28px;
+  padding: 0 0.6rem;
+  border-radius: 6px;
+  border: none;
+  background: rgba(0, 0, 0, 0.18);
+  color: var(--text-on-accent);
+  cursor: pointer;
+}
+
+/* Overflow menu. Shared by TWO menus: the highlighter's "Formats" list and the
+   toolbar's "..." More menu (ViewToolbar.buildFormatMenu / buildOverflowMenu).
+   Both are body-appended and positioned `fixed` under their anchor button, so
+   anything here lands on both.
+
+   Height clamp: neither menu was bounded, so a long one ran off the bottom of
+   the screen with no way to reach the last rows. The More menu grows with the
+   colour mode (HSK adds three rows over status) and with Obsidian's font size;
+   the Formats menu grows with the user's formatting-picker config and any
+   Highlightr colours, so its length is genuinely per-user.
+
+   `dvh` rather than `vh` so the dynamic viewport and the on-screen keyboard are
+   tracked with no listener (same reason as .cci-edit-dict-modal above).
+   `--cci-overflow-top` is the one thing CSS cannot know -- how far down the
+   anchor sits -- and is written by overflowMenuTopPx() at open time; the 0px
+   fallback degrades to a too-tall-but-still-bounded menu rather than none.
+   The safe-area inset is SUBTRACTED from the height rather than added as
+   padding: padding would leave a band of dead space under every short menu on
+   a device with a home indicator. */
+.cci-overflow-menu {
+  position: fixed;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22);
+  padding: 0.3rem 0;
+  min-width: 200px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(
+    100dvh - var(--cci-overflow-top, 0px) - 12px - env(safe-area-inset-bottom, 0px)
+  );
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* pan-y, not none: the browser takes vertical scrolling and leaves horizontal
+     gestures to the page, which is what the range sliders below need. */
+  touch-action: pan-y;
+  /* A flick past the end of the menu must not scroll the note behind it. */
+  overscroll-behavior: contain;
+}
+/* REQUIRED by the max-height above, not cosmetic. The container is a column
+   flex box, so its children default to `flex-shrink: 1` and would COMPRESS to
+   fit the cap instead of overflowing it -- row padding crushed, .cci-overflow-sep
+   (height: 1px, min-content 0) collapsing to nothing, and no scrollbar at all,
+   because nothing ever overflows. */
+.cci-overflow-item,
+.cci-overflow-btn,
+.cci-overflow-sep,
+.cci-overflow-hint {
+  flex-shrink: 0;
+}
+.cci-overflow-item,
+.cci-overflow-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.cci-overflow-item:hover,
+.cci-overflow-btn:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-overflow-sep {
+  height: 1px;
+  background: var(--background-modifier-border);
+  margin: 0.25rem 0;
+}
+.cci-overflow-slider {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cci-overflow-slider input[type="range"] {
+  flex: 1 1 120px;
+  min-width: 100px;
+  /* The menu is a scroll container (pan-y). Claim the slider's own gestures so a
+     slow or diagonal thumb drag can never be taken over as a scroll. */
+  touch-action: none;
+}
+.cci-overflow-slider .cci-slider-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  min-width: 38px;
+  text-align: right;
+}
+
+.cci-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.cci-editor .cm-editor {
+  height: 100%;
+}
+.cci-editor .cm-scroller {
+  overflow-y: auto;
+  /* Allow the last lines to scroll above iOS's home indicator and
+     Obsidian's mobile bottom toolbar. Desktop env() inset is 0; the
+     extra 80px is a deliberate visual buffer matching the mobile bar. */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+}
+
+/* Word annotations */
+.cci-word {
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 60ms linear;
+}
+
+/* Three-state color coding: green = known, red = unknown, yellow = partial. */
+.cci-word.cci-color-known {
+  background: color-mix(in srgb, var(--cci-color-known) 16%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-known) 55%, transparent);
+}
+.cci-word.cci-color-unknown {
+  background: color-mix(in srgb, var(--cci-color-unknown) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-unknown) 65%, transparent);
+}
+.cci-word.cci-color-partial {
+  background: color-mix(in srgb, var(--cci-color-partial) 20%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-partial) 75%, transparent);
+}
+.cci-word.cci-color-new {
+  background: color-mix(in srgb, var(--cci-color-new) 10%, transparent);
+  border-bottom: 1px dotted color-mix(in srgb, var(--cci-color-new) 45%, transparent);
+}
+
+/* HSK color mode — one rule per level. `hsk-none` left transparent so
+   unknown-HSK words fade away in HSK mode without a noisy tint. */
+.cci-word.cci-color-hsk-1 {
+  background: color-mix(in srgb, var(--cci-color-hsk-1) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-1) 65%, transparent);
+}
+.cci-word.cci-color-hsk-2 {
+  background: color-mix(in srgb, var(--cci-color-hsk-2) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-2) 65%, transparent);
+}
+.cci-word.cci-color-hsk-3 {
+  background: color-mix(in srgb, var(--cci-color-hsk-3) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-3) 65%, transparent);
+}
+.cci-word.cci-color-hsk-4 {
+  background: color-mix(in srgb, var(--cci-color-hsk-4) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-4) 65%, transparent);
+}
+.cci-word.cci-color-hsk-5 {
+  background: color-mix(in srgb, var(--cci-color-hsk-5) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-5) 65%, transparent);
+}
+.cci-word.cci-color-hsk-6 {
+  background: color-mix(in srgb, var(--cci-color-hsk-6) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-6) 65%, transparent);
+}
+.cci-word.cci-color-hsk-7 {
+  background: color-mix(in srgb, var(--cci-color-hsk-7) 18%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--cci-color-hsk-7) 65%, transparent);
+}
+.cci-word.cci-color-hsk-none {
+  /* no tint — intentional, lets unknown-HSK words recede in HSK mode. */
+}
+.cci-word.cci-color-ignored {
+  opacity: 0.7;
+}
+
+/* eink:begin
+ *
+ * E-ink mode (#112): underlines instead of coloured tints; in HSK colour mode the
+ * level is a small number beside the word. Everything here is scoped under
+ * `.cci-view[data-eink]`, and the attribute exists only while the mode is on, so
+ * with it off none of this matches anything.
+ *
+ * Measured over 11,250 layout combinations (reader font 12-48px, line spacing
+ * 0.15-1.5x, annotation size 50-200%, three display modes, both widget DOM
+ * branches) in real CodeMirror: nothing here changes the line height. See
+ * scripts/check-eink-layout.mjs, which reruns that matrix. Notes on why it is
+ * written this way, because most of the obvious alternatives were tried and broke:
+ *
+ *  - The underline is `text-decoration`, NOT a border. A border sits at the bottom of
+ *    its box, and the two kinds of word have different boxes: a plain word's border
+ *    sits at the font's content-area bottom, an annotated word's at the bottom of a
+ *    line-height:1 row. The gap is (ascent + descent - 1)/2 em of whatever font is in
+ *    use, so it is font-dependent (1px in one font, ~5px in another) and no fixed
+ *    offset can fix it. A text-decoration is drawn from the baseline by the same engine
+ *    for both, so they line up in every font. It also has no effect on layout at all,
+ *    where a thicker border grew the line in two/three-line mode.
+ *  - It is applied to the characters row of an annotated word, never to the word's own
+ *    box: a decoration declared on the inline-block would also underline the pinyin
+ *    and the translation rows.
+ *  - Selectors name the classes. Substring matches such as [class*="known"] also
+ *    match "unknown", and are the bug in the snippet this feature replaced.
+ *  - background-color, not the `background` shorthand, which would also clear any
+ *    background-image.
+ *  - The underline is placed `under` (from the bottom of the font's content area) with an
+ *    offset taken from the READER font, in both kinds of word, so both draw it at the same
+ *    height whatever the font. `.2em` was relative to the underlined text itself.
+ *  - The number is OUT OF FLOW in both kinds of word, so it is not underlined (a child
+ *    cannot opt out of a parent's text-decoration, but absolutely positioned boxes are not
+ *    decorated), and it takes no part in line height at any spacing. Its bottom edge is
+ *    anchored to the underline's bottom edge, measured in pixels over 8 CJK fonts, reader
+ *    fonts 14-48px, 50-130% and every widget layout: within 0.5px, and it moves at most
+ *    0.5px as the slider moves (the old `vertical-align: middle; top: .25em` rose by
+ *    several px when the number shrank, because both depend on the number's own size).
+ *  - A plain word that carries a number is `white-space: nowrap`: an out-of-flow number
+ *    belongs to the whole line-spanning box when a word wraps and was stranded at the far
+ *    edge of the line, and an inline one needed a word joiner to stay attached. Keeping
+ *    the word whole means the number can never detach. Cost: ragged line ends, and only in
+ *    E-ink + HSK mode.
+ *  - The gutter is .8 of the number's size: .75 was 0.14px too narrow at the 6px floor,
+ *    where the 1px safety margin is large relative to the digit.
+ *  - Annotated words are atomic inline-blocks and cannot wrap, so there the number
+ *    is out of flow on the LAST cell (present in both widget branches; the
+ *    per-character branch has no .cci-stack-cell-word) with a gutter that reserves
+ *    room for it. The number's size and the gutter derive from ONE variable so
+ *    they cannot drift apart.
+ *  - 6px floor. The slider goes down to 50%, which is 6.05px at the default 22px
+ *    font. At small reader fonts the floor wins and the low end of the slider does
+ *    nothing; the cap on the other side (0.8x the character size) is far from it.
+ *  - Edit mode: generated content beside a live caret shifts it (measured 7.3px at
+ *    every word end), so none is generated while the view is editable.
+ */
+.cci-view[data-eink] {
+  --cci-eink-num: max(calc(.55em * var(--cci-eink-number-scale, 1)), var(--cci-eink-floor, 6px));
+  --cci-eink-ul: calc(var(--cci-reader-font) * .08);
+}
+
+.cci-view[data-eink] .cci-word:is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) {
+  background-color: transparent;
+  /* Transparent, not `none`: the base stylesheet gives every coloured word a 1px border, and on an
+     annotated word (an inline-block) that border is part of its height. Removing it made lines 1px
+     SHORTER in two/three-line mode at tight spacing; keeping it, invisible, leaves layout exactly as
+     it was. */
+  border-bottom: 1px solid transparent;
+}
+.cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7),
+.cci-view[data-eink] .cci-stack:is(.cci-color-known, .cci-color-partial, .cci-color-unknown, .cci-color-new, .cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-chars {
+  text-decoration-line: underline;
+  text-decoration-style: solid;
+  text-decoration-thickness: 3px;
+  text-decoration-color: var(--text-normal);
+  text-decoration-skip-ink: none;
+  text-underline-position: under;
+  text-underline-offset: var(--cci-eink-ul);
+}
+/* ~#aaa on a white page (the value confirmed readable on e-ink), but derived from
+   the theme so it stays light-on-dark in dark themes; --text-faint varies by theme. */
+.cci-view[data-eink] .cci-word.cci-color-known:not(.cci-stack),
+.cci-view[data-eink] .cci-stack.cci-color-known .cci-stack-chars {
+  text-decoration-color: color-mix(in srgb, var(--text-normal) 38%, var(--background-primary));
+}
+.cci-view[data-eink] .cci-word.cci-color-partial:not(.cci-stack),
+.cci-view[data-eink] .cci-stack.cci-color-partial .cci-stack-chars {
+  text-decoration-style: dotted;
+}
+.cci-view[data-eink] .cci-word.cci-color-new:not(.cci-stack),
+.cci-view[data-eink] .cci-stack.cci-color-new .cci-stack-chars {
+  text-decoration-line: none;
+}
+
+.cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) {
+  white-space: nowrap;
+  position: relative;
+  padding-right: calc(var(--cci-eink-num) * .8);
+}
+.cci-view[data-eink] .cci-word:not(.cci-stack):is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7)::after {
+  position: absolute;
+  right: .05em;
+  bottom: calc(-1 * (var(--cci-eink-ul) + 3.18px) - .155em);
+  font-size: var(--cci-eink-num);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child {
+  position: relative;
+  padding-right: calc(var(--cci-eink-num) * .8);
+}
+.cci-view[data-eink] .cci-stack:is(.cci-color-hsk-1, .cci-color-hsk-2, .cci-color-hsk-3, .cci-color-hsk-4, .cci-color-hsk-5, .cci-color-hsk-6, .cci-color-hsk-7) .cci-stack-cells > .cci-stack-cell:last-child::after {
+  position: absolute;
+  right: .05em;
+  bottom: calc(-1 * (var(--cci-eink-ul) + 3.11px + var(--cci-reader-font) * .084) - .157em);
+  font-size: var(--cci-eink-num);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-1::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-1 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "1"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-2::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-2 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "2"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-3::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-3 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "3"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-4::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-4 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "4"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-5::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-5 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "5"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-6::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-6 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "6"; }
+.cci-view[data-eink] .cci-word:not(.cci-stack).cci-color-hsk-7::after,
+.cci-view[data-eink] .cci-stack.cci-color-hsk-7 .cci-stack-cells > .cci-stack-cell:last-child::after { content: "7"; }
+
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-word::after,
+.cci-view[data-eink] .cm-content[contenteditable="true"] .cci-stack-cell:last-child::after { content: none !important; }
+/* eink:end */
+
+/*
+ * Annotated word widget.
+ *
+ * Chars render inline at the normal text baseline; pinyin and gloss are
+ * absolutely positioned *above* the char (taking no inline baseline
+ * contribution). The surrounding .cm-content reserves vertical space for
+ * the annotations via `line-height` so annotated and unannotated chars
+ * share one baseline on the same line.
+ */
+/*
+ * Annotated word widget.
+ *
+ * Outer `.cci-stack` is an inline-block whose baseline is the baseline of
+ * its last in-flow line — the chars row. Because gloss + pinyin are block
+ * children rendered above the chars row, the chars row stays at the
+ * surrounding text's baseline.
+ *
+ * `.cci-stack-gloss` is a normal block-level child (not absolute), so it
+ * contributes to the inline-block's width and pushes neighboring words
+ * apart when the English is wider than the chars.
+ */
+.cci-stack {
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1;
+  text-align: center;
+  user-select: none;
+  margin: 0 1px;
+}
+/* The three reader rows honour the optional per-row font colors (#22).
+   While "Use custom text colors" is off the --cci-text-* properties are
+   absent and the fallback keeps the active theme's colors. */
+.cci-stack-gloss {
+  display: block;
+  font-size: calc(0.42em * var(--cci-annotation-scale, 1));
+  color: var(--cci-text-gloss, var(--text-faint));
+  white-space: nowrap;
+  line-height: 1.1;
+  margin-bottom: 0.45em;
+  padding: 0 0.4em;
+}
+/* Mnemonic row (#56). Same geometry as the translation row — including the
+   side padding that stops neighbouring rows touching — but tinted like pinyin
+   so the three rows stay tellable apart when two of them carry prose. */
+.cci-stack-mnemonic {
+  color: var(--cci-text-pinyin, var(--text-muted));
+}
+
+.cci-stack-cells {
+  display: block;
+  white-space: nowrap;
+  line-height: 1;
+}
+.cci-stack-cell {
+  display: inline-block;
+  vertical-align: baseline;
+  line-height: 1;
+  text-align: center;
+}
+.cci-stack-pinyin {
+  display: block;
+  font-size: calc(0.5em * var(--cci-annotation-scale, 1));
+  color: var(--cci-text-pinyin, var(--text-muted));
+  white-space: nowrap;
+  line-height: 1;
+  margin-bottom: 0.15em;
+}
+/* Word-level pinyin (syllable count didn't match char count) sits slightly
+   smaller than the per-char variant. Keep the two distinct. */
+.cci-stack-pinyin-word {
+  font-size: calc(0.45em * var(--cci-annotation-scale, 1));
+}
+.cci-stack-chars {
+  display: block;
+  font-size: 1em;
+  color: var(--cci-text-chars, var(--text-normal));
+  line-height: 1;
+}
+
+/* Words that render as a plain mark instead of a ruby stack — display
+   mode "none", and known words in the ruby modes — take the same
+   character color so a note doesn't end up two-toned. */
+.cci-view .cci-word {
+  color: var(--cci-text-chars, inherit);
+}
+
+/* When the widget sits inside a Markdown heading line, scale the chars row
+   so the heading still reads as a heading in 2-line / 3-line modes. Pinyin
+   and gloss stay proportionally small.
+ *
+ * This 1.7 / 1.45 / 1.25 / 1.1 series exists in THREE places: here, on the
+ * highlight band above, and in ChineseTextFileView.ts (the CodeMirror
+ * HighlightStyle for PLAIN heading text). They must be kept in step by hand;
+ * nothing enforces it. */
+.cci-stack-h1 .cci-stack-chars { font-size: 1.7em;  font-weight: 700; }
+.cci-stack-h2 .cci-stack-chars { font-size: 1.45em; font-weight: 700; }
+.cci-stack-h3 .cci-stack-chars { font-size: 1.25em; font-weight: 700; }
+.cci-stack-h4 .cci-stack-chars { font-size: 1.1em;  font-weight: 700; }
+.cci-stack-h5 .cci-stack-chars { font-size: 1em;    font-weight: 700; }
+.cci-stack-h6 .cci-stack-chars { font-size: 1em;    font-weight: 700; color: var(--cci-text-chars, var(--text-muted)); }
+
+/* AI mnemonic editor modal (#49).
+   `.cci-popup` (100), `.cci-bottom-sheet` (200) and `.cci-overflow` (300)
+   all sit above Obsidian's --layer-modal, so a modal opened from any of
+   them would render underneath. Lift our own modal container clear of
+   the highest of them. Scoped to this plugin's modals only. */
+.modal-container.cci-modal-front {
+  z-index: 400;
+}
+
+/* …but Obsidian deliberately stacks --layer-notice above --layer-modal, and
+   .notice-container is a plain body child, so lifting our modal to 400 would
+   otherwise bury every Notice raised while one is open (AI errors, the
+   persistent [CCI AI] debug notice). Keep Obsidian's relative order. */
+.notice-container {
+  z-index: 401;
+}
+
+.cci-mnemonic-modal .cci-mnemonic-field {
+  margin-bottom: 1rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-label {
+  font-size: 0.8em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-hint {
+  font-size: 0.85em;
+  color: var(--text-faint);
+  margin-bottom: 0.4rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-line-input {
+  width: 100%;
+  font-size: 1.3em;
+  line-height: 1.4;
+}
+.cci-mnemonic-modal .cci-mnemonic-counter {
+  font-size: 0.8em;
+  color: var(--text-faint);
+  text-align: right;
+  margin-top: 0.2rem;
+}
+.cci-mnemonic-modal .cci-mnemonic-counter.is-over {
+  color: var(--text-error);
+}
+.cci-mnemonic-modal .cci-mnemonic-story-input {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.45;
+}
+.cci-mnemonic-modal .cci-mnemonic-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.cci-mnemonic-modal .cci-mnemonic-actions-spacer {
+  flex: 1;
+}
+
+/* Mnemonic block on the word card. The emoji line is capped at two lines
+   so a long pre-0.5.0 prose mnemonic can never stretch the card; the
+   story is collapsed behind the toggle and scrolls when expanded. */
+.cci-popup-mnemonic {
+  margin: 0.15rem 0 0.4rem;
+}
+.cci-popup-mnemonic-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.cci-popup-mnemonic-line {
+  flex: 1;
+  max-height: 3em;
+  overflow: hidden;
+  line-height: 1.4;
+}
+.cci-popup-mnemonic-toggle {
+  flex: none;
+  padding: 0 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  box-shadow: none;
+}
+.cci-popup-mnemonic-story {
+  margin-top: 0.3rem;
+  max-height: 9em;
+  overflow: auto;
+  font-size: 0.92em;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+/* Popup */
+.cci-popup {
+  position: absolute;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.18);
+  padding: 0.75rem;
+  min-width: 240px;
+  max-width: 360px;
+  z-index: 100;
+  color: var(--text-normal);
+}
+
+/* Stats word-detail overlay variant — fills the centre of the view. */
+.cci-popup-overlay {
+  position: fixed;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  bottom: 10%;
+  overflow: auto;
+  max-width: none;
+}
+
+.cci-fc-smart-preview-text {
+  white-space: pre-wrap;
+}
+
+.cci-popup-head {
+  font-size: 1.4rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.cci-popup-pinyin {
+  color: var(--text-accent);
+  margin-bottom: 0.4rem;
+}
+.cci-popup-defs {
+  font-size: 0.9rem;
+  margin-bottom: 0.4rem;
+  color: var(--text-normal);
+}
+.cci-popup-defs-scroll {
+  max-height: 38vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+.cci-popup-grammar {
+  margin-top: 0.4rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* iOS Obsidian's mobile stylesheet sets -webkit-touch-callout: none on
+   many descendants, which suppresses the long-press copy menu. Re-enable
+   it across the popup tree. The .cci-popup-axes checkbox row keeps its
+   own user-select: none so checkboxes still behave like buttons. */
+.cci-popup,
+.cci-popup *,
+.cci-bottom-sheet,
+.cci-bottom-sheet * {
+  -webkit-touch-callout: default;
+}
+.cci-popup-defs,
+.cci-popup-defs-scroll,
+.cci-popup-head,
+.cci-popup-pinyin,
+.cci-popup-meta {
+  -webkit-user-select: text;
+  user-select: text;
+}
+.cci-popup-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0.15rem 0.6rem;
+}
+.cci-popup-axes {
+  margin: 0.5rem 0;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+.cci-popup-axes-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+}
+.cci-popup-axes-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.9rem;
+}
+.cci-popup-axis {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+.cci-popup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.cci-popup-actions button {
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+/* Settings-mirror conflict modal */
+.cci-conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.8rem 0;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+.cci-conflict-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cci-conflict-key {
+  font-family: var(--font-monospace);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+.cci-conflict-row button {
+  font-size: 0.8rem;
+  padding: 0.25rem 0.55rem;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Collapsible Advanced settings sections */
+.cci-settings-advanced {
+  margin: 0.6rem 0 1rem 0;
+  padding: 0 0.2rem;
+  border-top: 1px solid var(--background-modifier-border);
+}
+.cci-settings-advanced > summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  list-style: none;
+}
+.cci-settings-advanced > summary::-webkit-details-marker { display: none; }
+.cci-settings-advanced[open] > summary {
+  color: var(--text-normal);
+}
+
+/* Mobile bottom sheet */
+.cci-bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  border-radius: 14px 14px 0 0;
+  padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom, 0)) 0.75rem;
+  box-shadow: 0 -4px 22px rgba(0, 0, 0, 0.25);
+  z-index: 200;
+  max-height: 70vh;
+  overflow: auto;
+  touch-action: pan-y;
+}
+
+/* Stats view */
+.cci-stats-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.cci-stats-header .cci-stats-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cci-stats-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-normal);
+}
+.cci-stats-back {
+  height: 32px;
+  padding: 0 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.cci-stats-back:hover {
+  background: var(--background-modifier-hover);
+}
+.cci-stats-scope {
+  flex: 1 1 160px;
+  min-width: 0;
+  max-width: 100%;
+  height: 32px;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+}
+.cci-stats {
+  padding: 0.6rem 0.6rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+.cci-stats > * {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.cci-stats-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+.cci-stats-controls input[type="search"] {
+  flex: 1 1 140px;
+  min-width: 110px;
+  max-width: 220px;
+  height: 30px;
+  padding: 0 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+}
+.cci-stats-controls select {
+  height: 30px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.8rem;
+  flex: 0 0 auto;
+  max-width: 130px;
+}
+.cci-stats-controls button {
+  height: 30px;
+  min-width: 32px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.85rem;
+}
+.cci-stats-summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+  line-height: 1.4;
+}
+.cci-stats-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cci-stats table {
+  width: 100%;
+  min-width: 720px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.cci-stats th,
+.cci-stats td {
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+  white-space: nowrap;
+}
+.cci-stats td.cci-stats-defcol {
+  white-space: normal;
+  max-width: 220px;
+}
+.cci-stats th {
+  background: var(--background-secondary);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.cci-stats-graph {
+  width: 100%;
+  height: 80px;
+}
+
+/* Sparkline */
+.cci-sparkline {
+  width: 100%;
+  height: 30px;
+}
+
+/* Stats tabs */
+.cci-stats-tabs {
+  display: flex;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0.6rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.cci-stats-tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0.35rem 0.7rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.cci-stats-tab.is-active {
+  color: var(--text-normal);
+  border-bottom-color: var(--interactive-accent);
+  font-weight: 600;
+}
+
+/* Dashboard */
+.cci-dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.8rem;
+}
+.cci-dash-card {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.cci-dash-card.cci-color-known   { border-left: 3px solid color-mix(in srgb, var(--cci-color-known) 85%, transparent); }
+.cci-dash-card.cci-color-partial { border-left: 3px solid color-mix(in srgb, var(--cci-color-partial) 85%, transparent); }
+.cci-dash-card.cci-color-unknown { border-left: 3px solid color-mix(in srgb, var(--cci-color-unknown) 85%, transparent); }
+.cci-dash-card.cci-color-new     { border-left: 3px solid color-mix(in srgb, var(--cci-color-new) 55%, transparent); }
+.cci-dash-card-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cci-dash-card-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-normal);
+}
+.cci-dash-card-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+.cci-dash-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--text-normal);
+  margin-bottom: 0.5rem;
+}
+.cci-dash-toggle-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+/* Shown only while a note scope is active: every number on the dashboard is
+   filtered, and the header dropdown scrolls out of sight. */
+.cci-dash-scope-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--background-modifier-hover);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.cci-dash-scope-path {
+  color: var(--text-normal);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.cci-dash-scope-note button {
+  margin-left: auto;
+  font-size: var(--font-ui-smaller);
+  padding: 2px 10px;
+}
+.cci-dash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.4rem 0 0.6rem;
+}
+.cci-dash-batch-btn {
+  height: 32px;
+  padding: 0 0.7rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.cci-dash-batch-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* Flashcards mode selector */
+.cci-fc-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.6rem;
+}
+.cci-fc-mode-btn {
+  flex: 1 1 100px;
+  height: 32px;
+  padding: 0 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+.cci-fc-mode-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+.cci-fc-mode-btn:hover { filter: brightness(1.05); }
+
+/* Smart story panel */
+.cci-fc-smart {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.cci-fc-smart-disabled {
+  padding: 0.7rem 0.8rem;
+  background: var(--background-secondary);
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.cci-fc-smart-params h3 {
+  margin: 0 0 0.3rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.cci-fc-smart-params ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+.cci-fc-smart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cci-fc-smart-status {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Triage tab (card UI shared between Unclassified + Due modes) */
+.cci-triage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+}
+.cci-triage-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+.cci-triage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.cci-triage-skip {
+  height: 28px;
+  padding: 0 0.6rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.cci-triage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.8rem 0.9rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+}
+.cci-triage-headrow {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.8rem;
+}
+.cci-triage-term {
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-normal);
+}
+.cci-triage-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+.cci-triage-pinyin {
+  color: var(--text-accent);
+  font-size: 0.95rem;
+}
+.cci-triage-defs {
+  font-size: 0.9rem;
+  color: var(--text-normal);
+}
+.cci-triage-context {
+  font-size: 1.05rem;
+  line-height: 1.6;
+  padding: 0.5rem 0.6rem;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  color: var(--text-normal);
+}
+.cci-triage-hit {
+  background: rgba(88, 166, 255, 0.22);
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 700;
+}
+.cci-triage-context-none {
+  color: var(--text-muted);
+  font-style: italic;
+}
+.cci-triage-context-src {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.cci-triage-context-src a {
+  color: var(--text-accent);
+}
+.cci-triage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.cci-triage-act {
+  flex: 1 1 100px;
+  height: 38px;
+  padding: 0 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.cci-triage-act.is-known    { background: rgba(46, 160, 67, 0.18);  border-color: rgba(46, 160, 67, 0.55); }
+.cci-triage-act.is-partial  { background: rgba(220, 180, 30, 0.18); border-color: rgba(220, 180, 30, 0.55); }
+.cci-triage-act.is-unknown  { background: rgba(220, 60, 60, 0.18);  border-color: rgba(220, 60, 60, 0.55); }
+.cci-triage-act.is-ignored  { background: var(--background-secondary); color: var(--text-muted); }
+.cci-triage-act:hover { filter: brightness(1.1); }
+
+.cci-triage-partial {
+  margin-top: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  background: rgba(220, 180, 30, 0.10);
+  border: 1px solid rgba(220, 180, 30, 0.45);
+  border-radius: 8px;
+}
+.cci-triage-partial-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem;
+}
+.cci-triage-partial-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  margin-bottom: 0.5rem;
+}
+.cci-triage-partial-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  user-select: none;
+}
+.cci-triage-partial-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.cci-dash-progress-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.cci-dash-progress-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  margin: 0.3rem 0 0.4rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.cci-dash-progress-filter-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  user-select: none;
+}
+.cci-dash-progress-filter-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+/* HSK coverage */
+.cci-dash-hsk {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+}
+.cci-dash-hsk-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.cci-dash-hsk-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 70px;
+  align-items: center;
+  gap: 0.4rem;
+}
+.cci-dash-hsk-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.cci-dash-hsk-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(150, 150, 150, 0.10);
+  border: 1px solid var(--background-modifier-border);
+}
+.cci-dash-hsk-seg {
+  height: 100%;
+}
+.cci-dash-hsk-pct {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Triage reveal */
+.cci-triage-reveal {
+  display: flex;
+}
+.cci-triage-reveal-btn {
+  height: 30px;
+  padding: 0 0.7rem;
+  border-radius: 6px;
+  border: 1px dashed var(--background-modifier-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.cci-triage-reveal-btn:hover {
+  color: var(--text-normal);
+  border-style: solid;
+}
+
+.cci-dash-progress {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+}
+.cci-dash-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+.cci-dash-progress-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.cci-dash-progress-bucket {
+  height: 28px;
+  padding: 0 0.4rem;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  font-size: 0.78rem;
+}
+.cci-dash-progress-graph {
+  width: 100%;
+}
+.cci-progress-graph {
+  width: 100%;
+  height: 110px;
+  display: block;
+}
+.cci-progress-legend {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.3rem;
+}
+.cci-progress-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.cci-progress-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.cci-dash-progress-summary {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.cci-dash-notes {
+  margin-top: 0.6rem;
+}
+.cci-dash-notes h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.cci-dash-notes-tablewrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cci-dash-notes-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+.cci-dash-notes-table th,
+.cci-dash-notes-table td {
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: left;
+}
+.cci-dash-notes-table th {
+  background: var(--background-secondary);
+  font-weight: 600;
+}
+.cci-clickable {
+  color: var(--text-accent);
+  cursor: pointer;
+}
+.cci-clickable:hover {
+  text-decoration: underline;
+}
+
+/* Status cell + row tint in Words table */
+.cci-status-cell.cci-color-known   { color: var(--cci-color-known); font-weight: 600; }
+.cci-status-cell.cci-color-partial { color: var(--cci-color-partial); font-weight: 600; }
+.cci-status-cell.cci-color-unknown { color: var(--cci-color-unknown); font-weight: 600; }
+.cci-status-cell.cci-color-new     { color: var(--cci-color-new); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-1   { color: var(--cci-color-hsk-1); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-2   { color: var(--cci-color-hsk-2); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-3   { color: var(--cci-color-hsk-3); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-4   { color: var(--cci-color-hsk-4); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-5   { color: var(--cci-color-hsk-5); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-6   { color: var(--cci-color-hsk-6); font-weight: 600; }
+.cci-status-cell.cci-color-hsk-7   { color: var(--cci-color-hsk-7); font-weight: 600; }
+
+.cci-row-color-known   td { background: color-mix(in srgb, var(--cci-color-known) 5%, transparent); }
+.cci-row-color-partial td { background: color-mix(in srgb, var(--cci-color-partial) 6%, transparent); }
+.cci-row-color-unknown td { background: color-mix(in srgb, var(--cci-color-unknown) 6%, transparent); }
+.cci-row-color-hsk-1 td { background: color-mix(in srgb, var(--cci-color-hsk-1) 7%, transparent); }
+.cci-row-color-hsk-2 td { background: color-mix(in srgb, var(--cci-color-hsk-2) 7%, transparent); }
+.cci-row-color-hsk-3 td { background: color-mix(in srgb, var(--cci-color-hsk-3) 7%, transparent); }
+.cci-row-color-hsk-4 td { background: color-mix(in srgb, var(--cci-color-hsk-4) 7%, transparent); }
+.cci-row-color-hsk-5 td { background: color-mix(in srgb, var(--cci-color-hsk-5) 7%, transparent); }
+.cci-row-color-hsk-6 td { background: color-mix(in srgb, var(--cci-color-hsk-6) 7%, transparent); }
+.cci-row-color-hsk-7 td { background: color-mix(in srgb, var(--cci-color-hsk-7) 7%, transparent); }
+
+/* Sync — status priority drag-sort list */
+.cci-status-priority-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 16px;
+}
+.cci-status-priority-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  cursor: grab;
+  user-select: none;
+}
+.cci-status-priority-row:active { cursor: grabbing; }
+.cci-status-priority-row.dragging { opacity: 0.4; }
+.cci-status-priority-row.drag-over {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+.cci-status-priority-handle {
+  color: var(--text-muted);
+  font-size: 1.1em;
+  letter-spacing: -2px;
+}
+.cci-status-priority-rank {
+  color: var(--text-muted);
+  min-width: 1.5em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.cci-status-priority-label { flex: 1; }
+.cci-status-priority-buttons {
+  display: flex;
+  gap: 4px;
+}
+.cci-status-priority-buttons button {
+  min-width: 28px;
+  padding: 2px 6px;
+}
+
+/* Settings tab — light visual grouping */
+/* Settings prose that is a warning rather than description. The default prose
+   style is muted body text, which would render a warning invisible. */
+.cci-settings-warn {
+  color: var(--text-warning, var(--color-orange, var(--text-accent)));
+}
+
+.cci-settings-section-desc {
+  color: var(--text-muted);
+  font-size: 0.9em;
+  margin: -6px 0 10px;
+}
+
+/* Multi-line prompt editors (mnemonic template). Stack the control under
+   the name so the textarea gets the full row width instead of the narrow
+   right-hand control column. */
+.cci-settings-textarea {
+  display: block;
+}
+.cci-settings-textarea .setting-item-control {
+  justify-content: flex-start;
+  padding-top: 6px;
+}
+.cci-settings-textarea textarea {
+  width: 100%;
+  min-height: 9em;
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+  resize: vertical;
+}
+
+/* OpenAI provider info + usage card. Mimics OpenAI's pricing-page card:
+   model name in a tag-style header, short description, then two stacked
+   sections (Price + Your usage) with right-aligned values. */
+.cci-openai-usage {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 14px 16px 16px;
+  margin: 12px 0 18px;
+  background: var(--background-secondary);
+}
+.cci-openai-usage-name {
+  display: inline-block;
+  font-size: 1.4em;
+  font-weight: 600;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+.cci-openai-usage-desc {
+  color: var(--text-muted);
+  margin: 0 0 14px;
+}
+.cci-openai-usage-section {
+  font-weight: 600;
+  margin: 12px 0 8px;
+}
+.cci-openai-usage-pricing .cci-openai-usage-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-variant-numeric: tabular-nums;
+}
+.cci-openai-usage-label { color: var(--text-muted); }
+.cci-openai-usage-grid {
+  display: grid;
+  grid-template-columns: 1fr repeat(3, minmax(70px, max-content));
+  gap: 4px 14px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.cci-openai-usage-gridhead {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  text-align: right;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cci-openai-usage-gridhead:first-child { text-align: left; }
+.cci-openai-usage-gridlabel { color: var(--text-muted); }
+.cci-openai-usage-gridval { text-align: right; }
+
+/* Action row inside the "this note looks Traditional" notice. */
+.cci-notice-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cci-notice-actions button {
+  font-size: var(--font-ui-smaller);
+  padding: 2px 10px;
+}
+
+/* ── Dashboard: topic coverage radar ─────────────────────────────────── */
+.cci-dash-topics {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+}
+/* Column, not row: the legend is a sibling of the SVG, and the default flex
+   row put it beside the chart and squeezed the graph's width. */
+.cci-dash-topics-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+/* Square by design: the radar keeps its aspect ratio, unlike the progress
+   charts which stretch to the container width. */
+.cci-topic-radar {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  display: block;
+  color: var(--text-muted);
+}
+.cci-dash-topics-chart .cci-progress-legend {
+  justify-content: center;
+}
+.cci-dash-topics-chooser {
+  margin-top: 0.3rem;
+}
+.cci-dash-topics-toggle {
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  cursor: pointer;
+}
+.cci-dash-topics .cci-dash-progress-filter-item input:disabled + span {
+  opacity: 0.45;
+}
+/* Outline series in the radar legend — matches the dashed polygon. */
+.cci-progress-legend-swatch.is-outline {
+  opacity: 0.55;
+}
