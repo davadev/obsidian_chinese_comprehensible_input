@@ -55,10 +55,18 @@ Nothing is committed to `main`. Files changed on the default branch: **none**.
 CodeMirror editors using the real `RubyWidget` and the real `styles.css` in headless Chromium and
 measures, across every combination of reader font, line spacing, annotation size, display mode and
 level-number size, that the mode never changes line height, leaves the annotation rows alone, shows
-exactly one number per word, keeps the number's bottom edge level with the underline (read from a screenshot, in every CJK font installed on the machine, at several slider positions), and is inert when off. Run it before any release that touches
-`styles.css` or `RubyWidget` — those are the two things that can break it, and CI cannot see layout
-(no DOM harness, #119). It runs in Chromium only; **WebKit (iPhone) is not covered by it** and has already behaved differently once (a `white-space: nowrap` that Chromium tolerated removed every line break in WebKit), so a release touching `styles.css` should also be looked at on an iPhone. It is deliberately **not** in CI (the runner has no browser), and it exits 0
-with a notice when no Chromium is installed, so it can never block a machine that lacks one.
+exactly one number per word, keeps the number's bottom edge level with the underline (read from a screenshot, in every CJK font installed on the machine, at several slider positions), and is inert when off.
+
+It **runs on every PR** as the `layout` job in `ci.yml` (about 5½ minutes, in parallel with `validate`): the GitHub
+runner has Google Chrome, and the job installs `fonts-noto-cjk` so the font check measures a real CJK font, not just
+`sans-serif`. Measured on the runner (Chrome 154): all 11,250 combinations pass and the pixel-alignment numbers equal a
+Mac's (worst 0.75 px of 1.0 allowed, size swing 0.50 px of 0.75). It is **not** part of `check-release` or `release.yml`,
+which must stay offline and deterministic: a browser hiccup on the tag must not block a release that CI already passed.
+Locally it finds `$CHROME_HEADLESS_SHELL`, Playwright's cache, or `google-chrome` / `chromium` on PATH; with none it
+prints a notice and exits 0 on a developer machine, but **fails when `CI` is set** (a skipped check would look like a
+passing one). Run it locally before any release that touches `styles.css` or `RubyWidget`.
+
+It runs in Chromium only; **WebKit (iPhone) is not covered by it** and has already behaved differently once (a `white-space: nowrap` that Chromium tolerated removed every line break in WebKit), so a release touching `styles.css` should also be looked at on an iPhone.
 
 ### Stage 3 — install and test the prerelease
 
@@ -131,7 +139,7 @@ If the workflow fails, delete the tag (`git push origin :0.7.0 && git tag -d 0.7
 
 ### Other notes
 
-- If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires a heavier Obsidian/jsdom harness. Do not game the threshold with low-value assertions.
+- If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires more of Obsidian than the happy-dom fixture provides. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
 
 ## Branch policy
@@ -347,13 +355,37 @@ those, never by widening `exclude`.
 
 **0.7.8 update.** Both of those gaps are closed, and two modules that had been excluded
 although they carry release-critical logic — `SettingsMirror.ts` and
-`SettingsConflictModal.ts` (the #123 / #124 fixes) — are back in the denominator. Measured
-97.56 statements / 91.34 branches / 98.49 functions / 99.2 lines; the floors are 96 / 90 / 97 / 98.
-The remaining exclusions are the Obsidian / DOM shells (`main.ts`, `ViewToolbar.ts`,
-`chineseDecorations.ts`, `SettingsTab.ts` and similar), which need a jsdom + Obsidian harness
-(#119). Decisions inside them that can be made without a DOM live in pure helpers
-(`formatOptions.ts`, `einkMode.ts`) and are tested there; `check:layout` covers the E-ink CSS in a
-real browser.
+`SettingsConflictModal.ts` (the #123 / #124 fixes) — are back in the denominator.
+
+**0.8.0 update (#119).** `ViewToolbar.ts` and `ChineseTextFileView.ts` are in the denominator too, tested under
+**happy-dom** (see below). With ~1,400 lines of real UI added, coverage went *up*: 97.48 statements / 91.15 branches /
+98.32 functions / 99.02 lines (ViewToolbar 97 %, ChineseTextFileView 95 %); the floors are now 97 / 90 / 98 / 98. The
+remaining exclusions (`main.ts`, `chineseDecorations.ts`, `SettingsTab.ts`, the modals, `WordPopup` and similar) need
+more of Obsidian than the fixture provides. Decisions inside them that can be made without a DOM live in pure helpers
+(`formatOptions.ts`, `einkMode.ts`), and `check:layout` covers the E-ink CSS in a real browser.
+
+### Why happy-dom, and what the DOM tests are for
+
+Decision (0.8.0, #119): view-layer tests run under **happy-dom**, selected per file with a
+`// @vitest-environment happy-dom` docblock. Plain-Node tests are unchanged. Reasoning, measured rather than assumed:
+
+- `ViewToolbar` is plain DOM with no layout needs, and a real CodeMirror `EditorView` **does mount** under happy-dom
+  (the note text appears in `.cm-content`, `contenteditable` toggles, transactions dispatch). `ChineseTextFileView` could
+  therefore be tested whole, which the issue had flagged as the likely problem.
+- happy-dom 20.14.5 has 7 direct dependencies and no install scripts; jsdom 30 has about 20 (undici, tough-cookie,
+  css-tree...) and a narrower Node range (`^22.22.2 || ^24.15.0`). Smaller tree, same result here, so happy-dom.
+- Neither has layout. happy-dom tests therefore never assert geometry: that stays with `check:layout` (real Chromium).
+  What they pin is behaviour: the menu's open / outside-click / reopen cycle (0.7.7 shipped a dead tap), radios that
+  repaint, which rows exist for which colour mode, pre-warm before the editor exists, frontmatter stripped at the view
+  boundary, mode changes reconfiguring instead of rebuilding the editor, and tap-to-format end to end through the real
+  `CciPlugin.applyFormatRange`.
+- Each guarded behaviour was checked by mutation: breaking it makes its test fail (listed in the PR bodies).
+
+Conventions: `src/tests/__mocks__/obsidianDom.ts` is the one copy of Obsidian's DOM helpers (`createDiv`, `empty`,
+`addClass`...) and is shared with the `check:layout` page so the two cannot drift; `src/tests/__mocks__/viewHarness.ts`
+builds a real `ChineseTextFileView` on a plain-object plugin. The `obsidian` stub gained `setIcon`, `Notice.instances`
+and the `TextFileView` header-action recorder (import `Notice` from `./__mocks__/obsidian` to read `instances`, which
+is not in Obsidian's typings).
 
 ## CSS lint: what Obsidian's review checks in `styles.css`
 

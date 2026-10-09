@@ -30,13 +30,23 @@ export class Modal {
   close() {}
 }
 export class Notice {
+  /** Every notice shown since the last `Notice.instances.length = 0`, so a test can assert what the user was told. */
+  static instances: Notice[] = [];
   message: string;
-  constructor(message: string) { this.message = message; }
+  constructor(message: string) { this.message = message; Notice.instances.push(this); }
   setMessage(message: string) { this.message = message; }
   hide() {}
 }
 export class ItemView {}
-export class TextFileView {}
+export class TextFileView {
+  /** Obsidian's header action: recorded so a test can assert which actions a view registered. */
+  actions: Array<{ icon: string; title: string; cb: (evt: unknown) => unknown }> = [];
+  requestSave(): void {}
+  addAction(icon: string, title: string, cb: (evt: unknown) => unknown): unknown {
+    this.actions.push({ icon, title, cb });
+    return {};
+  }
+}
 export class WorkspaceLeaf {}
 export class TFile {}
 export const Platform = { isMobile: false, isIosApp: false, isAndroidApp: false };

@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from "vitest";
 import { CciSettingsTab } from "../settings/SettingsTab";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import { installCreateFragmentStub } from "./__mocks__/obsidianDom";
+import { Notice } from "./__mocks__/obsidian"; // the stub itself: `Notice.instances` is not in the real typings
 import {
   EINK_NUMBER_SCALE_MAX,
   EINK_NUMBER_SCALE_MIN,
@@ -250,6 +251,28 @@ describe("E-ink mode settings", () => {
       expect(plugin.refreshChineseViewAppearance).toHaveBeenCalledTimes(1);
       expect(domState).toHaveBeenCalledTimes(1);
       expect(update).not.toHaveBeenCalled();
+    });
+
+    it("turning E-ink mode on tells the user once that the picker changed, and turning it off says nothing", async () => {
+      // The call site of einkPickerNotice(): the helper's text is tested elsewhere, this pins that SettingsTab
+      // shows it, only when E-ink is switched ON, and only when the picker really looks different.
+      const { tab, plugin } = spies();
+      plugin.settings.showHighlightColorsWithoutPlugin = true; // coloured highlights exist, so E-ink changes the picker
+      Notice.instances.length = 0;
+      await tab.setControlValue("einkMode", true);
+      expect(Notice.instances.map((n) => n.message)).toEqual([expect.stringMatching(/plain highlight.*Turn E-ink mode off/s)]);
+
+      Notice.instances.length = 0;
+      await tab.setControlValue("einkMode", false);
+      expect(Notice.instances).toHaveLength(0);
+    });
+
+    it("no notice when the picker would look the same", async () => {
+      const { tab, plugin } = spies();
+      plugin.settings.showHighlightColorsWithoutPlugin = false;
+      Notice.instances.length = 0;
+      await tab.setControlValue("einkMode", true);
+      expect(Notice.instances).toHaveLength(0);
     });
 
     it("dragging the size slider re-applies appearance and does NOT re-render the page", async () => {
