@@ -206,59 +206,30 @@ if (cssUsage.used) {
 
 // === Obsidian review-card parity (locally mirror what the cloud review flags) ===
 
-// CSS features Obsidian's review reports as only partially supported by its
-// bundled Chromium (the "CSS LINT" warnings). Curated — grows as we hit them.
-const CSS_PARTIAL_FEATURES = [
-  "box-decoration-break",
-  "-webkit-box-decoration-break",
-];
-// Rules Obsidian's CSS lint enforces and that are checked HERE as failures, because they are deterministic and
-// a violation was published once already (0.7.8: 8 text-decoration longhands, 3 !important). Reproduced with
-// stylelint + stylelint-no-unsupported-browser-features targeting `chrome 138` plus `declaration-no-important`,
-// which gave exactly the review's 11 warnings at the same lines. Mirrored by src/tests/cssLint.test.ts.
-const CSS_FORBIDDEN = [
-  {
-    name: "!important",
-    re: /!\s*important/,
-    why: "avoid !important: raise selector specificity or use a custom property",
-  },
-  {
-    name: "text-decoration longhand",
-    re: /(^|[\s;{])text-decoration-(line|style|color|thickness|skip-ink|skip)\s*:/,
-    why: "flagged as partially supported; use the text-decoration shorthand with var() parts (see the e-ink underline rule)",
-  },
-];
+// styles.css is linted by stylelint with the same two checks Obsidian's review applies (#152): no `!important`,
+// and no "only partially supported" feature for the calibrated browser target (stylelint.config.mjs documents
+// how `chrome 138` was found). It replaced a hand-made pattern list that only knew what had already been
+// published once. Always checked: the config is present and still targets a browser. Executed with --with-lint
+// (needs node_modules); ci.yml and release.yml also run `npm run lint:css` as their own step.
 {
-  const styles = (await readText("styles.css")) ?? "";
-  // Comments are blanked (newlines kept, so line numbers stay true): they may discuss the very things forbidden.
-  const code = styles.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "));
-  const bad = [];
-  code.split("\n").forEach((line, i) => {
-    for (const rule of CSS_FORBIDDEN) if (rule.re.test(line)) bad.push({ rule, line: i + 1 });
-  });
-  if (bad.length === 0) pass("styles.css passes Obsidian's CSS lint rules (no !important, no text-decoration longhands)");
-  else
-    fail(
-      "styles.css passes Obsidian's CSS lint rules",
-      bad.map((b) => `${b.rule.name} (styles.css:${b.line})`).join(", ") + " — " + [...new Set(bad.map((b) => b.rule.why))].join("; ")
-    );
-}
-{
-  const styles = (await readText("styles.css")) ?? "";
-  const lines = styles.split("\n");
-  const hits = [];
-  lines.forEach((line, i) => {
-    for (const feat of CSS_PARTIAL_FEATURES) {
-      if (line.includes(feat)) hits.push(`${feat} (styles.css:${i + 1})`);
-    }
-  });
-  if (hits.length === 0) {
-    pass("styles.css avoids CSS features Obsidian only partially supports");
+  const cfg = await readText("stylelint.config.mjs");
+  if (cfg == null) fail("stylelint config present", "stylelint.config.mjs is missing");
+  else if (!/declaration-no-important/.test(cfg) || !/no-unsupported-browser-features/.test(cfg) || !/browsers:\s*\[\s*"chrome \d+"/.test(cfg))
+    fail("stylelint config present", "must enable declaration-no-important and no-unsupported-browser-features with a chrome target");
+  else pass("stylelint config present", "declaration-no-important + no-unsupported-browser-features");
+
+  if (!runLint) {
+    skip("styles.css passes stylelint (Obsidian's CSS lint)", "pass --with-build or --with-lint to execute");
+  } else if (typeof JSON.parse((await readText("package.json")) ?? "{}").scripts?.["lint:css"] !== "string") {
+    fail("styles.css passes stylelint (Obsidian's CSS lint)", "no lint:css script in package.json");
   } else {
-    warn(
-      "styles.css avoids CSS features Obsidian only partially supports",
-      hits.join(", ")
-    );
+    console.log(c.gray("  → running npm run lint:css…"));
+    const r = spawnSync("npm", ["run", "lint:css", "--silent"], { cwd: ROOT, stdio: "pipe", encoding: "utf8", env: { ...process.env, FORCE_COLOR: "0", NO_COLOR: "1" } });
+    if (r.status === 0) pass("styles.css passes stylelint (Obsidian's CSS lint)");
+    else {
+      const out = `${r.stdout}${r.stderr}`.trim().split("\n").filter((l) => /✖|⚠|Error/.test(l)).slice(0, 4).join(" | ");
+      fail("styles.css passes stylelint (Obsidian's CSS lint)", out || `exit ${r.status}`);
+    }
   }
 }
 
