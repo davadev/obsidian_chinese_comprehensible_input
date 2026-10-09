@@ -21,15 +21,15 @@ updates:
     schedule:
       interval: weekly
     cooldown:
-      default-days: 7
-      semver-major-days: 14
+      default-days: 14
+      semver-major-days: 30
     groups:
       x:
         patterns: ["*"]
   - package-ecosystem: github-actions
     directory: "/"
     cooldown:
-      default-days: 7
+      default-days: 14
 `;
 
 describe("the committed policy files", () => {
@@ -52,26 +52,26 @@ describe("checkDependabotCooldown", () => {
   });
 
   it("fails when a cooldown block is removed from either ecosystem", () => {
-    const noNpm = GOOD_DEPENDABOT.replace(/ {4}cooldown:\n {6}default-days: 7\n {6}semver-major-days: 14\n/, "");
+    const noNpm = GOOD_DEPENDABOT.replace(/ {4}cooldown:\n {6}default-days: 14\n {6}semver-major-days: 30\n/, "");
     expect(checkDependabotCooldown(noNpm).problems).toEqual(['"npm" has no cooldown block']);
-    const noActions = GOOD_DEPENDABOT.replace(/ {4}cooldown:\n {6}default-days: 7\n$/, "");
+    const noActions = GOOD_DEPENDABOT.replace(/ {4}cooldown:\n {6}default-days: 14\n$/, "");
     expect(checkDependabotCooldown(noActions).problems).toEqual(['"github-actions" has no cooldown block']);
   });
 
   it("does not credit one ecosystem's cooldown to the other", () => {
-    const onlyActions = GOOD_DEPENDABOT.replace(/ {4}cooldown:\n {6}default-days: 7\n {6}semver-major-days: 14\n/, "");
+    const onlyActions = GOOD_DEPENDABOT.replace(/ {4}cooldown:\n {6}default-days: 14\n {6}semver-major-days: 30\n/, "");
     expect(checkDependabotCooldown(onlyActions).ok).toBe(false);
   });
 
   it("fails when default-days is missing or too small", () => {
-    const noDays = GOOD_DEPENDABOT.replace(/ {6}default-days: 7\n {6}semver-major-days/, "      semver-major-days");
+    const noDays = GOOD_DEPENDABOT.replace(/ {6}default-days: 14\n {6}semver-major-days/, "      semver-major-days");
     expect(checkDependabotCooldown(noDays).problems).toEqual(['"npm" cooldown has no default-days']);
-    const low = GOOD_DEPENDABOT.replace("default-days: 7\n      semver", "default-days: 2\n      semver");
+    const low = GOOD_DEPENDABOT.replace("default-days: 14\n      semver", "default-days: 2\n      semver");
     expect(checkDependabotCooldown(low).problems[0]).toMatch(/default-days is 2/);
   });
 
   it("ignores a commented-out cooldown", () => {
-    const commented = GOOD_DEPENDABOT.replace("    cooldown:\n      default-days: 7\n      semver-major", "    # cooldown:\n    #   default-days: 7\n      semver-major");
+    const commented = GOOD_DEPENDABOT.replace("    cooldown:\n      default-days: 14\n      semver-major", "    # cooldown:\n    #   default-days: 14\n      semver-major");
     expect(checkDependabotCooldown(commented).ok).toBe(false);
   });
 
@@ -83,14 +83,14 @@ describe("checkDependabotCooldown", () => {
 
 describe("checkNpmrc", () => {
   it("accepts min-release-age at or above the minimum", () => {
-    expect(checkNpmrc("min-release-age=7\n")).toEqual({ ok: true, days: 7, problem: null });
-    expect(checkNpmrc("# note\nmin-release-age = 14\n").days).toBe(14);
+    expect(checkNpmrc("min-release-age=14\n")).toEqual({ ok: true, days: 14, problem: null });
+    expect(checkNpmrc("# note\nmin-release-age = 20\n").days).toBe(20);
   });
 
   it("rejects absent, commented-out, low, zero and non-numeric values", () => {
     expect(checkNpmrc(null).ok).toBe(false);
     expect(checkNpmrc("registry=https://registry.npmjs.org/\n").ok).toBe(false);
-    expect(checkNpmrc("# min-release-age=7\n").ok).toBe(false);
+    expect(checkNpmrc("# min-release-age=14\n").ok).toBe(false);
     expect(checkNpmrc("min-release-age=3\n").ok).toBe(false);
     expect(checkNpmrc("min-release-age=0\n").ok).toBe(false);
     expect(checkNpmrc("min-release-age=soon\n").ok).toBe(false);

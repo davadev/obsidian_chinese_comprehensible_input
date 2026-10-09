@@ -23,13 +23,13 @@ updates:
     # usually a malicious release that is live for hours to a few days before it
     # is noticed and pulled. Without this block Dependabot still applies its own
     # implicit 3-day default, which is too short to rely on and invisible in
-    # review. 7 days matches `min-release-age` in .npmrc; check-release fails
+    # review. 14 days matches `min-release-age` in .npmrc; check-release fails
     # if either disappears. GitHub documents that cooldown applies to VERSION
     # updates only, so a Dependabot SECURITY update still arrives at once.
-    # Majors wait twice as long: they are the riskiest and are reviewed by hand.
+    # Majors wait longer still: they are the riskiest and are reviewed by hand.
     cooldown:
-      default-days: 7
-      semver-major-days: 14
+      default-days: 14
+      semver-major-days: 30
     groups:
       # vitest and @vitest/coverage-v8 must move TOGETHER, majors included:
       # coverage-v8 peer-pins vitest to an EXACT version, so a PR bumping one
@@ -107,4 +107,4 @@ updates:
     # github-actions takes `default-days` only (GitHub's docs are ambiguous on
     # semver-* keys for this ecosystem, so none are used).
     cooldown:
-      default-days: 7
+      default-days: 14

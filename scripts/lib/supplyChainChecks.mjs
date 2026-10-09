@@ -5,7 +5,7 @@
 // No external deps — pure Node ESM, regex parsing only (no YAML parser here).
 
 /** Minimum age, in days, a dependency version must have before we adopt it. */
-export const MIN_AGE_DAYS = 7;
+export const MIN_AGE_DAYS = 14;
 
 /** The npm release that introduced `min-release-age`. 11.9.0 warns "Unknown project config", 11.10.0 accepts it. */
 export const MIN_NPM_WITH_RELEASE_AGE = "11.10.0";
