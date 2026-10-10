@@ -61,6 +61,28 @@ describe("what the toolbar asks the view for", () => {
   });
 });
 
+describe("what the toolbar can tell the view", () => {
+  it("a change redecorates the view, and a committed custom word opens the dictionary editor", async () => {
+    const { view } = makeView("你好\n");
+    await view.onOpen();
+    const toolbar = (view as unknown as { toolbar: { onChange: () => void; onCommitCustomWord: (s: string) => void } }).toolbar;
+    const change = vi.spyOn(view as unknown as { handleToolbarChange: () => void }, "handleToolbarChange");
+    toolbar.onChange();
+    expect(change).toHaveBeenCalledTimes(1);
+    const open = vi.spyOn(view as unknown as { openAddCustomWord: (s: string) => Promise<void> }, "openAddCustomWord").mockResolvedValue();
+    toolbar.onCommitCustomWord("苹果");
+    expect(open).toHaveBeenCalledWith("苹果");
+  });
+
+  it("closing twice is harmless", async () => {
+    const { view, plugin } = makeView("你好\n");
+    await view.onOpen();
+    await view.onClose();
+    await expect(view.onClose()).resolves.toBeUndefined();
+    expect(plugin.exposure.resetSession).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("settings that arrive null (import, sync, hand-edited data.json)", () => {
   it("fall back to the defaults for font, line spacing and annotation scale", async () => {
     const { view, root, plugin } = makeView("你好\n");
