@@ -1315,15 +1315,20 @@
   color: var(--text-normal);
   font-size: 0.85rem;
 }
-/* The bottom padding is the room the last row needs to scroll clear of Obsidian's mobile toolbar. 5.5rem alone was not
-   enough on some phones (the Smart story buttons stayed under it), so the toolbar's own height is added when the app
-   publishes it. The variable is absent on desktop, where it adds nothing. */
 .cci-stats {
   padding: 0.6rem 0.6rem calc(5.5rem + var(--mobile-navbar-height, 0px) + env(safe-area-inset-bottom, 0px));
   overflow-x: hidden;
   overflow-y: auto;
   height: 100%;
   box-sizing: border-box;
+}
+/* This element IS Obsidian's `.view-content` (the view adds the class to it), so the app's own rules for it compete
+   with the padding above. On an iPhone the bottom padding was not taking effect (the last row of buttons stayed under
+   the floating toolbar at the end of the scroll), which is what losing that competition looks like. Same declaration,
+   with enough specificity to be the one that applies. It is the room the last row needs to scroll clear of the toolbar; the toolbar's own height is
+   added when the app publishes it (absent on desktop, where it adds nothing). */
+.workspace-leaf-content[data-type="cci-stats-view"] .view-content.cci-stats {
+  padding-bottom: calc(5.5rem + var(--mobile-navbar-height, 0px) + env(safe-area-inset-bottom, 0px));
 }
 .cci-stats > * {
   max-width: 100%;
