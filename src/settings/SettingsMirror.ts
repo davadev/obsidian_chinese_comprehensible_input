@@ -317,7 +317,7 @@ export class SettingsMirror {
 type JsonRecord = Record<string, unknown>;
 
 function deepMerge(into: JsonRecord, patch: JsonRecord): void {
-  for (const k of Object.keys(patch ?? {})) {
+  for (const k of Object.keys(patch)) {
     const pv = patch[k];
     if (pv && typeof pv === "object" && !Array.isArray(pv)) {
       const existing = into[k];
