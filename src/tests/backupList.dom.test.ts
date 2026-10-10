@@ -110,6 +110,18 @@ describe("renderBackupList", () => {
     expect((await mount(host([entry()]))).querySelector(".cci-backup-pending")).toBeNull();
   });
 
+  it("two renders that overlap (the page redrawn while the first is still reading the index) show each row once", async () => {
+    // Seen on an iPhone: every backup appeared twice. Both renders cleared the element before their data arrived, so
+    // both then appended.
+    const el = document.createElement("div");
+    const h = host([entry(), entry()]);
+    const gate = new Promise<void>((r) => setTimeout(r, 5));
+    const slow: BackupListHost = { ...h, list: async () => (await gate, h.list()) };
+    await Promise.all([renderBackupList(el, slow), renderBackupList(el, slow), renderBackupList(el, h)]);
+    expect(rows(el)).toHaveLength(2);
+    expect(el.querySelectorAll(".cci-backup-list")).toHaveLength(1);
+  });
+
   it("redrawing replaces the old content instead of stacking it", async () => {
     const el = document.createElement("div");
     const h = host([entry(), entry()]);
