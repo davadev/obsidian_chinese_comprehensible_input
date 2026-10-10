@@ -551,6 +551,19 @@ describe("VocabularyStore", () => {
       mirrorFiles.set(MIRROR, JSON.stringify(JSON.parse(merged), null, 4));
     }
 
+
+    /** Track every mirror write the store starts, so a test can wait for exactly those instead of racing the real async hash inside writeMirror. */
+    function trackMirrorWrites(store: VocabularyStore): Promise<void>[] {
+      const started: Promise<void>[] = [];
+      const real = (store as any).writeMirror.bind(store) as () => Promise<void>;
+      (store as any).writeMirror = () => {
+        const p = real();
+        started.push(p);
+        return p;
+      };
+      return started;
+    }
+
     it("writes back when the merge brought in something new", async () => {
       // Positive control, and it must go through the real 5 s debounce — an
       // assertion made before the timer fires passes whether or not a write was
@@ -560,11 +573,14 @@ describe("VocabularyStore", () => {
       try {
         const { store, adapter } = await setup(envelope({ 苹果: rec("苹果") }));
         (adapter.write as any).mockClear();
+        const writes = trackMirrorWrites(store);
 
         const changed = await store.absorbExternalMirrorChange();
         expect(changed).toBe(true);
 
         await vi.advanceTimersByTimeAsync(6_000);
+        expect(writes).toHaveLength(1); // the debounce fired and started a write
+        await Promise.all(writes);
         expect(adapter.write).toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
@@ -590,11 +606,14 @@ describe("VocabularyStore", () => {
         await peerWritesBack(store, mirrorFiles);
 
         (adapter.write as any).mockClear();
+        const writes = trackMirrorWrites(store);
         const changed = await store.absorbExternalMirrorChange();
         expect(changed).toBe(false);
 
-        // Past the mirror-write debounce: nothing may have been scheduled.
+        // Past the mirror-write debounce: nothing may have been scheduled, and no write started.
         await vi.advanceTimersByTimeAsync(6_000);
+        await Promise.all(writes);
+        expect(writes).toHaveLength(0);
         expect(adapter.write).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();
@@ -645,11 +664,14 @@ describe("VocabularyStore", () => {
 
         mirrorFiles.set(MIRROR, envelope({ 苹果: rec("苹果", { definitions: ["theirs"] }) }));
         (adapter.write as any).mockClear();
+        const writes = trackMirrorWrites(store);
         const changed = await store.absorbExternalMirrorChange();
 
         expect(changed).toBe(false);
         expect(store.get("苹果")?.definitions).toEqual(["ours"]);
         await vi.advanceTimersByTimeAsync(6_000);
+        await Promise.all(writes);
+        expect(writes).toHaveLength(0);
         expect(adapter.write).not.toHaveBeenCalled();
       } finally {
         vi.useRealTimers();

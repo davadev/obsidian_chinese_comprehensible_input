@@ -1575,6 +1575,13 @@ export class CciSettingsTab extends PluginSettingTab {
           },
         },
         {
+          name: "Write the mirror file in place",
+          desc:
+            "Off by default: the plugin writes a temporary file and renames it, so a sync tool never sees a half-written file. " +
+            "Turn this on if your sync tool reports errors on the mirror file (for example Remotely Save over WebDAV answering 405 Method Not Allowed).",
+          control: { type: "toggle", key: "sync.mirrorWriteInPlace" },
+        },
+        {
           name: "Auto re-sync interval (minutes)",
           desc:
             "How often to re-check the mirror file on disk for changes pulled in by remotely-save. " +

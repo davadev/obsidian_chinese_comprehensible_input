@@ -85,6 +85,23 @@ The mirror is **not** a full settings dump. The plugin strips:
 You can inspect what would be shared by opening the settings-mirror
 file in your vault and looking at the JSON.
 
+## If your sync tool reports errors on the mirror file
+
+The mirror file can be several megabytes, and it is rewritten a few seconds after the data it holds changes. To be
+gentle with sync tools the plugin:
+
+- **does not rewrite the file when its content has not changed** (reading a note changes counts often, but the file only
+  moves when what it holds has changed);
+- by default writes a temporary file (`vocabulary.json.tmp`) and renames it into place, so a sync tool never sees a
+  half-written file;
+- tells you once, in a notice, if the path you chose is a **folder** instead of a file.
+
+Some tools cope better with the file simply being rewritten. Remotely Save pushing to Nextcloud over WebDAV has been seen
+answering `405 Method Not Allowed` for the mirror file. If that happens, turn on **Settings → Sync → Write the mirror file
+in place**: the plugin then writes the file directly, with no temporary file and no delete-then-rename. It is a per-device
+choice, never shared between devices. If the error continues, check that nothing on the server is a *folder* with the
+same name as the file.
+
 ## Devices with different dictionaries
 
 A word is stored under a key made of the word and its pinyin (`差不多|chà bu duō`), and the pinyin comes from the
