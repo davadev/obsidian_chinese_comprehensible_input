@@ -341,7 +341,6 @@ export class CciSettingsTab extends PluginSettingTab {
       this.storyGroup(),
       this.dictionaryGroup(),
       this.dataGroup(),
-      this.backupsGroup(),
       this.syncGroup(),
       this.aboutGroup(),
     ];
@@ -1401,10 +1400,11 @@ export class CciSettingsTab extends PluginSettingTab {
    * protects the vocabulary and everything else in the plugin's data against a newer version changing it, and offers a
    * way back after going back to an older release.
    */
-  private backupsGroup(): SettingDefinitionItem {
+  private backupsPage(): SettingDefinitionPage {
     return {
-      type: "group",
-      heading: "Backups",
+      type: "page",
+      name: "Backups",
+      desc: "Automatic copies of the plugin's data, taken before an update, and how to go back to one.",
       items: [
         this.prose(
           "Before the plugin changes version, a copy of its data (settings, vocabulary, dictionary edits and this device's sync files) is saved in the plugin's own folder. If you later go back to an older release that has this feature, it offers to restore the copy taken just before the newer one first ran. Copies are never stored in your vault."
@@ -1445,6 +1445,7 @@ export class CciSettingsTab extends PluginSettingTab {
         list: () => this.plugin.backups.list(),
         pending: () => this.plugin.backups.pendingRestore(),
         onRestore: (entry) => this.restoreFromList(entry),
+        onDelete: (entry, isWayBack) => this.deleteFromList(entry, isWayBack),
         onCancelPending: async () => {
           await this.plugin.backups.cancelRestore();
           this.update();
@@ -1481,6 +1482,24 @@ export class CciSettingsTab extends PluginSettingTab {
     if (!ok) return;
     const r = await this.plugin.backups.stageRestore(entry.id);
     new Notice(`Chinese plugin: ${r.message}`, r.ok ? 0 : 15_000);
+    this.update();
+  }
+
+  /** The Delete button on a row: confirm (loudly for the way back to stable), delete, redraw. */
+  private async deleteFromList(entry: BackupEntry, isWayBack: boolean): Promise<void> {
+    const when = new Date(entry.createdAt).toLocaleString();
+    const ok = await confirmAsync(
+      this.app,
+      `Delete the backup of ${when}? ` +
+        (isWayBack
+          ? "This is the newest copy written by a stable release, so it is your way back to that release. Without it you cannot return to the stable version's data. "
+          : "") +
+        "This cannot be undone.",
+      "Delete"
+    );
+    if (!ok) return;
+    const r = await this.plugin.backups.deleteBackup(entry.id);
+    new Notice(`Chinese plugin: ${r.message}`, r.ok ? 4000 : 15_000);
     this.update();
   }
 
@@ -1566,6 +1585,7 @@ export class CciSettingsTab extends PluginSettingTab {
             input.click();
           },
         },
+        this.backupsPage(),
         {
           type: "page",
           name: "Advanced data",

@@ -54,11 +54,15 @@ beforeEach(() => {
   Notice.instances.length = 0;
 });
 
-describe("Backups settings group", () => {
-  const group = (tab: { getSettingDefinitions(): Def[] }) => tab.getSettingDefinitions().find((d) => d.heading === "Backups")!;
+/** Backups live on their own page inside the Data group, next to export / import / reset. */
+const backupsPage = (tab: { getSettingDefinitions(): Def[] }) =>
+  tab.getSettingDefinitions().find((d) => d.heading === "Data")!.items!.find((i) => i.type === "page" && i.name === "Backups")!;
+
+describe("Backups settings page", () => {
+  const group = backupsPage;
   const controls = (g: Def) => (g.items ?? []).filter((i) => i.control);
 
-  it("exists, under its own heading, with a toggle and a number bound to the two per-device keys", () => {
+  it("exists as a page in the Data group, with a toggle and a number bound to the two per-device keys", () => {
     const { tab } = makeTab();
     const g = group(tab);
     expect(g).toBeTruthy();
@@ -113,12 +117,12 @@ describe("Backups settings group", () => {
   });
 });
 
-describe("Backups group: actions", () => {
+describe("Backups page: actions", () => {
   const entry = { id: "b1", createdAt: "2026-10-01T10:00:00.000Z", fromVersion: "0.9.0" };
 
   it("has a 'Back up now' action and the backup list", () => {
     const { tab } = makeTab();
-    const g = tab.getSettingDefinitions().find((d) => d.heading === "Backups")!;
+    const g = backupsPage(tab);
     const names = (g.items ?? []).map((i) => i.name);
     expect(names).toContain("Back up now");
     expect(names).toContain("Backups");
@@ -169,6 +173,63 @@ describe("Backups group: actions", () => {
     await tab.restoreFromList({ ...entry, fromVersion: "unknown" });
     expect(confirm.asked[0].msg).toContain("written by an earlier version");
     expect(confirm.asked[0].msg).not.toContain("unknown");
+  });
+});
+
+describe("Backups page: placement", () => {
+  it("is not a top-level group of its own any more", () => {
+    const { tab } = makeTab();
+    expect(tab.getSettingDefinitions().some((d) => d.heading === "Backups")).toBe(false);
+  });
+
+  it("sits in the Data group, as a page with a description, so the list does not lengthen the main page", () => {
+    const { tab } = makeTab();
+    const page = backupsPage(tab) as Def & { desc?: string };
+    expect(page.desc).toMatch(/copies/i);
+  });
+});
+
+describe("Backups page: Delete", () => {
+  const entry = { id: "b1", createdAt: "2026-10-01T10:00:00.000Z", fromVersion: "0.9.0" };
+  type DeleteTab = { deleteFromList(e: typeof entry, wayBack: boolean): Promise<void>; update(): void };
+
+  it("asks first, deletes that backup, tells the user and redraws", async () => {
+    const { tab, plugin } = makeTab();
+    plugin.backups.deleteBackup = vi.fn(async () => ({ ok: true, message: "Backup deleted." }));
+    const update = vi.spyOn(tab, "update").mockImplementation(() => undefined);
+    await (tab as unknown as DeleteTab).deleteFromList(entry, false);
+    expect(confirm.asked[0].label).toBe("Delete");
+    expect(confirm.asked[0].msg).toContain(new Date(entry.createdAt).toLocaleString());
+    expect(confirm.asked[0].msg).toContain("cannot be undone");
+    expect(confirm.asked[0].msg).not.toContain("way back");
+    expect(plugin.backups.deleteBackup).toHaveBeenCalledWith("b1");
+    expect(Notice.instances.at(-1)!.duration).toBe(4000);
+    expect(update).toHaveBeenCalled();
+  });
+
+  it("warns plainly when it is the way back to the stable release", async () => {
+    const { tab, plugin } = makeTab();
+    plugin.backups.deleteBackup = vi.fn(async () => ({ ok: true, message: "Backup deleted." }));
+    vi.spyOn(tab, "update").mockImplementation(() => undefined);
+    await (tab as unknown as DeleteTab).deleteFromList(entry, true);
+    expect(confirm.asked[0].msg).toContain("your way back to that release");
+  });
+
+  it("declining deletes nothing", async () => {
+    confirm.answer = false;
+    const { tab, plugin } = makeTab();
+    plugin.backups.deleteBackup = vi.fn();
+    await (tab as unknown as DeleteTab).deleteFromList(entry, false);
+    expect(plugin.backups.deleteBackup).not.toHaveBeenCalled();
+    expect(Notice.instances).toHaveLength(0);
+  });
+
+  it("a delete that failed says so for a limited time", async () => {
+    const { tab, plugin } = makeTab();
+    plugin.backups.deleteBackup = vi.fn(async () => ({ ok: false, message: "Could not delete the backup (EIO)." }));
+    vi.spyOn(tab, "update").mockImplementation(() => undefined);
+    await (tab as unknown as DeleteTab).deleteFromList(entry, false);
+    expect(Notice.instances.at(-1)!.duration).toBe(15_000);
   });
 });
 

@@ -143,7 +143,7 @@ Going back through BRAT replaces the plugin's code but not its data file, so a n
 version's changes stay. If the older version includes automatic backups, it asks on
 start whether to restore the copy taken just before the newer one first ran (answer
 **Restore**, then restart Obsidian). You can also do it any time from
-Settings → Backups. See [Backups](./backups.md), including what sync can undo and
+Settings → Data → Backups. See [Backups](./backups.md), including what sync can undo and
 which old versions cannot restore.
 
 ## I want to fund this project

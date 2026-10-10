@@ -27,13 +27,15 @@ const entry = (over: Partial<BackupEntry> = {}): BackupEntry => ({
 });
 
 function host(entries: BackupEntry[], pending: BackupEntry | null = null) {
-  const h: BackupListHost & { restored: BackupEntry[]; cancelled: number } = {
+  const h: BackupListHost & { restored: BackupEntry[]; cancelled: number; deleted: Array<[BackupEntry, boolean]> } = {
     restored: [],
     cancelled: 0,
+    deleted: [],
     list: async () => entries,
     pending: async () => pending,
     onRestore: async (e) => void h.restored.push(e),
     onCancelPending: async () => void h.cancelled++,
+    onDelete: async (e, wayBack) => void h.deleted.push([e, wayBack]),
   };
   return h;
 }
@@ -92,6 +94,31 @@ describe("renderBackupList", () => {
     const el = await mount(h);
     rows(el)[1].querySelector("button")!.click();
     expect(h.restored).toEqual([b]);
+  });
+
+  it("a row's Delete button hands exactly that backup to the host", async () => {
+    const a = entry({ fromVersion: "0.9.0-beta.1" }), b = entry({ fromVersion: "0.9.0-beta.2" });
+    const h = host([a, b]);
+    const el = await mount(h);
+    const buttons = rows(el)[1].querySelectorAll("button");
+    expect(Array.from(buttons).map((x) => x.textContent)).toEqual(["Restore", "Delete"]);
+    buttons[1].click();
+    expect(h.deleted).toEqual([[b, false]]);
+  });
+
+  it("marks the newest stable-origin backup as the way back, on screen and to the host", async () => {
+    const beta = entry({ createdAt: "2026-10-03T10:00:00.000Z", fromVersion: "0.9.0-beta.2" });
+    const stableNew = entry({ createdAt: "2026-10-02T10:00:00.000Z", fromVersion: "0.8.0" });
+    const stableOld = entry({ createdAt: "2026-10-01T10:00:00.000Z", fromVersion: "0.7.9" });
+    const h = host([beta, stableNew, stableOld]);
+    const el = await mount(h);
+    const r = rows(el);
+    expect(r[0].textContent).not.toContain("way back");
+    expect(r[1].textContent).toContain("your way back to the stable release");
+    expect(r[2].textContent).not.toContain("way back");
+    r[1].querySelectorAll("button")[1].click();
+    r[2].querySelectorAll("button")[1].click();
+    expect(h.deleted.map(([e, wayBack]) => [e.id, wayBack])).toEqual([[stableNew.id, true], [stableOld.id, false]]);
   });
 
   it("a queued restore is shown above the list with a way to withdraw it", async () => {

@@ -19,7 +19,7 @@ by itself before the version changes, and if you later go back, it offers to put
    - **Keep current data** leaves everything as it is and stops asking.
    - **Decide later** changes nothing and asks again at the next start.
 3. **Every restore can be undone.** Before a restore is applied, the data as it is at that moment is saved as its own
-   backup, in the list under *Settings → Backups*.
+   backup, in the list under *Settings → Data → Backups*.
 
 ## What is in a backup
 
@@ -35,14 +35,17 @@ with gzip where your device supports it. They are **never** written into your va
 sync tools do not upload them as notes. They are meant to stay on this device. If you sync your whole `.obsidian`
 folder, they travel with it like any other plugin file.
 
-## Settings → Backups
+## Settings → Data → Backups
+
+Backups are a page of their own inside the **Data** group, next to export, import and reset, so the list does not make the main settings page longer. Open it with the *Backups* entry.
 
 - **Automatic backups** (on by default) and **Backups to keep** (5 by default).
   The newest copies are kept, **plus always the newest one written by a stable release**. That is deliberate: ten betas
   in a day would otherwise push out the one copy that leads back to the stable version.
 - **Back up now** (also the command *Back up plugin data now*) saves a copy straight away. If nothing has changed since
   the last copy it says so instead of storing a duplicate.
-- **The list**: when each copy was taken, which version's data it holds, its size, and a **Restore** button.
+- **The list**: when each copy was taken, which version's data it holds, its size, a **Restore** button and a **Delete** button.
+  Delete asks first and cannot be undone. It removes the copy from the list and its file from the plugin folder, and withdraws a restore that was queued for it. The newest copy written by a stable release is marked *your way back to the stable release*, and deleting it gets a stronger warning: without it you cannot return to that release's data. Automatic clean-up will then keep the next-newest stable one instead.
 
 These two settings belong to this device. They are not shared through the settings mirror and not included in the
 settings export.
@@ -67,7 +70,7 @@ settings export.
   is untouched, and the plugin tries again at the next start.
 - *No restore was offered after I went back a version*: the older version must itself contain this feature, and a backup
   written by that version or older must exist (see the list).
-- *I restored and want to undo it*: Settings → Backups → pick the newest entry labelled "before a restore" → Restore →
+- *I restored and want to undo it*: Settings → Data → Backups → pick the newest entry labelled "before a restore" → Restore →
   restart.
-- *The Backups section is missing after an update through BRAT*: a new settings section appears only after a full
+- *The Backups page is missing after an update through BRAT*: a new settings page appears only after a full
   restart of Obsidian (on iPad, swipe the app away).

@@ -10,6 +10,7 @@ import {
   formatBytes,
   isStableVersion,
   parseVersion,
+  pinnedBackup,
   selectRestoreCandidate,
   shouldSkipSnapshot,
 } from "../data/backupPolicy";
@@ -297,5 +298,21 @@ describe("remaining policy branches", () => {
     const x1 = entry("0.7.9", t, { id: "x" });
     const x2 = entry("0.7.9", t, { id: "x" });
     expect(applyRetention([x1, x2], 1).keep).toHaveLength(1);
+  });
+});
+
+describe("pinnedBackup", () => {
+  const mk = (id: string, createdAt: string, fromVersion: string) =>
+    ({ id, createdAt, fromVersion, kind: "version-change", file: `${id}.json.gz`, encoding: "gzip", rawBytes: 1, storedBytes: 1, sha256: id, includes: ["data"] }) as BackupEntry;
+
+  it("is the newest backup written by a stable release, whatever order they are given in", () => {
+    const list = [mk("old", "2026-10-01T00:00:00.000Z", "0.7.9"), mk("beta", "2026-10-03T00:00:00.000Z", "0.8.0-beta.2"), mk("new", "2026-10-02T00:00:00.000Z", "0.8.0")];
+    expect(pinnedBackup(list)?.id).toBe("new");
+    expect(pinnedBackup([...list].reverse())?.id).toBe("new");
+  });
+
+  it("is nothing when every backup came from a prerelease or the origin is unknown", () => {
+    expect(pinnedBackup([mk("a", "2026-10-01T00:00:00.000Z", "0.8.0-beta.1"), mk("b", "2026-10-02T00:00:00.000Z", "unknown")])).toBeUndefined();
+    expect(pinnedBackup([])).toBeUndefined();
   });
 });
