@@ -25,7 +25,6 @@ export default defineConfig({
         // needs more of Obsidian than that fixture provides (#119).
         "src/main.ts",
         "src/ai/AiProviderService.ts",
-        "src/ai/StoryGenerator.ts",
         "src/editor/chineseDecorations.ts",
         "src/editor/markdownRendering.ts",
         "src/editor/wordInteractionPlugin.ts",

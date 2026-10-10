@@ -153,7 +153,11 @@ export class TextFileView {
 export class WorkspaceLeaf {}
 export class TFile {}
 export const Platform = { isMobile: false, isIosApp: false, isAndroidApp: false };
-export function normalizePath(p: string): string { return p; }
+/** Like the app's: forward slashes, no doubled, leading or trailing slash. */
+export function normalizePath(p: string): string {
+  const n = p.replace(/\\/g, "/").replace(/\/{2,}/g, "/").replace(/^\/+|\/+$/g, "");
+  return n === "" ? "/" : n;
+}
 export async function requestUrl(_p: any): Promise<{ status: number; text: string; arrayBuffer: ArrayBuffer }> {
   return { status: 200, text: "", arrayBuffer: new ArrayBuffer(0) };
 }
