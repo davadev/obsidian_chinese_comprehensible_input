@@ -29,8 +29,11 @@ export const KIND_LABEL: Record<BackupKind, string> = {
 const versionText = (v: string): string => (v === "unknown" ? "an earlier version" : v);
 
 export async function renderBackupList(parent: HTMLElement, host: BackupListHost): Promise<void> {
-  parent.empty();
   const [entries, pending] = await Promise.all([host.list(), host.pending()]);
+  // Cleared AFTER the data arrives, not before. The settings page can ask for a render while another is still waiting for
+  // the index (a re-render after "Back up now", or Obsidian drawing the page twice); clearing first let both clear
+  // an empty element and both then append, so every row showed twice. Now whichever finishes last draws over the other.
+  parent.empty();
 
   if (pending) {
     const bar = parent.createDiv({ cls: "cci-backup-pending" });
