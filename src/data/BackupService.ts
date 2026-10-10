@@ -354,13 +354,7 @@ export class BackupService {
 
   /** Withdraw a queued restore ("Decide later" after having queued one, or a change of mind). */
   cancelRestore(): Promise<void> {
-    return this.run(async () => {
-      try {
-        if (await this.d.adapter.exists(this.markerPath)) await this.d.adapter.remove(this.markerPath);
-      } catch {
-        /* nothing to do */
-      }
-    });
+    return this.run(() => this.dropMarker());
   }
 
   /** The user answered "Keep current data" to the downgrade question. */
@@ -380,10 +374,8 @@ export class BackupService {
    */
   applyPendingRestore(): Promise<RestoreResult> {
     return this.run(async () => {
-      let markerSeen = false;
       try {
         if (!(await this.d.adapter.exists(this.markerPath))) return { status: "none" as const };
-        markerSeen = true;
         const fail = async (message: string): Promise<RestoreResult> => {
           await this.dropMarker();
           this.warn(`${message} Your current data was not changed.`);
@@ -450,7 +442,7 @@ export class BackupService {
         await this.dropMarker();
         return { status: "applied", entry, ...(mirrorsSkipped.length ? { mirrorsSkipped } : {}) };
       } catch (e) {
-        if (markerSeen) await this.dropMarker();
+        await this.dropMarker();
         const message = `The restore failed (${errMsg(e)}).`;
         this.warn(`${message} Your current data was not changed.`);
         return { status: "failed", message };
@@ -462,7 +454,8 @@ export class BackupService {
 
   private async dropMarker(): Promise<void> {
     try {
-      if (await this.d.adapter.exists(this.markerPath)) await this.d.adapter.remove(this.markerPath);
+      // No exists() first: removing a marker that is already gone just throws, and that is swallowed too.
+      await this.d.adapter.remove(this.markerPath);
     } catch {
       /* a marker we cannot remove will be retried and fail the same way; it never blocks loading */
     }
