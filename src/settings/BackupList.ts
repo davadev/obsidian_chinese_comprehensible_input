@@ -1,9 +1,9 @@
 import type { BackupEntry, BackupKind } from "../data/backupPolicy";
-import { formatBytes } from "../data/backupPolicy";
+import { formatBytes, pinnedBackup } from "../data/backupPolicy";
 
 /**
  * The list of backups in Settings > Backups (#149): when each was taken, which version's data it holds, how big it is,
- * and a Restore button. Plain DOM and a small host interface, so the settings tab supplies the confirmation and the
+ * and Restore and Delete buttons. Plain DOM and a small host interface, so the settings tab supplies the confirmation and the
  * staging, and this file can be tested under a DOM.
  */
 
@@ -16,6 +16,8 @@ export interface BackupListHost {
   onRestore(entry: BackupEntry): Promise<void>;
   /** Withdraw the queued restore and redraw. */
   onCancelPending(): Promise<void>;
+  /** Confirm with the user, delete the backup, and redraw. `isWayBack` marks the one retention always keeps. */
+  onDelete(entry: BackupEntry, isWayBack: boolean): Promise<void>;
 }
 
 export const KIND_LABEL: Record<BackupKind, string> = {
@@ -52,6 +54,7 @@ export async function renderBackupList(parent: HTMLElement, host: BackupListHost
     return;
   }
 
+  const wayBack = pinnedBackup(entries);
   const list = parent.createDiv({ cls: "cci-backup-list" });
   for (const e of entries) {
     const row = list.createDiv({ cls: "cci-backup-row" });
@@ -60,9 +63,11 @@ export async function renderBackupList(parent: HTMLElement, host: BackupListHost
     const syncNote = e.includes.some((i) => i !== "data") ? " · with sync files" : "";
     info.createSpan({
       cls: "cci-backup-meta",
-      text: `Data from ${versionText(e.fromVersion)} · ${KIND_LABEL[e.kind]} · ${formatBytes(e.storedBytes)}${e.encoding === "gzip" ? "" : " (not compressed)"}${syncNote}`,
+      text: `Data from ${versionText(e.fromVersion)} · ${KIND_LABEL[e.kind]} · ${formatBytes(e.storedBytes)}${e.encoding === "gzip" ? "" : " (not compressed)"}${syncNote}${e === wayBack ? " · your way back to the stable release" : ""}`,
     });
     const restore = row.createEl("button", { text: "Restore" });
     restore.addEventListener("click", () => void host.onRestore(e));
+    const remove = row.createEl("button", { text: "Delete" });
+    remove.addEventListener("click", () => void host.onDelete(e, e === wayBack));
   }
 }

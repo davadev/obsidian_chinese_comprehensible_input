@@ -128,6 +128,11 @@ export function selectRestoreCandidate(entries: readonly BackupEntry[], running:
   return [...eligible].sort(newestFirst)[0];
 }
 
+/** The backup retention never lets go of: the newest one whose data was written by a stable release. */
+export function pinnedBackup(entries: readonly BackupEntry[]): BackupEntry | undefined {
+  return [...entries].sort(newestFirst).find((e) => isStableVersion(e.fromVersion));
+}
+
 /**
  * Which backups survive. The newest `keep` by time, PLUS always the newest one whose data was written by a stable
  * release: ten betas in a day with `keep = 5` would otherwise push out the one snapshot that makes the way back to
@@ -139,7 +144,7 @@ export function applyRetention(
 ): { keep: BackupEntry[]; drop: BackupEntry[] } {
   const n = Number.isFinite(keep) ? Math.max(1, Math.floor(keep)) : 1;
   const sorted = [...entries].sort(newestFirst);
-  const pinned = sorted.find((e) => isStableVersion(e.fromVersion));
+  const pinned = pinnedBackup(entries);
   const kept = sorted.filter((e, i) => i < n || e === pinned);
   const dropped = sorted.filter((e) => !kept.includes(e));
   return { keep: kept, drop: dropped };

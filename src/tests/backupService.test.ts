@@ -950,3 +950,81 @@ describe("the operation queue", () => {
     await expect(svc.run(async () => "still running")).resolves.toBe("still running");
   });
 });
+
+describe("deleteBackup", () => {
+  const twoBackups = async () => {
+    const env = makeEnv({ keep: 5 });
+    env.fs.files.set(DATA, '{"v":1}');
+    const first = (await env.svc("0.7.0").startup()).backedUp!;
+    env.fs.files.set(DATA, '{"v":2}');
+    const second = (await env.svc("0.8.0").startup()).backedUp!;
+    return { env, first, second };
+  };
+
+  it("removes the entry and the file, and leaves the other backup and data.json alone", async () => {
+    const { env, first, second } = await twoBackups();
+    const r = await env.svc("0.8.0").deleteBackup(first.id);
+    expect(r).toEqual({ ok: true, message: "Backup deleted." });
+    expect((await env.svc("0.8.0").list()).map((e) => e.id)).toEqual([second.id]);
+    expect(env.fs.files.has(`${DIR}/${first.file}`)).toBe(false);
+    expect(env.fs.files.has(`${DIR}/${second.file}`)).toBe(true);
+    expect(env.fs.text(DATA)).toBe('{"v":2}');
+  });
+
+  it("writes the index before it removes the file, so a failure never leaves a listed backup without a file", async () => {
+    const { env, first } = await twoBackups();
+    env.fs.ops.length = 0;
+    await env.svc("0.8.0").deleteBackup(first.id);
+    const iWrite = env.fs.ops.findIndex((o) => o.op === "write" && o.path.includes(BACKUP_INDEX_FILE));
+    const iRemove = env.fs.ops.findIndex((o) => o.op === "remove" && o.path.endsWith(first.file));
+    expect(iWrite).toBeGreaterThanOrEqual(0);
+    expect(iRemove).toBeGreaterThan(iWrite);
+  });
+
+  it("withdraws a restore that was queued for it, but not one queued for another backup", async () => {
+    const { env, first, second } = await twoBackups();
+    await env.svc("0.8.0").stageRestore(second.id);
+    await env.svc("0.8.0").deleteBackup(first.id);
+    expect((await env.svc("0.8.0").pendingRestore())?.id).toBe(second.id);
+    await env.svc("0.8.0").deleteBackup(second.id);
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+    expect(env.fs.files.has(`${DIR}/${PENDING_RESTORE_FILE}`)).toBe(false);
+  });
+
+  it("copes with a marker it cannot read, and with the file already being gone", async () => {
+    const { env, first } = await twoBackups();
+    env.fs.files.set(`${DIR}/${PENDING_RESTORE_FILE}`, "{{{");
+    env.fs.files.delete(`${DIR}/${first.file}`);
+    expect((await env.svc("0.8.0").deleteBackup(first.id)).ok).toBe(true);
+  });
+
+  it("says so for a backup that is not in the list", async () => {
+    const { env } = await twoBackups();
+    const r = await env.svc("0.8.0").deleteBackup("ghost");
+    expect(r).toEqual({ ok: false, message: "That backup is no longer in the list." });
+    expect(env.notices).toEqual([]);
+  });
+
+  it("an unwritable index fails with a notice and keeps both the entry and the file", async () => {
+    const { env, first } = await twoBackups();
+    env.fs.fault = (op, p) => (op === "write" && p.includes(BACKUP_INDEX_FILE) ? new Error("EIO") : null);
+    const r = await env.svc("0.8.0").deleteBackup(first.id);
+    expect(r.ok).toBe(false);
+    expect(r.message).toContain("EIO");
+    expect(env.notices.join(" ")).toContain("Could not delete the backup");
+    env.fs.fault = null;
+    expect((await env.svc("0.8.0").list()).map((e) => e.id)).toContain(first.id);
+    expect(env.fs.files.has(`${DIR}/${first.file}`)).toBe(true);
+  });
+});
+
+describe("pendingRestore when the index cannot be read", () => {
+  it("answers null instead of throwing", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, "{}");
+    const r = await env.svc("0.8.0").startup();
+    await env.svc("0.8.0").stageRestore(r.backedUp!.id);
+    env.fs.fault = (op, p) => (op === "exists" && p.endsWith(BACKUP_INDEX_FILE) ? new Error("EIO") : null);
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+  });
+});

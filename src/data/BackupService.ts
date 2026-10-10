@@ -317,6 +317,39 @@ export class BackupService {
     });
   }
 
+  /**
+   * Delete one backup: its list entry first (so a failure part-way leaves an unlisted file, never a listed backup with
+   * no file), then the file. A restore queued for it is withdrawn. Never touches `data.json`.
+   */
+  deleteBackup(id: string): Promise<StageResult> {
+    return this.run(async () => {
+      try {
+        const idx = await this.readIndex();
+        const entry = idx.backups.find((e) => e.id === id);
+        if (!entry) return { ok: false, message: "That backup is no longer in the list." };
+        if ((await this.queuedId()) === id) await this.dropMarker();
+        idx.backups = idx.backups.filter((e) => e !== entry);
+        await this.writeIndex(idx);
+        await this.deleteFiles([entry]);
+        return { ok: true, message: "Backup deleted." };
+      } catch (e) {
+        const message = `Could not delete the backup (${errMsg(e)}).`;
+        this.warn(message);
+        return { ok: false, message };
+      }
+    });
+  }
+
+  /** The id a queued restore points at; null when nothing is queued or the marker cannot be read. */
+  private async queuedId(): Promise<string | null> {
+    try {
+      if (!(await this.d.adapter.exists(this.markerPath))) return null;
+      return String((JSON.parse(await this.d.adapter.read(this.markerPath)) as { id?: unknown }).id ?? "");
+    } catch {
+      return null;
+    }
+  }
+
   /** Queue a restore for the next start. Does not touch any data. */
   stageRestore(id: string): Promise<StageResult> {
     return this.run(async () => {
@@ -342,8 +375,8 @@ export class BackupService {
   pendingRestore(): Promise<BackupEntry | null> {
     return this.run(async () => {
       try {
-        if (!(await this.d.adapter.exists(this.markerPath))) return null;
-        const id = String((JSON.parse(await this.d.adapter.read(this.markerPath)) as { id?: unknown }).id ?? "");
+        const id = await this.queuedId();
+        if (id === null) return null;
         return (await this.readIndex()).backups.find((e) => e.id === id) ?? null;
       } catch {
         return null;
