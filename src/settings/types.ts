@@ -330,6 +330,14 @@ export interface CciSettings {
   /** Size of the HSK level number in E-ink mode, as a percentage of its default.
    *  Range in src/view/einkMode.ts. Device-local, like `einkMode`. */
   einkNumberScalePercent: number;
+  /**
+   * Automatic backup of the plugin's data on a version change, and the offer to go back after a downgrade (#149).
+   * Per device, like the E-ink keys: see FILTER_OUT in SettingsIO.ts. Flat keys, not a nested object, because the
+   * settings merge on load is shallow and a nested object that later gains a key comes back `undefined`.
+   */
+  backupsEnabled: boolean;
+  /** How many backups to keep: the newest N, plus always the newest one written by a stable release. */
+  backupsKeep: number;
   /** User-customizable colors per status bucket and HSK level. */
   customColors: CustomColors;
   /** Font colors for the characters / pinyin / English rows (#22).

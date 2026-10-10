@@ -33,7 +33,9 @@ export class Notice {
   /** Every notice shown since the last `Notice.instances.length = 0`, so a test can assert what the user was told. */
   static instances: Notice[] = [];
   message: string;
-  constructor(message: string) { this.message = message; Notice.instances.push(this); }
+  /** Milliseconds the notice stays (0 = until dismissed), as passed by the caller. */
+  duration?: number;
+  constructor(message: string, duration?: number) { this.message = message; this.duration = duration; Notice.instances.push(this); }
   setMessage(message: string) { this.message = message; }
   hide() {}
 }

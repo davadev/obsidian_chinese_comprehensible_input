@@ -72,6 +72,15 @@ describe("importSettings", () => {
     expect(r.skipped).toEqual(expect.arrayContaining(["einkMode", "einkNumberScalePercent"]));
   });
 
+  it("never imports the backup settings: another device's choice to switch backups off cannot reach this one", async () => {
+    const { plugin } = makePlugin({ settings: { backupsEnabled: false, backupsKeep: 40, readerFontPx: 30 } });
+    const r = await importSettings(plugin, "backups.json");
+    expect(plugin.settings.backupsEnabled).toBe(true);
+    expect(plugin.settings.backupsKeep).toBe(5);
+    expect(plugin.settings.readerFontPx).toBe(30);
+    expect(r.skipped).toEqual(expect.arrayContaining(["backupsEnabled", "backupsKeep"]));
+  });
+
   it("keeps this device's E-ink mode when importing, whatever the file says", async () => {
     const { plugin } = makePlugin({ settings: { einkMode: false, readerFontPx: 30 } });
     plugin.settings.einkMode = true;
@@ -133,6 +142,8 @@ describe("exportSettings", () => {
     expect(plugin.app.vault.adapter.mkdir).toHaveBeenCalledWith("New Folder");
     const payload = JSON.parse(written.get("New Folder/out.json")!);
     expect(payload.settings).not.toHaveProperty("einkMode");
+    expect(payload.settings).not.toHaveProperty("backupsEnabled");
+    expect(payload.settings).not.toHaveProperty("backupsKeep");
   });
 
   it("writes to the vault root without making a folder", async () => {
