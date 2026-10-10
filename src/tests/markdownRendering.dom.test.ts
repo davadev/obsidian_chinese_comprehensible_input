@@ -118,6 +118,38 @@ describe("headings, quotes, emphasis, code", () => {
     expect(slices(doc, run({ doc }).d, "hide")).toEqual(["~~", "~~"]);
   });
 
+  it("strikes through ~~ text ~~ with spaces inside too, as Obsidian does: marks hidden, text struck", () => {
+    for (const doc of ["~~test ~~", "~~ test~~", "~~ test ~~"]) {
+      const { d } = run({ doc });
+      expect(slices(doc, d, "hide"), doc).toEqual(["~~", "~~"]);
+      const struck = d.find((x) => x.spec.class === "cci-md-strike")!;
+      expect(doc.slice(struck.from, struck.to), doc).toBe(doc.slice(2, -2));
+      document.body.innerHTML = "";
+    }
+  });
+
+  it("a strikethrough the grammar parsed is not drawn twice", () => {
+    const doc = "~~ok~~ ~~spaced ~~";
+    const { d } = run({ doc });
+    expect(slices(doc, d, "hide")).toEqual(["~~", "~~", "~~", "~~"]);
+    expect(d.filter((x) => x.spec.class === "cci-md-strike")).toHaveLength(1);
+  });
+
+  it("leaves ~~ in code alone, and in edit mode", () => {
+    const doc = "`~~a ~~`\n\n~~~\n~~b ~~\n~~~";
+    expect(run({ doc }).d.some((x) => x.spec.class === "cci-md-strike")).toBe(false);
+    document.body.innerHTML = "";
+    expect(run({ doc: "~~a ~~", mode: "edit" }).d).toEqual([]);
+  });
+
+  it("only spans wholly in view get replace decorations", () => {
+    const doc = "~~一 ~~\n" + "行\n".repeat(40) + "~~二 ~~";
+    const m = mount({ doc });
+    Object.defineProperty(m.view, "visibleRanges", { value: [{ from: 0, to: 8 }], configurable: true });
+    m.view.dispatch({ effects: cciRedecorateEffect.of(null) });
+    expect(decos(m.view, m.vp).filter((x) => x.kind === "hide").map((x) => doc.slice(x.from, x.to))).toEqual(["~~", "~~"]);
+  });
+
   it("hides emphasis and strong marks, and inline code backticks", () => {
     const doc = "*斜* **粗** `码`";
     expect(slices(doc, run({ doc }).d, "hide")).toEqual(["*", "*", "**", "**", "`", "`"]);

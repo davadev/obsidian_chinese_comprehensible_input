@@ -13,6 +13,7 @@ import { setIcon, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { cciRedecorateEffect } from "./chineseDecorations";
 import { computeExcludedRanges, isRangeExcluded } from "./markdownExclusionRanges";
+import { findLooseStrikeSpans } from "./strikeSpans";
 import {
   DEFAULT_HIGHLIGHT_BG,
   findHighlightSpans,
@@ -94,6 +95,16 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           return undefined;
         };
 
+        // `~~ text ~~` with spaces inside is struck through by Obsidian but not parsed by the grammar; the spans it did
+        // parse are skipped. Computed once over the whole document, emitted only where fully visible (see highlights).
+        const parsedStrikes: Array<{ from: number; to: number }> = [];
+        tree.iterate({
+          enter: (node: SyntaxNodeRef) => {
+            if (node.name === "Strikethrough") parsedStrikes.push({ from: node.from, to: node.to });
+          },
+        });
+        const looseStrikes = findLooseStrikeSpans(text, parsedStrikes);
+
         for (const { from, to } of view.visibleRanges) {
           tree.iterate({
             from,
@@ -123,6 +134,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
           // Highlights (`==…==` and Highlightr `<mark …>`) fully inside this
           // visible range.
           this.emitHighlights(highlightSpans, from, to, excluded, items, tintContent);
+          this.emitLooseStrikes(looseStrikes, from, to, excluded, items);
         }
 
         items.sort((a, b) => (a.from - b.from) || (a.to - b.to));
@@ -409,6 +421,22 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         }
       }
 
+      emitLooseStrikes(
+        spans: ReturnType<typeof findLooseStrikeSpans>,
+        rangeFrom: number,
+        rangeTo: number,
+        excluded: ReturnType<typeof computeExcludedRanges>,
+        items: Array<{ from: number; to: number; deco: Decoration }>
+      ): void {
+        for (const span of spans) {
+          if (span.openFrom < rangeFrom || span.closeTo > rangeTo) continue;
+          if (isRangeExcluded(excluded, span.openFrom, span.closeTo)) continue;
+          items.push({ from: span.openFrom, to: span.contentFrom, deco: HIDE });
+          items.push({ from: span.contentFrom, to: span.contentTo, deco: STRIKE });
+          items.push({ from: span.contentTo, to: span.closeTo, deco: HIDE });
+        }
+      }
+
       scanHr(
         slice: string,
         offset: number,
@@ -438,6 +466,7 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
 
 const HIDE = Decoration.replace({});
 const QUOTE_LINE = Decoration.line({ class: "cci-md-quote-line" });
+const STRIKE = Decoration.mark({ class: "cci-md-strike" });
 
 function lineStartAt(text: string, pos: number): number {
   let i = pos;
