@@ -263,11 +263,12 @@ export function buildMarkdownRendering(plugin: CciPlugin) {
         // EditorView.domEventHandlers below).
         const raw = text.slice(node.from, node.to);
         // Find the `](` boundary; the URL part may contain spaces only
-        // when wrapped in `<...>` per CM, ignore that edge case.
+        // when wrapped in `<...>` per CM, ignore that edge case. A reference
+        // link (`[label][ref]`, `[label]`) has none, and is left as text.
         const closeBracket = raw.indexOf("](");
         if (closeBracket === -1) return;
-        const urlEnd = raw.lastIndexOf(")");
-        if (urlEnd === -1 || urlEnd <= closeBracket + 1) return;
+        // A Link node written as `[label](url)` always ends with its closing parenthesis.
+        const urlEnd = raw.length - 1;
 
         const labelStart = node.from + 1;
         const labelEnd = node.from + closeBracket;

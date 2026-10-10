@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { installObsidianDom } from "./__mocks__/obsidianDom";
+import { syntaxTree } from "@codemirror/language";
 import { makeView, editorOf, actionsOf } from "./__mocks__/viewHarness";
 
 /**
@@ -172,5 +173,15 @@ describe("races and failures", () => {
   it("a custom word guess skips characters the dictionary does not know", async () => {
     const { view } = makeView("x", { plugin: { dictionary: { lookup: (s: string) => (s === "苹" ? [{ pinyin: "píng" }] : []) } } });
     expect((view as unknown as { guessPinyinForSurface: (s: string) => string }).guessPinyinForSurface("苹果")).toBe("píng");
+  });
+});
+
+describe("the reader's Markdown grammar", () => {
+  it("parses ~~strikethrough~~ (the Strikethrough format writes it; hiding its marks and the line-through style both depend on that node)", async () => {
+    const { view } = makeView("~~删~~\n");
+    await view.onOpen();
+    const names: string[] = [];
+    syntaxTree(editorOf(view)!.state).iterate({ enter: (n) => void names.push(n.name) });
+    expect(names).toContain("StrikethroughMark");
   });
 });
