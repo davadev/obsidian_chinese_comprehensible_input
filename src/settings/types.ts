@@ -76,14 +76,6 @@ export type FormatId =
   | "h3"
   | "quote";
 
-/**
- * An entry in the formatting-mode option list. Either one of the fixed base
- * formats (`FormatId`) or a colored highlight `hl:<slug>` (#21 phase 2), whose
- * slug comes from a Highlightr color name (e.g. `hl:pink`). Stored as plain
- * strings in settings so the dynamic color ids round-trip without a fixed union.
- */
-export type FormatOptionId = FormatId | `hl:${string}`;
-
 export type PinyinStyle = "marks" | "numbers" | "none";
 
 /**

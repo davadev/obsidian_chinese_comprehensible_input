@@ -36,12 +36,6 @@ import { wordMarkClass } from "./wordMarkClass";
 import { DEFAULT_HIGHLIGHT_BG, findHighlightSpans, resolveHighlightPalette } from "./highlightPalette";
 
 /**
- * Symbol passed via ViewPlugin's compartment-side facet to share the plugin instance.
- * We avoid a global by stashing it on EditorView state.
- */
-export const PLUGIN_FIELD_KEY = "__cci_plugin__";
-
-/**
  * Dispatch the redecorate effect on the next animation frame so the new
  * decoration set is picked up after CM6's measure pass. Wrapped in
  * try/catch because the view may be destroyed before the frame fires.
@@ -500,7 +494,7 @@ class RubyWidget extends WidgetType {
     tok: Token,
     rec: WordRecord | undefined,
     private mode: DisplayMode,
-    private settings: CciSettings,
+    settings: CciSettings,
     private headingLevel: number = 0,
     colorKey?: ColorClassKey,
     private highlightBg?: string

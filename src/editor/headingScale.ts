@@ -9,5 +9,3 @@
  * (or the reverse) fails in CI instead of showing up as a mis-sized tint on a reader's screen.
  */
 export const HEADING_SCALE = { 1: 1.7, 2: 1.45, 3: 1.25, 4: 1.1 } as const;
-
-export type HeadingLevel = keyof typeof HEADING_SCALE;

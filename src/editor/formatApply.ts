@@ -15,7 +15,6 @@ import { findHighlightSpans, type HighlightWrap } from "./highlightPalette";
  * unit-testable without a live CodeMirror editor.
  */
 
-export const INLINE_FORMATS: readonly FormatId[] = ["bold", "italic", "highlight", "strike"];
 export const BLOCK_FORMATS: readonly FormatId[] = ["h1", "h2", "h3", "quote"];
 
 /** Non-highlight inline delimiters nested inner→outer around the span. */

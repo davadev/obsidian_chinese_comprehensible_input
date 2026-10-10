@@ -15,9 +15,6 @@ import type { DictionaryService } from "./DictionaryService";
  * asymmetric rule below produced zero false positives on every simplified
  * sample tried.
  */
-export interface ScriptDetector {
-  isTraditionalMarker(ch: string): boolean;
-}
 
 /** Minimum distinct marker characters before we believe it. Two would fire
  *  on an incidental quotation; three is enough to mean the note is written

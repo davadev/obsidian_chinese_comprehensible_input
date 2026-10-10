@@ -83,14 +83,6 @@ function mergeRanges(ranges: Range[]): Range[] {
   return out;
 }
 
-export function isInExcluded(ranges: Range[], pos: number): boolean {
-  for (const r of ranges) {
-    if (pos >= r.start && pos < r.end) return true;
-    if (r.start > pos) break;
-  }
-  return false;
-}
-
 export function isRangeExcluded(ranges: Range[], start: number, end: number): boolean {
   for (const r of ranges) {
     if (start < r.end && end > r.start) return true;

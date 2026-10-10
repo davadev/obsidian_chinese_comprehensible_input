@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import type { App } from "obsidian";
 import {
   findHighlightSpans,
-  highlightrInstalled,
   highlightWrap,
   parseMarkColor,
   resolveHighlightPalette,
@@ -21,25 +20,30 @@ const withPlugin = (settings: unknown, extra: Record<string, unknown> = {}) =>
   app({ plugins: { "highlightr-plugin": { settings } }, ...extra });
 const S = (over = {}) => ({ ...DEFAULT_SETTINGS, ...over });
 
-describe("Highlightr detection", () => {
+describe("Highlightr detection (seen through the palette it yields)", () => {
+  const HL = { highlighters: { Pink: "#f0a" } };
+  /** Highlightr's own colours when it is found, otherwise nothing (the built-in palette is off here). */
+  const found = (a: App) =>
+    resolveHighlightPalette(a, S({ showHighlightColorsWithoutPlugin: false })).map((c) => c.label);
+
   it("is absent without a plugin registry, without the plugin, or with it disabled", () => {
-    expect(highlightrInstalled(app(undefined))).toBe(false);
-    expect(highlightrInstalled(app({ plugins: {} }))).toBe(false);
+    expect(found(app(undefined))).toEqual([]);
+    expect(found(app({ plugins: {} }))).toEqual([]);
     expect(
-      highlightrInstalled(app({ enabledPlugins: new Set(["other"]), plugins: { "highlightr-plugin": { settings: {} } } }))
-    ).toBe(false);
+      found(app({ enabledPlugins: new Set(["other"]), plugins: { "highlightr-plugin": { settings: HL } } }))
+    ).toEqual([]);
   });
 
   it("is present when enabled, and found through getPlugin when not in the plugins map", () => {
-    expect(highlightrInstalled(withPlugin({}, { enabledPlugins: new Set(["highlightr-plugin"]) }))).toBe(true);
+    expect(found(withPlugin(HL, { enabledPlugins: new Set(["highlightr-plugin"]) }))).toEqual(["Pink"]);
     expect(
-      highlightrInstalled(app({ getPlugin: (id: string) => (id === "highlightr-plugin" ? { settings: {} } : null) }))
-    ).toBe(true);
+      found(app({ getPlugin: (id: string) => (id === "highlightr-plugin" ? { settings: HL } : null) }))
+    ).toEqual(["Pink"]);
   });
 
   it("is absent when its settings are missing or not an object", () => {
-    expect(highlightrInstalled(withPlugin(undefined))).toBe(false);
-    expect(highlightrInstalled(withPlugin("nope"))).toBe(false);
+    expect(found(withPlugin(undefined))).toEqual([]);
+    expect(found(withPlugin("nope"))).toEqual([]);
   });
 });
 

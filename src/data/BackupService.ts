@@ -31,7 +31,6 @@ import {
  * dictionary file is not included (it is re-downloadable).
  */
 
-export const BACKUP_DIR_NAME = "backups";
 export const BACKUP_INDEX_FILE = "index.json";
 export const PENDING_RESTORE_FILE = "pending-restore.json";
 const NOTICE_MS = 15_000;
