@@ -8,10 +8,10 @@ import { GenerateStoryModal } from "../ui/GenerateStoryModal";
 
 installObsidianDom();
 
-function make(over: { aiEnabled?: boolean; generate?: () => Promise<unknown> } = {}) {
+function make(over: { aiEnabled?: boolean; generate?: (opts: Record<string, unknown>) => Promise<unknown> } = {}) {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   settings.ai.enabled = over.aiEnabled !== false;
-  const generateAndSave = vi.fn(over.generate ?? (async () => ({})));
+  const generateAndSave = vi.fn<(opts: Record<string, unknown>) => Promise<unknown>>(over.generate ?? (async () => ({})));
   const plugin: any = { settings, story: { generateAndSave } };
   const modal = new GenerateStoryModal(new App() as any, plugin);
   modal.open();

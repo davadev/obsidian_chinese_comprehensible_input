@@ -35,7 +35,8 @@ export class MnemonicModal extends Modal {
   private lineInput!: HTMLInputElement;
   private storyInput!: HTMLTextAreaElement;
   private counterEl!: HTMLElement;
-  private generateBtn: HTMLButtonElement | null = null;
+  /** Only exists, and so only ever clicked, when AI is on. */
+  private generateBtn!: HTMLButtonElement;
 
   constructor(
     app: App,
@@ -51,8 +52,7 @@ export class MnemonicModal extends Modal {
     // So storage stays on surfaces[0]; only what the user sees, and what the
     // model is asked about, follows the script setting.
     this.surface = rec.surfaces[0];
-    this.shown =
-      displaySurface(rec, plugin.settings.scriptVariant, plugin.dictionary) || this.surface;
+    this.shown = displaySurface(rec, plugin.settings.scriptVariant, plugin.dictionary);
   }
 
   onOpen(): void {
@@ -169,10 +169,8 @@ export class MnemonicModal extends Modal {
 
   private setBusy(busy: boolean): void {
     this.busy = busy;
-    if (this.generateBtn) {
-      this.generateBtn.disabled = busy;
-      this.generateBtn.setText(busy ? "Generating…" : "Generate with AI");
-    }
+    this.generateBtn.disabled = busy;
+    this.generateBtn.setText(busy ? "Generating…" : "Generate with AI");
   }
 
   private save(): void {
