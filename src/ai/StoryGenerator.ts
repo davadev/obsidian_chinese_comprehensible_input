@@ -112,7 +112,7 @@ export class StoryGenerator {
       // other one, and the word is still there.
       const targetSurfaces: TargetForms[] = dueRecords.map((r, i) => ({
         display: targetWords[i].word,
-        forms: Array.from(new Set([targetWords[i].word, ...(r.surfaces ?? [])])).filter(Boolean),
+        forms: Array.from(new Set([targetWords[i].word, ...r.surfaces])).filter(Boolean),
       }));
       const initialReport = await validateStory(initialStory, targetSurfaces, this.tokenizer, cfg);
       // Full history of attempts (initial + every repair candidate) so the
@@ -378,19 +378,16 @@ export class StoryGenerator {
     // not from the LLM's self-reported claim. A checked box means the
     // word literally appears in textChinese. The glossary section that
     // used to live here is gone — the LLM is no longer asked for one.
-    if (targets.length) {
-      body.push("## Target word checklist");
-      for (const t of targets) {
-        const surface = displaySurface(t, script, this.dict);
-        if (!surface) continue;
-        // Tick the box if the word appears in EITHER script — the model may
-        // have written the counterpart form, and it is still a hit.
-        const forms = Array.from(new Set([surface, ...(t.surfaces ?? [])])).filter(Boolean);
-        const present = forms.some((f) => story.textChinese.includes(f));
-        body.push(`- [${present ? "x" : " "}] ${surface}`);
-      }
-      body.push("");
+    body.push("## Target word checklist");
+    for (const t of targets) {
+      const surface = displaySurface(t, script, this.dict);
+      // Tick the box if the word appears in EITHER script — the model may
+      // have written the counterpart form, and it is still a hit.
+      const forms = Array.from(new Set([surface, ...t.surfaces])).filter(Boolean);
+      const present = forms.some((f) => story.textChinese.includes(f));
+      body.push(`- [${present ? "x" : " "}] ${surface}`);
     }
+    body.push("");
     if (story.notesForLearner) {
       body.push(`> [!note] Notes for learner`);
       body.push(`> ${story.notesForLearner.replace(/\n/g, "\n> ")}`);
@@ -470,7 +467,8 @@ function shapeStory(partial: Partial<GeneratedStory>): GeneratedStory {
   return {
     title: p.title ?? "复习故事",
     targetLevel: p.targetLevel ?? "",
-    textChinese: p.textChinese ?? p.text ?? p.content ?? "",
+    // Only reached once parseStory has seen at least one of these three as a string.
+    textChinese: (p.textChinese ?? p.text ?? p.content) as string,
     // The LLM is no longer asked for these. If a non-conforming provider
     // still emits them, pass through untouched (unused downstream).
     targetWordsUsed: p.targetWordsUsed,
@@ -485,7 +483,7 @@ function shapeStory(partial: Partial<GeneratedStory>): GeneratedStory {
  * fallback when the model returned plain prose with no JSON wrapping.
  */
 function longestCjkRun(s: string): string {
-  const re = /[㐀-鿿豈-﫿，。！？、；：""''「」『』《》（）()…—\-—\s\n\r,.!?:;"'[]]+/g;
+  const re = /[㐀-鿿豈-﫿，。！？、；：""''「」『』《》（）()…—\-—\s\n\r,.!?:;"'[\]]+/g;
   let best = "";
   let m: RegExpExecArray | null;
   while ((m = re.exec(s))) {
@@ -512,7 +510,6 @@ function salvageTextChinese(raw: string): string | null {
 }
 
 async function ensureFolder(app: App, path: string): Promise<void> {
-  if (!path) return;
   const parts = path.split("/").filter(Boolean);
   let cur = "";
   for (const p of parts) {
