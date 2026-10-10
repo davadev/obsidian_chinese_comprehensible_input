@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeExcludedRanges, isInExcluded, isRangeExcluded } from "../editor/markdownExclusionRanges";
+import { computeExcludedRanges, isRangeExcluded } from "../editor/markdownExclusionRanges";
 
 describe("markdown exclusion ranges", () => {
   it("excludes frontmatter", () => {
@@ -105,21 +105,9 @@ describe("mergeRanges", () => {
   });
 });
 
-describe("isInExcluded", () => {
-  it("reports single positions, treating the range end as exclusive", () => {
-    const ranges = [
-      { start: 2, end: 5 },
-      { start: 10, end: 12 },
-    ];
-    expect(isInExcluded(ranges, 1)).toBe(false);
-    expect(isInExcluded(ranges, 2)).toBe(true);
-    expect(isInExcluded(ranges, 4)).toBe(true);
-    expect(isInExcluded(ranges, 5)).toBe(false);
-    expect(isInExcluded(ranges, 11)).toBe(true);
-    expect(isInExcluded(ranges, 99)).toBe(false);
-  });
 
-  it("returns false for an empty range list", () => {
-    expect(isInExcluded([], 0)).toBe(false);
+describe("frontmatter that never closes", () => {
+  it("excludes nothing for a lone opening --- (an unfinished frontmatter block or a horizontal rule)", () => {
+    expect(computeExcludedRanges("---\n你好 and more text")).toEqual([]);
   });
 });

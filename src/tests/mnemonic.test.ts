@@ -242,3 +242,18 @@ describe("parseMnemonicResult", () => {
     expect(parseMnemonicResult('{"mnemonic":"📖✏️→🧠"}')).toEqual({ mnemonic: "📖✏️→🧠" });
   });
 });
+
+describe("graphemes on a runtime without Intl.Segmenter", () => {
+  it("falls back to code points, and still counts them", async () => {
+    vi.resetModules();
+    vi.stubGlobal("Intl", { ...Intl, Segmenter: undefined });
+    try {
+      const fresh = await import("../vocabulary/mnemonicText");
+      expect(fresh.graphemes("你好a")).toEqual(["你", "好", "a"]);
+      expect(fresh.graphemeLength("你好a")).toBe(3);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+});

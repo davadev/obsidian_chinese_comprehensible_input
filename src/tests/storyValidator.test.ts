@@ -240,3 +240,23 @@ describe("validateStory — script handling", () => {
     expect(report.ok).toBe(true);
   });
 });
+
+describe("validateStory: gaps", () => {
+  const cfg = (over: Partial<ValidatorConfig> = {}) => ({ lengthChars: 10, maxHskLevel: 6, ...over }) as ValidatorConfig;
+
+  it("an empty story has an English ratio of 0 rather than NaN", async () => {
+    const report = await validateStory({ textChinese: "", title: "", targetLevel: "", glossary: [], targetWordsUsed: [] } as any, [], stubTokenizer(), cfg());
+    expect(report.englishRatio).toBe(0);
+  });
+
+  it("tokens that are not words (punctuation, spaces) are skipped", async () => {
+    const tokenizer = {
+      tokenize: async () => [
+        { start: 0, end: 1, surface: "，", isWord: false, candidates: [], confidence: 1 },
+        { start: 1, end: 2, surface: "好", isWord: true, candidates: [], confidence: 1 },
+      ],
+    } as unknown as TokenizerService;
+    const report = await validateStory({ textChinese: "，好", title: "", targetLevel: "", glossary: [], targetWordsUsed: [] } as any, ["好"], tokenizer, cfg());
+    expect(report.missingWords).toEqual([]);
+  });
+});

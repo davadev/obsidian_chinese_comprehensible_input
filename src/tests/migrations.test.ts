@@ -197,3 +197,23 @@ describe("migrateOverrideKeys — remote mirror data", () => {
     expect(overrides["绿|lü4"]).toEqual({ pinyin: "lǜ", updatedAt: "2026-03-01T00:00:00.000Z" });
   });
 });
+
+describe("migrateVocab: legacy shapes", () => {
+  it("a v0 payload with no words becomes an empty v3 store", () => {
+    expect(migrateVocab({ schemaVersion: 0 })).toEqual({ schemaVersion: 3, words: {} });
+  });
+
+  it("an older version with no words at all is treated as empty, not as an error", () => {
+    expect(migrateVocab({ schemaVersion: 2 }).words).toEqual({});
+  });
+
+  it("a mnemonic whose text or story is not a string is left alone", () => {
+    const out = migrateVocab({ schemaVersion: 2, words: { a: { key: "a", mnemonic: { text: 5, story: 7 } } } });
+    expect(out.words.a.mnemonic).toEqual({ text: 5, story: 7 });
+  });
+
+  it("a record without a mnemonic is skipped, and a null record cannot crash it", () => {
+    const out = migrateVocab({ schemaVersion: 2, words: { a: { key: "a" }, b: null } });
+    expect(out.words.a).toEqual({ key: "a" });
+  });
+});

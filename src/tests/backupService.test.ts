@@ -764,3 +764,189 @@ describe("createGzipCodec", () => {
     }
   });
 });
+
+describe("what a damaged or foreign index and marker can contain", () => {
+  const indexPath = `${DIR}/${BACKUP_INDEX_FILE}`;
+  const entry = (over: Record<string, unknown> = {}) => ({
+    id: "e1",
+    createdAt: "2026-10-01T00:00:00.000Z",
+    fromVersion: "0.7.9",
+    kind: "manual",
+    file: "e1.json.gz",
+    encoding: "gzip",
+    rawBytes: 10,
+    storedBytes: 5,
+    sha256: "abc",
+    includes: ["data"],
+    ...over,
+  });
+  const withIndex = (raw: string) => {
+    const env = makeEnv();
+    env.fs.dirs.add(DIR);
+    env.fs.files.set(indexPath, raw);
+    return env;
+  };
+
+  it("lists only well-formed entries: every required field is checked, and a bad `includes` just means none", async () => {
+    const bad = [
+      entry({ id: 5 }),
+      entry({ id: "" }),
+      entry({ createdAt: undefined }),
+      entry({ fromVersion: undefined }),
+      entry({ file: undefined }),
+      entry({ sha256: undefined }),
+      entry({ rawBytes: "10" }),
+      entry({ rawBytes: Infinity }),
+      entry({ storedBytes: undefined }),
+      entry({ kind: "nope" }),
+      entry({ encoding: "zip" }),
+      entry({ file: "../x.json" }),
+      entry({ file: "a/b.json" }),
+      entry({ file: "a\\b.json" }),
+      null,
+      "text",
+    ];
+    const env = withIndex(JSON.stringify({ schemaVersion: 1, backups: [...bad, entry({ id: "ok", includes: "data" })] }));
+    const list = await env.svc("0.8.0").list();
+    expect(list.map((e) => e.id)).toEqual(["ok"]);
+    expect(list[0].includes).toEqual([]);
+  });
+
+  it.each([["null"], ["5"], ['"text"'], ['{"backups":"x"}'], ['{"backups":null,"lastRunVersion":7}']])(
+    "reads %s as an empty history, without setting the file aside",
+    async (raw) => {
+      const env = withIndex(raw);
+      expect(await env.svc("0.8.0").list()).toEqual([]);
+      expect(env.fs.files.has(`${indexPath}.bad`)).toBe(false);
+    }
+  );
+
+  it("sorts equal timestamps stably and newest first", async () => {
+    const env = withIndex(
+      JSON.stringify({
+        backups: [
+          entry({ id: "a", createdAt: "2026-10-01T00:00:00.000Z" }),
+          entry({ id: "b", createdAt: "2026-10-03T00:00:00.000Z" }),
+          entry({ id: "c", createdAt: "2026-10-01T00:00:00.000Z" }),
+          entry({ id: "d", createdAt: "2026-10-02T00:00:00.000Z" }),
+        ],
+      })
+    );
+    expect((await env.svc("0.8.0").list()).map((e) => e.id)).toEqual(["b", "d", "a", "c"]);
+  });
+
+  it("replaces an older .bad copy when a second damaged index is set aside", async () => {
+    const env = withIndex("{{{ first");
+    await env.svc("0.8.0").list();
+    expect(env.fs.text(`${indexPath}.bad`)).toBe("{{{ first");
+    env.fs.files.set(indexPath, "{{{ second");
+    await env.svc("0.8.0").list();
+    expect(env.fs.text(`${indexPath}.bad`)).toBe("{{{ second");
+  });
+
+  it("start-up with backups off and nothing changed writes nothing", async () => {
+    const env = makeEnv({ enabled: false });
+    env.fs.files.set(DATA, "{}");
+    await env.svc("0.8.0").startup();
+    const writes = () => env.fs.ops.filter((o) => o.op === "write").length;
+    const before = writes();
+    const r = await env.svc("0.8.0").startup();
+    expect(r).toMatchObject({ action: "same", skipped: "disabled" });
+    expect(writes()).toBe(before);
+  });
+
+  it("cancelRestore with nothing queued is a quiet no-op", async () => {
+    const env = makeEnv();
+    await expect(env.svc("0.8.0").cancelRestore()).resolves.toBeUndefined();
+    expect(env.notices).toEqual([]);
+  });
+
+  it("a marker without an id queues nothing and is dropped on apply", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, '{"v":1}');
+    await env.svc("0.8.0").startup();
+    env.fs.files.set(`${DIR}/${PENDING_RESTORE_FILE}`, "{}");
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+    const res = await env.svc("0.8.0").applyPendingRestore();
+    expect(res.status).toBe("failed");
+    expect(env.fs.files.has(`${DIR}/${PENDING_RESTORE_FILE}`)).toBe(false);
+    expect(env.fs.text(DATA)).toBe('{"v":1}');
+  });
+
+  it("restoring when the index never recorded a version labels the undo point 'unknown'", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, '{"v":"old"}');
+    const r = await env.svc("0.8.0").startup();
+    const idx = readIndex(env.fs);
+    delete idx.lastRunVersion;
+    env.fs.files.set(indexPath, JSON.stringify(idx));
+    env.fs.files.set(DATA, '{"v":"new"}');
+    await env.svc("0.8.0").stageRestore(r.backedUp!.id);
+    const res = await env.svc("0.8.0").applyPendingRestore();
+    expect(res.status).toBe("applied");
+    expect(readIndex(env.fs).backups.find((e: { kind: string }) => e.kind === "pre-restore").fromVersion).toBe("unknown");
+  });
+
+  it("a failure while recording the restore is reported as a failed restore, with the marker dropped", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, '{"v":"old"}');
+    const r = await env.svc("0.8.0").startup();
+    env.fs.files.set(DATA, '{"v":"new"}');
+    await env.svc("0.8.0").stageRestore(r.backedUp!.id);
+    // Once the data has been put back, the final index write breaks.
+    env.fs.fault = (op, p) => (op === "write" && p.includes(BACKUP_INDEX_FILE) && env.fs.text(DATA) === '{"v":"old"}' ? new Error("EIO") : null);
+    const res = await env.svc("0.8.0").applyPendingRestore();
+    expect(res.status).toBe("failed");
+    expect(res.message).toContain("EIO");
+    expect(env.fs.files.has(`${DIR}/${PENDING_RESTORE_FILE}`)).toBe(false);
+  });
+
+  it("a backup file that holds JSON but not a bundle is refused", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, '{"v":"old"}');
+    const r = await env.svc("0.8.0").startup();
+    const idx = readIndex(env.fs);
+    idx.backups[0].encoding = "none";
+    idx.backups[0].sha256 = await sha256Hex("null");
+    env.fs.files.set(indexPath, JSON.stringify(idx));
+    env.fs.files.set(`${DIR}/${r.backedUp!.file}`, "null");
+    env.fs.files.set(DATA, '{"v":"new"}');
+    await env.svc("0.8.0").stageRestore(r.backedUp!.id);
+    const res = await env.svc("0.8.0").applyPendingRestore();
+    expect(res.status).toBe("failed");
+    expect(res.message).toContain("not a backup this version understands");
+    expect(env.fs.text(DATA)).toBe('{"v":"new"}');
+  });
+
+  it("dropping an old backup whose file is already gone is not an error", async () => {
+    const env = makeEnv({ keep: 1 });
+    env.fs.files.set(DATA, '{"v":1}');
+    const first = await env.svc("0.7.0").startup();
+    env.fs.files.delete(`${DIR}/${first.backedUp!.file}`);
+    env.fs.files.set(DATA, '{"v":2}');
+    const second = await env.svc("0.8.0").startup();
+    expect(second.backedUp).not.toBeNull();
+    expect(env.notices).toEqual([]);
+  });
+
+  it("failure notices always carry some text: non-Error throws, empty messages, nameless errors", async () => {
+    const run = async (thrown: unknown) => {
+      const env = makeEnv({ enabled: false });
+      env.fs.files.set(DATA, "{}");
+      env.fs.fault = (op) => (op === "mkdir" ? (thrown as Error) : null);
+      return (await env.svc("0.8.0").startup()).failed ?? "";
+    };
+    expect(await run("plain string")).toContain("plain string");
+    expect(await run(Object.assign(new Error(""), { name: "EACCES" }))).toContain("EACCES");
+    expect(await run(Object.assign(new Error(""), { name: "" }))).toContain("unknown error");
+  });
+});
+
+describe("the operation queue", () => {
+  it("an operation that fails does not wedge the ones queued behind it", async () => {
+    const env = makeEnv();
+    const svc = env.svc("0.8.0") as unknown as { run: <T>(fn: () => Promise<T>) => Promise<T> };
+    await expect(svc.run(async () => { throw new Error("bug"); })).rejects.toThrow("bug");
+    await expect(svc.run(async () => "still running")).resolves.toBe("still running");
+  });
+});

@@ -26,9 +26,9 @@ import {
  *   height so toggling marking mode does not shift editor scroll position.
  */
 export class ViewToolbar {
-  private bannerEl: HTMLElement | null = null;
+  private bannerEl!: HTMLElement;
   private statsEl: HTMLElement | null = null;
-  private formatLabelEl: HTMLElement | null = null;
+  private formatLabelEl!: HTMLElement;
   private getDocText: () => string;
 
   constructor(
@@ -252,7 +252,6 @@ export class ViewToolbar {
   }
 
   private updateBanner() {
-    if (!this.bannerEl) return;
     this.bannerEl.empty();
     const mode = this.plugin.activeViewMode();
     this.statsEl = null;
@@ -344,7 +343,6 @@ export class ViewToolbar {
   }
 
   private renderFormatBanner() {
-    if (!this.bannerEl) return;
     const banner = this.bannerEl.createDiv({ cls: "cci-banner is-format" });
     // Color the banner red while in remove (reverse) mode to match the button.
     banner.toggleClass("is-remove", this.plugin.settings.formatReverseMode);
@@ -389,7 +387,6 @@ export class ViewToolbar {
     // would bind an orphaned document listener to a menu that no longer exists.
     let closed = false;
     const close = () => {
-      if (closed) return;
       closed = true;
       menu.remove();
       activeDocument.removeEventListener("click", onDocClick, true);
@@ -449,7 +446,7 @@ export class ViewToolbar {
             );
             await this.plugin.saveSettings();
             populate();
-            if (this.formatLabelEl) this.formatLabelEl.setText(this.formatBannerText());
+            this.formatLabelEl.setText(this.formatBannerText());
           })();
         };
         cb.addEventListener("change", toggle);
@@ -485,7 +482,6 @@ export class ViewToolbar {
     // orphaned document listener to a menu that is already gone.
     let closed = false;
     const close = () => {
-      if (closed) return;
       closed = true;
       menu.remove();
       activeDocument.removeEventListener("click", off);

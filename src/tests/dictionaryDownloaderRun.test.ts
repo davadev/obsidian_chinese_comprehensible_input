@@ -37,7 +37,6 @@ import {
 const N = 300;
 const LINES = Array.from({ length: N }, (_, i) => `詞${i} 词${i} [ci2 ${i % 4}] /word ${(i * 7919).toString(36)}/second ${(i * 104729).toString(36)}/`);
 const TEXT = ["# CC-CEDICT", "# Version: 1.0", ...LINES].join("\n");
-const bytes = (s: string) => new TextEncoder().encode(s);
 const gz = (s: string) => new Uint8Array(gzipSync(Buffer.from(s)));
 const ok = (b: Uint8Array) => () => ({ status: 200, bytes: b });
 const status = (code: number) => () => ({ status: code });

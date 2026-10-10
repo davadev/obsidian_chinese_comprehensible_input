@@ -136,3 +136,32 @@ describe("headword must stay resolvable by bySurface()", () => {
     expect(rec.surfaces).not.toContain(shown);
   });
 });
+
+describe("displaySurface and counterpartSurface: records with gaps in them", () => {
+  it("auto: falls back to the dictionary's simplified form, then to nothing", () => {
+    expect(displaySurface({ surfaces: [], simplified: "学习" }, "auto")).toBe("学习");
+    expect(displaySurface({ surfaces: [] }, "auto")).toBe("");
+    expect(displaySurface({}, "auto")).toBe("");
+  });
+
+  it("simplified: uses the first-seen surface when the record has no simplified form, then nothing", () => {
+    expect(displaySurface({ surfaces: ["学习"] }, "simplified")).toBe("学习");
+    expect(displaySurface({ surfaces: [] }, "simplified")).toBe("");
+  });
+
+  it("traditional: a record with no surfaces and no simplified form has nothing to judge ambiguity on, so shows nothing", () => {
+    const rec = { surfaces: [], traditional: "學習" };
+    expect(displaySurface(rec, "traditional", unambiguous)).toBe("");
+  });
+
+  it("traditional: the first-seen surface wins when it is not the simplified form", () => {
+    expect(displaySurface({ surfaces: ["學習"], simplified: "学习" }, "traditional", ambiguous)).toBe("學習");
+  });
+
+  it("counterpart in auto: opposite of whichever form is shown, nothing for a spelling that is neither", () => {
+    const entry = { simplified: "学习", traditional: "學習", pinyin: "xué xí", definitions: [] };
+    expect(counterpartSurface(entry, "學習", "auto")).toEqual({ label: "Simplified", value: "学习" });
+    expect(counterpartSurface(entry, "学习", "auto")).toEqual({ label: "Traditional", value: "學習" });
+    expect(counterpartSurface(entry, "學习", "auto")).toBeUndefined();
+  });
+});

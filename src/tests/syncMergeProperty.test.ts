@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { mergeForSync, resolveStatus } from "../vocabulary/syncMerge";
+import { mergeForSync, mergeStoresForSync, resolveStatus } from "../vocabulary/syncMerge";
+import { DATA_SCHEMA_VERSION } from "../constants";
 import { KnownAxes, WordRecord, WordStatus } from "../vocabulary/VocabularyTypes";
 import { statusFromAxes } from "../vocabulary/axes";
 import { DEFAULT_STATUS_PRIORITY } from "../settings/defaults";
@@ -55,7 +56,8 @@ function genRecord(r: () => number): WordRecord {
   });
   const rec: WordRecord = {
     key: "k",
-    surfaces: shuffle(r, SURFACES).slice(0, 1 + Math.floor(r() * 3)),
+    // Records arriving from an older version or a hand-edited mirror can lack surfaces or updatedAt entirely.
+    surfaces: shuffle(r, SURFACES).slice(0, Math.floor(r() * 3)),
     simplified: pick(r, ["你好", "您好", "", undefined]),
     traditional: pick(r, ["你好", "妳好", undefined]),
     pinyin: pick(r, ["nǐ hǎo", "ni3 hao3", "", undefined]),
@@ -75,7 +77,7 @@ function genRecord(r: () => number): WordRecord {
     mnemonic: maybe(r, () => ({ text: pick(r, ["m1", "m2"]), updatedAt: pick(r, [...TIMES, undefined]) }), 0.4),
     srs: maybe(r, () => ({ dueAt: pick(r, TIMES), intervalDays: pick(r, [1, 3]), lastReviewedAt: pick(r, [...TIMES, undefined]) }), 0.4),
     notes: pick(r, ["n1", "n2", "", undefined]),
-    updatedAt: pick(r, TIMES),
+    updatedAt: pick(r, [...TIMES, undefined]) as string,
   };
   if (status === "ignored") rec.ignoredReason = pick(r, ["dup", "name", "", undefined]);
   return rec;
@@ -166,5 +168,35 @@ describe("mergeForSync rules that used to depend on argument order", () => {
     const without = base({});
     expect(mergeForSync(withNotes, without, opts).notes).toBe("mine");
     expect(mergeForSync(without, withNotes, opts).notes).toBe("mine");
+  });
+});
+
+describe("mergeForSync with records that lack surfaces, timestamps or a schema version", () => {
+  const base = (over: Partial<WordRecord>): WordRecord => ({
+    key: "k", surfaces: ["好"], status: "known", seenCount: 0, recentSeenAt: [], dailySeenCounts: {}, updatedAt: "2026-06-12T00:00:00.000Z", ...over,
+  });
+  const opts = { statusPriority: DEFAULT_STATUS_PRIORITY };
+
+  it("a record with no surfaces array takes the other side's, in either order", () => {
+    const withS = base({ surfaces: ["好", "好吧"] });
+    const without = base({}) as Partial<WordRecord>;
+    delete without.surfaces;
+    expect(mergeForSync(withS, without as WordRecord, opts).surfaces).toEqual(["好", "好吧"]);
+    expect(mergeForSync(without as WordRecord, withS, opts).surfaces).toEqual(["好", "好吧"]);
+  });
+
+  it("both sides with no surfaces gives none", () => {
+    expect(mergeForSync(base({ surfaces: [] }), base({ surfaces: [] }), opts).surfaces).toEqual([]);
+  });
+
+  it("two records with no timestamp at all merge without throwing, the same both ways", () => {
+    const a = base({ pinyin: "a", updatedAt: undefined as unknown as string });
+    const b = base({ pinyin: "b", updatedAt: undefined as unknown as string });
+    expect(JSON.stringify(mergeForSync(a, b, opts))).toBe(JSON.stringify(mergeForSync(b, a, opts)));
+  });
+
+  it("stores written by a version with no schemaVersion merge to the current one", () => {
+    const out = mergeStoresForSync({ words: {} } as never, { words: {} } as never, opts);
+    expect(out.schemaVersion).toBe(DATA_SCHEMA_VERSION);
   });
 });

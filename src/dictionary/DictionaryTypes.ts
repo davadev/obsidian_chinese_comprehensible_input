@@ -20,21 +20,6 @@ export interface DictionaryEntry {
   grammar?: string;
 }
 
-export interface DictionaryManifest {
-  source: string;
-  version: string;
-  downloadedAt: string;
-  shardCount: number;
-  license: string;
-}
-
-export interface HskManifest {
-  source: string;
-  version: string;
-  downloadedAt: string;
-  license: string;
-}
-
 /**
  * Per-entry override the user has typed into the Edit Dictionary modal.
  * Keyed by the entry's canonical `simplified|original-pinyin` so vocab

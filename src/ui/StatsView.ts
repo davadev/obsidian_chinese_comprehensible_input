@@ -43,7 +43,6 @@ export class StatsView extends ItemView {
   // Topic coverage. The section element is kept so a chip toggle can rebuild
   // just that subtree: render() empties the whole view root, which would throw
   // the user back to the top of the dashboard on every click.
-  private topicSectionEl: HTMLElement | null = null;
   private topicChooserOpen = false;
   // Persisting goes through a leading+trailing debounce: saveSettings() rewrites
   // the entire data.json (it carries the vocabulary blob), so one write per chip
@@ -561,11 +560,10 @@ export class StatsView extends ItemView {
 
   private renderTopicCoverageSection(root: HTMLElement) {
     const wrap = root.createDiv({ cls: "cci-dash-topics" });
-    this.topicSectionEl = wrap;
     this.paintTopicCoverage(wrap);
   }
 
-  /** Rebuilds only this section — never call render() from here, see topicSectionEl. */
+  /** Rebuilds only this section — never call render() from here. */
   private paintTopicCoverage(wrap: HTMLElement) {
     wrap.empty();
     const settings = this.plugin.settings;

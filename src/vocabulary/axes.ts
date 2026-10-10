@@ -64,8 +64,8 @@ export function statusFromAxes(axes: KnownAxes): WordStatus {
   // Other partial combos collapse to the closest existing status.
   if (chars && !pinyin && !meaning) return "unknown";
   if (!chars && pinyin && !meaning) return "pinyinKnownMeaningUnknown";
-  if (!chars && !pinyin && meaning) return "meaningKnownPinyinUnknown";
-  return "unknown";
+  // The eighth and last combination: only `meaning` is true.
+  return "meaningKnownPinyinUnknown";
 }
 
 /** Reverse direction: best-effort axes from a legacy status only. */

@@ -41,7 +41,7 @@ export const LOW_DATA_MIN = 10;
 const BUCKET_MID = [250, 750, 1500, 3000, 6000, 12000, 24000, 48000, 90000, 90000];
 
 function weightForBucket(bucket: number): number {
-  const mid = BUCKET_MID[bucket] ?? BUCKET_MID[BUCKET_MID.length - 1];
+  const mid = BUCKET_MID[bucket];
   return 1 / Math.sqrt(mid);
 }
 
@@ -88,15 +88,11 @@ function decodedMap(): Map<string, Decoded> {
   for (const [word, packed] of Object.entries(TOPIC_MAP)) {
     const bar = packed.indexOf("|");
     const bar2 = packed.indexOf("|", bar + 1);
-    if (bar < 0 || bar2 < 0) continue;
     const codes = packed.slice(0, bar);
     const level = Number(packed.slice(bar + 1, bar2));
     const bucket = Number(packed.slice(bar2 + 1));
     const topics: string[] = [];
-    for (const ch of codes) {
-      const id = TOPIC_IDS[parseInt(ch, 36)];
-      if (id) topics.push(id);
-    }
+    for (const ch of codes) topics.push(TOPIC_IDS[parseInt(ch, 36)]);
     out.set(word, { topics, level, weight: weightForBucket(bucket) });
   }
   decodedCache = out;
@@ -213,8 +209,9 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
         // Separate accumulators so the chart can draw "known" and
         // "known + partial" as two rings rather than collapsing both into one
         // half-credited number the reader cannot decompose.
+        // score > 0 means the state is known or partial.
         if (state === "known") bump(gotKnown, t, entry.weight);
-        if (state === "known" || state === "partial") bump(gotKnownPartial, t, entry.weight);
+        bump(gotKnownPartial, t, entry.weight);
       }
     }
   }
@@ -223,8 +220,8 @@ export function topicSpokes(records: WordRecord[], topicIds: string[]): TopicSpo
   const totalWeight = new Map<string, number>();
   const expectedWeight = new Map<string, number>();
   for (const { topics, level, weight } of table.values()) {
-    const all = levelAll.get(level) ?? 0;
-    const p = all > 0 ? (levelGot.get(level) ?? 0) / all : 0;
+    // Every level in the table was counted into levelAll above, with a positive weight.
+    const p = (levelGot.get(level) ?? 0) / (levelAll.get(level) as number);
     for (const t of topics) {
       totalWeight.set(t, (totalWeight.get(t) ?? 0) + weight);
       expectedWeight.set(t, (expectedWeight.get(t) ?? 0) + weight * p);

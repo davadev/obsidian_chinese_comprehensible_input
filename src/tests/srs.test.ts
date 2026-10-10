@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { SrsScheduler } from "../srs/SrsScheduler";
 
 function makeVocab(records: Record<string, any>) {
@@ -164,5 +164,68 @@ describe("SRS scheduler — hard and easy grades", () => {
     expect(s.applyGrade("学习", "hard").lapses).toBe(0);
     expect(s.applyGrade("学习", "again").lapses).toBe(1);
     expect(s.applyGrade("学习", "hard").lapses).toBe(1);
+  });
+});
+
+describe("SRS scheduler: which words are eligible, and re-grading", () => {
+  const rec = (status: string, extra: Record<string, unknown> = {}) => ({ surfaces: ["x"], status, srs: {}, ...extra });
+
+  it.each([
+    ["new", true],
+    ["unknown", true],
+    ["meaningKnownPinyinUnknown", true],
+    ["pinyinKnownMeaningUnknown", true],
+    ["charactersUnknown", true],
+    ["ignored", false],
+    ["known", false],
+    ["aStatusFromAFutureVersion", false],
+  ])("status %s eligible: %s (known words off)", (status, want) => {
+    const s = new SrsScheduler(makeVocab({ a: rec(status) }) as any, settings);
+    expect(s.eligibleForReview().length === 1).toBe(want);
+  });
+
+  it("known words are eligible only when the setting asks for them", () => {
+    const on = () => ({ srs: { ...settings().srs, scheduleKnownOccasionally: true } }) as any;
+    expect(new SrsScheduler(makeVocab({ a: rec("known") }) as any, on).eligibleForReview()).toHaveLength(1);
+  });
+
+  it("a word that already has a schedule keeps its ease and lapses on the next grade", () => {
+    const recs: Record<string, any> = { a: rec("unknown", { srs: { intervalDays: 6, ease: 2.0, lapses: 2 } }) };
+    const s = new SrsScheduler(makeVocab(recs) as any, settings);
+    const r = s.applyGrade("a", "good");
+    expect(r.intervalDays).toBeGreaterThanOrEqual(6);
+    const bad = s.applyGrade("a", "again");
+    expect(bad.lapses).toBe(3);
+  });
+
+  it("a popup on a word the vocabulary has never seen schedules nothing", () => {
+    const recs: Record<string, any> = {};
+    const vocab = makeVocab(recs);
+    const s = new SrsScheduler({ ...vocab, bySurface: () => undefined } as any, settings);
+    const spy = vi.spyOn(s, "applyGrade");
+    s.applyPopupSignal("never-seen");
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it.each(["ignored", "known"])("a popup on a %s word is not a failed recall", (status) => {
+    const s = new SrsScheduler(makeVocab({ a: rec(status) }) as any, settings);
+    const spy = vi.spyOn(s, "applyGrade");
+    s.applyPopupSignal("a");
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("SRS scheduler: first review of a record that has no schedule yet", () => {
+  it("starts from the configured initial ease and a zero interval", () => {
+    const recs: Record<string, any> = { a: { surfaces: ["a"], status: "unknown" } }; // no `srs` field at all
+    const vocab = {
+      ensure: (s: string) => recs[s],
+      bySurface: (s: string) => recs[s],
+      updateSrs: (s: string, patch: any) => void (recs[s].srs = patch),
+      values: () => Object.values(recs),
+    } as any;
+    const r = new SrsScheduler(vocab, settings).applyGrade("a", "good");
+    expect(r.ease).toBe(2.5);
+    expect(r.lapses).toBe(0);
   });
 });

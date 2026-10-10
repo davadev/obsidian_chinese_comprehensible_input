@@ -15,7 +15,6 @@ import { findHighlightSpans, type HighlightWrap } from "./highlightPalette";
  * unit-testable without a live CodeMirror editor.
  */
 
-export const INLINE_FORMATS: readonly FormatId[] = ["bold", "italic", "highlight", "strike"];
 export const BLOCK_FORMATS: readonly FormatId[] = ["h1", "h2", "h3", "quote"];
 
 /** Non-highlight inline delimiters nested inner→outer around the span. */
@@ -256,41 +255,6 @@ export function buildFormatChanges(
   return changes;
 }
 
-/**
- * Exact mode: make the span [from, to) have *exactly* `formats`. Strips all
- * existing inline formatting (and a surrounding `<mark>`) from the expanded
- * region, re-wraps the core with the checked inline formats, and sets each
- * covered line's block prefix to the checked block (or strips it when none is
- * checked). Empty `formats` ⇒ clears everything.
- */
-export function buildSetFormatChanges(
-  doc: string,
-  from: number,
-  to: number,
-  formats: string[],
-  hlWrap?: HighlightWrap
-): FormatChange[] {
-  if (from > to) [from, to] = [to, from];
-  if (from === to) return [];
-
-  const changes: FormatChange[] = [];
-
-  const [s, e] = expandFormattedRegion(doc, from, to);
-  const region = doc.slice(s, e);
-  const core = stripInlineDelims(region);
-  const inlineChecked = formats.filter(isInline);
-  const newInline = composeInline(core, inlineChecked, hlWrap);
-  const inlinePresent = newInline !== region;
-  if (inlinePresent) changes.push({ from: s, to: e, insert: newInline });
-
-  const block = formats.find(isBlock);
-  const desired = block ? BLOCK_PREFIX[block] : "";
-  changes.push(...blockPrefixChanges(doc, from, to, desired, inlinePresent));
-
-  changes.sort(byPos);
-  return changes;
-}
-
 /** Characters that make up the inline delimiters we strip when unformatting. */
 const INLINE_DELIM_CHARS = new Set(["*", "=", "~", "`"]);
 
@@ -312,8 +276,20 @@ function stripInlineDelims(s: string): string {
  * tapped) and removes heading / quote line prefixes on covered lines.
  */
 export function buildUnformatChanges(doc: string, from: number, to: number): FormatChange[] {
-  // Clearing everything is exactly "set to no formats".
-  return buildSetFormatChanges(doc, from, to, []);
+  if (from > to) [from, to] = [to, from];
+  if (from === to) return [];
+
+  const [s, e] = expandFormattedRegion(doc, from, to);
+  const region = doc.slice(s, e);
+  const core = stripInlineDelims(region);
+  const inlinePresent = core !== region;
+
+  const changes: FormatChange[] = [];
+  if (inlinePresent) changes.push({ from: s, to: e, insert: core });
+  changes.push(...blockPrefixChanges(doc, from, to, "", inlinePresent));
+
+  changes.sort(byPos);
+  return changes;
 }
 
 /**

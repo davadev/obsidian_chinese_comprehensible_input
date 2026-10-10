@@ -11,7 +11,6 @@ export function applyCustomColors(settings: CciSettings): void {
   const root = activeDocument.body;
   applyTextColors(settings, root);
   const c = settings.customColors;
-  if (!c) return;
   root.style.setProperty("--cci-color-known", c.known);
   root.style.setProperty("--cci-color-partial", c.partial);
   root.style.setProperty("--cci-color-unknown", c.unknown);
@@ -124,10 +123,9 @@ function toHex2(n: number): string {
   return v.toString(16).padStart(2, "0");
 }
 
-function hexToHsl(hex: string): { h: number; s: number; l: number } | null {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return null;
-  const n = parseInt(m[1], 16);
+/** `hex` is always the `#rrggbb` that `normalizeToHex` produced, so it needs no validation of its own. */
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const n = parseInt(hex.slice(1), 16);
   const r = ((n >> 16) & 0xff) / 255;
   const g = ((n >> 8) & 0xff) / 255;
   const b = (n & 0xff) / 255;

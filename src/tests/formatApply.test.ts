@@ -3,7 +3,6 @@ import {
   applyChangesToString,
   buildFormatChanges,
   buildRemoveFormatChanges,
-  buildSetFormatChanges,
   buildUnformatChanges,
   composeInline,
   conflictDisabled,
@@ -149,32 +148,26 @@ describe("buildUnformatChanges", () => {
   });
 });
 
-describe("buildSetFormatChanges (exact mode)", () => {
-  it("keeps H3, drops the highlight", () => {
-    const doc = "### ==标题==";
-    const inner = doc.indexOf("标题");
-    const out = applyChanges(doc, buildSetFormatChanges(doc, inner, inner + 2, ["h3"]));
-    expect(out).toBe("### 标题");
-  });
-
-  it("drops H3, keeps the highlight", () => {
-    const doc = "### ==标题==";
-    const inner = doc.indexOf("标题");
-    const out = applyChanges(doc, buildSetFormatChanges(doc, inner, inner + 2, ["highlight"]));
-    expect(out).toBe("==标题==");
-  });
-
-  it("replaces highlight with bold over highlighted text", () => {
-    const doc = "==字==";
-    const out = applyChanges(doc, buildSetFormatChanges(doc, 2, 3, ["bold"]));
-    expect(out).toBe("**字**");
-  });
-
-  it("empty formats clears everything", () => {
+describe("buildUnformatChanges (clear everything)", () => {
+  it("clears a heading and a highlight together", () => {
     const doc = "### ==字==";
     const inner = doc.indexOf("字");
-    const out = applyChanges(doc, buildSetFormatChanges(doc, inner, inner + 1, []));
-    expect(out).toBe("字");
+    expect(applyChanges(doc, buildUnformatChanges(doc, inner, inner + 1))).toBe("字");
+  });
+
+  it("clears a heading on its own, and an inline format on its own", () => {
+    expect(applyChanges("### 标题", buildUnformatChanges("### 标题", 4, 6))).toBe("标题");
+    expect(applyChanges("**字**", buildUnformatChanges("**字**", 2, 3))).toBe("字");
+  });
+
+  it("does nothing for an empty range, and takes a reversed one as the same range", () => {
+    expect(buildUnformatChanges("**字**", 3, 3)).toEqual([]);
+    expect(applyChanges("**字**", buildUnformatChanges("**字**", 3, 2))).toBe("字");
+  });
+
+  it("clears every line of a multi-line selection and leaves an unformatted line alone", () => {
+    const doc = "# 一\n二\n> 三";
+    expect(applyChanges(doc, buildUnformatChanges(doc, 0, doc.length))).toBe("一\n二\n三");
   });
 });
 
@@ -282,7 +275,7 @@ describe("formatting data-loss guard", () => {
     const doc = "我爱学中文。";
     expect(formattingPreservesContent(doc, buildFormatChanges(doc, 1, 3, ["bold"]))).toBe(true);
     expect(
-      formattingPreservesContent(doc, buildSetFormatChanges(doc, 1, 3, ["h2", "highlight"]))
+      formattingPreservesContent(doc, buildFormatChanges(doc, 1, 3, ["h2", "highlight"]))
     ).toBe(true);
     expect(formattingPreservesContent(doc, buildUnformatChanges(doc, 0, 6))).toBe(true);
   });
@@ -332,5 +325,59 @@ describe("conflictDisabled", () => {
   it("allows inline + block together", () => {
     expect(conflictDisabled("h1", ["bold"])).toBe(false);
     expect(conflictDisabled("bold", ["h1"])).toBe(false);
+  });
+});
+
+describe("formatApply: remaining branches", () => {
+  const add = (doc: string, from: number, to: number, f: string[]) => applyChanges(doc, buildFormatChanges(doc, from, to, f));
+  const remove = (doc: string, from: number, to: number, f: string[]) => applyChanges(doc, buildRemoveFormatChanges(doc, from, to, f));
+  const clear = (doc: string, from: number, to: number) => applyChanges(doc, buildUnformatChanges(doc, from, to));
+
+  it("adding bold plus a heading over several lines changes the first line's prefix only", () => {
+    const doc = "一二\n三四\n五六";
+    expect(add(doc, 0, doc.length, ["bold", "h1"])).toBe("# **一二\n三四\n五六**");
+  });
+
+  it("adding a heading alone over several lines sets it on every covered line", () => {
+    expect(add("一\n二", 0, 3, ["h2"])).toBe("## 一\n## 二");
+  });
+
+  it("removing from a reversed range is the same as from the forward range", () => {
+    expect(remove("**字**", 3, 2, ["bold"])).toBe(remove("**字**", 2, 3, ["bold"]));
+    expect(remove("**字**", 2, 3, ["bold"])).toBe("字");
+  });
+
+  it("a highlight elsewhere in the note is left alone when clearing an unrelated word", () => {
+    const doc = "==一== 二";
+    expect(clear(doc, doc.indexOf("二"), doc.indexOf("二") + 1)).toBe("==一== 二");
+  });
+
+  it("an opening <mark> tag with no closing one, or a closing tag with no opening one, is still cleared", () => {
+    const open = '<mark style="background:#fff;">你好';
+    expect(clear(open, open.indexOf("你"), open.length)).toBe("你好");
+    const close = "你好</mark>";
+    expect(clear(close, 0, 2)).toBe("你好");
+  });
+
+  it("removing bold keeps italic, strike and code that are also present", () => {
+    expect(remove("**a*b*c**", 0, 9, ["bold"])).toContain("*");
+    expect(remove("**~~字~~**", 0, 10, ["bold"])).toBe("~~字~~");
+    expect(remove("**`字`**", 0, 7, ["bold"])).toBe("`字`");
+  });
+
+  it("removing italic from a bold-only span leaves the bold", () => {
+    expect(remove("**字**", 0, 5, ["italic"])).toBe("**字**");
+  });
+
+  it("removing a heading from a line leaves other prefixes; removing a quote leaves a heading", () => {
+    expect(remove("## 字", 3, 4, ["h2"])).toBe("字");
+    expect(remove("## 字", 3, 4, ["quote"])).toBe("## 字");
+    expect(remove("> 字", 2, 3, ["quote"])).toBe("字");
+    expect(remove("> 字", 2, 3, ["h1"])).toBe("> 字");
+  });
+
+  it("works on the last line of a note that has no trailing newline, and on one that does", () => {
+    expect(remove("甲\n**字**", 4, 5, ["bold"])).toBe("甲\n字");
+    expect(remove("**字**\n乙", 2, 3, ["bold"])).toBe("字\n乙");
   });
 });

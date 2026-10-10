@@ -154,6 +154,15 @@ describe("exportSettings", () => {
   });
 });
 
+describe("importSettings: a wrapper with nothing inside", () => {
+  it("treats {\"settings\": null} as an empty import instead of throwing", async () => {
+    const { plugin } = makePlugin({ settings: null });
+    const r = await importSettings(plugin, "empty.json");
+    expect(r.skipped).toEqual([]);
+    expect(plugin.settings.readerFontPx).toBe(DEFAULT_SETTINGS.readerFontPx);
+  });
+});
+
 describe("mirrorWriteInPlace is per device", () => {
   it("is never imported, and never written to an export", async () => {
     const { plugin, written } = makePlugin({ sync: { mirrorWriteInPlace: true, mirrorPollIntervalMinutes: 9 } });

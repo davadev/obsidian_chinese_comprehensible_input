@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   STORY_SCHEMA,
   STORY_SYSTEM_PROMPT,
+  buildEnhanceUserPrompt,
   buildRepairPrompt,
   buildUserPrompt,
+  resolveAiScript,
 } from "../ai/prompts";
 
 describe("STORY_SYSTEM_PROMPT", () => {
@@ -255,5 +257,42 @@ describe("script clause", () => {
       totalTargets: 1,
     });
     expect(out).not.toContain("exact simplified-Chinese surface form");
+  });
+});
+
+describe("resolveAiScript", () => {
+  const markers = (text: string) => [...text].filter((c) => "學習灣".includes(c)).length;
+
+  it("an explicit script is taken as is, without looking at the words", () => {
+    const count = (_t: string) => {
+      throw new Error("must not be consulted");
+    };
+    expect(resolveAiScript("simplified", ["學習"], count)).toBe("simplified");
+    expect(resolveAiScript("traditional", ["学习"], count)).toBe("traditional");
+  });
+
+  it("auto means Traditional as soon as one target word has a traditional-only character", () => {
+    expect(resolveAiScript("auto", ["学习", "台灣"], markers)).toBe("traditional");
+    expect(resolveAiScript("auto", ["学习", "台湾"], markers)).toBe("simplified");
+    expect(resolveAiScript("auto", [], markers)).toBe("simplified");
+  });
+});
+
+describe("buildEnhanceUserPrompt", () => {
+  const base = { surface: "学习", pinyin: "xué xí", currentDefinitions: ["to study"], sentence: "我学习中文。" };
+
+  it("lists the current definitions, the pinyin and a differing traditional form", () => {
+    const out = buildEnhanceUserPrompt({ ...base, traditional: "學習" });
+    expect(out).toContain("  - to study");
+    expect(out).toContain("Pinyin: xué xí");
+    expect(out).toContain("Traditional: 學習");
+  });
+
+  it("says so when there is nothing yet: no definitions, no pinyin, a traditional form equal to the word or missing", () => {
+    const out = buildEnhanceUserPrompt({ ...base, pinyin: "", currentDefinitions: [], traditional: "学习" });
+    expect(out).toContain("(none)");
+    expect(out).toContain("Pinyin: (unknown)");
+    expect(out).toContain("Traditional: (same)");
+    expect(buildEnhanceUserPrompt(base)).toContain("Traditional: (same)");
   });
 });

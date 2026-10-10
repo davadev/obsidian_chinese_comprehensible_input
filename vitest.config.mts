@@ -18,13 +18,6 @@ export default defineConfig({
       exclude: [
         "src/tests/**",
         "src/**/*.d.ts",
-        // Exclude pure type-definition modules — no executable lines.
-        "src/settings/types.ts",
-        "src/vocabulary/VocabularyTypes.ts",
-        "src/tokenizer/tokenizerTypes.ts",
-        "src/dictionary/DictionaryTypes.ts",
-        "src/ai/aiTypes.ts",
-        "src/ai/prompts.ts",
         // Exclude Obsidian runtime / DOM-heavy shells from unit-test coverage.
         // ViewToolbar.ts and ChineseTextFileView.ts left this list in 0.8.0: a happy-dom
         // harness (src/tests/*.dom.test.ts, with the shared Obsidian DOM fixture) mounts the
@@ -77,11 +70,15 @@ export default defineConfig({
       // real UI, mounted under happy-dom with a real CodeMirror editor. Measured with them in:
       // 97.48 stmts / 91.15 br / 98.32 fn / 99.02 lines (ViewToolbar 97%, ChineseTextFileView 95%), i.e.
       // higher than before, so statements and functions were raised by one point.
+      //
+      // 0.8.0 (coverage push): everything still measured reached 100, dead code and guards the types forbid were
+      // deleted rather than tested, and the floors were locked at 100 so none of it can slip. The shells listed in
+      // `exclude` leave it one by one and must be at 100 when they do.
       thresholds: {
-        lines: 98,
-        functions: 98,
-        branches: 90,
-        statements: 97,
+        lines: 100,
+        functions: 100,
+        branches: 100,
+        statements: 100,
       },
     },
   },

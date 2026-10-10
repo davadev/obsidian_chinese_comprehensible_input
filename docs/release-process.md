@@ -373,6 +373,13 @@ remaining exclusions (`main.ts`, `chineseDecorations.ts`, `SettingsTab.ts`, the 
 more of Obsidian than the fixture provides. Decisions inside them that can be made without a DOM live in pure helpers
 (`formatOptions.ts`, `einkMode.ts`), and `check:layout` covers the E-ink CSS in a real browser.
 
+**0.8.0 coverage push.** Everything still measured is at **100 %** (statements, branches, functions, lines) and the four
+floors are **100**, pinned by `coverageGate.test.ts`. Getting there deleted code rather than hiding it: unused exports,
+helpers only tests called, parameters nothing read, and guards that only a call violating the TypeScript types could
+reach. Guards reachable from persisted, synced or hand-edited data stay, each with a test that feeds that input. There
+are no `/* v8 ignore */` comments in `src/` (a test pins that). The shells in `exclude` leave it one by one and must be
+at 100 when they do; the type-only files and `prompts.ts` are measured again (the type files report 0/0).
+
 ### Why happy-dom, and what the DOM tests are for
 
 Decision (0.8.0, #119): view-layer tests run under **happy-dom**, selected per file with a

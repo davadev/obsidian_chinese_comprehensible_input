@@ -215,3 +215,82 @@ describe("SettingsMirror", () => {
     });
   });
 });
+
+describe("SettingsMirror: remaining paths", () => {
+  beforeEach(() => {
+    h.resolvers.length = 0;
+    (globalThis as unknown as { document: unknown }).document = {
+      body: { style: { setProperty: vi.fn(), removeProperty: vi.fn() } },
+    };
+    (globalThis as unknown as { getComputedStyle: unknown }).getComputedStyle = vi.fn(() => ({ getPropertyValue: () => "" }));
+  });
+
+  it("has no path when the configured one cannot be used", () => {
+    const { mirror, plugin } = make();
+    expect(mirror.path()).toBe(PATH);
+    plugin.settings.sync.settingsMirrorPath = "../settings";
+    expect(mirror.path()).toBeNull();
+  });
+
+  it("a forced push cancels the pending debounced write instead of writing twice", async () => {
+    vi.useFakeTimers();
+    try {
+      const { mirror, adapter } = make();
+      mirror.scheduleWrite?.();
+      await mirror.forcePushNow();
+      const writes = adapter.write.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(adapter.write.mock.calls.length).toBe(writes);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("absorbing when the file is not there is a quiet no-op", async () => {
+    const { mirror, adapter } = make();
+    expect(await mirror.absorbExternalChange()).toBe(false);
+    expect(adapter.read).not.toHaveBeenCalled();
+  });
+
+  it("applies an envelope that carries no updatedAt", async () => {
+    const { mirror, files } = make();
+    files.set(PATH, JSON.stringify({ schemaVersion: 1, settings: { readerFontPx: 31 } }));
+    expect(await mirror.absorbExternalChange()).toBe(true);
+  });
+
+  it("cleans up a leftover temp file when the swap fails, then writes directly", async () => {
+    const { mirror, adapter, files } = make();
+    adapter.rename.mockImplementationOnce(async () => {
+      throw new Error("EBUSY");
+    });
+    await mirror.forcePushNow();
+    expect(files.has(`${PATH}.tmp`)).toBe(false);
+    expect(files.get(PATH)).toContain("schemaVersion");
+  });
+
+  it("copes with the temp file already being gone when the swap fails", async () => {
+    const { mirror, adapter, files } = make();
+    adapter.write.mockImplementationOnce(async () => {
+      throw new Error("ENOSPC");
+    });
+    await mirror.forcePushNow();
+    expect(files.get(PATH)).toContain("schemaVersion");
+  });
+
+  it("merging a remote object over a local value that is not an object replaces it, and arrays are taken whole", async () => {
+    const { mirror, plugin, files } = make();
+    plugin.hasUserTouchedSettings.mockResolvedValue(false);
+    const settings = plugin.settings as unknown as Record<string, unknown>;
+    const remote = (at: string) =>
+      JSON.stringify({ schemaVersion: 1, updatedAt: at, settings: { srs: { newPerDay: 7 }, formatHidden: ["bold"] } });
+    settings.srs = "garbage";
+    files.set(PATH, remote("2026-06-15T10:03:00.000Z"));
+    expect(await mirror.absorbExternalChange()).toBe(true);
+    expect((plugin.settings.srs as unknown as Record<string, unknown>).newPerDay).toBe(7);
+    expect(plugin.settings.formatHidden).toEqual(["bold"]);
+    settings.srs = ["array"];
+    files.set(PATH, remote("2026-06-15T10:04:00.000Z").replace("7", "8"));
+    expect(await mirror.absorbExternalChange()).toBe(true);
+    expect((plugin.settings.srs as unknown as Record<string, unknown>).newPerDay).toBe(8);
+  });
+});

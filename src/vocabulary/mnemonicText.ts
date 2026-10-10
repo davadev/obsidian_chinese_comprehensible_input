@@ -46,7 +46,7 @@ let segmenter: Intl.Segmenter | null | undefined;
 export function graphemes(s: string): string[] {
   if (segmenter === undefined) {
     segmenter =
-      typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+      typeof Intl.Segmenter === "function"
         ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
         : null;
   }

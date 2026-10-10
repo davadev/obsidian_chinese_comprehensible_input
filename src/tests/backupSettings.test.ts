@@ -10,7 +10,6 @@ vi.mock("../ui/confirmInput", () => ({
     confirm.asked.push({ msg, label });
     return confirm.answer;
   }),
-  promptAsync: vi.fn(),
 }));
 
 /**

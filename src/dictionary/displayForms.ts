@@ -92,7 +92,8 @@ export function displaySurface(
   // Only offer the traditional form when it is unambiguous, and even then
   // only if we were given a dictionary to confirm that with.
   if (record.traditional && record.traditional !== record.simplified && dict) {
-    const source = record.simplified ?? first;
+    // `first` cannot stand in for a missing simplified form: if it were set, the line above has already returned it.
+    const source = record.simplified;
     if (source && dict.distinctTraditionalForms(source) === 1) return record.traditional;
   }
   return fallback;

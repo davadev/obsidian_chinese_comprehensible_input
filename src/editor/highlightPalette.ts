@@ -69,11 +69,6 @@ function readHighlightrSettings(app: App): HighlightrSettings | null {
   return settings && typeof settings === "object" ? (settings) : null;
 }
 
-/** Is the Highlightr plugin installed and enabled? */
-export function highlightrInstalled(app: App): boolean {
-  return readHighlightrSettings(app) !== null;
-}
-
 /**
  * The highlight colors currently available to the formatting mode:
  *  - Highlightr installed → its configured colors, in its order.
