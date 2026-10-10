@@ -85,6 +85,19 @@ The mirror is **not** a full settings dump. The plugin strips:
 You can inspect what would be shared by opening the settings-mirror
 file in your vault and looking at the JSON.
 
+## Devices with different dictionaries
+
+A word is stored under a key made of the word and its pinyin (`差不多|chà bu duō`), and the pinyin comes from the
+dictionary the device had when it first met the word. A device that has downloaded CC-CEDICT and one that only has the
+small built-in seed dictionary can therefore hold the same word under two keys, the second one without pinyin. Until
+0.8.0-beta.5 the two were never combined, and a word marked known on one device could keep showing as new on the other.
+
+Now, whenever data is loaded or merged from the mirror, a record without pinyin is folded into the single pinyin record
+for the same word (its status, counts and notes are merged by the same rules as any sync, and the pinyin key is the one
+that survives, so every device agrees). Words with several readings (差 chā / chà / chāi) are left as they are, because
+which reading a bare record belongs to would be a guess. If you see one of those split, download the dictionary on every
+device (Settings → Dictionary) so all of them key the word the same way.
+
 ## Setup walkthrough
 
 1. Ensure your sync tool already covers your vault and reaches both
