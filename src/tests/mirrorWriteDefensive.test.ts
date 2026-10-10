@@ -56,7 +56,7 @@ describe("mirror write: the default stays atomic", () => {
     await store.flushMirrorNow();
     expect(ops).toEqual([`write ${MIRROR}.tmp`, `rename ${MIRROR}.tmp -> ${MIRROR}`]);
     expect(files.has(MIRROR)).toBe(true);
-    await (store as any).ensure("苹果");
+    store.setStatus("苹果", "known");
     await store.flushMirrorNow();
     expect(ops.slice(2)).toEqual([`write ${MIRROR}.tmp`, `remove ${MIRROR}`, `rename ${MIRROR}.tmp -> ${MIRROR}`]);
   });
@@ -67,7 +67,7 @@ describe("mirror write: in place", () => {
     const { store, ops, files } = setup({ inPlace: true });
     await load(store);
     await store.flushMirrorNow();
-    store.ensure("苹果");
+    store.setStatus("苹果", "known");
     await store.flushMirrorNow();
     expect(ops).toEqual([`write ${MIRROR}`, `write ${MIRROR}`]);
     expect([...files.keys()].some((k) => k.endsWith(".tmp"))).toBe(false);
@@ -91,7 +91,7 @@ describe("mirror write: identical content is not rewritten", () => {
     await load(store);
     await store.flushMirrorNow();
     const after = ops.length;
-    store.ensure("苹果");
+    store.setStatus("苹果", "known");
     await store.flushMirrorNow();
     expect(ops.length).toBeGreaterThan(after);
   });

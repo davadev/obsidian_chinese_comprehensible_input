@@ -1,3 +1,4 @@
+import { mirrorPathProblem } from "./mirrorPath";
 import { normalizePath } from "obsidian";
 import type CciPlugin from "../main";
 import { CciSettings } from "./types";
@@ -63,7 +64,9 @@ export class SettingsMirror {
   path(): string | null {
     const s = this.plugin.settings.sync;
     if (!s?.settingsMirrorEnabled) return null;
-    return s.settingsMirrorPath || null;
+    if (!s.settingsMirrorPath) return null;
+    // A half-typed path in Settings must never become a file in the vault; see mirrorPath.ts.
+    return mirrorPathProblem(s.settingsMirrorPath) ? null : s.settingsMirrorPath;
   }
 
   async bootstrap(): Promise<void> {
