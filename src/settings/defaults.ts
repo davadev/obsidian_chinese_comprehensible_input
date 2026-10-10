@@ -146,6 +146,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   sync: {
     mirrorEnabled: false,
     mirrorPath: VOCAB_MIRROR_PATH_DEFAULT,
+    mirrorWriteInPlace: false,
     mirrorPollIntervalMinutes: 5,
     settingsMirrorEnabled: false,
     settingsMirrorPath: "Chinese Learning/cci-settings.json",

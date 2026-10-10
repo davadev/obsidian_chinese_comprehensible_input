@@ -19,6 +19,8 @@ const FILTER_OUT = {
     "settingsMirrorPath",
     "mirrorEnabled",
     "settingsMirrorEnabled",
+    // How THIS device's sync tool likes the file written; another device may use a different tool.
+    "mirrorWriteInPlace",
   ] as const,
   top: [
     "schemaVersion",

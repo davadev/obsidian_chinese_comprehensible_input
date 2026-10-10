@@ -1,4 +1,4 @@
-import { Plugin, normalizePath } from "obsidian";
+import { Notice, Plugin, normalizePath } from "obsidian";
 import { DATA_SCHEMA_VERSION } from "../constants";
 import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
@@ -89,6 +89,8 @@ export class VocabularyStore {
   private mirrorWriteTimer: number | null = null;
   /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
   private lastMirrorHash: string | null = null;
+  /** The "mirror path is a folder" notice is shown once per session, not on every save. */
+  private mirrorFolderWarned = false;
   /**
    * What the mirror file looked like on disk the last time we read or wrote it.
    * Lets the fast poll short-circuit the 2.9 MB read when the file has not
@@ -898,6 +900,27 @@ export class VocabularyStore {
     const path = this.mirrorPath();
     if (!path) return;
     try {
+      const adapter = this.plugin.app.vault.adapter;
+
+      // A folder at the mirror path (a sync tool or an earlier setting can leave one) can never be written as a file:
+      // delete-then-rename and a direct write both fail, and the failure used to be a console line nobody sees.
+      let existing: Awaited<ReturnType<typeof adapter.stat>> = null;
+      try {
+        existing = await adapter.stat(path);
+      } catch {
+        /* an adapter without stat (some mobile ones), or no file yet: nothing to guard */
+      }
+      if (existing?.type === "folder") {
+        if (!this.mirrorFolderWarned) {
+          this.mirrorFolderWarned = true;
+          new Notice(
+            `Chinese plugin: the sync file path "${path}" is a folder, so vocabulary cannot be saved there. Pick a file path in Settings → Sync.`,
+            15_000
+          );
+        }
+        return;
+      }
+
       await ensureFolderForFile(this.plugin, path);
       const envelope: MirrorEnvelope = {
         schemaVersion: MIRROR_ENVELOPE_VERSION,
@@ -906,33 +929,38 @@ export class VocabularyStore {
         dictionaryCustomWords: this.dictBridge?.getCustomWords() ?? {},
       };
       const content = JSON.stringify(envelope, null, 2);
-      const adapter = this.plugin.app.vault.adapter;
-      // Try atomic write (stage to .tmp, then rename). Avoids Nextcloud /
-      // remotely-save catching a half-written JSON. Some mobile adapters
-      // (older Obsidian builds) don't expose `rename` or reject `.tmp`
-      // paths, so fall back to a direct write in that case rather than
-      // failing the whole save.
-      const tmpPath = `${path}.tmp`;
-      let wroteAtomic = false;
-      try {
-        await adapter.write(tmpPath, content);
-        if (await adapter.exists(path)) {
-          await adapter.remove(path);
-        }
-        await adapter.rename(tmpPath, path);
-        wroteAtomic = true;
-      } catch (atomicErr) {
-        console.warn("CCI sync: atomic mirror write unavailable, falling back to direct write", atomicErr);
-        // Best-effort cleanup of the staging file; ignore failures.
-        try {
-          if (await adapter.exists(tmpPath)) await adapter.remove(tmpPath);
-        } catch {
-          /* ignore */
-        }
+      const hash = await hashString(content);
+
+      // Identical bytes: leave the file alone. Every rewrite is a multi-megabyte upload for a sync tool, and a new
+      // modify event for every watcher; reading a note changes exposure counts often, but the file only needs to move
+      // when what it holds has changed.
+      if (existing && hash === this.lastMirrorHash) return;
+
+      if (this.getSettings().sync.mirrorWriteInPlace) {
         await adapter.write(path, content);
+      } else {
+        // Atomic write (stage to .tmp, then rename). Avoids Nextcloud / remotely-save catching a half-written JSON.
+        // Some mobile adapters (older Obsidian builds) don't expose `rename` or reject `.tmp` paths, so fall back to
+        // a direct write in that case rather than failing the whole save.
+        const tmpPath = `${path}.tmp`;
+        try {
+          await adapter.write(tmpPath, content);
+          if (await adapter.exists(path)) {
+            await adapter.remove(path);
+          }
+          await adapter.rename(tmpPath, path);
+        } catch (atomicErr) {
+          console.warn("CCI sync: atomic mirror write unavailable, falling back to direct write", atomicErr);
+          // Best-effort cleanup of the staging file; ignore failures.
+          try {
+            if (await adapter.exists(tmpPath)) await adapter.remove(tmpPath);
+          } catch {
+            /* ignore */
+          }
+          await adapter.write(path, content);
+        }
       }
-      void wroteAtomic;
-      this.lastMirrorHash = await hashString(content);
+      this.lastMirrorHash = hash;
       try {
         this.rememberMirrorStat(await adapter.stat(path));
       } catch { /* ignore */ }

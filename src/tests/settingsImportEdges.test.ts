@@ -153,3 +153,15 @@ describe("exportSettings", () => {
     expect(written.has("out.json")).toBe(true);
   });
 });
+
+describe("mirrorWriteInPlace is per device", () => {
+  it("is never imported, and never written to an export", async () => {
+    const { plugin, written } = makePlugin({ sync: { mirrorWriteInPlace: true, mirrorPollIntervalMinutes: 9 } });
+    const r = await importSettings(plugin, "x.json");
+    expect(plugin.settings.sync.mirrorWriteInPlace).toBe(false);
+    expect(r.skipped.join(" ")).toContain("mirrorWriteInPlace");
+    plugin.settings.sync.mirrorWriteInPlace = true;
+    await exportSettings(plugin, "out.json");
+    expect(JSON.parse(written.get("out.json")!).settings.sync).not.toHaveProperty("mirrorWriteInPlace");
+  });
+});
