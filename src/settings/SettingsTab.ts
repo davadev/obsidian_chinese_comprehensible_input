@@ -47,6 +47,7 @@ import {
 import { loadApiKey, saveApiKey } from "../ai/secrets";
 import { confirmAsync } from "../ui/confirmInput";
 import { renderBackupList } from "./BackupList";
+import { mirrorPathProblem } from "./mirrorPath";
 import type { BackupEntry } from "../data/backupPolicy";
 
 const DOCS_BASE =
@@ -64,6 +65,16 @@ const APPEARANCE_KEYS = new Set([
   "annotationScalePercent",
   "einkNumberScalePercent",
 ]);
+
+/**
+ * Settings whose value is a vault path that a file gets written to. They are NOT saved on every keystroke: the box used
+ * to save, and write the whole mirror, for every intermediate string, so typing or pasting a path left files and
+ * folders such as `vocabulary.` and `vocabulary.json nowledgebase/` in the vault, each one a multi-megabyte write for a
+ * sync tool to upload. What is typed is held until the typing stops (or the page is closed), and a path that is not a
+ * usable .json path is never applied.
+ */
+const PATH_KEYS = new Set(["sync.mirrorPath", "sync.settingsMirrorPath"]);
+const PATH_IDLE_MS = 1_500;
 
 const SECRET_PREFIX = "secret:";
 const UI_PREFIX = "ui:";
@@ -84,6 +95,9 @@ export class CciSettingsTab extends PluginSettingTab {
   /** Transient, not persisted: the paths typed into the backup/restore rows. */
   private exportPath = SETTINGS_EXPORT_DEFAULT_PATH;
   private importPath = SETTINGS_EXPORT_DEFAULT_PATH;
+  /** Typed but not yet applied path values (see PATH_KEYS), and the idle timers that will apply them. */
+  private pendingPaths = new Map<string, string>();
+  private pathTimers = new Map<string, number>();
 
   constructor(app: App, private plugin: CciPlugin) {
     super(app, plugin);
@@ -98,6 +112,8 @@ export class CciSettingsTab extends PluginSettingTab {
     }
     if (key === UI_PREFIX + "exportPath") return this.exportPath;
     if (key === UI_PREFIX + "importPath") return this.importPath;
+    // The box shows what is being typed, not the (older) value that is actually in use.
+    if (PATH_KEYS.has(key) && this.pendingPaths.has(key)) return this.pendingPaths.get(key);
     // The slider works in whole percent; the setting stores a 0..1 fraction.
     if (key === "topHskComfortThreshold") {
       return Math.round((this.plugin.settings.topHskComfortThreshold ?? 0.67) * 100);
@@ -119,6 +135,13 @@ export class CciSettingsTab extends PluginSettingTab {
       this.importPath = String(value).trim();
       return;
     }
+    if (PATH_KEYS.has(key)) {
+      this.pendingPaths.set(key, String(value));
+      const old = this.pathTimers.get(key);
+      if (old !== undefined) window.clearTimeout(old);
+      this.pathTimers.set(key, window.setTimeout(() => void this.commitPath(key), PATH_IDLE_MS));
+      return;
+    }
     // Captured before the write: persist() needs to know whether the script
     // move actually changed what the tokenizer indexes, and by then the new
     // value is already in place.
@@ -129,6 +152,37 @@ export class CciSettingsTab extends PluginSettingTab {
       setByPath(this.plugin.settings as unknown as Record<string, unknown>, key, value);
     }
     return this.persist(key, prevScript);
+  }
+
+  /** Apply a typed path if it is a usable one; otherwise say why not and leave the setting in use untouched. */
+  private async commitPath(key: string): Promise<void> {
+    const timer = this.pathTimers.get(key);
+    if (timer !== undefined) window.clearTimeout(timer);
+    this.pathTimers.delete(key);
+    const typed = this.pendingPaths.get(key);
+    if (typed === undefined) return;
+    const problem = mirrorPathProblem(typed);
+    if (problem) {
+      new Notice(`Chinese plugin: "${typed.trim()}" was not saved. ${problem}`, 8_000);
+      return; // the box keeps showing what was typed, so the person can correct it
+    }
+    this.pendingPaths.delete(key);
+    setByPath(this.plugin.settings as unknown as Record<string, unknown>, key, typed.trim());
+    await this.persist(key);
+  }
+
+  /** Closing Settings applies a path that was typed just before; an unusable one is dropped, and the old value stays. */
+  hide(): void {
+    for (const key of [...this.pendingPaths.keys()]) {
+      if (mirrorPathProblem(this.pendingPaths.get(key) ?? "")) {
+        const t = this.pathTimers.get(key);
+        if (t !== undefined) window.clearTimeout(t);
+        this.pathTimers.delete(key);
+        this.pendingPaths.delete(key);
+      } else {
+        void this.commitPath(key);
+      }
+    }
   }
 
   /**

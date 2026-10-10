@@ -4,6 +4,8 @@ import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
 import { HSK_MAP, HSK_SOURCE } from "../dictionary/hskMap.generated";
 import { migrateVocab } from "./migrations";
+import { slimVocabForMirror } from "./mirrorSlim";
+import { mirrorPathProblem } from "../settings/mirrorPath";
 import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
 import { axesFromStatus, statusFromAxes } from "./axes";
 import { mergeForSync, mergeStoresForSync } from "./syncMerge";
@@ -91,6 +93,8 @@ export class VocabularyStore {
   private lastMirrorHash: string | null = null;
   /** The "mirror path is a folder" notice is shown once per session, not on every save. */
   private mirrorFolderWarned = false;
+  /** Same, for a path that is not a usable `.json` file path. */
+  private mirrorPathWarned = false;
   /**
    * What the mirror file looked like on disk the last time we read or wrote it.
    * Lets the fast poll short-circuit the 2.9 MB read when the file has not
@@ -127,7 +131,16 @@ export class VocabularyStore {
   mirrorPath(): string | null {
     const sync = this.getSettings().sync;
     if (!sync?.mirrorEnabled) return null;
-    return sync.mirrorPath ? normalizePath(sync.mirrorPath) : null;
+    if (!sync.mirrorPath) return null;
+    const problem = mirrorPathProblem(sync.mirrorPath);
+    if (problem) {
+      if (!this.mirrorPathWarned) {
+        this.mirrorPathWarned = true;
+        new Notice(`Chinese plugin: the sync file path "${sync.mirrorPath}" cannot be used, so vocabulary is not being saved to it. ${problem}`, 15_000);
+      }
+      return null;
+    }
+    return normalizePath(sync.mirrorPath);
   }
 
   async load(initialBlob: unknown): Promise<void> {
@@ -924,7 +937,8 @@ export class VocabularyStore {
       await ensureFolderForFile(this.plugin, path);
       const envelope: MirrorEnvelope = {
         schemaVersion: MIRROR_ENVELOPE_VERSION,
-        vocab: this.data,
+        // Not the whole store: see mirrorSlim.ts. This device's own data.json keeps everything.
+        vocab: slimVocabForMirror(this.data),
         dictionaryOverrides: this.dictBridge?.getOverrides() ?? {},
         dictionaryCustomWords: this.dictBridge?.getCustomWords() ?? {},
       };

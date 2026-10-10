@@ -85,6 +85,28 @@ The mirror is **not** a full settings dump. The plugin strips:
 You can inspect what would be shared by opening the settings-mirror
 file in your vault and looking at the JSON.
 
+## What the mirror file holds (and what it does not)
+
+The mirror is a **transport between devices**, not a backup, so it carries only what is worth moving: every word you
+classified (known, unknown, partial, ignored) or wrote something about (a mnemonic, notes, spaced-repetition state),
+with its status, mnemonic, SRS state, notes and per-day counts. It leaves out three things, because every device keeps
+and rebuilds its own:
+
+- words that are only **new** (a vault scan creates one for every word in your notes; on a real vault that was 9,800 of
+  11,000 words);
+- the **per-note exposure counters** (`notesSeenCounts`), which were more than half of the file;
+- all but the five newest exposure timestamps per word.
+
+On a real vault this shrank the file from about 41 MB to a couple of megabytes. A file that size was hard on phones, on
+WebDAV and on sync tools. Nothing is lost: each device's own data (`data.json`) still holds everything, and the merge
+never lets a missing field erase a value a device already has. What you do not get across devices is the other device's
+per-note counts; each device builds those from its own reading.
+
+**The path must be a `.json` file path.** The Mirror file path box used to save, and write the whole mirror, on every
+keystroke, which left files and folders named after half-typed paths (`vocabulary.`, `vocabulary.json nowledgebase/`) in
+the vault. A typed path is now applied once you stop typing (or close Settings), and a path that is not a usable `.json`
+path is never applied or written to; you are told why. If you have such leftovers in your vault, they are safe to delete.
+
 ## If your sync tool reports errors on the mirror file
 
 The mirror file can be several megabytes, and it is rewritten a few seconds after the data it holds changes. To be
