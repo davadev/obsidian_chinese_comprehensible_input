@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AiProviderService } from "../ai/AiProviderService";
 
 function service(onUsage?: (entry: any) => void) {
-  return new AiProviderService(() => ({ debug: false } as any), null, () => "", onUsage ?? null);
+  return new AiProviderService(() => ({ debug: false } as any), {} as any, () => "", onUsage ?? (() => {}));
 }
 
 describe("AiProviderService streaming", () => {

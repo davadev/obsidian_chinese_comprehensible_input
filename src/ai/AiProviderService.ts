@@ -1,4 +1,4 @@
-import { App, normalizePath, Notice, Platform, requestUrl, RequestUrlParam } from "obsidian";
+import { App, normalizePath, Notice, Platform, requestUrl } from "obsidian";
 import { AiOllamaConfig, AiProviderKind, AiSettings, AiUsageEntry } from "../settings/types";
 import { buildOpenAiActiveConfig } from "./openaiProfile";
 import { loadApiKey } from "./secrets";
@@ -28,8 +28,8 @@ class DebugSession {
   constructor(
     private enabled: boolean,
     label: string,
-    private app: App | null = null,
-    private folder: string = ""
+    private app: App,
+    private folder: string
   ) {
     if (!this.enabled) return;
     this.notice = new Notice(`[CCI AI] ${label}`, 0);
@@ -52,28 +52,33 @@ class DebugSession {
 
   done(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
-    if (this.notice) {
-      this.notice.setMessage(`[CCI AI ${elapsed}s] ${msg}`);
-      window.setTimeout(() => this.notice?.hide(), 4000);
-      this.notice = null;
-    }
+    this.closeNotice(`[CCI AI ${elapsed}s] ${msg}`, 4000);
     if (this.enabled) this.lines.push(`- DONE +${elapsed}s · ${msg}`);
     void this.flush();
   }
 
   fail(msg: string): void {
     const elapsed = ((Date.now() - this.t0) / 1000).toFixed(1);
-    if (this.notice) {
-      this.notice.setMessage(`[CCI AI ${elapsed}s] FAIL: ${msg}`);
-      window.setTimeout(() => this.notice?.hide(), 8000);
-      this.notice = null;
-    }
+    this.closeNotice(`[CCI AI ${elapsed}s] FAIL: ${msg}`, 8000);
     if (this.enabled) this.lines.push(`- FAIL +${elapsed}s · ${msg}`);
     void this.flush();
   }
 
+  /**
+   * Final message on the progress notice, then hide it after `ms`. The timer must hold the notice itself: the field is
+   * cleared right away so a second done()/fail() cannot touch it, and a timer that read the field would find null and
+   * leave the notice on screen until it was clicked.
+   */
+  private closeNotice(message: string, ms: number): void {
+    const notice = this.notice;
+    if (!notice) return;
+    this.notice = null;
+    notice.setMessage(message);
+    window.setTimeout(() => notice.hide(), ms);
+  }
+
   private async flush(): Promise<void> {
-    if (!this.enabled || !this.app) return;
+    if (!this.enabled) return;
     try {
       const folder = normalizePath(this.folder || "/");
       const adapter = this.app.vault.adapter;
@@ -97,6 +102,14 @@ class DebugSession {
 }
 
 interface SimpleResponse { status: number; text: string }
+
+/** What this service ever asks for: always a method and headers, and a string body when there is one. */
+interface ChatRequest {
+  url: string;
+  method: "GET" | "POST";
+  headers: Record<string, string>;
+  body?: string;
+}
 
 /**
  * Structural shape covering every chat-completion / streaming envelope
@@ -146,9 +159,9 @@ interface MaybeChatJson {
 export class AiProviderService {
   constructor(
     private getSettings: () => AiSettings,
-    private app: App | null = null,
-    private getDebugFolder: () => string = () => "",
-    private onUsage: ((entry: AiUsageEntry) => void) | null = null
+    private app: App,
+    private getDebugFolder: () => string,
+    private onUsage: (entry: AiUsageEntry) => void
   ) {}
 
   /** Standard prefix for every DebugSession in this service. */
@@ -164,7 +177,7 @@ export class AiProviderService {
    *  model name. */
   resolveActive(): { active: AiOllamaConfig; provider: AiProviderKind } {
     const s = this.getSettings();
-    const apiKey = this.app ? loadApiKey(this.app, s.provider) : "";
+    const apiKey = loadApiKey(this.app, s.provider);
     if (s.provider === "openai") {
       return { active: buildOpenAiActiveConfig(apiKey), provider: "openai" };
     }
@@ -468,13 +481,13 @@ export class AiProviderService {
         chunkCount++;
         if (!firstByte) {
           firstByte = true;
-          dbg.step(`First bytes received (${value?.byteLength ?? 0} B).`);
+          dbg.step(`First bytes received (${value.byteLength} B).`);
         } else if (chunkCount % 10 === 0) {
           dbg.step(`Streaming… ${chunkCount} chunks, ${content.length} chars so far.`);
         }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+        buffer = lines.pop() as string; // split() always yields at least one element
         for (const rawLine of lines) {
           const line = rawLine.trim();
           if (!line) continue;
@@ -629,16 +642,16 @@ export class AiProviderService {
         const { value, done } = await reader.read();
         if (done) break;
         chunkCount++;
-        bytesIn += value?.byteLength ?? 0;
+        bytesIn += value.byteLength;
         if (!firstByteLogged) {
           firstByteLogged = true;
-          dbg.step(`First bytes received (${value?.byteLength ?? 0} B).`);
+          dbg.step(`First bytes received (${value.byteLength} B).`);
         } else if (chunkCount % 10 === 0) {
           dbg.step(`Streaming… ${chunkCount} chunks, ${bytesIn} B, ${content.length} chars of content so far.`);
         }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+        buffer = lines.pop() as string; // split() always yields at least one element
         for (const rawLine of lines) {
           const line = rawLine.trim();
           if (!line || !line.startsWith("data:")) continue;
@@ -695,7 +708,6 @@ export class AiProviderService {
    *  and cached input tokens (the latter is billed at 10× discount and
    *  is what makes prompt caching worth showing separately). */
   private maybeRecordUsageFromOpenAi(json: MaybeChatJson, provider: AiProviderKind): void {
-    if (!this.onUsage) return;
     const u = json?.usage;
     if (!u || typeof u !== "object") return;
     const inputTokens = numberOr(u.prompt_tokens, 0);
@@ -716,7 +728,6 @@ export class AiProviderService {
   /** Ollama's `done: true` line carries `prompt_eval_count` (input
    *  tokens) and `eval_count` (output tokens). No cached-token concept. */
   private maybeRecordUsageFromOllamaResponse(json: MaybeChatJson, provider: AiProviderKind): void {
-    if (!this.onUsage) return;
     const inputTokens = numberOr(json?.prompt_eval_count, 0);
     const outputTokens = numberOr(json?.eval_count, 0);
     if (inputTokens + outputTokens === 0) return;
@@ -729,7 +740,7 @@ export class AiProviderService {
     });
   }
 
-  private async tryRequest(p: RequestUrlParam, timeoutMs: number): Promise<SimpleResponse> {
+  private async tryRequest(p: ChatRequest, timeoutMs: number): Promise<SimpleResponse> {
 
     // Mobile path: requestUrl + Promise.race timeout. Mobile's fetch
     // doesn't talk to localhost anyway, so this branch is mostly here
@@ -753,8 +764,8 @@ export class AiProviderService {
         : null;
     try {
       const res = await nativeFetch(p.url, {
-        method: p.method ?? "GET",
-        headers: (p.headers) ?? {},
+        method: p.method,
+        headers: p.headers,
         body: typeof p.body === "string" ? p.body : undefined,
         signal: ac.signal,
       });
@@ -813,9 +824,9 @@ function numberOr(v: unknown, fallback: number): number {
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
+/** `path` always starts with a slash. */
 function joinUrl(base: string, path: string): string {
   if (base.endsWith("/")) base = base.slice(0, -1);
-  if (!path.startsWith("/")) path = "/" + path;
   return base + path;
 }
 
