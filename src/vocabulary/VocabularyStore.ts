@@ -221,7 +221,7 @@ export class VocabularyStore {
     } catch {
       return;
     }
-    for (const filePath of listing.files ?? []) {
+    for (const filePath of listing.files) {
       const name = filePath.slice(filePath.lastIndexOf("/") + 1);
       if (filePath === mirrorPath) continue;
       // remotely-save names conflicts like "vocabulary.conflict-2026-06-12.json"
@@ -1024,8 +1024,8 @@ function mergeRecords(a: WordRecord, b: WordRecord): WordRecord {
   return {
     ...a,
     ...b,
-    surfaces: Array.from(new Set([...(a.surfaces ?? []), ...(b.surfaces ?? [])])),
-    seenCount: (a.seenCount ?? 0) + (b.seenCount ?? 0),
+    surfaces: Array.from(new Set([...a.surfaces, ...b.surfaces])),
+    seenCount: a.seenCount + b.seenCount,
     recentSeenAt: [...a.recentSeenAt, ...b.recentSeenAt].sort(),
     dailySeenCounts: mergeCounts(a.dailySeenCounts, b.dailySeenCounts),
     status: pickWinningStatus(a.status, b.status),
