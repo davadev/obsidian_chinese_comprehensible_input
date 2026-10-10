@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Notice } from "obsidian";
 import { indexVault, indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 
 /**
@@ -124,5 +125,27 @@ describe("indexVaultWithNotice", () => {
     const { plugin } = make(["a.md"], { "a.md": "你好" });
     plugin.saveSettings.mockRejectedValue(new Error("disk full"));
     await expect(indexVaultWithNotice(plugin)).resolves.toBeUndefined();
+  });
+
+  it("hides the notice by itself: after 4 s on success, after 6 s on failure", async () => {
+    vi.useFakeTimers();
+    try {
+      const ok = make(["a.md"], { "a.md": "你好" }).plugin;
+      Notice.instances.length = 0;
+      const hide = vi.spyOn(Notice.prototype, "hide");
+      await indexVaultWithNotice(ok);
+      vi.advanceTimersByTime(3999);
+      expect(hide).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(hide).toHaveBeenCalledTimes(1);
+
+      const bad = make(["a.md"], { "a.md": "你好" }).plugin;
+      bad.dictionary.ensureLoaded.mockRejectedValue(new Error("nope"));
+      await indexVaultWithNotice(bad);
+      vi.advanceTimersByTime(6000);
+      expect(hide).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
