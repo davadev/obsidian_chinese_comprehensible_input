@@ -55,6 +55,11 @@ the whole tree from here.
 - [Spaced repetition](./srs.md) — how reviews get scheduled and which
   knobs to touch first.
 
+## Data safety
+
+- [Backups and going back to an older version](./backups.md) — the automatic copy taken before an update, the offer to
+  restore after a downgrade, what is and is not protected, and how sync can undo a restore.
+
 ## Sync across devices
 
 - [Vault-mirror sync (the workaround if you don't sync .obsidian/)](./sync-mirror.md)

@@ -78,6 +78,9 @@ The mirror is **not** a full settings dump. The plugin strips:
   index marker, crash counters.
 - **Bootstrap helpers** — `hskColorsDerivedFromAccent` (which is a
   first-launch derivation that should be per-device).
+- **Per-device screen and safety choices** — E-ink mode and its size,
+  and the backup settings (automatic backups on/off, how many to keep).
+  See [Backups](./backups.md) for how a restore interacts with the mirror.
 
 You can inspect what would be shared by opening the settings-mirror
 file in your vault and looking at the JSON.

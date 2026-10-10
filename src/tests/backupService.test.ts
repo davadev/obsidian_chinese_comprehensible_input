@@ -618,6 +618,29 @@ describe("the remaining failure paths: each ends as a result, never as an except
   });
 });
 
+describe("pendingRestore (what the Settings list shows)", () => {
+  it("is null with nothing queued, the queued entry once queued, and null again after withdrawing", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, '{"v":1}');
+    const r = await env.svc("0.8.0").startup();
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+    await env.svc("0.8.0").stageRestore(r.backedUp!.id);
+    expect((await env.svc("0.8.0").pendingRestore())?.id).toBe(r.backedUp!.id);
+    await env.svc("0.8.0").cancelRestore();
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+  });
+
+  it("is null for an unreadable marker or one naming a backup that is gone", async () => {
+    const env = makeEnv();
+    env.fs.files.set(DATA, '{"v":1}');
+    await env.svc("0.8.0").startup();
+    env.fs.files.set(`${DIR}/${PENDING_RESTORE_FILE}`, "{{{");
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+    env.fs.files.set(`${DIR}/${PENDING_RESTORE_FILE}`, JSON.stringify({ id: "ghost" }));
+    expect(await env.svc("0.8.0").pendingRestore()).toBeNull();
+  });
+});
+
 describe("downgrade: the story from the issue", () => {
   // S is a stable release that has this feature; b1..b3 are betas after it. The data each version leaves is distinct.
   const S = "0.9.0", b1 = "0.10.0-beta.1", b2 = "0.10.0-beta.2";

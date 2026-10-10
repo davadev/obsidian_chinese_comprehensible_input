@@ -257,6 +257,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [Spaced repetition](./docs/srs.md)
 - [Vault-mirror sync (for users who don't sync .obsidian/)](./docs/sync-mirror.md)
 - [Conflict resolution between devices](./docs/conflicts.md)
+- [Backups and going back to an older version](./docs/backups.md) — automatic copies before an update, and the way back after a downgrade
 
 ### Limitations
 
@@ -318,7 +319,7 @@ What this plugin can access, why, and when. These mirror the capability rows on 
 **Vault access**
 
 - **Read** — reads the Chinese note you have open, to tokenize and annotate it.
-- **Write** — writes generated stories, and, if you enable the optional sync mirror, sanitized settings/vocabulary JSON inside your vault.
+- **Write** — writes generated stories, and, if you enable the optional sync mirror, sanitized settings/vocabulary JSON inside your vault. Backups are written to the plugin's own folder, outside your notes; a restore you choose can rewrite the sync-mirror files you already have.
 - **Enumerate** — lists Markdown file paths to build the vocabulary index. Paths and Chinese text are read locally and never transmitted.
 
 **Clipboard** — used only when you click the vocabulary export or import buttons in Settings. The plugin never reads your clipboard in the background.
@@ -328,5 +329,6 @@ What this plugin can access, why, and when. These mirror the capability rows on 
 ## Data storage
 
 - Settings, vocabulary state, SRS state, and exposure history are stored in the plugin's local Obsidian data blob.
+- Before the plugin version changes, a compressed copy of that blob (and, if you use the sync mirror, this device's mirror files) is saved in the plugin's own folder (`backups/`), never in your vault. See [Backups](./docs/backups.md).
 - If you enable the optional sync mirror, sanitized settings and vocabulary data are also written to JSON files inside your vault. API keys stay local.
 - The bundled dictionary is only a small seed set. Normal use expects a user-supplied CC-CEDICT shard at `<vault>/.cci-dictionary.json`.

@@ -339,6 +339,19 @@ export class BackupService {
     });
   }
 
+  /** The backup a queued restore will apply at the next start, if one is queued (and still listed). */
+  pendingRestore(): Promise<BackupEntry | null> {
+    return this.run(async () => {
+      try {
+        if (!(await this.d.adapter.exists(this.markerPath))) return null;
+        const id = String((JSON.parse(await this.d.adapter.read(this.markerPath)) as { id?: unknown }).id ?? "");
+        return (await this.readIndex()).backups.find((e) => e.id === id) ?? null;
+      } catch {
+        return null;
+      }
+    });
+  }
+
   /** Withdraw a queued restore ("Decide later" after having queued one, or a change of mind). */
   cancelRestore(): Promise<void> {
     return this.run(async () => {
