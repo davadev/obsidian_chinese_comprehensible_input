@@ -6,7 +6,7 @@ import { HSK_MAP, HSK_SOURCE } from "../dictionary/hskMap.generated";
 import { migrateVocab } from "./migrations";
 import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
 import { axesFromStatus, statusFromAxes } from "./axes";
-import { mergeStoresForSync } from "./syncMerge";
+import { mergeForSync, mergeStoresForSync } from "./syncMerge";
 import { CciSettings } from "../settings/types";
 import { DictionaryCustomWords, DictionaryOverrides } from "../dictionary/DictionaryTypes";
 import { PluginDataBlob } from "../data/pluginDataUpdater";
@@ -263,6 +263,8 @@ export class VocabularyStore {
         : settings.exactTimestampRetentionLimit,
     });
     this.data = merged;
+    // Two devices whose dictionaries differ can hold the same word under two keys (see reconcileBareKeys).
+    this.reconcileBareKeys();
     this.clearSurfaceLookupCache();
 
     if (this.dictBridge) {
@@ -441,11 +443,55 @@ export class VocabularyStore {
       out[canonical] = mergeRecords(prev, r);
       mutated = true;
     }
-    if (mutated) {
-      this.data.words = out;
+    if (mutated) this.data.words = out;
+    const folded = this.reconcileBareKeys();
+    if (mutated || folded) {
       this.clearSurfaceLookupCache();
       this.scheduleSave();
     }
+  }
+
+  /**
+   * Fold a "bare" record into its pinyin-keyed sibling.
+   *
+   * A record's key is `makeKey(simplified, pinyin)`, and the pinyin comes from whatever dictionary the device had
+   * when the word was first met. A device with the full CC-CEDICT keys 差不多 as `差不多|chà bu duō`; a device with
+   * only the small seed dictionary has no entry, so it keys the same word as the bare `差不多`. Synced through the
+   * mirror, the merge works key by key and keeps both records, and `bySurface()` then resolves to whichever key THIS
+   * device's dictionary derives: the bare, never-classified one. A word marked known on the phone showed as new on the
+   * Mac, and Force re-sync merged the same two records again and changed nothing.
+   *
+   * The pinyin key always survives (so every device picks the same one), the bare record's status, counts and notes are
+   * merged into it with the same commutative rules as a sync, and the bare key is dropped. Only done when there is
+   * exactly ONE pinyin sibling: a polyphone (差 chā / chà / chāi) has several, which one the bare record belongs to
+   * is a guess, so those are left as they are.
+   *
+   * Returns whether anything changed. Idempotent: a second call finds no bare record with one sibling.
+   */
+  private reconcileBareKeys(): boolean {
+    const words = this.data.words;
+    const siblingsOf = new Map<string, string[]>();
+    for (const key of Object.keys(words)) {
+      const bar = key.indexOf("|");
+      if (bar < 0) continue;
+      const base = key.slice(0, bar);
+      const list = siblingsOf.get(base);
+      if (list) list.push(key);
+      else siblingsOf.set(base, [key]);
+    }
+    const opts = { statusPriority: this.getSettings().sync.statusPriority };
+    let changed = false;
+    for (const [base, siblings] of siblingsOf) {
+      const bare = words[base];
+      if (!bare || siblings.length !== 1) continue;
+      const target = words[siblings[0]];
+      const merged = mergeForSync(target, bare, opts);
+      merged.key = target.key;
+      words[target.key] = merged;
+      delete words[base];
+      changed = true;
+    }
+    return changed;
   }
 
   /** Returns a frozen view of the persisted blob to be merged with settings. */
