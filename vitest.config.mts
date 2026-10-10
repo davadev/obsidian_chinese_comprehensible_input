@@ -24,9 +24,7 @@ export default defineConfig({
         // real toolbar and the real view with a real CodeMirror editor. What is still here
         // needs more of Obsidian than that fixture provides (#119).
         "src/main.ts",
-        "src/editor/chineseDecorations.ts",
         "src/editor/markdownRendering.ts",
-        "src/editor/wordInteractionPlugin.ts",
         "src/settings/SettingsTab.ts",
         "src/ui/StatsGraph.ts",
         "src/ui/StatsView.ts",

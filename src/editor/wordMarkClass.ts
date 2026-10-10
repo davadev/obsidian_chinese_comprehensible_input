@@ -15,10 +15,8 @@ export function wordMarkClass(opts: {
   /** Colour class key (`known`, `hsk-3` …); omit for the uncoloured mark that only makes a word clickable. */
   colorKey?: string;
   headingLevel: number;
-  /** Already includes its leading space, e.g. `" cci-md-highlight"`, or `""`. */
-  hlClass?: string;
 }): string {
   const color = opts.colorKey ? ` cci-color-${opts.colorKey}` : "";
   const level = opts.headingLevel in HEADING_SCALE ? ` cci-word-h${opts.headingLevel}` : "";
-  return `cci-word${color}${level}${opts.hlClass ?? ""}`;
+  return `cci-word${color}${level}`;
 }
