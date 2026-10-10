@@ -1,7 +1,7 @@
 import { Notice, Platform, TextFileView, WorkspaceLeaf } from "obsidian";
 import { Compartment, EditorState, Transaction } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { syntaxHighlighting } from "@codemirror/language";
 import type CciPlugin from "../main";
 import { VIEW_TYPE_CHINESE } from "../constants";
@@ -458,7 +458,9 @@ export class ChineseTextFileView extends TextFileView {
       doc: initialDoc,
       extensions: [
         EditorView.lineWrapping,
-        markdown(),
+        // The GFM flavour, not the CommonMark default: `~~strike~~` (the Strikethrough format) is only parsed there, and
+        // both the hidden `~~` marks and the line-through style hang off that node.
+        markdown({ base: markdownLanguage }),
         syntaxHighlighting(cciMarkdownHighlight),
         buildChineseDecorations(this.plugin),
         buildMarkdownRendering(this.plugin),
