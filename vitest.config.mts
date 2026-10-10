@@ -26,7 +26,6 @@ export default defineConfig({
         "src/main.ts",
         "src/editor/chineseDecorations.ts",
         "src/editor/markdownRendering.ts",
-        "src/editor/wordInteractionPlugin.ts",
         "src/settings/SettingsTab.ts",
         "src/ui/StatsGraph.ts",
         "src/ui/StatsView.ts",
