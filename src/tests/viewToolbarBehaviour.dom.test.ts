@@ -439,3 +439,112 @@ describe("overflow menu buttons and closing", () => {
     expect(add.mock.calls.filter(([type]) => type === "click")).toHaveLength(0);
   });
 });
+
+describe("the Formats menu: closing, reverse mode, and odd input", () => {
+  const formatsBtn = (c: HTMLElement) => btn(c, "Formats ▾");
+  const items = () => Array.from(menu()!.querySelectorAll<HTMLElement>(".cci-overflow-item"));
+  const itemByLabel = (label: string) => items().find((i) => i.textContent === label)!;
+
+  it("works without a document-text getter or a custom-word callback", () => {
+    const plugin = makePlugin();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    expect(() => new ViewToolbar(plugin, container, vi.fn())).not.toThrow();
+    expect(container.classList.contains("cci-toolbar")).toBe(true);
+  });
+
+  it("names an armed format that is no longer offered by its id", () => {
+    const { container } = mount({ mode: "format", settings: { enabledFormats: ["retired-format"] } });
+    expect(container.querySelector(".cci-banner")!.textContent).toContain("retired-format");
+  });
+
+  it("a second tap on Formats closes the menu", () => {
+    const { container } = mount({ mode: "format" });
+    formatsBtn(container).click();
+    expect(menu()).toBeTruthy();
+    formatsBtn(container).click();
+    expect(menu()).toBeNull();
+  });
+
+  it("clicks inside the menu or on its button do not close it; a resize does, once, and leaves no listener behind", () => {
+    const { container } = mount({ mode: "format" });
+    formatsBtn(container).click();
+    vi.runOnlyPendingTimers();
+    menu()!.querySelector<HTMLElement>(".cci-overflow-hint")!.click();
+    expect(menu()).toBeTruthy();
+    window.dispatchEvent(new Event("resize"));
+    expect(menu()).toBeNull();
+    expect(() => window.dispatchEvent(new Event("resize"))).not.toThrow();
+    // Reopen: the old close() must not run twice.
+    formatsBtn(container).click();
+    expect(menu()).toBeTruthy();
+  });
+
+  it("closing before the deferred listener is registered registers nothing", () => {
+    const { container } = mount({ mode: "format" });
+    const add = vi.spyOn(document, "addEventListener");
+    formatsBtn(container).click();
+    window.dispatchEvent(new Event("resize"));
+    vi.runOnlyPendingTimers();
+    expect(add.mock.calls.filter((c) => c[0] === "click")).toHaveLength(0);
+    add.mockRestore();
+  });
+
+  it("in remove mode it says so and lets several formats be ticked even if they conflict", () => {
+    const { container } = mount({ mode: "format", settings: { formatReverseMode: true, enabledFormats: ["h1"] } });
+    formatsBtn(container).click();
+    expect(menu()!.textContent).toContain("Formats to remove");
+    expect(items().every((i) => !i.classList.contains("is-disabled"))).toBe(true);
+  });
+
+  it("a conflicting format is greyed out and ignores a change event", async () => {
+    const { container, plugin } = mount({ mode: "format", settings: { enabledFormats: ["h1"] } });
+    formatsBtn(container).click();
+    const h2 = itemByLabel("Heading 2");
+    expect(h2.classList.contains("is-disabled")).toBe(true);
+    const cb = box(h2);
+    cb.dispatchEvent(new Event("change"));
+    h2.click();
+    await flush();
+    expect(plugin.settings.enabledFormats).toEqual(["h1"]);
+    expect(plugin.saveSettings).not.toHaveBeenCalled();
+  });
+
+  it("clicking the checkbox itself toggles once (the row handler stands aside)", async () => {
+    const { container, plugin } = mount({ mode: "format", settings: { enabledFormats: [] } });
+    formatsBtn(container).click();
+    const cb = box(itemByLabel("Bold"));
+    cb.click();
+    await flush();
+    expect(plugin.settings.enabledFormats).toEqual(["bold"]);
+    expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes the banner text after a toggle", async () => {
+    const { container } = mount({ mode: "format", settings: { enabledFormats: [] } });
+    formatsBtn(container).click();
+    itemByLabel("Bold").click();
+    await flush();
+    expect(container.querySelector(".cci-banner")!.textContent).toContain("Bold");
+  });
+});
+
+describe("the overflow menu: radios and sliders", () => {
+  it("a radio that reports a change without being checked changes nothing", async () => {
+    const { container, plugin, onChange } = mount({ settings: { defaultDisplayMode: "pinyin" } });
+    openOverflow(container);
+    const radios = Array.from(menu()!.querySelectorAll<HTMLInputElement>("input[type=radio]"));
+    const unchecked = radios.find((r) => !r.checked)!;
+    const before = plugin.settings.defaultDisplayMode;
+    unchecked.dispatchEvent(new Event("change"));
+    await flush();
+    expect(plugin.settings.defaultDisplayMode).toBe(before);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("the font slider starts at the default when the setting is null", () => {
+    const { container } = mount({ settings: { readerFontPx: null } });
+    openOverflow(container);
+    expect(slider("Font size").value).toBe("22");
+  });
+});

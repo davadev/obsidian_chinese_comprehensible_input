@@ -116,6 +116,36 @@ describe("VocabularyStore remaining branches", () => {
     });
   });
 
+  describe("when the file system misbehaves", () => {
+    it("a folder that cannot be listed just means no conflict files to sweep", async () => {
+      const { store, files, adapter } = setup();
+      await store.load({});
+      files.set(MIRROR, envelope({ a: rec("a") }));
+      adapter.list.mockRejectedValueOnce(new Error("EIO"));
+      await store.bootstrapMirrorAfterLoad();
+      expect(store.values().map((r) => r.key)).toEqual(["a"]);
+    });
+
+    it("a mirror at the vault root is written without making a folder", async () => {
+      vi.useFakeTimers();
+      const { store, files, adapter } = setup({ mirrorPath: "vocabulary.json" });
+      await store.load({});
+      store.setStatus("猫", "known");
+      await store.flushSave();
+      await vi.advanceTimersByTimeAsync(60_000);
+      await vi.waitFor(() => expect(files.has("vocabulary.json")).toBe(true));
+      expect(adapter.mkdir).not.toHaveBeenCalled();
+    });
+
+    it("saving a store that was never loaded does not schedule a mirror write", async () => {
+      vi.useFakeTimers();
+      const { store, adapter } = setup();
+      await store.flushSave();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(adapter.write).not.toHaveBeenCalled();
+    });
+  });
+
   describe("mergeMirrorContent", () => {
     it("honours the store-every-timestamp setting", async () => {
       const { store } = setup({ settings: { storeAllExactTimestamps: true } });

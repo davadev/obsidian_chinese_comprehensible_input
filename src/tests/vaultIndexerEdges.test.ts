@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { Notice } from "obsidian";
+import { Notice } from "./__mocks__/obsidian";
 import { indexVault, indexVaultWithNotice } from "../vocabulary/VaultIndexer";
 
 /**

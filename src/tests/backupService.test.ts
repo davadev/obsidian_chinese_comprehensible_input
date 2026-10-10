@@ -941,3 +941,12 @@ describe("what a damaged or foreign index and marker can contain", () => {
     expect(await run(Object.assign(new Error(""), { name: "" }))).toContain("unknown error");
   });
 });
+
+describe("the operation queue", () => {
+  it("an operation that fails does not wedge the ones queued behind it", async () => {
+    const env = makeEnv();
+    const svc = env.svc("0.8.0") as unknown as { run: <T>(fn: () => Promise<T>) => Promise<T> };
+    await expect(svc.run(async () => { throw new Error("bug"); })).rejects.toThrow("bug");
+    await expect(svc.run(async () => "still running")).resolves.toBe("still running");
+  });
+});

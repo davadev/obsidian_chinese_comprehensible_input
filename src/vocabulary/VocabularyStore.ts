@@ -894,7 +894,8 @@ export class VocabularyStore {
     if (this.mirrorWriteTimer != null) window.clearTimeout(this.mirrorWriteTimer);
     this.mirrorWriteTimer = window.setTimeout(() => {
       this.mirrorWriteTimer = null;
-      this.writeMirror().catch((e) => console.error("CCI sync: mirror write failed", e));
+      // writeMirror reports its own failures and never rejects.
+      void this.writeMirror();
     }, VocabularyStore.MIRROR_WRITE_DEBOUNCE_MS);
   }
 
