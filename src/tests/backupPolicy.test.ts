@@ -276,3 +276,26 @@ describe("formatBytes", () => {
     for (const bad of [NaN, -1, Infinity]) expect(formatBytes(bad)).toBe("?");
   });
 });
+
+describe("remaining policy branches", () => {
+  it("a numeric identifier ranks below an alphanumeric one in either argument order", () => {
+    expect(compareVersions("1.0.0-alpha", "1.0.0-1")).toBe(1);
+    expect(compareVersions("1.0.0-1", "1.0.0-alpha")).toBe(-1);
+  });
+
+  it("versions that differ only in build metadata are the same version at start-up", () => {
+    expect(decideStartup({ lastRun: "1.0.0+a", running: "1.0.0+b" })).toBe("same");
+  });
+
+  it("backups taken in the same instant are ordered by id, in either order, and the choice is stable", () => {
+    const t = at(5);
+    const a = entry("0.7.9", t, { id: "a" });
+    const b = entry("0.7.9", t, { id: "b" });
+    expect(selectRestoreCandidate([a, b], "0.7.9")).toBe(b);
+    expect(selectRestoreCandidate([b, a], "0.7.9")).toBe(b);
+    // A hand-edited index can even repeat an id: still a stable order, no crash.
+    const x1 = entry("0.7.9", t, { id: "x" });
+    const x2 = entry("0.7.9", t, { id: "x" });
+    expect(applyRetention([x1, x2], 1).keep).toHaveLength(1);
+  });
+});

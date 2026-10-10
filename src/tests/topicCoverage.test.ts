@@ -372,3 +372,31 @@ describe("topicSpokes — boundaries and invariants", () => {
     expect(Date.now() - t0).toBeLessThan(1000);
   });
 });
+
+describe("topic table integrity (the runtime no longer re-checks it)", () => {
+  it("every packed entry is `<topic chars>|<level>|<bucket>` with known topics and a bucket 0-9", () => {
+    for (const [word, packed] of Object.entries(TOPIC_MAP)) {
+      const parts = packed.split("|");
+      expect(parts, word).toHaveLength(3);
+      for (const ch of parts[0]) expect(TOPIC_IDS[parseInt(ch, 36)], `${word}: topic ${ch}`).toBeTruthy();
+      expect(Number.isInteger(Number(parts[1])), word).toBe(true);
+      const bucket = Number(parts[2]);
+      expect(Number.isInteger(bucket) && bucket >= 0 && bucket <= 9, `${word}: bucket ${parts[2]}`).toBe(true);
+    }
+  });
+});
+
+describe("remaining branches", () => {
+  it("tops up from the defaults without repeating a topic already chosen", () => {
+    const first = DEFAULT_RADAR_TOPICS[0];
+    const out = resolveRadarTopics([first]);
+    expect(out).toHaveLength(MIN_RADAR_TOPICS);
+    expect(new Set(out).size).toBe(out.length);
+    expect(out[0]).toBe(first);
+  });
+
+  it("ignores a record that has neither a simplified form nor any surface", () => {
+    const spokes = topicSpokes([rec({ simplified: undefined, surfaces: [], status: "known" })], [TOPIC_IDS[0]]);
+    expect(only(TOPIC_IDS[0], spokes).known).toBe(0);
+  });
+});

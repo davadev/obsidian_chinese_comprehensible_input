@@ -72,9 +72,7 @@ function parseEnhanceResult(raw: string, allowPinyin: boolean): EnhanceResult {
   } catch (err) {
     throw new Error(`Could not parse AI JSON: ${(err as Error).message}`);
   }
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("AI JSON was not an object.");
-  }
+  // The slice starts at "{", so it parses to an object or throws above.
   const obj = parsed as Record<string, unknown>;
   const rawDefs = obj.definitions;
   if (!Array.isArray(rawDefs)) {

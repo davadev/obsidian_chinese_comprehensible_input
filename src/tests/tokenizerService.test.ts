@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { TokenizerService } from "../tokenizer/TokenizerService";
 import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { clearTokenCache } from "../tokenizer/tokenCache";
@@ -173,5 +173,32 @@ describe("TokenizerService — engine change invalidates the cache", () => {
     const second = await tokenizer.tokenize("今天学习");
     // Same cached array instance — proves the cache was consulted, not rebuilt.
     expect(second).toBe(first);
+  });
+});
+
+describe("TokenizerService — remaining branches", () => {
+  it("scores a segment with several dictionary candidates at 0.6", async () => {
+    clearTokenCache();
+    const dict = makeDict();
+    const two = [
+      { simplified: "行", traditional: "行", pinyin: "xíng", definitions: ["walk"] },
+      { simplified: "行", traditional: "行", pinyin: "háng", definitions: ["row"] },
+    ];
+    const base = dict.lookup;
+    dict.lookup = (s: string) => (s === "行" ? two : base(s));
+    const tokenizer = new TokenizerService(dict, { hasRecord: () => false, knownBoost: () => 0 }, () => ({ tokenizerEngine: "intl-segmenter" }) as any);
+    const tok = (await tokenizer.tokenize("行")).find((t) => t.surface === "行");
+    expect(tok?.confidence).toBe(0.6);
+    expect(tok?.candidates).toHaveLength(2);
+  });
+
+  it("builds the trie once and reuses it for later texts", async () => {
+    clearTokenCache();
+    const dict = makeDict();
+    const surfaces = vi.spyOn(dict, "surfaces");
+    const tokenizer = new TokenizerService(dict, { hasRecord: () => false, knownBoost: () => 0 }, () => ({ tokenizerEngine: "lattice" }) as any);
+    await tokenizer.tokenize("今天");
+    await tokenizer.tokenize("学习");
+    expect(surfaces).toHaveBeenCalledTimes(1);
   });
 });

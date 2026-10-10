@@ -259,3 +259,57 @@ describe("DictionaryService loading edges", () => {
     expect(s.has("没有这个词")).toBe(false);
   });
 });
+
+describe("DictionaryService: loading and overlay gaps", () => {
+  const loaded = async (entries: unknown[]) => {
+    const service = new DictionaryService({
+      vault: { adapter: { exists: async () => true, read: async () => JSON.stringify(entries) } },
+    } as any);
+    await service.ensureLoaded();
+    return service;
+  };
+
+  it("repairs pinyin an older build wrote with the tone on the wrong vowel, and leaves correct pinyin alone", async () => {
+    const service = await loaded([
+      { simplified: "久", traditional: "久", pinyin: "jǐu", definitions: ["long time"] },
+      { simplified: "好", traditional: "好", pinyin: "hǎo", definitions: ["good"] },
+    ]);
+    expect(service.lookup("久")[0].pinyin).toBe("jiǔ");
+    expect(service.lookup("好")[0].pinyin).toBe("hǎo");
+  });
+
+  it("lifts a Taiwan reading out of the definitions, but never overwrites one the entry already has", async () => {
+    const service = await loaded([
+      { simplified: "垃圾", traditional: "垃圾", pinyin: "lā jī", definitions: ["garbage", "Taiwan pr. [le4 se4]"] },
+      { simplified: "垃", traditional: "垃", pinyin: "lā", pinyinTaiwan: "lè", definitions: ["Taiwan pr. [le4 se4]"] },
+    ]);
+    expect(service.lookup("垃圾")[0].pinyinTaiwan).toBe("lè sè");
+    expect(service.lookup("垃")[0].pinyinTaiwan).toBe("lè");
+  });
+
+  it("an entry whose definitions mention no Taiwan reading gets none", async () => {
+    const service = await loaded([{ simplified: "水", traditional: "水", pinyin: "shuǐ", definitions: ["water"] }]);
+    expect(service.lookup("水")[0].pinyinTaiwan).toBeUndefined();
+  });
+
+  it("a custom word without a traditional form uses its simplified form for it", () => {
+    const service = makeService();
+    service.setOverlay(
+      () => ({}),
+      () => ({ 咖啡馆: { simplified: "咖啡馆", pinyin: "kā fēi guǎn", definitions: ["cafe"], createdAt: "x", updatedAt: "x" } })
+    );
+    expect(service.lookup("咖啡馆")[0].traditional).toBe("咖啡馆");
+  });
+
+  it("an override that sets only some fields keeps the entry's own for the rest", async () => {
+    const service = await loaded([{ simplified: "怪词", traditional: "怪詞", pinyin: "guài cí", definitions: ["odd word"] }]);
+    service.setOverlay(
+      () => ({ [makeKey("怪词", "guài cí")]: { pinyin: "guài ci", updatedAt: "x" } }),
+      () => ({})
+    );
+    const e = service.lookup("怪词")[0];
+    expect(e.pinyin).toBe("guài ci");
+    expect(e.definitions).toEqual(["odd word"]);
+    expect(e.traditional).toBe("怪詞");
+  });
+});

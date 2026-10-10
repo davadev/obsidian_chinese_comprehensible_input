@@ -333,22 +333,10 @@ export default class CciPlugin extends Plugin {
     // Keep onload light. Load just settings + small services.
     //
     // `startupData()` is the ONLY place that reads data.json before the first write, and everything below that can
-    // write (the fire-and-forget saves at the legacy-key cleanup, the HSK colour derivation, the override re-key,
+    // write (the fire-and-forget saves at the HSK colour derivation, the override re-key,
     // dedupeOnLoad, the vault bootstrap) comes after it. Keep it that way: a snapshot is only worth anything if it is
     // taken before the first thing that could change the data (pinned by src/tests/backupWiring.test.ts).
     const blob = await this.startupData();
-    // 0.6.1 moved crash state into its own file. Drop the legacy keys so a
-    // downgrade cannot re-read a stale __autoDisabled and take the plugin out
-    // for no reason. Not awaited: a one-time tidy must not sit on the critical
-    // path before the ribbon icon appears. The count is deliberately NOT
-    // carried over — a user in a live crash loop is already auto-disabled
-    // rather than launching a new version, so it would buy nothing.
-    if (blob.__crashCounter !== undefined || blob.__autoDisabled !== undefined) {
-      void this.updateDataBlob((b) => {
-        delete b.__crashCounter;
-        delete b.__autoDisabled;
-      }).catch((e) => console.warn("CCI: legacy crash-key cleanup failed", e));
-    }
     const rawSettings = blob.settings ?? {};
     // Run pre-merge migrations on the raw blob so legacy flat-shaped
     // ai.* fields (v1) get folded into ai.ollama.* before DEFAULT_SETTINGS

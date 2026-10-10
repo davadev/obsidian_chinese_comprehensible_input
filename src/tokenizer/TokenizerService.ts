@@ -98,7 +98,7 @@ export class TokenizerService {
         });
       }
       const cjkTokens = tokenizeLatticeSpan(span.text, span.start, this.dict, trie, this.scoringCtx);
-      out.push(...this.applyOverrides(cjkTokens, text));
+      out.push(...this.applyOverrides(cjkTokens));
       cursor = span.end;
     }
     if (cursor < text.length) {
@@ -135,7 +135,7 @@ export class TokenizerService {
     return out;
   }
 
-  private applyOverrides(tokens: Token[], fullText: string): Token[] {
+  private applyOverrides(tokens: Token[]): Token[] {
     if (this.overrides.size === 0) return tokens;
     const out: Token[] = [];
     for (const t of tokens) {

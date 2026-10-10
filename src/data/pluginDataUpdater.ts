@@ -15,8 +15,6 @@ import type {
  * compatible with future bookkeeping fields the plugin may stash here.
  */
 export interface PluginDataBlob {
-  __autoDisabled?: boolean;
-  __crashCounter?: number;
   __autoStoryLastSuccessDate?: string;
   __autoStoryLastAttemptAt?: string;
   __settingsTouchedAt?: string;

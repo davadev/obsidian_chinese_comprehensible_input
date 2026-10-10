@@ -127,3 +127,25 @@ describe("colorClassKey", () => {
     expect(colorClassKey(rec({ levels: ["4"] }), "hsk", "2.0")).toBe("hsk-4");
   });
 });
+
+describe("statusFromAxes covers every one of the eight combinations", () => {
+  const T = true, F = false;
+  it.each([
+    [T, T, T, "known"],
+    [F, F, F, "unknown"],
+    [T, T, F, "pinyinKnownMeaningUnknown"],
+    [T, F, T, "meaningKnownPinyinUnknown"],
+    [F, T, T, "charactersUnknown"],
+    [T, F, F, "unknown"],
+    [F, T, F, "pinyinKnownMeaningUnknown"],
+    [F, F, T, "meaningKnownPinyinUnknown"],
+  ])("chars %s, pinyin %s, meaning %s -> %s", (chars, pinyin, meaning, want) => {
+    expect(statusFromAxes({ chars, pinyin, meaning })).toBe(want);
+  });
+});
+
+describe("colorOf with a status this version does not know", () => {
+  it("renders it as new rather than throwing (data written by a newer version)", () => {
+    expect(colorOf({ status: "somethingFromTheFuture" } as never)).toBe("new");
+  });
+});

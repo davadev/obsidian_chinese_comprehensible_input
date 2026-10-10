@@ -178,3 +178,13 @@ describe("crashStatePath", () => {
     expect(crashStatePath({ id: "cci" }, ".my-config")).toBe(".my-config/plugins/cci/crash-state.json");
   });
 });
+
+describe("a crash-state file that parses but is not an object", () => {
+  it.each([["null", "null"], ["a number", "5"], ["a string", '"x"'], ["an array's worth of nothing", "false"]])(
+    "%s reads as clean",
+    async (_name, text) => {
+      const { adapter } = fakeAdapter(text);
+      expect(await readCrashState(adapter, "p")).toEqual(DEFAULT_CRASH_STATE);
+    }
+  );
+});

@@ -49,3 +49,19 @@ describe("pluginDataUpdater", () => {
     expect(state).toEqual({ settings: { ok: true } });
   });
 });
+
+describe("pluginDataUpdater on a first run", () => {
+  it("hands the mutation an empty blob when loadData() returns null (Obsidian does that before the first save)", async () => {
+    let saved: unknown;
+    const update = createQueuedDataBlobUpdater(
+      async () => null as unknown as Record<string, unknown>,
+      async (blob) => {
+        saved = JSON.parse(JSON.stringify(blob));
+      }
+    );
+    await update((blob) => {
+      (blob as Record<string, unknown>).settings = { a: 1 };
+    });
+    expect(saved).toEqual({ settings: { a: 1 } });
+  });
+});

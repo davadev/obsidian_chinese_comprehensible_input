@@ -54,10 +54,8 @@ export function putCachedTokens(text: string, tokens: Token[]): void {
   if (cache.has(k)) cache.delete(k); // re-insert so this entry evicts last
   cache.set(k, tokens);
   while (cache.size > MAX_ENTRIES) {
-    const next = cache.keys().next();
-    if (next.done) break;
-    const oldest: number = next.value;
-    cache.delete(oldest);
+    // The loop only runs while the map is over its cap, so it is never empty here.
+    cache.delete(cache.keys().next().value as number);
   }
 }
 

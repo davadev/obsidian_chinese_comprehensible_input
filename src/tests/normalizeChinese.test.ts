@@ -232,3 +232,19 @@ describe("toneMarksToNumbers — legacy numbered input", () => {
     expect(toneMarksToNumbers("de")).toBe("de5");
   });
 });
+
+describe("normalizeChinese: edges", () => {
+  it("isCjkChar says no to the empty string", () => {
+    expect(isCjkChar("")).toBe(false);
+  });
+
+  it("a syllable with a tone digit but no vowel to mark (ng4, hm1, m2) loses the digit and gains no mark", () => {
+    expect(numbersToToneMarks("ng4")).toBe("ng");
+    expect(numbersToToneMarks("hm1")).toBe("hm");
+    expect(numbersToToneMarks("m2")).toBe("m");
+  });
+
+  it("the neutral tone (5) gets no mark either", () => {
+    expect(numbersToToneMarks("ma5")).toBe("ma");
+  });
+});

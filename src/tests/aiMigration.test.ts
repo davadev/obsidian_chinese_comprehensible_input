@@ -101,3 +101,17 @@ describe("migrateAiSettingsToV2", () => {
     expect(ai.usageLog).toEqual([]);
   });
 });
+
+describe("migrateAiSettingsToV2 on a v2 blob without a stored key", () => {
+  it("returns the settings untouched and rescues nothing when ollama has no apiKey", () => {
+    const raw = { ai: { provider: "ollama", ollama: { baseUrl: "http://localhost:11434" } } } as never;
+    const { migrated, rescuedOllamaApiKey } = migrateAiSettingsToV2(raw);
+    expect(migrated).toBe(raw);
+    expect(rescuedOllamaApiKey).toBeNull();
+  });
+
+  it("treats a non-string apiKey as absent", () => {
+    const raw = { ai: { ollama: { apiKey: 5 } } } as never;
+    expect(migrateAiSettingsToV2(raw).rescuedOllamaApiKey).toBeNull();
+  });
+});

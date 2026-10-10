@@ -38,7 +38,6 @@ export function tokenizeLatticeSpan(
   ctx: LatticeScoringContext
 ): Token[] {
   const n = cjkText.length;
-  if (n === 0) return [];
 
   const edges: Edge[][] = Array.from({ length: n + 1 }, () => []);
 
@@ -83,8 +82,8 @@ export function tokenizeLatticeSpan(
   const dist = new Array<number>(n + 1).fill(Number.POSITIVE_INFINITY);
   const prev = new Array<Edge | null>(n + 1).fill(null);
   dist[0] = 0;
+  // Every position has at least a single-character edge, so every dist[i] is finite by the time it is reached.
   for (let i = 0; i < n; i++) {
-    if (!Number.isFinite(dist[i])) continue;
     for (const e of edges[i]) {
       const cand = dist[i] + e.cost;
       if (cand < dist[e.to]) {
@@ -109,7 +108,8 @@ export function tokenizeLatticeSpan(
       start: spanStart + e.from,
       end: spanStart + e.to,
       surface: e.surface,
-      isWord: e.candidates.length > 0 || e.surface.length > 0,
+      // Every edge is a CJK character or word, in the dictionary or not.
+      isWord: true,
       candidates: e.candidates,
       selected,
       confidence: confidenceOf(e),

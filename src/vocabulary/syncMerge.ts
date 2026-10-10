@@ -99,8 +99,12 @@ export function resolveStatus(
   b: WordRecord,
   priority: WordStatus[]
 ): WordRecord {
+  // A record from an older version or a hand-edited mirror can lack `updatedAt`; it counts as the oldest possible,
+  // the same way on both sides, so the result does not depend on which one is local.
+  const ua = a.updatedAt ?? "";
+  const ub = b.updatedAt ?? "";
   if (a.status === b.status) {
-    if (a.updatedAt !== b.updatedAt) return a.updatedAt > b.updatedAt ? a : b;
+    if (ua !== ub) return ua > ub ? a : b;
     return pickCanon(a, b);
   }
   // Rule 1: classifying a word is always intentional, reverting to "new" is not.
@@ -115,8 +119,8 @@ export function resolveStatus(
   }
 
   // Rule 3: timestamp.
-  if (a.updatedAt !== b.updatedAt) {
-    return a.updatedAt > b.updatedAt ? a : b;
+  if (ua !== ub) {
+    return ua > ub ? a : b;
   }
 
   // Rule 4: fallback rank — matches legacy `pickWinningStatus`. Three statuses share a rank, so an equal rank is

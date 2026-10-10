@@ -104,7 +104,8 @@ export function numbersToToneMarks(s: string): string {
   // "nü3" (女) and "lü4" (绿) in every dictionary built so far.
   return s.replace(/u:/g, "ü").replace(/([a-zA-ZüÜ]+)([1-5])/g, (_m, syl: string, t: string) => {
     const tone = parseInt(t, 10);
-    if (tone < 1 || tone > 4) return syl;
+    // The regex only captures 1-5; 5 is the neutral tone, which has no mark.
+    if (tone === 5) return syl;
     const i = toneMarkIndex(syl);
     if (i < 0) return syl;
     const target = syl[i].toLowerCase();

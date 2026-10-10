@@ -53,3 +53,11 @@ describe("extractTaiwanReading", () => {
     expect(extractTaiwanReading(["ok", null] as unknown as string[])).toBeUndefined();
   });
 });
+
+describe("a Taiwan pr. entry with nothing readable inside the brackets", () => {
+  it("is skipped, and a later definition can still supply the reading", () => {
+    // A hand-edited dictionary can hold `Taiwan pr. [ ]`; the reading is blank after trimming.
+    expect(extractTaiwanReading(["Taiwan pr. [ ]"])).toBeUndefined();
+    expect(extractTaiwanReading(["Taiwan pr. [ ]", "Taiwan pr. [yi1 si1]"])).toBe("yī sī");
+  });
+});

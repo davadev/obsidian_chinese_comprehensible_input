@@ -123,3 +123,9 @@ describe("isInExcluded", () => {
     expect(isInExcluded([], 0)).toBe(false);
   });
 });
+
+describe("frontmatter that never closes", () => {
+  it("excludes nothing for a lone opening --- (an unfinished frontmatter block or a horizontal rule)", () => {
+    expect(computeExcludedRanges("---\n你好 and more text")).toEqual([]);
+  });
+});

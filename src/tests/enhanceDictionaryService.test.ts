@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { EnhanceDictionaryService } from "../ai/EnhanceDictionaryService";
+import { EnhanceDictionaryService, __testing } from "../ai/EnhanceDictionaryService";
 import {
   ENHANCE_PINYIN_CLAUSE,
   ENHANCE_SYSTEM_PROMPT,
@@ -121,5 +121,28 @@ describe("EnhanceDictionaryService.enhance", () => {
     expect(user).toContain(baseInput.pinyin);
     expect(user).toContain(baseInput.currentDefinitions[0]);
     expect(user).toContain(baseInput.sentence);
+  });
+});
+
+describe("parseEnhanceResult: trimming and optional fields", () => {
+  const { parseEnhanceResult } = __testing;
+
+  it("cuts an over-long definition to the limit and keeps at most the allowed number", () => {
+    const long = "x".repeat(500);
+    const out = parseEnhanceResult(JSON.stringify({ definitions: [long, "b", "c", "d", "e", "f", "g", "h", "i", "j"] }), false);
+    expect(out.definitions[0].length).toBeLessThan(500);
+    expect(out.definitions.length).toBeLessThanOrEqual(8);
+  });
+
+  it("leaves out a grammar note or pinyin that is only whitespace, and pinyin when the setting forbids it", () => {
+    expect(parseEnhanceResult('{"definitions":["a"],"grammar":"   ","pinyin":"  "}', true)).toEqual({ definitions: ["a"] });
+    expect(parseEnhanceResult('{"definitions":["a"],"grammar":" noun ","pinyin":" xué "}', true)).toEqual({ definitions: ["a"], grammar: "noun", pinyin: "xué" });
+    expect(parseEnhanceResult('{"definitions":["a"],"pinyin":"xué"}', false)).toEqual({ definitions: ["a"] });
+  });
+});
+
+describe("parseEnhanceResult: malformed JSON", () => {
+  it("reports a parse failure in plain words when the braces enclose something that is not JSON", () => {
+    expect(() => __testing.parseEnhanceResult("{ definitions: [oops] }", false)).toThrow(/Could not parse AI JSON/);
   });
 });

@@ -38,7 +38,7 @@ export class MnemonicService {
   ) {}
 
   async generate(input: MnemonicInput): Promise<MnemonicResult> {
-    const template = this.settings().ai.mnemonicPrompt ?? "";
+    const template = this.settings().ai.mnemonicPrompt;
     const user = buildMnemonicUserPrompt(template, input);
     const raw = await this.ai.chatJson(
       MNEMONIC_SYSTEM_PROMPT,
@@ -68,9 +68,7 @@ function parseMnemonicResult(raw: string): MnemonicResult {
   } catch (err) {
     throw new Error(`Could not parse AI JSON: ${(err as Error).message}`);
   }
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("AI JSON was not an object.");
-  }
+  // The slice starts at "{", so it parses to an object or throws above.
   const obj = parsed as Record<string, unknown>;
   const mnemonic = typeof obj.mnemonic === "string" ? obj.mnemonic.trim() : "";
   if (!mnemonic) {

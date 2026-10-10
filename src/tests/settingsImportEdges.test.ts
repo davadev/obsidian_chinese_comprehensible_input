@@ -153,3 +153,12 @@ describe("exportSettings", () => {
     expect(written.has("out.json")).toBe(true);
   });
 });
+
+describe("importSettings: a wrapper with nothing inside", () => {
+  it("treats {\"settings\": null} as an empty import instead of throwing", async () => {
+    const { plugin } = makePlugin({ settings: null });
+    const r = await importSettings(plugin, "empty.json");
+    expect(r.skipped).toEqual([]);
+    expect(plugin.settings.readerFontPx).toBe(DEFAULT_SETTINGS.readerFontPx);
+  });
+});
