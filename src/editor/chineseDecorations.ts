@@ -45,15 +45,13 @@ import { DEFAULT_HIGHLIGHT_BG, findHighlightSpans, resolveHighlightPalette } fro
  * dispatch — the decoration set is in place before CM6 reads it.
  */
 function dispatchRedecorate(view: EditorView): void {
-  const fire = () => {
+  window.requestAnimationFrame(() => {
     try {
       view.dispatch({ effects: cciRedecorateEffect.of(null) });
     } catch {
       // view destroyed mid-flight; ignore
     }
-  };
-  if (typeof window.requestAnimationFrame === "function") window.requestAnimationFrame(fire);
-  else fire();
+  });
 }
 
 export function buildChineseDecorations(plugin: CciPlugin) {
@@ -83,7 +81,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         if (cached) {
           this.lastTokens = cached;
           this.lastSourceVersion = version;
-          this.decorations = this.build(view, text, cached);
+          this.decorations = this.build(view, cached);
         } else {
           this.scheduleTokenize(view);
         }
@@ -118,7 +116,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // re-stringifying / re-hashing the whole document. This is what was
         // causing visible lag on scroll-up for long notes.
         if (!update.docChanged && this.lastTokens.length > 0) {
-          this.decorations = this.build(update.view, this.lastText, this.lastTokens);
+          this.decorations = this.build(update.view, this.lastTokens);
           return;
         }
         this.scheduleTokenize(update.view);
@@ -129,7 +127,9 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         const version = hashText(text);
         this.rememberDoc(text, version);
         if (version === this.lastSourceVersion && this.lastTokens.length > 0) {
-          this.decorations = this.build(view, text, this.lastTokens);
+          // This document is the current one: an answer still in flight for an older one must be discarded.
+          this.inFlightVersion = version;
+          this.decorations = this.build(view, this.lastTokens);
           return;
         }
         // Synchronous cache peek — same fast path the constructor uses.
@@ -140,9 +140,12 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // tokenize from the previous file.
         const cached = getCachedTokens(text);
         if (cached) {
+          // Same as above. Without this the stale tokenize of the previous document still passed its guard when it
+          // finished, and overwrote `lastTokens` and the decorations with tokens for text that is no longer there.
+          this.inFlightVersion = version;
           this.lastTokens = cached;
           this.lastSourceVersion = version;
-          this.decorations = this.build(view, text, cached);
+          this.decorations = this.build(view, cached);
           return;
         }
         // If an in-flight tokenize is for a different document, drop the
@@ -156,19 +159,24 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         this.tokenPromise = (async () => {
           try {
             if (!hasCjk(text)) {
-              if (this.inFlightVersion !== version) return;
               this.lastTokens = [];
               this.lastSourceVersion = version;
               this.decorations = Decoration.none;
               dispatchRedecorate(view);
               return;
             }
-            const tokens = await plugin.tokenizer.tokenize(text);
+            let tokens: Token[];
+            try {
+              tokens = await plugin.tokenizer.tokenize(text);
+            } catch {
+              // Dictionary not ready (or a failing tokenizer): leave the text plain; the next update tries again.
+              return;
+            }
             // Stale-result guard: a newer navigation has taken over.
             if (this.inFlightVersion !== version) return;
             this.lastTokens = tokens;
             this.lastSourceVersion = version;
-            this.decorations = this.build(view, text, tokens);
+            this.decorations = this.build(view, tokens);
             // Defer the redecorate transaction to the next animation frame.
             // If we dispatch synchronously the effect can arrive before CM6
             // finishes its initial measure pass, after which the new
@@ -184,9 +192,10 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         })();
       }
 
-      build(view: EditorView, text: string, tokens: Token[]): DecorationSet {
+      build(view: EditorView, tokens: Token[]): DecorationSet {
         const settings = plugin.settings;
-        const exclusions = this.lastText === text ? this.lastExclusions : computeExcludedRanges(text);
+        // Always the document `rememberDoc` last saw: every caller goes through it first.
+        const exclusions = this.lastExclusions;
         const builder = new RangeSetBuilder<Decoration>();
         const ranges = view.visibleRanges;
         // Highlight spans so annotated (ruby) words can tint their characters —
@@ -194,7 +203,7 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // widget. Plain-mark words still get the background from the markdown
         // renderer's overlay.
         const palette = resolveHighlightPalette(plugin.app, settings);
-        const highlightSpans = findHighlightSpans(text, palette);
+        const highlightSpans = findHighlightSpans(this.lastText, palette);
         const highlightBgAt = (tok: Token): string | undefined => {
           for (const s of highlightSpans) {
             if (s.openFrom > tok.start) break; // spans sorted by openFrom
@@ -234,18 +243,13 @@ export function buildChineseDecorations(plugin: CciPlugin) {
         // re-parse. Computed lazily on first hit.
         const headingByLine = new Map<number, number>();
         const headingLevelAt = (offset: number): number => {
-          try {
-            const lineNum = view.state.doc.lineAt(offset).number;
-            const cached = headingByLine.get(lineNum);
-            if (cached !== undefined) return cached;
-            const lineText = view.state.doc.line(lineNum).text;
-            const m = /^\s{0,3}(#{1,6})\s/.exec(lineText);
-            const level = m ? m[1].length : 0;
-            headingByLine.set(lineNum, level);
-            return level;
-          } catch {
-            return 0;
-          }
+          const line = view.state.doc.lineAt(offset);
+          const cached = headingByLine.get(line.number);
+          if (cached !== undefined) return cached;
+          const m = /^\s{0,3}(#{1,6})\s/.exec(line.text);
+          const level = m ? m[1].length : 0;
+          headingByLine.set(line.number, level);
+          return level;
         };
         // In format mode every visible character should be a valid tap target
         // (start/end of a selection), not just tokenized Chinese words.
@@ -420,23 +424,18 @@ export function buildChineseDecorations(plugin: CciPlugin) {
           "data-cci-end": String(tok.end),
           "data-cci-doclen": String(tok.end - tok.start),
         };
-        // In ruby modes the markdown renderer does NOT tint highlight content
-        // (it would overlap the ruby widgets), so mark-rendered words tint here.
-        const rubyMode = mode === "two-line" || mode === "three-line";
-        const hlAttrs: Record<string, string> =
-          effHl && rubyMode ? { style: `--cci-mark-bg:${effHl};` } : {};
-        const hlClass = effHl && rubyMode ? " cci-md-highlight" : "";
+        // A highlighted word in a ruby mode never gets here: it takes the ruby path above (that is where its tint is
+        // drawn), so a mark never needs to carry the highlight colour itself.
         if (showColor) {
           builder.add(
             tok.start,
             tok.end,
             Decoration.mark({
-              class: wordMarkClass({ colorKey, headingLevel, hlClass }),
+              class: wordMarkClass({ colorKey, headingLevel }),
               attributes: {
                 "data-cci-surface": tok.surface,
                 "data-cci-color": colorKey,
                 ...posAttrs,
-                ...hlAttrs,
               },
             })
           );
@@ -456,8 +455,8 @@ export function buildChineseDecorations(plugin: CciPlugin) {
             tok.start,
             tok.end,
             Decoration.mark({
-              class: wordMarkClass({ headingLevel, hlClass }),
-              attributes: { "data-cci-surface": tok.surface, ...posAttrs, ...hlAttrs },
+              class: wordMarkClass({ headingLevel }),
+              attributes: { "data-cci-surface": tok.surface, ...posAttrs },
             })
           );
         }
@@ -636,10 +635,6 @@ function colorShouldShow(key: ColorClassKey, settings: CciSettings): boolean {
       return settings.showUnknownColor;
     case "new":
       return settings.showNewColor;
-    case "ignored":
-      return false;
-    case "hsk-none":
-      return false;
     case "hsk-1":
     case "hsk-2":
     case "hsk-3":
@@ -650,6 +645,9 @@ function colorShouldShow(key: ColorClassKey, settings: CciSettings): boolean {
       const level = key.slice(4) as keyof CciSettings["showHskColors"];
       return settings.showHskColors[level];
     }
+    default:
+      // "hsk-none", and "ignored" (which never gets this far: ignored words are skipped before colours are chosen).
+      return false;
   }
 }
 

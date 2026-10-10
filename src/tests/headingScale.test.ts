@@ -70,10 +70,8 @@ describe("wordMarkClass", () => {
     expect(wordMarkClass({ colorKey: "known", headingLevel: lvl })).toBe("cci-word cci-color-known");
   });
 
-  it("keeps the highlight class last, as before", () => {
-    expect(wordMarkClass({ colorKey: "unknown", headingLevel: 2, hlClass: " cci-md-highlight" })).toBe(
-      "cci-word cci-color-unknown cci-word-h2 cci-md-highlight"
-    );
+  it("puts the colour before the heading level", () => {
+    expect(wordMarkClass({ colorKey: "unknown", headingLevel: 2 })).toBe("cci-word cci-color-unknown cci-word-h2");
   });
 });
 

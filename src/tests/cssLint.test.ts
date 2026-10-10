@@ -40,12 +40,12 @@ describe("styles.css lint wiring", () => {
 describe("styles.css highlight colour", () => {
   it("the code that colours a highlight writes the custom property, never an inline background", () => {
     // An inline background could only be overridden with !important (E-ink mode needed two). These files need a
-    // DOM harness to run (#119), so this is a text-level pin on the three call sites.
+    // DOM harness to run (#119), so this is a text-level pin on the call sites.
     const md = readFileSync("src/editor/markdownRendering.ts", "utf8");
     const deco = readFileSync("src/editor/chineseDecorations.ts", "utf8");
     expect(md).toContain("`--cci-mark-bg:${span.color};`");
     expect(md).toContain('el.style.setProperty("--cci-mark-bg", bg)');
-    expect(deco).toContain("`--cci-mark-bg:${effHl};`");
+    expect(deco).toContain('stack.style.setProperty("--cci-hl", this.highlightBg)'); // the annotation stack carries it as a custom property too
     for (const [name, src] of [["markdownRendering.ts", md], ["chineseDecorations.ts", deco]] as const) {
       expect(src, `${name} writes an inline background`).not.toMatch(/background-color:\$\{|style\.backgroundColor\s*=/);
     }
