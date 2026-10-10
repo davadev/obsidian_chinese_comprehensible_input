@@ -1,3 +1,4 @@
+import { normalizePath } from "obsidian";
 import {
   BackupEntry,
   BackupKind,
@@ -197,7 +198,12 @@ function coerceIndex(raw: unknown): BackupIndex {
 export class BackupService {
   private queue: Promise<unknown> = Promise.resolve();
 
-  constructor(private d: BackupDeps) {}
+  private d: BackupDeps;
+
+  constructor(deps: BackupDeps) {
+    // Paths come from settings and the manifest; normalise once, here, so every adapter call below is safe on every platform.
+    this.d = { ...deps, dir: normalizePath(deps.dir), dataPath: normalizePath(deps.dataPath) };
+  }
 
   private get indexPath(): string {
     return `${this.d.dir}/${BACKUP_INDEX_FILE}`;
@@ -392,8 +398,8 @@ export class BackupService {
         const ctx: BackupContext = {
           enabled: true,
           keep: this.d.context().keep,
-          vocabMirrorPath: bundle.files.vocabMirror?.path ?? null,
-          settingsMirrorPath: bundle.files.settingsMirror?.path ?? null,
+          vocabMirrorPath: bundle.files.vocabMirror ? normalizePath(bundle.files.vocabMirror.path) : null,
+          settingsMirrorPath: bundle.files.settingsMirror ? normalizePath(bundle.files.settingsMirror.path) : null,
         };
         try {
           const pre = await this.takeSnapshot("pre-restore", idx.lastRunVersion ?? "unknown", ctx, idx);
@@ -413,11 +419,12 @@ export class BackupService {
         const mirrorsSkipped: string[] = [];
         for (const m of [bundle.files.vocabMirror, bundle.files.settingsMirror]) {
           if (!m) continue;
+          const target = normalizePath(m.path);
           try {
-            if (await this.d.adapter.exists(m.path)) await this.put(m.path, (p) => this.d.adapter.write(p, m.text));
-            else mirrorsSkipped.push(m.path);
+            if (await this.d.adapter.exists(target)) await this.put(target, (p) => this.d.adapter.write(p, m.text));
+            else mirrorsSkipped.push(target);
           } catch {
-            mirrorsSkipped.push(m.path);
+            mirrorsSkipped.push(target);
           }
         }
         if (mirrorsSkipped.length) {
@@ -522,8 +529,9 @@ export class BackupService {
     if (!(await a.exists(this.d.dataPath))) return null;
     const files: BackupBundle["files"] = { data: await a.read(this.d.dataPath) };
     const includes: BackupEntry["includes"] = ["data"];
-    const mirror = async (path: string | null | undefined, key: "vocabMirror" | "settingsMirror") => {
-      if (!path) return;
+    const mirror = async (rawPath: string | null | undefined, key: "vocabMirror" | "settingsMirror") => {
+      if (!rawPath) return;
+      const path = normalizePath(rawPath);
       try {
         if (await a.exists(path)) {
           files[key] = { path, text: await a.read(path) };
