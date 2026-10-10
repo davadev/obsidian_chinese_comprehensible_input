@@ -38,6 +38,10 @@ const FILTER_OUT = {
     // same person's phone just because they switched their e-ink reader to it.
     "einkMode",
     "einkNumberScalePercent",
+    // Backups live in THIS device's plugin folder and exist to protect THIS device's copy of the data; another
+    // device's choice to switch them off, or to keep 20 of them, is not something to impose here.
+    "backupsEnabled",
+    "backupsKeep",
   ] as const,
 };
 

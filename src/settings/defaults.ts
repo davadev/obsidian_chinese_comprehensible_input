@@ -78,6 +78,8 @@ export const DEFAULT_SETTINGS: CciSettings = {
   colorMode: "status",
   einkMode: false,
   einkNumberScalePercent: 100,
+  backupsEnabled: true,
+  backupsKeep: 5,
   customColors: DEFAULT_CUSTOM_COLORS,
   textColors: DEFAULT_TEXT_COLORS,
   pinyinStyle: "marks",

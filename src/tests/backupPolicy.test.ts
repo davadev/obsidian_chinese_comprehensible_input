@@ -7,6 +7,7 @@ import {
   compactTimestamp,
   compareVersions,
   decideStartup,
+  formatBytes,
   isStableVersion,
   parseVersion,
   selectRestoreCandidate,
@@ -258,5 +259,20 @@ describe("names", () => {
     expect(backupFileName(id, "gzip")).toBe(`${id}.json.gz`);
     expect(backupFileName(id, "none")).toBe(`${id}.json`);
     expect(backupId("2026-10-10T10:15:00.000Z", "manual", "a/b:c")).toBe("20261010T101500Z-manual-from-a_b_c");
+  });
+});
+
+describe("formatBytes", () => {
+  it.each([
+    [0, "0 B"],
+    [812, "812 B"],
+    [1024, "1 KB"],
+    [49_152, "48 KB"],
+    [1_572_864, "1.5 MB"],
+    [5_000_000, "4.8 MB"],
+  ])("%d -> %s", (n, want) => expect(formatBytes(n)).toBe(want));
+
+  it("never prints NaN or a negative size", () => {
+    for (const bad of [NaN, -1, Infinity]) expect(formatBytes(bad)).toBe("?");
   });
 });

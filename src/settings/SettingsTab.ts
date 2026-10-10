@@ -164,6 +164,9 @@ export class CciSettingsTab extends PluginSettingTab {
         const notice = einkPickerNotice(this.plugin.app, this.plugin.settings);
         if (notice) new Notice(notice);
       }
+    } else if (key === "backupsEnabled") {
+      // Greys out "Backups to keep" without rebuilding the page.
+      this.refreshDomState();
     } else if (key === "line2Content" || key === "line3Content" || key === "colorMode") {
       // Re-evaluate the duplicate-content warning's `visible` predicate (and,
       // for colorMode, the level-number slider's `disabled` state).
@@ -282,6 +285,7 @@ export class CciSettingsTab extends PluginSettingTab {
       this.storyGroup(),
       this.dictionaryGroup(),
       this.dataGroup(),
+      this.backupsGroup(),
       this.syncGroup(),
       this.aboutGroup(),
     ];
@@ -1334,6 +1338,42 @@ export class CciSettingsTab extends PluginSettingTab {
       new Notice("Remove failed: " + (e as Error).message);
     }
     this.update();
+  }
+
+  /**
+   * Automatic backups (#149). Not the "Sync > Backup / restore" rows, which export only portable SETTINGS: this
+   * protects the vocabulary and everything else in the plugin's data against a newer version changing it, and offers a
+   * way back after going back to an older release.
+   */
+  private backupsGroup(): SettingDefinitionItem {
+    return {
+      type: "group",
+      heading: "Backups",
+      items: [
+        this.prose(
+          "Before the plugin changes version, a copy of its data (settings, vocabulary, dictionary edits and this device's sync files) is saved in the plugin's own folder. If you later go back to an older release that has this feature, it offers to restore the copy taken just before the newer one first ran. Copies are never stored in your vault."
+        ),
+        {
+          name: "Automatic backups",
+          desc: "Take a copy when the plugin version changes.",
+          control: { type: "toggle", key: "backupsEnabled" },
+        },
+        {
+          name: "Backups to keep",
+          desc: "The newest copies are kept, plus always the newest one written by a stable release, so a run of betas can never push out the way back.",
+          control: {
+            type: "number",
+            key: "backupsKeep",
+            min: 1,
+            max: 50,
+            disabled: () => !this.plugin.settings.backupsEnabled,
+          },
+        },
+        this.warnProse(
+          "Only versions that include this feature can restore. Going back to a release from before it (0.7.9 or earlier) cannot be undone this way. If another device still has newer data and syncs it back, some of it can reappear after a restore: pause sync and restore the same copy there too."
+        ),
+      ],
+    };
   }
 
   private dataGroup(): SettingDefinitionItem {

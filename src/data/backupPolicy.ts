@@ -156,6 +156,14 @@ export function shouldSkipSnapshot(sha256: string, entries: readonly BackupEntry
 
 // ---- names -------------------------------------------------------------------------------------------------------
 
+/** "812 B", "48 KB", "1.5 MB": for the backup list and notices. */
+export function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "?";
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 const safe = (s: string): string => s.replace(/[^A-Za-z0-9._-]+/g, "_");
 
 /** `20261010T101500Z`, sortable and free of characters some file systems reject. */

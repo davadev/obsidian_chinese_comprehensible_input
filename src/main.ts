@@ -48,6 +48,9 @@ import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
 import { createQueuedDataBlobUpdater, PluginDataBlob, PluginDataMutation } from "./data/pluginDataUpdater";
+import { BackupContext, BackupService, RestoreResult, StartupResult, createGzipCodec, sha256Hex } from "./data/BackupService";
+import { formatBytes } from "./data/backupPolicy";
+import { RestoreBackupModal } from "./ui/RestoreBackupModal";
 
 export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
@@ -90,6 +93,12 @@ export default class CciPlugin extends Plugin {
   /** Counter timer that resets the persisted crash counter ~30s after
    *  onload completes (i.e. once we've proven we don't crash). */
   private crashResetTimer: number | null = null;
+  /** Automatic backups (#149). Created in `startupData()`, before `data.json` is used for anything. */
+  backups!: BackupService;
+  /** `settings` as read from `data.json` at start-up, for the backup context until `this.settings` exists. */
+  private startupSettings: Partial<CciSettings> | undefined;
+  /** Set when this start is a downgrade the user has not yet answered; consumed once the sync bootstrap is done. */
+  private pendingDowngrade: StartupResult["downgrade"] | null = null;
   private static CRASH_THRESHOLD = 5;
   private static CRASH_RESET_DELAY_MS = 30_000;
   private readonly queuedDataBlobUpdate = createQueuedDataBlobUpdater(
@@ -194,6 +203,124 @@ export default class CciPlugin extends Plugin {
     }
   }
 
+  /** `<plugin folder>`; `manifest.dir` is optional in Obsidian's API, hence the config-dir fallback. */
+  private pluginDir(): string {
+    return this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+  }
+
+  private makeBackupService(): BackupService {
+    const dir = this.pluginDir();
+    this.backups = new BackupService({
+      adapter: this.app.vault.adapter,
+      codec: createGzipCodec(),
+      sha256: sha256Hex,
+      now: () => new Date(),
+      notify: (message, durationMs) => void new Notice(message, durationMs),
+      dir: `${dir}/backups`,
+      dataPath: `${dir}/data.json`,
+      version: this.manifest.version,
+      context: () => this.backupContext(),
+    });
+    return this.backups;
+  }
+
+  /** Read at the moment of use, so a settings change (or a moved mirror) is honoured without a restart. */
+  private backupContext(): BackupContext {
+    const s = (this.settings as CciSettings | undefined) ?? this.startupSettings ?? {};
+    const keep =
+      typeof s.backupsKeep === "number" && Number.isFinite(s.backupsKeep)
+        ? Math.min(50, Math.max(1, Math.floor(s.backupsKeep)))
+        : DEFAULT_SETTINGS.backupsKeep;
+    return {
+      enabled: s.backupsEnabled !== false,
+      keep,
+      vocabMirrorPath: s.sync?.mirrorEnabled && s.sync.mirrorPath ? s.sync.mirrorPath : null,
+      settingsMirrorPath: s.sync?.settingsMirrorEnabled && s.sync.settingsMirrorPath ? s.sync.settingsMirrorPath : null,
+    };
+  }
+
+  /**
+   * Everything that must happen to data.json BEFORE the rest of the plugin starts using it, in this order:
+   *  1. apply a restore the user queued last time (so no stale in-memory state exists yet that could overwrite it),
+   *  2. read data.json (read-only),
+   *  3. take the version-change snapshot of what the previous version left, or notice a downgrade.
+   * Never throws: the service fails open, and a failure here must not stop the plugin loading.
+   */
+  private async startupData(): Promise<PluginDataBlob> {
+    const backups = this.makeBackupService();
+    try {
+      const restore = await backups.applyPendingRestore();
+      this.announceRestore(restore);
+    } catch (e) {
+      console.warn("CCI: applying a queued restore failed", e);
+    }
+    const blob = await this.loadPluginData();
+    this.startupSettings = blob.settings;
+    try {
+      const result = await backups.startup();
+      this.pendingDowngrade = result.downgrade ?? null;
+    } catch (e) {
+      console.warn("CCI: backup start-up check failed", e);
+    }
+    return blob;
+  }
+
+  private announceRestore(restore: RestoreResult): void {
+    if (restore.status !== "applied" || !restore.entry) return;
+    new Notice(
+      `Chinese plugin: restored your data from the backup of ${new Date(restore.entry.createdAt).toLocaleString()}. What was here before is kept in Settings → Backups, so you can undo this.`,
+      15_000
+    );
+  }
+
+  /** After a downgrade: offer the backup of the data as this version's predecessor left it. Asked once per start. */
+  private async promptDowngradeRestore(): Promise<void> {
+    const d = this.pendingDowngrade;
+    this.pendingDowngrade = null;
+    if (!d) return;
+    if (!d.candidate) {
+      // Nothing to offer, and asking every start about something that cannot be acted on would only be noise.
+      new Notice(
+        `Chinese plugin: you went back from ${d.from} to ${d.to}. There is no earlier backup to restore, so your data stays as ${d.from} left it.`,
+        15_000
+      );
+      await this.backups.keepCurrent();
+      return;
+    }
+    const candidate = d.candidate;
+    const choice = await new Promise<"restore" | "keep" | "later">((resolve) => {
+      new RestoreBackupModal(
+        this.app,
+        {
+          from: d.from,
+          to: d.to,
+          backupDate: new Date(candidate.createdAt),
+          includesSyncFiles: candidate.includes.some((i) => i !== "data"),
+        },
+        resolve
+      ).open();
+    });
+    if (choice === "restore") {
+      const r = await this.backups.stageRestore(candidate.id);
+      new Notice(`Chinese plugin: ${r.message}`, r.ok ? 0 : 15_000);
+    } else if (choice === "keep") {
+      await this.backups.keepCurrent();
+    }
+  }
+
+  /** The "Back up plugin data now" command. */
+  async backupNow(): Promise<void> {
+    const r = await this.backups.snapshot();
+    if (r.entry) {
+      new Notice(`Chinese plugin: backed up your data (${formatBytes(r.entry.storedBytes)}).`);
+    } else if (r.skipped === "unchanged") {
+      new Notice("Chinese plugin: nothing has changed since the last backup, so there is nothing new to save.");
+    } else if (r.skipped === "no-data") {
+      new Notice("Chinese plugin: there is no saved data to back up yet.");
+    }
+    // A failure has already been reported by the service.
+  }
+
   private async onloadInner(): Promise<void> {
     // Custom icon: the character 中 (zhōng / middle) — clearly signals
     // "Chinese view" and avoids visual collision with Obsidian's native
@@ -204,7 +331,12 @@ export default class CciPlugin extends Plugin {
     );
 
     // Keep onload light. Load just settings + small services.
-    const blob = await this.loadPluginData();
+    //
+    // `startupData()` is the ONLY place that reads data.json before the first write, and everything below that can
+    // write (the fire-and-forget saves at the legacy-key cleanup, the HSK colour derivation, the override re-key,
+    // dedupeOnLoad, the vault bootstrap) comes after it. Keep it that way: a snapshot is only worth anything if it is
+    // taken before the first thing that could change the data (pinned by src/tests/backupWiring.test.ts).
+    const blob = await this.startupData();
     // 0.6.1 moved crash state into its own file. Drop the legacy keys so a
     // downgrade cannot re-read a stale __autoDisabled and take the plugin out
     // for no reason. Not awaited: a one-time tidy must not sit on the critical
@@ -419,10 +551,15 @@ export default class CciPlugin extends Plugin {
     // a stalled / failed Files-provider read (Nextcloud / iCloud on iOS)
     // can never cascade into a plugin load failure.
     this.app.workspace.onLayoutReady(() => {
-      void this.bootstrapVocabMirror();
-      void this.settingsMirror.bootstrap().catch((e) =>
+      const vocabBoot = this.bootstrapVocabMirror();
+      const settingsBoot = this.settingsMirror.bootstrap().catch((e) =>
         console.error("CCI settings mirror bootstrap failed", e)
       );
+      // The downgrade question comes AFTER both sync bootstraps have settled, so it never stacks on top of the sync
+      // conflict dialog (they are both modals) and the data it describes is the data the sync left.
+      void Promise.allSettled([vocabBoot, settingsBoot])
+        .then(() => this.promptDowngradeRestore())
+        .catch((e) => console.warn("CCI: downgrade prompt failed", e));
       // One-shot auto-story check shortly after layout-ready — covers the
       // case where the user opened the app well after their configured
       // target time and we shouldn't make them wait for the first tick.
@@ -1120,6 +1257,11 @@ export default class CciPlugin extends Plugin {
   // Commands -----------------------------------------------------------
 
   private registerCommands(): void {
+    this.addCommand({
+      id: "backup-now",
+      name: "Back up plugin data now",
+      callback: () => void this.backupNow(),
+    });
     this.addCommand({
       id: "open-current-in-chinese-view",
       name: "Open current note in Chinese Learning View",
