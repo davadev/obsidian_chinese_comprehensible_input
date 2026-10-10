@@ -249,6 +249,10 @@
   display: inline-block;
   border-radius: 4px;
 }
+.cci-view .cci-md-strike {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
 .cci-view .cci-md-highlight {
   /* `--cci-mark-bg` is the colour of a coloured <mark> / a highlighted word, written inline as a custom
      PROPERTY (not as an inline background, which no selector could override: E-ink mode needed !important
