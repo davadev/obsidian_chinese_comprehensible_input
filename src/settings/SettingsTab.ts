@@ -46,6 +46,8 @@ import {
 } from "../ai/openaiProfile";
 import { loadApiKey, saveApiKey } from "../ai/secrets";
 import { confirmAsync } from "../ui/confirmInput";
+import { renderBackupList } from "./BackupList";
+import type { BackupEntry } from "../data/backupPolicy";
 
 const DOCS_BASE =
   "https://github.com/davadev/obsidian_chinese_comprehensible_input/blob/main/docs/";
@@ -1369,11 +1371,63 @@ export class CciSettingsTab extends PluginSettingTab {
             disabled: () => !this.plugin.settings.backupsEnabled,
           },
         },
+        {
+          name: "Back up now",
+          desc: "Save a copy of the current data straight away.",
+          action: () => void this.backupNowFromSettings(),
+        },
+        this.custom("Backups", (el) => void this.renderBackups(el)),
+        this.docLink("Backups guide", "What is saved, where, and what sync can undo.", "backups.md"),
         this.warnProse(
           "Only versions that include this feature can restore. Going back to a release from before it (0.7.9 or earlier) cannot be undone this way. If another device still has newer data and syncs it back, some of it can reappear after a restore: pause sync and restore the same copy there too."
         ),
       ],
     };
+  }
+
+  private async renderBackups(el: HTMLElement): Promise<void> {
+    try {
+      await renderBackupList(el, {
+        list: () => this.plugin.backups.list(),
+        pending: () => this.plugin.backups.pendingRestore(),
+        onRestore: (entry) => this.restoreFromList(entry),
+        onCancelPending: async () => {
+          await this.plugin.backups.cancelRestore();
+          this.update();
+        },
+      });
+    } catch (e) {
+      // This runs from a settings render callback and is not awaited: a list that cannot be read must not become an
+      // unhandled rejection or an empty page.
+      console.warn("CCI: could not list backups", e);
+      try {
+        el.empty();
+        el.createDiv({ cls: "setting-item-description", text: "The list of backups could not be read." });
+      } catch {
+        /* nothing to draw into */
+      }
+    }
+  }
+
+  private async backupNowFromSettings(): Promise<void> {
+    await this.plugin.backupNow();
+    this.update();
+  }
+
+  /** The Restore button on a row: confirm, queue it for the next start, redraw. */
+  private async restoreFromList(entry: BackupEntry): Promise<void> {
+    const when = new Date(entry.createdAt).toLocaleString();
+    const ok = await confirmAsync(
+      this.app,
+      `Restore your data from the backup of ${when} (data written by ${entry.fromVersion === "unknown" ? "an earlier version" : entry.fromVersion})? ` +
+        "Anything you changed since will be lost. Your current data is saved first, so you can undo this from this list. " +
+        "The change takes effect after you restart Obsidian (or turn this plugin off and on).",
+      "Restore"
+    );
+    if (!ok) return;
+    const r = await this.plugin.backups.stageRestore(entry.id);
+    new Notice(`Chinese plugin: ${r.message}`, r.ok ? 0 : 15_000);
+    this.update();
   }
 
   private dataGroup(): SettingDefinitionItem {

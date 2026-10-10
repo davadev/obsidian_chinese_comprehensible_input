@@ -137,6 +137,15 @@ expose it over Tailscale and use the tailnet hostname. **Stream
 responses (SSE)** must be on for VPN/Tailscale to work without timing
 out.
 
+## I went back to the stable release and my data looks wrong
+
+Going back through BRAT replaces the plugin's code but not its data file, so a newer
+version's changes stay. If the older version includes automatic backups, it asks on
+start whether to restore the copy taken just before the newer one first ran (answer
+**Restore**, then restart Obsidian). You can also do it any time from
+Settings → Backups. See [Backups](./backups.md), including what sync can undo and
+which old versions cannot restore.
+
 ## I want to fund this project
 
 Funding is not currently wired up. If you'd like to support development,

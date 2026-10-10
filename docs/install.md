@@ -57,6 +57,13 @@ Obsidian to load it. BRAT then checks once at each Obsidian launch and
 re-pulls newer releases; to freeze a version, Settings → BRAT → your
 plugin entry → **Don't auto-update**.
 
+**Going back to an older version?** Installing an older release through BRAT does
+not undo what a newer one did to your data. Versions that include
+[automatic backups](./backups.md) save a copy before each version change and offer
+to restore it when you go back. Older releases (0.7.9 and earlier) cannot; copy your
+`data.json` first if you are unsure. After any update, restart Obsidian fully to see
+new settings sections.
+
 ## Confirm it's running
 
 - Open Settings → Community plugins. **Chinese Comprehensible Input**

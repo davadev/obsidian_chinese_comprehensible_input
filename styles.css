@@ -1191,6 +1191,48 @@
   white-space: nowrap;
 }
 
+/* Settings > Backups: one row per backup */
+.cci-backup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+}
+.cci-backup-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cci-backup-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.cci-backup-date {
+  font-weight: 600;
+}
+.cci-backup-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+.cci-backup-pending {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.4rem 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--interactive-accent);
+  border-radius: 6px;
+}
+
 /* Collapsible Advanced settings sections */
 .cci-settings-advanced {
   margin: 0.6rem 0 1rem 0;
