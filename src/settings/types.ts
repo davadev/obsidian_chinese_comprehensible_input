@@ -125,6 +125,13 @@ export interface SyncSettings {
    */
   mirrorEnabled: boolean;
   mirrorPath: string;
+  /**
+   * Write the mirror file in place instead of through a temporary file and a rename. Off by default: the temporary
+   * file means a sync tool never sees a half-written file. Some tools (Remotely Save over WebDAV to Nextcloud has been
+   * seen to answer `405 Method Not Allowed`) cope better with the file simply being rewritten, so this is the escape
+   * hatch. Per device: see FILTER_OUT in SettingsIO.ts.
+   */
+  mirrorWriteInPlace: boolean;
   /** Opt-in: write a vault-side JSON mirror of display + behavioral
    *  settings (no credentials, no device-local paths). Lets multiple
    *  devices share preferences via remotely-save / Nextcloud the same

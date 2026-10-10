@@ -85,6 +85,58 @@ The mirror is **not** a full settings dump. The plugin strips:
 You can inspect what would be shared by opening the settings-mirror
 file in your vault and looking at the JSON.
 
+## What the mirror file holds (and what it does not)
+
+The mirror is a **transport between devices**, not a backup, so it carries only what is worth moving: every word you
+classified (known, unknown, partial, ignored) or wrote something about (a mnemonic, notes, spaced-repetition state),
+with its status, mnemonic, SRS state, notes and per-day counts. It leaves out three things, because every device keeps
+and rebuilds its own:
+
+- words that are only **new** (a vault scan creates one for every word in your notes; on a real vault that was 9,800 of
+  11,000 words);
+- the **per-note exposure counters** (`notesSeenCounts`), which were more than half of the file;
+- all but the five newest exposure timestamps per word.
+
+On a real vault this shrank the file from about 41 MB to a couple of megabytes. A file that size was hard on phones, on
+WebDAV and on sync tools. Nothing is lost: each device's own data (`data.json`) still holds everything, and the merge
+never lets a missing field erase a value a device already has. What you do not get across devices is the other device's
+per-note counts; each device builds those from its own reading.
+
+**The path must be a `.json` file path.** The Mirror file path box used to save, and write the whole mirror, on every
+keystroke, which left files and folders named after half-typed paths (`vocabulary.`, `vocabulary.json nowledgebase/`) in
+the vault. A typed path is now applied once you stop typing (or close Settings), and a path that is not a usable `.json`
+path is never applied or written to; you are told why. If you have such leftovers in your vault, they are safe to delete.
+
+## If your sync tool reports errors on the mirror file
+
+The mirror file can be several megabytes, and it is rewritten a few seconds after the data it holds changes. To be
+gentle with sync tools the plugin:
+
+- **does not rewrite the file when its content has not changed** (reading a note changes counts often, but the file only
+  moves when what it holds has changed);
+- by default writes a temporary file (`vocabulary.json.tmp`) and renames it into place, so a sync tool never sees a
+  half-written file;
+- tells you once, in a notice, if the path you chose is a **folder** instead of a file.
+
+Some tools cope better with the file simply being rewritten. Remotely Save pushing to Nextcloud over WebDAV has been seen
+answering `405 Method Not Allowed` for the mirror file. If that happens, turn on **Settings → Sync → Write the mirror file
+in place**: the plugin then writes the file directly, with no temporary file and no delete-then-rename. It is a per-device
+choice, never shared between devices. If the error continues, check that nothing on the server is a *folder* with the
+same name as the file.
+
+## Devices with different dictionaries
+
+A word is stored under a key made of the word and its pinyin (`差不多|chà bu duō`), and the pinyin comes from the
+dictionary the device had when it first met the word. A device that has downloaded CC-CEDICT and one that only has the
+small built-in seed dictionary can therefore hold the same word under two keys, the second one without pinyin. Until
+0.8.0-beta.5 the two were never combined, and a word marked known on one device could keep showing as new on the other.
+
+Now, whenever data is loaded or merged from the mirror, a record without pinyin is folded into the single pinyin record
+for the same word (its status, counts and notes are merged by the same rules as any sync, and the pinyin key is the one
+that survives, so every device agrees). Words with several readings (差 chā / chà / chāi) are left as they are, because
+which reading a bare record belongs to would be a guess. If you see one of those split, download the dictionary on every
+device (Settings → Dictionary) so all of them key the word the same way.
+
 ## Setup walkthrough
 
 1. Ensure your sync tool already covers your vault and reaches both

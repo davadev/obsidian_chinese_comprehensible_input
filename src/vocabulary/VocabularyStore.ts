@@ -1,12 +1,14 @@
-import { Plugin, normalizePath } from "obsidian";
+import { Notice, Plugin, normalizePath } from "obsidian";
 import { DATA_SCHEMA_VERSION } from "../constants";
 import { DictionaryService } from "../dictionary/DictionaryService";
 import { makeKey } from "../dictionary/normalizeChinese";
 import { HSK_MAP, HSK_SOURCE } from "../dictionary/hskMap.generated";
 import { migrateVocab } from "./migrations";
+import { slimVocabForMirror } from "./mirrorSlim";
+import { mirrorPathProblem } from "../settings/mirrorPath";
 import { KnownAxes, PersistedVocabData, WordRecord, WordStatus } from "./VocabularyTypes";
 import { axesFromStatus, statusFromAxes } from "./axes";
-import { mergeStoresForSync } from "./syncMerge";
+import { mergeForSync, mergeStoresForSync } from "./syncMerge";
 import { CciSettings } from "../settings/types";
 import { DictionaryCustomWords, DictionaryOverrides } from "../dictionary/DictionaryTypes";
 import { PluginDataBlob } from "../data/pluginDataUpdater";
@@ -89,6 +91,10 @@ export class VocabularyStore {
   private mirrorWriteTimer: number | null = null;
   /** Hash of the last mirror bytes we wrote; used to ignore self-triggered modify events. */
   private lastMirrorHash: string | null = null;
+  /** The "mirror path is a folder" notice is shown once per session, not on every save. */
+  private mirrorFolderWarned = false;
+  /** Same, for a path that is not a usable `.json` file path. */
+  private mirrorPathWarned = false;
   /**
    * What the mirror file looked like on disk the last time we read or wrote it.
    * Lets the fast poll short-circuit the 2.9 MB read when the file has not
@@ -125,7 +131,16 @@ export class VocabularyStore {
   mirrorPath(): string | null {
     const sync = this.getSettings().sync;
     if (!sync?.mirrorEnabled) return null;
-    return sync.mirrorPath ? normalizePath(sync.mirrorPath) : null;
+    if (!sync.mirrorPath) return null;
+    const problem = mirrorPathProblem(sync.mirrorPath);
+    if (problem) {
+      if (!this.mirrorPathWarned) {
+        this.mirrorPathWarned = true;
+        new Notice(`Chinese plugin: the sync file path "${sync.mirrorPath}" cannot be used, so vocabulary is not being saved to it. ${problem}`, 15_000);
+      }
+      return null;
+    }
+    return normalizePath(sync.mirrorPath);
   }
 
   async load(initialBlob: unknown): Promise<void> {
@@ -263,6 +278,8 @@ export class VocabularyStore {
         : settings.exactTimestampRetentionLimit,
     });
     this.data = merged;
+    // Two devices whose dictionaries differ can hold the same word under two keys (see reconcileBareKeys).
+    this.reconcileBareKeys();
     this.clearSurfaceLookupCache();
 
     if (this.dictBridge) {
@@ -441,11 +458,55 @@ export class VocabularyStore {
       out[canonical] = mergeRecords(prev, r);
       mutated = true;
     }
-    if (mutated) {
-      this.data.words = out;
+    if (mutated) this.data.words = out;
+    const folded = this.reconcileBareKeys();
+    if (mutated || folded) {
       this.clearSurfaceLookupCache();
       this.scheduleSave();
     }
+  }
+
+  /**
+   * Fold a "bare" record into its pinyin-keyed sibling.
+   *
+   * A record's key is `makeKey(simplified, pinyin)`, and the pinyin comes from whatever dictionary the device had
+   * when the word was first met. A device with the full CC-CEDICT keys 差不多 as `差不多|chà bu duō`; a device with
+   * only the small seed dictionary has no entry, so it keys the same word as the bare `差不多`. Synced through the
+   * mirror, the merge works key by key and keeps both records, and `bySurface()` then resolves to whichever key THIS
+   * device's dictionary derives: the bare, never-classified one. A word marked known on the phone showed as new on the
+   * Mac, and Force re-sync merged the same two records again and changed nothing.
+   *
+   * The pinyin key always survives (so every device picks the same one), the bare record's status, counts and notes are
+   * merged into it with the same commutative rules as a sync, and the bare key is dropped. Only done when there is
+   * exactly ONE pinyin sibling: a polyphone (差 chā / chà / chāi) has several, which one the bare record belongs to
+   * is a guess, so those are left as they are.
+   *
+   * Returns whether anything changed. Idempotent: a second call finds no bare record with one sibling.
+   */
+  private reconcileBareKeys(): boolean {
+    const words = this.data.words;
+    const siblingsOf = new Map<string, string[]>();
+    for (const key of Object.keys(words)) {
+      const bar = key.indexOf("|");
+      if (bar < 0) continue;
+      const base = key.slice(0, bar);
+      const list = siblingsOf.get(base);
+      if (list) list.push(key);
+      else siblingsOf.set(base, [key]);
+    }
+    const opts = { statusPriority: this.getSettings().sync.statusPriority };
+    let changed = false;
+    for (const [base, siblings] of siblingsOf) {
+      const bare = words[base];
+      if (!bare || siblings.length !== 1) continue;
+      const target = words[siblings[0]];
+      const merged = mergeForSync(target, bare, opts);
+      merged.key = target.key;
+      words[target.key] = merged;
+      delete words[base];
+      changed = true;
+    }
+    return changed;
   }
 
   /** Returns a frozen view of the persisted blob to be merged with settings. */
@@ -852,41 +913,68 @@ export class VocabularyStore {
     const path = this.mirrorPath();
     if (!path) return;
     try {
+      const adapter = this.plugin.app.vault.adapter;
+
+      // A folder at the mirror path (a sync tool or an earlier setting can leave one) can never be written as a file:
+      // delete-then-rename and a direct write both fail, and the failure used to be a console line nobody sees.
+      let existing: Awaited<ReturnType<typeof adapter.stat>> = null;
+      try {
+        existing = await adapter.stat(path);
+      } catch {
+        /* an adapter without stat (some mobile ones), or no file yet: nothing to guard */
+      }
+      if (existing?.type === "folder") {
+        if (!this.mirrorFolderWarned) {
+          this.mirrorFolderWarned = true;
+          new Notice(
+            `Chinese plugin: the sync file path "${path}" is a folder, so vocabulary cannot be saved there. Pick a file path in Settings → Sync.`,
+            15_000
+          );
+        }
+        return;
+      }
+
       await ensureFolderForFile(this.plugin, path);
       const envelope: MirrorEnvelope = {
         schemaVersion: MIRROR_ENVELOPE_VERSION,
-        vocab: this.data,
+        // Not the whole store: see mirrorSlim.ts. This device's own data.json keeps everything.
+        vocab: slimVocabForMirror(this.data),
         dictionaryOverrides: this.dictBridge?.getOverrides() ?? {},
         dictionaryCustomWords: this.dictBridge?.getCustomWords() ?? {},
       };
       const content = JSON.stringify(envelope, null, 2);
-      const adapter = this.plugin.app.vault.adapter;
-      // Try atomic write (stage to .tmp, then rename). Avoids Nextcloud /
-      // remotely-save catching a half-written JSON. Some mobile adapters
-      // (older Obsidian builds) don't expose `rename` or reject `.tmp`
-      // paths, so fall back to a direct write in that case rather than
-      // failing the whole save.
-      const tmpPath = `${path}.tmp`;
-      let wroteAtomic = false;
-      try {
-        await adapter.write(tmpPath, content);
-        if (await adapter.exists(path)) {
-          await adapter.remove(path);
-        }
-        await adapter.rename(tmpPath, path);
-        wroteAtomic = true;
-      } catch (atomicErr) {
-        console.warn("CCI sync: atomic mirror write unavailable, falling back to direct write", atomicErr);
-        // Best-effort cleanup of the staging file; ignore failures.
-        try {
-          if (await adapter.exists(tmpPath)) await adapter.remove(tmpPath);
-        } catch {
-          /* ignore */
-        }
+      const hash = await hashString(content);
+
+      // Identical bytes: leave the file alone. Every rewrite is a multi-megabyte upload for a sync tool, and a new
+      // modify event for every watcher; reading a note changes exposure counts often, but the file only needs to move
+      // when what it holds has changed.
+      if (existing && hash === this.lastMirrorHash) return;
+
+      if (this.getSettings().sync.mirrorWriteInPlace) {
         await adapter.write(path, content);
+      } else {
+        // Atomic write (stage to .tmp, then rename). Avoids Nextcloud / remotely-save catching a half-written JSON.
+        // Some mobile adapters (older Obsidian builds) don't expose `rename` or reject `.tmp` paths, so fall back to
+        // a direct write in that case rather than failing the whole save.
+        const tmpPath = `${path}.tmp`;
+        try {
+          await adapter.write(tmpPath, content);
+          if (await adapter.exists(path)) {
+            await adapter.remove(path);
+          }
+          await adapter.rename(tmpPath, path);
+        } catch (atomicErr) {
+          console.warn("CCI sync: atomic mirror write unavailable, falling back to direct write", atomicErr);
+          // Best-effort cleanup of the staging file; ignore failures.
+          try {
+            if (await adapter.exists(tmpPath)) await adapter.remove(tmpPath);
+          } catch {
+            /* ignore */
+          }
+          await adapter.write(path, content);
+        }
       }
-      void wroteAtomic;
-      this.lastMirrorHash = await hashString(content);
+      this.lastMirrorHash = hash;
       try {
         this.rememberMirrorStat(await adapter.stat(path));
       } catch { /* ignore */ }
