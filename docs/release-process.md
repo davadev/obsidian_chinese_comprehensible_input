@@ -148,7 +148,7 @@ If the workflow fails, delete the tag (`git push origin :0.7.0 && git tag -d 0.7
 
 ### Other notes
 
-- If CI fails on coverage, either add tests or explicitly move a module out of unit-test coverage because it truly requires more of Obsidian than the happy-dom fixture provides. Do not game the threshold with low-value assertions.
+- If CI fails on coverage, add tests, or delete the code if nothing can reach it. Never widen `exclude` and never add a `v8 ignore` comment: `coverageGate.test.ts` fails on both. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
 
 ## Branch policy
@@ -373,12 +373,17 @@ remaining exclusions (`main.ts`, `chineseDecorations.ts`, `SettingsTab.ts`, the 
 more of Obsidian than the fixture provides. Decisions inside them that can be made without a DOM live in pure helpers
 (`formatOptions.ts`, `einkMode.ts`), and `check:layout` covers the E-ink CSS in a real browser.
 
-**0.8.0 coverage push.** Everything still measured is at **100 %** (statements, branches, functions, lines) and the four
-floors are **100**, pinned by `coverageGate.test.ts`. Getting there deleted code rather than hiding it: unused exports,
-helpers only tests called, parameters nothing read, and guards that only a call violating the TypeScript types could
-reach. Guards reachable from persisted, synced or hand-edited data stay, each with a test that feeds that input. There
-are no `/* v8 ignore */` comments in `src/` (a test pins that). The shells in `exclude` leave it one by one and must be
-at 100 when they do; the type-only files and `prompts.ts` are measured again (the type files report 0/0).
+**0.8.0 coverage push (final).** The whole plugin source is measured and sits at **100 %** (statements, branches,
+functions, lines); the four floors are **100**. `exclude` holds only `src/tests/**` and `src/**/*.d.ts`, and
+`coverageGate.test.ts` pins that, the floors, and the absence of `v8 ignore` comments in `src/`. The Obsidian shells
+(`main.ts`, `SettingsTab`, `StatsView`, `WordPopup`, the modals, the CodeMirror plugins) are tested on a DOM-aware
+`obsidian` stub (`src/tests/__mocks__/obsidian.ts`, `obsidianDom.ts`, and the `viewHarness`, `statsViewHarness`,
+`settingsTabHarness`, `mainHarness` fixtures); `main.ts` is driven through `CciPlugin.prototype` on a fake app plus one
+whole-plugin load on an in-memory vault. Getting there deleted code rather than hiding it: unused exports, helpers only
+tests called, parameters nothing read, and guards that only a call violating the TypeScript types could reach. Guards
+reachable from persisted, synced or hand-edited data stay, each with a test that feeds that input. Writing the tests
+also found real bugs, each fixed with a regression test (prose-fallback regex, debug notice that never hid, stale
+tokenize race, strikethrough never parsed, flashcard reveal needing two taps, "Top HSK 7" label).
 
 ### Why happy-dom, and what the DOM tests are for
 

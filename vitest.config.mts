@@ -18,11 +18,8 @@ export default defineConfig({
       exclude: [
         "src/tests/**",
         "src/**/*.d.ts",
-        // Exclude Obsidian runtime / DOM-heavy shells from unit-test coverage.
-        // ViewToolbar.ts and ChineseTextFileView.ts left this list in 0.8.0: a happy-dom
-        // harness (src/tests/*.dom.test.ts, with the shared Obsidian DOM fixture) mounts the
-        // real toolbar and the real view with a real CodeMirror editor. What is still here
-        // needs more of Obsidian than that fixture provides (#119).
+        // Nothing else: every source file is measured. Do not add to this list, write the test (or delete the
+        // dead code). src/tests/coverageGate.test.ts pins it.
       ],
       // Thresholds creep up as we add tests. Current values are the
       // floor — CI fails if we regress. Bump after each coverage push
@@ -56,6 +53,9 @@ export default defineConfig({
       // 0.8.0 (coverage push): everything still measured reached 100, dead code and guards the types forbid were
       // deleted rather than tested, and the floors were locked at 100 so none of it can slip. The shells listed in
       // `exclude` leave it one by one and must be at 100 when they do.
+      //
+      // 0.8.0 (final): the last shells (main.ts, SettingsTab, StatsView, the modals, the editor plugins) are in and at
+      // 100 too, so `exclude` holds only tests and declarations.
       thresholds: {
         lines: 100,
         functions: 100,
