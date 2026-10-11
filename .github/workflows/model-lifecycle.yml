@@ -1,0 +1,80 @@
+name: Model lifecycle
+
+# Early warning before the OpenAI model we hardcode (src/ai/openaiProfile.ts) is shut down (#116).
+#
+# Deliberately its own workflow and NOT part of ci.yml / release.yml / check-release: those must stay offline and
+# deterministic, and a shutdown months away must never hold back a user-facing fix.
+#
+# The key lives in the `model-lifecycle` ENVIRONMENT (not a repository secret), and that environment only deploys
+# from `main`. So a workflow edited on any other branch cannot read it. There is no pull_request trigger. Use a
+# dedicated OpenAI project key with a small budget cap, and revoke it when you are done; without a key the check
+# skips and the run stays green. See docs/release-process.md ("Model lifecycle check").
+#
+# Pinned to full commit SHAs, as in ci.yml. Re-resolve by hand with:
+#   gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha
+
+on:
+  schedule:
+    # Weekly is plenty: shutdown notices arrive months ahead. GitHub disables scheduled workflows in a public repo
+    # after 60 days without repository activity; re-enable it in the Actions tab if that happens.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: model-lifecycle
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: model-lifecycle
+    permissions:
+      contents: read
+    outputs:
+      level: ${{ steps.check.outputs.level }}
+      model: ${{ steps.check.outputs.model }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Check the model's shutdown date
+        id: check
+        # The only step that can see the key. The script never prints it and sends it only to api.openai.com.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node scripts/check-openai-model.mjs
+
+  report:
+    # A separate job so the write-scoped token never shares a runner with the key.
+    needs: check
+    if: ${{ always() && needs.check.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update the tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="OpenAI model is shutting down or gone"
+          body="The weekly model check failed: $RUN_URL
+
+          Re-derive the target model and migrate (#115). Run details are in the job summary."
+          existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --label maintenance --search "\"$title\" in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "Still failing: $RUN_URL"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --label maintenance --body "$body"
+          fi
