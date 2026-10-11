@@ -31,6 +31,16 @@ Open an issue describing the problem you want solved (not only the solution you
 have in mind). Comprehensible-input pedagogy and a clean reading experience drive
 what gets built, so framing the *why* helps.
 
+## How work is prioritised
+
+Open issues live on the [Planning project board](https://github.com/users/davadev/projects/3). In short: bugs, security
+issues and dependency updates come first and ship as fix releases; then reasonable
+feature requests from users of the plugin; then the planned features for upcoming
+releases; then the long-term goals. The full rules, the planned releases and the
+direction of the plugin (local-first, privacy by default, mobile as a first-class
+platform) are in [`ROADMAP.md`](./ROADMAP.md). A feature request that fits that
+direction is very welcome; one that does not may be declined with an explanation.
+
 ## Working on a change
 
 Prerequisites: Node 20+ and npm.
