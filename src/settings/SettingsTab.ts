@@ -978,7 +978,7 @@ export class CciSettingsTab extends PluginSettingTab {
         {
           name: "OpenAI model",
           desc:
-            `${OPENAI_MODELS.default.display} is the default: much cheaper, same quality for graded stories in our tests. ` +
+            `${OPENAI_MODELS.default.display} is the default: about 9× cheaper, and in our side-by-side tests it wrote graded stories of comparable quality. ` +
             `Switch to ${OPENAI_MODELS.legacy.display} if its text reads worse for you.`,
           visible: isOpenAi,
           control: {

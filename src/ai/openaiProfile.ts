@@ -33,7 +33,7 @@ export const OPENAI_MODELS: Record<OpenAiModelChoice, OpenAiModelProfile> = {
   default: {
     id: OPENAI_MODEL_ID,
     display: "GPT-6 luna",
-    desc: "The efficient tier of OpenAI's newest family: much cheaper than the previous default, with the same quality for graded stories in our tests.",
+    desc: "The efficient tier of OpenAI's newest family: about 9× cheaper than the previous default. In side-by-side tests its graded stories were comparable; switch back if yours read worse.",
     price: { input: 0.1, cachedInput: 0.01, output: 0.5 },
     extraBody: { reasoning_effort: "none" },
   },
