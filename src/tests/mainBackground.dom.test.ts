@@ -32,12 +32,12 @@ const file = (basename: string) => Object.assign(new TFile(), { basename, path: 
 const folder = (children: unknown[]) => Object.assign(new TFolder(), { children });
 
 describe("the daily story", () => {
-  function story(opts: { enabled?: boolean; time?: string; blob?: Record<string, unknown>; folderChildren?: unknown[] | null; ai?: boolean; after?: Array<unknown[]> } = {}) {
+  function story(opts: { rawTime?: boolean; enabled?: boolean; time?: string; blob?: Record<string, unknown>; folderChildren?: unknown[] | null; ai?: boolean; after?: Array<unknown[]> } = {}) {
     vi.setSystemTime(NOON());
     const blob: Record<string, any> = { ...(opts.blob ?? {}) };
-    const folderQueue: Array<unknown[] | null> = [opts.folderChildren ?? [], ...(opts.after ?? [])];
+    const folderQueue: Array<unknown[] | null> = [opts.folderChildren === undefined ? [] : opts.folderChildren, ...(opts.after ?? [])];
     const o: any = bind({
-      settings: settings((s) => ((s.story.autoGenerateEnabled = opts.enabled ?? true), (s.story.autoGenerateTime = opts.time ?? "08:00"), (s.ai.enabled = opts.ai ?? true), (s.story.folder = "Stories"))),
+      settings: settings((s) => ((s.story.autoGenerateEnabled = opts.enabled ?? true), (s.story.autoGenerateTime = opts.rawTime ? opts.time : (opts.time ?? "08:00")), (s.ai.enabled = opts.ai ?? true), (s.story.folder = "Stories"))),
       loadPluginData: vi.fn(async () => blob),
       updateDataBlob: vi.fn(async (m: (b: any) => void) => m(blob)),
       app: {
@@ -78,7 +78,7 @@ describe("the daily story", () => {
 
   it("an unreadable or missing time means 08:00", async () => {
     for (const time of ["garbage", "", undefined as unknown as string]) {
-      const { o } = story({ time });
+      const { o } = story({ time, rawTime: true });
       await run(o);
       expect(o.story.generatePreview, String(time)).toHaveBeenCalled();
     }

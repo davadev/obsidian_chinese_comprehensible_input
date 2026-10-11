@@ -17,12 +17,18 @@ installObsidianDom();
 
 const detect = vi.hoisted(() => ({ traditional: true }));
 vi.mock("../dictionary/scriptDetect", () => ({ looksTraditional: () => detect.traditional, countTraditionalMarkers: () => 0 }));
+const plan = vi.hoisted(() => ({ override: null as null | Record<string, boolean> }));
+vi.mock("../settings/scriptChange", async (orig) => {
+  const real = await orig<typeof import("../settings/scriptChange")>();
+  return { ...real, planScriptChange: (...a: Parameters<typeof real.planScriptChange>) => (plan.override ? { ...real.planScriptChange(...a), ...plan.override } : real.planScriptChange(...a)) };
+});
 const indexer = vi.hoisted(() => ({ indexVaultWithNotice: vi.fn(async () => {}) }));
 vi.mock("../vocabulary/VaultIndexer", () => indexer);
 
 beforeEach(() => {
   Notice.instances.length = 0;
   detect.traditional = true;
+  plan.override = null;
   indexer.indexVaultWithNotice.mockClear();
 });
 afterEach(() => {
@@ -220,6 +226,16 @@ describe("changing the script or the pronunciation region", () => {
     expect(stats.invalidateCaches).not.toHaveBeenCalled();
     expect(o.forceRetokenizeViews).toHaveBeenCalled();
     expect(o.lastAppliedRegion).toBe("taiwan");
+  });
+
+  it("honours a plan that says not to re-tokenize", () => {
+    plan.override = { retokenize: false };
+    const { o } = self();
+    o.settings.scriptVariant = "traditional";
+    o.applyScriptSideEffects();
+    expect(o.forceRetokenizeViews).not.toHaveBeenCalled();
+    expect(o.refreshChineseViews).not.toHaveBeenCalled();
+    expect(o.tokenizer.invalidate).toHaveBeenCalled(); // the trie is still rebuilt
   });
 
   it("works while the tokenizer and vocabulary do not exist yet (at start-up)", () => {

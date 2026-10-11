@@ -19,7 +19,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const plugin = (over: Record<string, unknown> = {}) =>
+const plugin = (over: Record<string, unknown> = {}): any =>
   bind({ viewMode: "read", pendingCustomSurface: "", pendingFormatStart: null, pendingFormatStartSurface: null, settings: settings(), app: { workspace: workspace() }, ...over });
 
 describe("modes", () => {
@@ -137,6 +137,14 @@ describe("the format range", () => {
     p.beginFormatRange(9);
     expect([p.pendingFormatStart, p.pendingFormatStartSurface]).toEqual([9, null]);
     expect(v.refreshToolbar).toHaveBeenCalledTimes(2);
+  });
+
+  it("a toolbar that fails to refresh after the first tap is logged, not thrown", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const v = chineseView({ refreshToolbar: vi.fn(() => { throw new Error("x"); }) });
+    const p = plugin({ app: { workspace: workspace({ [VIEW_TYPE_CHINESE]: [{ view: {} }, { view: v }] }) } });
+    expect(() => p.beginFormatRange(1)).not.toThrow();
+    expect(warn).toHaveBeenCalledWith("CCI refreshToolbar failed", expect.any(Error));
   });
 
   it("the second tap applies the armed formats between the two taps, whichever came first, and clears the pending start", () => {

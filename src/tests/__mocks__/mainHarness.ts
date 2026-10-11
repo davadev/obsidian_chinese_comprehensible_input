@@ -70,3 +70,68 @@ export const settings = (over: (s: any) => void = () => {}) => {
   over(s);
   return s;
 };
+
+/** A vault in memory plus a workspace that records the handlers registered on it, for loading the whole plugin. */
+export function fakeApp() {
+  const files = new Map<string, string>();
+  const binary = new Map<string, Uint8Array>();
+  const dirs = new Set<string>();
+  const adapter = {
+    exists: vi.fn(async (p: string) => files.has(p) || binary.has(p) || dirs.has(p)),
+    read: vi.fn(async (p: string) => {
+      if (!files.has(p)) throw new Error(`ENOENT ${p}`);
+      return files.get(p)!;
+    }),
+    write: vi.fn(async (p: string, t: string) => void files.set(p, t)),
+    readBinary: vi.fn(async (p: string) => {
+      const b = binary.get(p);
+      if (!b) throw new Error(`ENOENT ${p}`);
+      return b.slice().buffer;
+    }),
+    writeBinary: vi.fn(async (p: string, d: ArrayBuffer) => void binary.set(p, new Uint8Array(d))),
+    mkdir: vi.fn(async (p: string) => void dirs.add(p)),
+    remove: vi.fn(async (p: string) => void (files.delete(p), binary.delete(p))),
+    rename: vi.fn(async (a: string, b: string) => {
+      if (files.has(a)) files.set(b, files.get(a)!);
+      if (binary.has(a)) binary.set(b, binary.get(a)!);
+      files.delete(a);
+      binary.delete(a);
+    }),
+    list: vi.fn(async () => ({ files: [...files.keys()], folders: [] })),
+    stat: vi.fn(async () => null),
+  };
+  const storage = new Map<string, string>();
+  const vaultHandlers: Array<{ name: string; cb: (...a: any[]) => unknown }> = [];
+  const workspaceHandlers: Array<{ name: string; cb: (...a: any[]) => unknown }> = [];
+  const layoutReady: Array<() => void> = [];
+  const ws = workspace({}, {
+    on: vi.fn((name: string, cb: (...a: any[]) => unknown) => {
+      const ref = { name, cb };
+      workspaceHandlers.push(ref);
+      return ref;
+    }),
+    onLayoutReady: vi.fn((cb: () => void) => void layoutReady.push(cb)),
+  });
+  const app: any = {
+    vault: {
+      configDir: ".obsidian",
+      adapter,
+      on: vi.fn((name: string, cb: (...a: any[]) => unknown) => {
+        const ref = { name, cb };
+        vaultHandlers.push(ref);
+        return ref;
+      }),
+      getAbstractFileByPath: vi.fn(() => null),
+      getMarkdownFiles: vi.fn(() => []),
+      cachedRead: vi.fn(async () => ""),
+    },
+    workspace: ws,
+    metadataCache: { getFirstLinkpathDest: vi.fn(() => null) },
+    fileManager: { trashFile: vi.fn(async () => {}) },
+    plugins: { disablePlugin: vi.fn(async () => {}) },
+    loadLocalStorage: vi.fn((k: string) => storage.get(k) ?? null),
+    saveLocalStorage: vi.fn((k: string, v: string | null) => void (v === null ? storage.delete(k) : storage.set(k, v))),
+    setting: undefined,
+  };
+  return { app, files, binary, adapter, storage, vaultHandlers, workspaceHandlers, layoutReady };
+}

@@ -75,7 +75,10 @@ describe("the vault's modify event", () => {
     const { o, handlers } = watchers((s) => ((s.sync.mirrorPath = ""), (s.sync.settingsMirrorPath = "")));
     await handlers.modify({ path: "" });
     await handlers.modify({ path: "x.json" });
+    await handlers.create({ path: "x.json" });
+    await handlers.create({ path: "vocabulary.conflict.json" });
     expect(o.vocab.absorbExternalMirrorChange).not.toHaveBeenCalled();
+    expect(o.vocab.reloadMirror).not.toHaveBeenCalled();
     expect(o.settingsMirror.absorbExternalChange).not.toHaveBeenCalled();
   });
 

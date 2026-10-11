@@ -4,7 +4,39 @@
  * `import` so module evaluation doesn't fail.
  */
 export class App {}
-export class Plugin {}
+/**
+ * The base class of a plugin, with what a real one gets from the app: `app` and `manifest`, an in-memory data file, and
+ * recorders for everything a plugin registers, so a test can load the whole plugin and see what it asked Obsidian for.
+ */
+export class Plugin {
+  app: any;
+  manifest: any;
+  data: unknown = null;
+  commands: any[] = [];
+  views = new Map<string, (leaf: any) => unknown>();
+  events: any[] = [];
+  domEvents: Array<{ target: unknown; type: string; cb: (...a: unknown[]) => unknown }> = [];
+  intervals: number[] = [];
+  ribbon: Array<{ icon: string; title: string; cb: () => unknown }> = [];
+  settingTabs: unknown[] = [];
+  constructor(app?: unknown, manifest?: unknown) {
+    this.app = app;
+    this.manifest = manifest;
+  }
+  async loadData(): Promise<unknown> {
+    return this.data;
+  }
+  async saveData(d: unknown): Promise<void> {
+    this.data = JSON.parse(JSON.stringify(d));
+  }
+  addCommand(c: any) { this.commands.push(c); return c; }
+  registerView(type: string, creator: (leaf: any) => unknown) { this.views.set(type, creator); }
+  registerEvent(ref: unknown) { this.events.push(ref); }
+  registerDomEvent(target: unknown, type: string, cb: (...a: unknown[]) => unknown) { this.domEvents.push({ target, type, cb }); }
+  registerInterval(id: number) { this.intervals.push(id); return id; }
+  addRibbonIcon(icon: string, title: string, cb: () => unknown) { this.ribbon.push({ icon, title, cb }); return {}; }
+  addSettingTab(tab: unknown) { this.settingTabs.push(tab); }
+}
 export class PluginSettingTab {
   // Real Obsidian assigns both and exposes update() for declarative tabs;
   // settingsCoverage.test.ts drives a real subclass through this.
