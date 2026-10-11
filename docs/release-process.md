@@ -336,7 +336,7 @@ version, lockfile, esbuild), not from the image.
 
 ## Model lifecycle check
 
-`.github/workflows/model-lifecycle.yml` (#116) asks OpenAI once a week whether the model we hardcode in `src/ai/openaiProfile.ts` (`OPENAI_MODEL_ID`, parsed by `scripts/check-openai-model.mjs`, so the name lives in one place) has a `shutdown_date`. If the model is gone (HTTP 404), the date is within 90 days, or the key is rejected, the run fails and a single `maintenance` issue is opened (or commented on). A date further out, or the model having left `GET /v1/models`, is only a warning: `gpt-5.4-mini` left the catalog long before any shutdown was announced.
+`.github/workflows/model-lifecycle.yml` (#116) asks OpenAI once a week whether the models we hardcode in `src/ai/openaiProfile.ts` have a `shutdown_date`. There are two: the default (`OPENAI_MODEL_ID`) and the previous default kept as an opt-in fallback (`OPENAI_LEGACY_MODEL_ID`); `scripts/check-openai-model.mjs` parses both, so the names live in one place. If the **default** is gone (HTTP 404), its date is within 90 days, or the key is rejected, the run fails and a single `maintenance` issue is opened (or commented on). Anything wrong with the **legacy** model, a date further out, or a model having left `GET /v1/models` is only a warning: the fallback is opt-in, and `gpt-5.4-mini` left the catalog long before any shutdown was announced. When the legacy model is really gone, delete it from `OPENAI_MODELS` (and the settings dropdown follows).
 
 It is deliberately **not** part of `check-release` or `release.yml`. Those stay offline and deterministic; a shutdown months away must never hold back a user-facing fix (the same reasoning as dev-dependency advisories).
 
@@ -348,6 +348,8 @@ gh secret delete OPENAI_API_KEY --env model-lifecycle
 ```
 
 Without a key the script prints a skip message and exits 0, so a revoked key never turns the run red. Run it by hand from the Actions tab (`Run workflow`) or locally with `OPENAI_API_KEY=... node scripts/check-openai-model.mjs`. GitHub disables scheduled workflows in a public repository after 60 days without activity; re-enable it in the Actions tab if that happens.
+
+**Choosing the next model (`model-eval.yml`).** Before a model migration, run **Model eval** from the Actions tab (same environment and key). `list_only` prints the chat models in the catalog today; then give it candidates as `id:input:output[:cached]` (USD per 1M tokens, from OpenAI's pricing page). It bundles the *real* `AiProviderService` request builder and prompts, so an `unsupported_parameter` 400 is a 400 users would hit, and `variants` try body changes the code does not send yet. `choice` runs a candidate as the `default` profile (sends the model's extra fields, e.g. `reasoning_effort`) or as `legacy` (sends none). It reports validity, target words present, tokens, cost and latency, and uploads the generated text as a 3-day artifact: quality is judged by reading it. A run costs cents.
 
 ## Coverage thresholds after the vitest 1 → 4 upgrade
 

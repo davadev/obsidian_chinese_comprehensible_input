@@ -25,6 +25,11 @@ on:
         description: "Request-body variants: default, effort-none, effort-low, no-temperature, effort-none-no-temperature, json-schema"
         type: string
         default: "default,effort-none"
+      choice:
+        description: "Run candidates as the plugin's 'default' profile (sends reasoning_effort) or 'legacy' (sends none; use for the previous model)"
+        type: choice
+        options: [default, legacy]
+        default: default
       runs:
         description: "Stories per model and variant (1-5)"
         type: string
@@ -71,12 +76,13 @@ jobs:
           MODELS: ${{ inputs.models }}
           VARIANTS: ${{ inputs.variants }}
           RUNS: ${{ inputs.runs }}
+          CHOICE: ${{ inputs.choice }}
           HSK: ${{ inputs.hsk }}
         run: |
           if [ "$LIST_ONLY" = "true" ]; then
             node scripts/model-eval.mjs --list
           else
-            node scripts/model-eval.mjs --models "$MODELS" --variants "$VARIANTS" --runs "$RUNS" --hsk "$HSK"
+            node scripts/model-eval.mjs --models "$MODELS" --variants "$VARIANTS" --runs "$RUNS" --hsk "$HSK" --choice "$CHOICE"
           fi
 
       - name: Upload the generated text for reading

@@ -37,8 +37,8 @@ Three knobs to try, in order:
    anchoring (costs more tokens on OpenAI, but worth it for new
    learners).
 3. Pick a stronger model. Small Ollama models pad with high-HSK words
-   because they don't have a great sense of frequency. OpenAI GPT-5.4
-   mini handles graded Chinese well at a low cost.
+   because they don't have a great sense of frequency. OpenAI GPT-6
+   luna handles graded Chinese well at a low cost.
 
 More: [Ollama tips](./ollama-tips.md).
 
