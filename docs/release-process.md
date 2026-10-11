@@ -2,7 +2,7 @@
 
 ## CI expectations
 
-Two workflows live in `.github/workflows/`:
+Three workflows live in `.github/workflows/` (the third, `model-lifecycle.yml`, is not a release gate; see [Model lifecycle check](#model-lifecycle-check)):
 
 - **`ci.yml`** — runs on every push to `main` and every PR. Executes `npm ci`, `npm run build`, `npm test`, `npm run test:cov`, `npm run lint`, and `npm run check-release -- --with-lint`. Gates merges.
 - **`release.yml`** — triggers on push of a SemVer-shaped tag (`0.3.4` for stable, `0.3.4-beta.1` for prerelease). For a suffixed tag it first runs `scripts/stamp-prerelease.mjs` to write the prerelease version into the working tree only (see [Prerelease → stable workflow](#prerelease--stable-workflow)). It then re-runs the whole verification chain (lint → build → test → check-release with `--tag $TAG --with-build --strict`) on a clean Ubuntu runner, and validates the three release artifacts on disk before publishing. **A single lint Error aborts the workflow, so a broken release can never reach the directory.** On success it creates the GitHub Release with `main.js`, `manifest.json`, `styles.css` attached — auto-generated release notes from PRs / commits since the previous tag. Bare SemVer → `--latest`; tag with a `-` → `--prerelease`.
@@ -333,6 +333,21 @@ mixed a TypeScript major in with routine patches.
 are eventually retired and would break releases, while `ubuntu-latest`
 auto-migrates. Reproducibility here comes from the pinned toolchain (Node
 version, lockfile, esbuild), not from the image.
+
+## Model lifecycle check
+
+`.github/workflows/model-lifecycle.yml` (#116) asks OpenAI once a week whether the model we hardcode in `src/ai/openaiProfile.ts` (`OPENAI_MODEL_ID`, parsed by `scripts/check-openai-model.mjs`, so the name lives in one place) has a `shutdown_date`. If the model is gone (HTTP 404), the date is within 90 days, or the key is rejected, the run fails and a single `maintenance` issue is opened (or commented on). A date further out, or the model having left `GET /v1/models`, is only a warning: `gpt-5.4-mini` left the catalog long before any shutdown was announced.
+
+It is deliberately **not** part of `check-release` or `release.yml`. Those stay offline and deterministic; a shutdown months away must never hold back a user-facing fix (the same reasoning as dev-dependency advisories).
+
+**The credential.** `OPENAI_API_KEY` is an *environment* secret of the `model-lifecycle` environment, and that environment's deployment branches are limited to `main`, so a workflow edited on any other branch cannot read it. The workflow has no `pull_request` trigger (only `schedule` and `workflow_dispatch`), the key is passed to the one step that needs it, and the issue-writing job is separate so the write-scoped token never shares a runner with the key. Use a dedicated OpenAI project with a small budget cap, not a key that is used for anything else, and revoke it when you are done:
+
+```bash
+gh secret set OPENAI_API_KEY --env model-lifecycle    # prompts, hidden; never pass --body
+gh secret delete OPENAI_API_KEY --env model-lifecycle
+```
+
+Without a key the script prints a skip message and exits 0, so a revoked key never turns the run red. Run it by hand from the Actions tab (`Run workflow`) or locally with `OPENAI_API_KEY=... node scripts/check-openai-model.mjs`. GitHub disables scheduled workflows in a public repository after 60 days without activity; re-enable it in the Actions tab if that happens.
 
 ## Coverage thresholds after the vitest 1 → 4 upgrade
 
