@@ -95,6 +95,7 @@ function make(o: Setup = {}) {
     markWordIgnored: vi.fn(),
     refreshChineseViews: vi.fn(),
     setDictionaryOverride: vi.fn(async () => {}),
+    setCustomWord: vi.fn(async () => {}),
     deleteDictionaryOverride: vi.fn(async () => {}),
     enhance: { enhance: vi.fn(async () => ({ definitions: ["new def"], grammar: "verb", pinyin: "xué xi" })) },
   };
@@ -537,6 +538,70 @@ describe("Enhance and Revert", () => {
     expect(b.disabled).toBe(false);
     expect(b.textContent).toBe("Enhance");
     expect(m.plugin.setDictionaryOverride).not.toHaveBeenCalled();
+  });
+
+  describe("on a custom word", () => {
+    const CUSTOM = { simplified: "学习", traditional: "學習", pinyin: "my py", definitions: ["rough"], hsk: { source: "user", levels: ["3"] }, createdAt: "c", updatedAt: "u" };
+    const customOnly = (o: Setup = {}) => open({ entries: [{ ...CUSTOM }], raw: [], custom: { 学习: CUSTOM }, ...o });
+
+    it("offers Enhance although the dictionary has no entry, but still needs AI and a sentence", () => {
+      customOnly();
+      expect(has("Enhance")).toBe(true);
+      document.body.innerHTML = "";
+      customOnly({ settings: (s) => (s.ai.enabled = false) });
+      expect(has("Enhance")).toBe(false);
+      document.body.innerHTML = "";
+      const m = make({ settings: (s) => (s.ai.enabled = true), entries: [{ ...CUSTOM }], raw: [], custom: { 学习: CUSTOM } });
+      m.popup.open("学习", m.anchor, new Event("click"));
+      expect(has("Enhance")).toBe(false);
+    });
+
+    it("sends the custom word's own fields and saves the result back as the custom word, keeping the rest", async () => {
+      const m = customOnly();
+      btn("Enhance").click();
+      await vi.waitFor(() => expect(m.plugin.setCustomWord).toHaveBeenCalled());
+      expect(m.plugin.enhance.enhance).toHaveBeenCalledWith({ surface: "学习", pinyin: "my py", traditional: "學習", currentDefinitions: ["rough"], sentence: "我学习。" });
+      const [surface, saved] = m.plugin.setCustomWord.mock.calls[0];
+      expect(surface).toBe("学习");
+      expect(saved).toMatchObject({ simplified: "学习", traditional: "學習", pinyin: "my py", hsk: { source: "user", levels: ["3"] }, definitions: ["new def"], grammar: "verb" });
+      expect(m.plugin.setDictionaryOverride).not.toHaveBeenCalled();
+      expect(Notice.instances.at(-1)!.message).toBe("Dictionary entry enhanced.");
+    });
+
+    it("takes the AI's pinyin only when that is allowed and it gave one", async () => {
+      const run = async (allow: boolean, result: any) => {
+        const m = customOnly({ settings: (s) => ((s.ai.enabled = true), (s.ai.enhanceCanRewritePinyin = allow)) });
+        m.plugin.enhance.enhance.mockResolvedValue(result);
+        btn("Enhance").click();
+        await vi.waitFor(() => expect(m.plugin.setCustomWord).toHaveBeenCalled());
+        const pinyin = m.plugin.setCustomWord.mock.calls[0][1].pinyin;
+        document.body.innerHTML = "";
+        return pinyin;
+      };
+      expect(await run(true, { definitions: ["d"], pinyin: "new py" })).toBe("new py");
+      expect(await run(true, { definitions: ["d"] })).toBe("my py");
+      expect(await run(false, { definitions: ["d"], pinyin: "ignored" })).toBe("my py");
+    });
+
+    it("wins over the dictionary entry when the surface has both, since the card shows the custom entry", async () => {
+      const m = open({ custom: { 学习: CUSTOM } }); // native entry present too
+      btn("Enhance").click();
+      await vi.waitFor(() => expect(m.plugin.setCustomWord).toHaveBeenCalled());
+      expect(m.plugin.setDictionaryOverride).not.toHaveBeenCalled();
+    });
+
+    it("shows progress; a failure says why, gives the button back and saves nothing", async () => {
+      const m = customOnly();
+      m.plugin.enhance.enhance.mockRejectedValue(new Error("rate limited"));
+      const b = btn("Enhance") as HTMLButtonElement;
+      b.click();
+      expect(b.disabled).toBe(true);
+      expect(b.textContent).toBe("Enhancing…");
+      await vi.waitFor(() => expect(Notice.instances.at(-1)?.message).toBe("Enhance failed: rate limited"));
+      expect(b.disabled).toBe(false);
+      expect(b.textContent).toBe("Enhance");
+      expect(m.plugin.setCustomWord).not.toHaveBeenCalled();
+    });
   });
 
   it("Revert is offered only when the entry has an override, and removes it", async () => {

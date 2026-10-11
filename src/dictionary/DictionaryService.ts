@@ -204,6 +204,7 @@ export class DictionaryService {
         pinyin: custom.pinyin,
         definitions: custom.definitions,
         hsk: custom.hsk,
+        grammar: custom.grammar,
       });
     }
     const native = this.native(surface);

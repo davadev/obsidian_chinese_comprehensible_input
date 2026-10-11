@@ -15,6 +15,16 @@ function makeService() {
 }
 
 describe("DictionaryService", () => {
+  it("a custom word's grammar note reaches the entry the card reads", async () => {
+    const service = makeService();
+    service.setOverlay(
+      () => ({}),
+      () => ({ 火锅: { simplified: "火锅", pinyin: "huǒ guō", definitions: ["hot pot"], grammar: "noun", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" } })
+    );
+    await service.ensureLoaded();
+    expect(service.lookup("火锅")[0]).toMatchObject({ definitions: ["hot pot"], grammar: "noun" });
+  });
+
   it("returns native entries untouched while there are no overrides, and picks one up the moment it appears", async () => {
     const service = makeService();
     let overrides: Record<string, any> = {};
