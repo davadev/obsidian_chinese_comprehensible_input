@@ -119,6 +119,22 @@ export function installObsidianDom(): void {
     if (value === null) this.removeAttribute(name);
     else this.setAttribute(name, String(value));
   };
+  proto.appendText = function (this: HTMLElement, text: string) {
+    this.appendChild(document.createTextNode(text));
+  };
+  proto.hide = function (this: HTMLElement) {
+    this.style.display = "none";
+  };
+  proto.show = function (this: HTMLElement) {
+    this.style.display = "";
+  };
+  proto.isShown = function (this: HTMLElement) {
+    return this.style.display !== "none";
+  };
+  proto.toggle = function (this: HTMLElement, on?: boolean) {
+    const show = on ?? !(this as unknown as { isShown(): boolean }).isShown();
+    this.style.display = show ? "" : "none";
+  };
   proto.find = function (this: HTMLElement, selector: string) {
     return this.querySelector(selector);
   };
