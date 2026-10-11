@@ -1,0 +1,89 @@
+name: Model eval
+
+# Runs the plugin's REAL story and dictionary-enhancement prompts against candidate OpenAI models (#115), so a model
+# migration is decided on evidence. Start it by hand from the Actions tab; it costs a few cents per run.
+#
+# Same trust model as model-lifecycle.yml: the key is an environment secret of `model-lifecycle`, which only deploys
+# from `main`, so a workflow edited on another branch cannot read it. workflow_dispatch only, no pull_request trigger,
+# the key is visible to exactly one step, and inputs reach the script through env, never through shell interpolation.
+# Use a dedicated OpenAI project with a small budget cap and revoke the key afterwards.
+#
+# Pinned to full commit SHAs, as in ci.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      list_only:
+        description: "Only list the chat models in the catalog today (ignores the fields below)"
+        type: boolean
+        default: false
+      models:
+        description: "Candidates as id:input:output[:cached], USD per 1M tokens from the pricing page, comma separated"
+        type: string
+        default: ""
+      variants:
+        description: "Request-body variants: default, effort-none, effort-low, no-temperature, effort-none-no-temperature, json-schema"
+        type: string
+        default: "default,effort-none"
+      runs:
+        description: "Stories per model and variant (1-5)"
+        type: string
+        default: "3"
+      hsk:
+        description: "Target HSK level"
+        type: string
+        default: "3"
+
+concurrency:
+  group: model-eval
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: model-lifecycle
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        # esbuild is the only thing the harness needs; skip every install script.
+        run: npm ci --ignore-scripts
+
+      - name: Run the evaluation
+        # The only step that can see the key. It is sent only to api.openai.com and never printed.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LIST_ONLY: ${{ inputs.list_only }}
+          MODELS: ${{ inputs.models }}
+          VARIANTS: ${{ inputs.variants }}
+          RUNS: ${{ inputs.runs }}
+          HSK: ${{ inputs.hsk }}
+        run: |
+          if [ "$LIST_ONLY" = "true" ]; then
+            node scripts/model-eval.mjs --list
+          else
+            node scripts/model-eval.mjs --models "$MODELS" --variants "$VARIANTS" --runs "$RUNS" --hsk "$HSK"
+          fi
+
+      - name: Upload the generated text for reading
+        if: ${{ always() && inputs.list_only != true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: model-eval-out
+          path: model-eval-out/
+          retention-days: 3
+          if-no-files-found: ignore

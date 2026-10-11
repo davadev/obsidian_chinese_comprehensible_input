@@ -6,3 +6,4 @@ main.js
 .idea/
 data.json
 coverage
+model-eval-out/
