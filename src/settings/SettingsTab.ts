@@ -173,8 +173,8 @@ export class CciSettingsTab extends PluginSettingTab {
 
   /** Closing Settings applies a path that was typed just before; an unusable one is dropped, and the old value stays. */
   hide(): void {
-    for (const key of [...this.pendingPaths.keys()]) {
-      if (mirrorPathProblem(this.pendingPaths.get(key) ?? "")) {
+    for (const [key, typed] of [...this.pendingPaths]) {
+      if (mirrorPathProblem(typed)) {
         const t = this.pathTimers.get(key);
         if (t !== undefined) window.clearTimeout(t);
         this.pathTimers.delete(key);
