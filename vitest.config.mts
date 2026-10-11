@@ -25,7 +25,6 @@ export default defineConfig({
         // needs more of Obsidian than that fixture provides (#119).
         "src/main.ts",
         "src/settings/SettingsTab.ts",
-        "src/ui/StatsGraph.ts",
         "src/ui/StatsView.ts",
       ],
       // Thresholds creep up as we add tests. Current values are the
