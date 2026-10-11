@@ -509,7 +509,7 @@ export class StatsView extends ItemView {
         else if (c === "ignored") ignored++;
         else newCount++;
       }
-      const total = HSK_LEVEL_COUNTS[level] ?? 0;
+      const total = HSK_LEVEL_COUNTS[level];
       const tracked = known + partial + unknown + newCount + ignored;
       const untracked = Math.max(0, total - tracked);
 
@@ -519,7 +519,7 @@ export class StatsView extends ItemView {
       const counts: Record<HskBucketId, number> = {
         known, partial, unknown, new: newCount, untracked,
       };
-      const segPct = (n: number) => (total > 0 ? (n / total) * 100 : 0);
+      const segPct = (n: number) => (n / total) * 100;
       let combinedPct = 0;
       for (const def of defs) {
         if (!this.plugin.settings.hskCoverageBuckets[def.id]) continue;
@@ -618,17 +618,16 @@ export class StatsView extends ItemView {
       const max = relative
         ? Math.max(1.5, ...primaryValues.map((v) => v * 1.05))
         : Math.max(0.1, ...outerValues);
-      const mean = primaryValues.length
-        ? primaryValues.reduce((a, b) => a + b, 0) / primaryValues.length
-        : 0;
+      // At least three spokes (resolveRadarTopics), so never an empty list.
+      const mean = primaryValues.reduce((a, b) => a + b, 0) / primaryValues.length;
       const pct = (v: number) => `${Math.round(v * 100)}%`;
       renderTopicRadar(
         body,
         spokes.map((s, i) => {
-          const label = TOPIC_LABELS[s.id]?.short ?? s.id;
+          const label = TOPIC_LABELS[s.id].short;
           const tracked = s.known + s.partial + s.unknown + s.new;
           const detail =
-            `${TOPIC_LABELS[s.id]?.en ?? s.id} \u2014 ${s.total} words\n` +
+            `${TOPIC_LABELS[s.id].en} \u2014 ${s.total} words\n` +
             `known ${pct(s.coverageKnown)} (${s.known}) \u00b7 ` +
             `+partial ${pct(s.coverageKnownPartial)} (${s.partial}) \u00b7 ` +
             `+unknown ${pct(s.coverageClassified)} (${s.unknown})\n` +
@@ -647,7 +646,7 @@ export class StatsView extends ItemView {
         }),
         {
           series,
-          reference: max > 0 ? (relative ? 1 / max : mean / max) : 0,
+          reference: relative ? 1 / max : mean / max,
           referenceLabel: relative ? "as expected for your level" : "your average across these topics",
         }
       );
@@ -681,7 +680,7 @@ export class StatsView extends ItemView {
           this.scheduleRadarSave();
           this.paintTopicCoverage(wrap);
         });
-        lbl.createSpan({ text: ` ${TOPIC_LABELS[id]?.en ?? id}` });
+        lbl.createSpan({ text: ` ${TOPIC_LABELS[id].en}` });
       }
       list.createEl("p", {
         cls: "cci-dash-progress-summary",
@@ -771,7 +770,7 @@ export class StatsView extends ItemView {
     }
     return this.scopedRecords()
       .filter((r) => r.status === "new")
-      .sort((a, b) => (b.seenCount ?? 0) - (a.seenCount ?? 0));
+      .sort((a, b) => b.seenCount - a.seenCount);
   }
 
   /**
@@ -869,7 +868,9 @@ export class StatsView extends ItemView {
         "Reveal meaning";
       const btn = revealRow.createEl("button", { cls: "cci-triage-reveal-btn", text: nextLabel });
       btn.addEventListener("click", () => {
-        this.triageReveal = Math.min(maxStage, this.triageReveal + 1);
+        // Without pinyin there is no stage 1 to show: go straight to the meaning rather than needing two taps.
+        const next = this.triageReveal === 0 && !canRevealPinyin ? 2 : this.triageReveal + 1;
+        this.triageReveal = Math.min(maxStage, next);
         this.render();
       });
     }
@@ -972,7 +973,7 @@ export class StatsView extends ItemView {
     });
   }
 
-  private applyTriage(surface: string, status: WordStatus) {
+  private applyTriage(surface: string, status: "known" | "unknown" | "ignored") {
     // Capture the key the card represents BEFORE the mutation so we can
     // detect whether the record stayed in the queue and advance past it
     // if so.
@@ -986,10 +987,7 @@ export class StatsView extends ItemView {
     // back on every tap. "ignored" exits the SRS lane entirely — no
     // grade.
     if (status !== "ignored") {
-      const grade =
-        status === "known" ? "good" :
-        status === "unknown" ? "again" :
-        "hard";
+      const grade = status === "known" ? "good" : "again";
       try { this.plugin.srs.applyGrade(surface, grade); } catch { /* best effort */ }
     }
 
@@ -1360,7 +1358,7 @@ export class StatsView extends ItemView {
     if (this.noteScope && this.noteSurfaces.size > 0) {
       // noteSurfaces holds raw token surfaces, which are traditional in a
       // traditional note — matching only r.simplified emptied the list.
-      rows = rows.filter((r) => (r.surfaces ?? []).some((s) => this.noteSurfaces.has(s)));
+      rows = rows.filter((r) => r.surfaces.some((s) => this.noteSurfaces.has(s)));
     }
     return rows;
   }

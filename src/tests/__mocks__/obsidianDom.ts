@@ -119,6 +119,9 @@ export function installObsidianDom(): void {
     if (value === null) this.removeAttribute(name);
     else this.setAttribute(name, String(value));
   };
+  proto.appendText = function (this: HTMLElement, text: string) {
+    this.appendChild(document.createTextNode(text));
+  };
   proto.hide = function (this: HTMLElement) {
     this.style.display = "none";
   };
