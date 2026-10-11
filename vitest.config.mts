@@ -27,7 +27,6 @@ export default defineConfig({
         "src/settings/SettingsTab.ts",
         "src/ui/StatsGraph.ts",
         "src/ui/StatsView.ts",
-        "src/ui/WordPopup.ts",
       ],
       // Thresholds creep up as we add tests. Current values are the
       // floor — CI fails if we regress. Bump after each coverage push

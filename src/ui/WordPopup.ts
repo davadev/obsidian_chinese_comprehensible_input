@@ -5,7 +5,7 @@ import { axesFromStatus } from "../vocabulary/axes";
 import { clampGraphemes } from "../vocabulary/mnemonicText";
 import { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
-import { counterpartSurface, displayPinyin, displaySurface } from "../dictionary/displayForms";
+import { counterpartSurface, displayPinyin } from "../dictionary/displayForms";
 
 export class WordPopup {
   private el: HTMLElement | null = null;
@@ -81,9 +81,8 @@ export class WordPopup {
   private renderInto(el: HTMLElement, rec: WordRecord): void {
     el.empty();
 
-    // The tapped surface wins over surfaces[0], which is merely the first
-    // form this word was ever seen in.
-    const shown = this.surface || displaySurface(rec, this.plugin.settings.scriptVariant, this.plugin.dictionary);
+    // The tapped surface, not surfaces[0], which is merely the first form this word was ever seen in.
+    const shown = this.surface;
     const dictTop = this.plugin.dictionary.lookup(shown)[0]
       ?? this.plugin.dictionary.lookup(rec.surfaces[0])[0];
 
@@ -241,7 +240,6 @@ export class WordPopup {
     surface: string
   ): Promise<void> {
     btn.disabled = true;
-    const originalLabel = btn.textContent ?? "Enhance";
     btn.textContent = "Enhancing…";
     try {
       const result = await this.plugin.enhance.enhance({
@@ -271,7 +269,7 @@ export class WordPopup {
     } catch (err) {
       new Notice(`Enhance failed: ${(err as Error).message}`);
       btn.disabled = false;
-      btn.textContent = originalLabel;
+      btn.textContent = "Enhance";
     }
   }
 
@@ -393,9 +391,7 @@ export class WordPopup {
     if (!this.el) return;
     // Read from the remembered surface, not the rendered headword: the DOM
     // is a display surface and need not be something bySurface() resolves.
-    const surface = this.surface || this.el.querySelector(".cci-popup-head")?.textContent;
-    if (!surface) return;
-    const rec = this.plugin.vocab.bySurface(surface);
+    const rec = this.plugin.vocab.bySurface(this.surface);
     if (!rec) return;
     this.renderInto(this.el, rec);
   }
