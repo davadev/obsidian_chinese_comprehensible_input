@@ -4,6 +4,7 @@ export const STORY_SYSTEM_PROMPT =
   "Include all required target words naturally inside the story itself — they must appear in the textChinese body, not in any explanation or list. " +
   "Where it fits the story naturally, use a target word more than once for stronger learner exposure — but never force it if it disrupts the flow. " +
   "Do not explain in English inside the story. " +
+  "Break anything longer than a few sentences into short paragraphs separated by a blank line (a \\n\\n inside the textChinese string), so it is easy to read. " +
   "Output valid JSON only matching this shape: " +
   "{\"title\":string,\"targetLevel\":string,\"textChinese\":string}. " +
   "Do not include a glossary, checklist, learner notes, or any extra keys. " +

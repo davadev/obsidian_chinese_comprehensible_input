@@ -9,6 +9,10 @@ import {
 } from "../ai/prompts";
 
 describe("STORY_SYSTEM_PROMPT", () => {
+  it("asks for short paragraphs, so a model that writes one block does not hand the learner a wall of text", () => {
+    expect(STORY_SYSTEM_PROMPT).toContain("short paragraphs separated by a blank line");
+  });
+
   it("requests only {title, targetLevel, textChinese} — and explicitly forbids extra keys", () => {
     expect(STORY_SYSTEM_PROMPT).toContain(
       '{"title":string,"targetLevel":string,"textChinese":string}'
