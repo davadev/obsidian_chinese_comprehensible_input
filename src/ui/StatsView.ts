@@ -1219,7 +1219,9 @@ export class StatsView extends ItemView {
     search.value = this.query;
     search.addEventListener("input", () => {
       this.query = search.value.toLowerCase();
-      this.render();
+      // Only the table: render() would rebuild this very input, and a rebuilt input has no focus, so on a phone the
+      // keyboard closed after every character.
+      paintTable();
     });
 
     const statusSel = controls.createEl("select");
@@ -1276,42 +1278,47 @@ export class StatsView extends ItemView {
       this.render();
     });
 
-    const records = this.filterAndSort();
-    const wrap = root.createDiv({ cls: "cci-stats-tablewrap" });
-    const table = wrap.createEl("table");
-    const head = table.createEl("thead").createEl("tr");
-    ["Word", "Pinyin", "Definition", "HSK", "Status", "Seen", "Last seen", "Due"].forEach((h) =>
-      head.createEl("th", { text: h })
-    );
-    const body = table.createEl("tbody");
-    const settings = this.plugin.settings;
-    for (const r of records.slice(0, 500)) {
-      const tr = body.createEl("tr");
-      const c = colorClassKey(r, settings.colorMode, settings.hskSource);
-      tr.addClass(`cci-row-color-${c}`);
-      const rowSurface = displaySurface(r, this.plugin.settings.scriptVariant, this.plugin.dictionary);
-      tr.createEl("td", { text: rowSurface });
-      // Same path as the flashcard and the popup, so the table cannot show a
-      // stale pre-repair reading (nü3) or ignore the Taiwan region.
-      tr.createEl("td", {
-        text: displayPinyin(
-          this.plugin.dictionary.lookup(rowSurface)[0],
-          r,
-          this.plugin.settings.pronunciationRegion
-        ),
-      });
-      tr.createEl("td", { cls: "cci-stats-defcol", text: (r.definitions ?? []).slice(0, 1).join("; ") });
-      tr.createEl("td", { text: (r.hsk?.levels ?? []).join("/") });
-      const statusTd = tr.createEl("td", { text: r.status, cls: `cci-status-cell cci-color-${c}` });
-      void statusTd;
-      tr.createEl("td", { text: String(r.seenCount) });
-      tr.createEl("td", { text: r.lastSeenAt ? r.lastSeenAt.slice(0, 10) : "—" });
-      tr.createEl("td", { text: r.srs?.dueAt ? r.srs.dueAt.slice(0, 10) : "—" });
-      tr.addEventListener("click", () => this.openDetail(r));
-    }
-    if (records.length === 0) {
-      root.createEl("p", { text: "No words match this filter." });
-    }
+    const tableHost = root.createDiv({ cls: "cci-stats-tablehost" });
+    const paintTable = () => {
+      tableHost.empty();
+      const records = this.filterAndSort();
+      const wrap = tableHost.createDiv({ cls: "cci-stats-tablewrap" });
+      const table = wrap.createEl("table");
+      const head = table.createEl("thead").createEl("tr");
+      ["Word", "Pinyin", "Definition", "HSK", "Status", "Seen", "Last seen", "Due"].forEach((h) =>
+        head.createEl("th", { text: h })
+      );
+      const body = table.createEl("tbody");
+      const settings = this.plugin.settings;
+      for (const r of records.slice(0, 500)) {
+        const tr = body.createEl("tr");
+        const c = colorClassKey(r, settings.colorMode, settings.hskSource);
+        tr.addClass(`cci-row-color-${c}`);
+        const rowSurface = displaySurface(r, this.plugin.settings.scriptVariant, this.plugin.dictionary);
+        tr.createEl("td", { text: rowSurface });
+        // Same path as the flashcard and the popup, so the table cannot show a
+        // stale pre-repair reading (nü3) or ignore the Taiwan region.
+        tr.createEl("td", {
+          text: displayPinyin(
+            this.plugin.dictionary.lookup(rowSurface)[0],
+            r,
+            this.plugin.settings.pronunciationRegion
+          ),
+        });
+        tr.createEl("td", { cls: "cci-stats-defcol", text: (r.definitions ?? []).slice(0, 1).join("; ") });
+        tr.createEl("td", { text: (r.hsk?.levels ?? []).join("/") });
+        const statusTd = tr.createEl("td", { text: r.status, cls: `cci-status-cell cci-color-${c}` });
+        void statusTd;
+        tr.createEl("td", { text: String(r.seenCount) });
+        tr.createEl("td", { text: r.lastSeenAt ? r.lastSeenAt.slice(0, 10) : "—" });
+        tr.createEl("td", { text: r.srs?.dueAt ? r.srs.dueAt.slice(0, 10) : "—" });
+        tr.addEventListener("click", () => this.openDetail(r));
+      }
+      if (records.length === 0) {
+        tableHost.createEl("p", { text: "No words match this filter." });
+      }
+    };
+    paintTable();
   }
 
   private filterAndSort(): WordRecord[] {
