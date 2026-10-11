@@ -32,6 +32,19 @@ describe("coverage gate", () => {
     expect(offenders).toEqual([]);
   });
 
+  it("excludes nothing but the tests and the declaration files", () => {
+    const block = /exclude:\s*\[([^\]]*)\]/.exec(config)![1];
+    const entries = block
+      .split("\n")
+      .map((l) => l.replace(/\/\/.*$/, "").trim())
+      .filter(Boolean)
+      .join("")
+      .split(",")
+      .map((e) => e.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+    expect(entries).toEqual(["src/tests/**", "src/**/*.d.ts"]);
+  });
+
   it("measures the pure type files and prompts.ts (they were once excluded by mistake)", () => {
     for (const f of ["src/ai/prompts.ts", "src/settings/types.ts", "src/vocabulary/VocabularyTypes.ts", "src/tokenizer/tokenizerTypes.ts", "src/dictionary/DictionaryTypes.ts", "src/ai/aiTypes.ts"]) {
       expect(config, f).not.toContain(`"${f}"`);
