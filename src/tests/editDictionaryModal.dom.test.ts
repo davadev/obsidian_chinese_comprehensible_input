@@ -19,9 +19,10 @@ vi.mock("../ui/confirmInput", () => ({ confirmAsync: vi.fn(async () => confirm.a
 
 const ENTRY = { simplified: "学习", traditional: "學習", pinyin: "xué xí", definitions: ["to study"] };
 
-function open(props: Partial<EditDictionaryProps> = {}, scriptVariant = "auto") {
+function open(props: Partial<EditDictionaryProps> = {}, scriptVariant = "auto", customWords: Record<string, any> = {}) {
   const plugin: any = {
     settings: { scriptVariant },
+    dictionaryCustomWords: customWords,
     setDictionaryOverride: vi.fn(async () => {}),
     deleteDictionaryOverride: vi.fn(async () => {}),
     setCustomWord: vi.fn(async () => {}),
@@ -178,6 +179,14 @@ describe("custom mode", () => {
     });
     expect(lastNotice()).toBe('Custom word "火锅" saved.');
     expect(document.body.querySelector(".cci-modal-front")).toBeNull();
+  });
+
+  it("keeps the grammar note Enhance wrote when the word is edited by hand (the form has no field for it)", async () => {
+    const { root, plugin } = open({ mode: "custom", surface: "火锅", isExistingCustom: true, initial: { pinyin: "huǒ guō" } }, "auto", { 火锅: { grammar: "noun" } });
+    type(field(root, "Definitions (one per line)"), "hot pot");
+    btn(root, "Save").click();
+    await flush();
+    expect(plugin.setCustomWord.mock.calls[0][1].grammar).toBe("noun");
   });
 
   it("a custom word without a traditional form or definitions saves them as absent or empty", async () => {

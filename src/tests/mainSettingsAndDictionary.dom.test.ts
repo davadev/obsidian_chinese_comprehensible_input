@@ -412,6 +412,12 @@ describe("the dictionary's user data", () => {
   });
 
   describe("merging another device's dictionary data", () => {
+    it("a custom word's grammar note travels with it from the other device", async () => {
+      const { o } = self({ dictionaryOverrides: {}, dictionaryCustomWords: {} });
+      await o.mergeMirroredDictionaryData({}, { 麻辣: { updatedAt: "2026-01-01T00:00:00.000Z", pinyin: "má là", grammar: "adjective" } });
+      expect(o.dictionaryCustomWords["麻辣"].grammar).toBe("adjective");
+    });
+
     it("takes entries that are new or newer, keeps ours when ours is newer or equal, and ignores an entry with no timestamp against ours", async () => {
       const { o } = self({
         dictionaryOverrides: { "学习|xue2xi2": { updatedAt: "2026-02-01T00:00:00.000Z", pinyin: "ours" }, "天气|tian1qi4": { updatedAt: "2026-02-01T00:00:00.000Z", pinyin: "ours" } },

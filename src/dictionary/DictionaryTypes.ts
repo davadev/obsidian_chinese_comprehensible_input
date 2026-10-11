@@ -60,6 +60,8 @@ export interface DictionaryCustomWord {
   pinyin: string;
   definitions: string[];
   hsk?: { source: string; levels: string[] };
+  /** Optional English grammar note, written by the AI "Enhance" flow. Shown on the word card below the definitions. */
+  grammar?: string;
   createdAt: string;
   updatedAt: string;
 }

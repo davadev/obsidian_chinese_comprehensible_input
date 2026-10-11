@@ -3,7 +3,7 @@ import type CciPlugin from "../main";
 import { KnownAxes, WordRecord } from "../vocabulary/VocabularyTypes";
 import { axesFromStatus } from "../vocabulary/axes";
 import { clampGraphemes } from "../vocabulary/mnemonicText";
-import { DictionaryEntry } from "../dictionary/DictionaryTypes";
+import { DictionaryCustomWord, DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
 import { counterpartSurface, displayPinyin } from "../dictionary/displayForms";
 
@@ -198,13 +198,24 @@ export class WordPopup {
   }
 
   /** "Enhance" button — only shown when AI is enabled, a sentence was
-   *  captured at click time, and the word has a native dictionary entry
-   *  the override can attach to. Custom-only words are excluded because
-   *  their storage is the custom-word map, not the override map. */
+   *  captured at click time, and there is something to rewrite: a custom
+   *  word the user added (saved back into the custom-word map), or a native
+   *  dictionary entry (saved as an override). A custom word wins when both
+   *  exist, because `lookup()` shows the custom entry first, so an override
+   *  on the native entry would change nothing the card displays. */
   private maybeRenderEnhance(parent: HTMLElement, rec: WordRecord): void {
     if (!this.plugin.settings.ai.enabled) return;
     if (!this.sentence) return;
     const surface = rec.surfaces[0];
+    const custom = this.plugin.dictionaryCustomWords[surface];
+    if (custom) {
+      const btn = parent.createEl("button", { text: "Enhance" });
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        void this.runEnhanceCustom(btn, custom, surface);
+      });
+      return;
+    }
     const raw = this.plugin.dictionary.lookupRaw(surface);
     const rawTop = raw[0];
     if (!rawTop) return;
@@ -263,6 +274,35 @@ export class WordPopup {
         grammar: result.grammar,
         source: "ai",
         updatedAt: new Date().toISOString(),
+      });
+      new Notice("Dictionary entry enhanced.");
+      this.refresh();
+    } catch (err) {
+      new Notice(`Enhance failed: ${(err as Error).message}`);
+      btn.disabled = false;
+      btn.textContent = "Enhance";
+    }
+  }
+
+  /** Enhance for a word the user added themselves: same model call, but the result replaces the custom word's own
+   *  definitions and grammar note. `setCustomWord` keeps `createdAt`; the spread keeps traditional and HSK. */
+  private async runEnhanceCustom(btn: HTMLButtonElement, custom: DictionaryCustomWord, surface: string): Promise<void> {
+    btn.disabled = true;
+    btn.textContent = "Enhancing…";
+    try {
+      const result = await this.plugin.enhance.enhance({
+        surface,
+        pinyin: custom.pinyin,
+        traditional: custom.traditional,
+        currentDefinitions: custom.definitions,
+        sentence: this.sentence,
+      });
+      const allowPinyin = !!this.plugin.settings.ai.enhanceCanRewritePinyin;
+      await this.plugin.setCustomWord(surface, {
+        ...custom,
+        pinyin: allowPinyin && result.pinyin ? result.pinyin : custom.pinyin,
+        definitions: result.definitions,
+        grammar: result.grammar,
       });
       new Notice("Dictionary entry enhanced.");
       this.refresh();

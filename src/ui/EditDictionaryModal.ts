@@ -219,6 +219,8 @@ export class EditDictionaryModal extends Modal {
         pinyin: pinyin.trim(),
         definitions,
         hsk: hskField,
+        // The form has no grammar field; dropping it here would silently delete what Enhance wrote.
+        grammar: this.plugin.dictionaryCustomWords[trimSurface]?.grammar,
       });
       new Notice(`Custom word "${trimSurface}" saved.`);
     }
