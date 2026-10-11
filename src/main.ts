@@ -169,7 +169,7 @@ export default class CciPlugin extends Plugin {
       // Schedule a "we're stable" reset of the crash counter. If anything
       // crashes the app within 30s of onload, the counter survives.
       this.crashResetTimer = window.setTimeout(() => {
-        this.resetCrashCounter().catch(() => {});
+        void this.resetCrashCounter(); // never rejects: it reports its own failures
       }, CciPlugin.CRASH_RESET_DELAY_MS);
       this.registerInterval(this.crashResetTimer);
     } catch (e) {
@@ -350,7 +350,7 @@ export default class CciPlugin extends Plugin {
       this.settings.ai = {
         ...DEFAULT_SETTINGS.ai,
         ...migrated.ai,
-        ollama: { ...DEFAULT_SETTINGS.ai.ollama, ...(migrated.ai.ollama ?? {}) },
+        ollama: { ...DEFAULT_SETTINGS.ai.ollama, ...migrated.ai.ollama },
         usageLog: migrated.ai.usageLog ?? [],
       };
       // Belt-and-suspenders: the localStorage move means apiKey must
@@ -794,7 +794,7 @@ export default class CciPlugin extends Plugin {
     notice.messageEl.createDiv({
       text: offer
         ? `${opts.reason ?? "Text script changed."} Re-index the vault so word counts match the new script?`
-        : (opts.reason ?? "Text script changed."),
+        : opts.reason, // set here: no offer and no reason returned above
     });
     if (!offer) return;
     const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
@@ -1596,9 +1596,13 @@ export default class CciPlugin extends Plugin {
     let cumKnown = 0;
     let topHsk = "";
     for (const lvl of ["1", "2", "3", "4", "5", "6", "7"]) {
-      cumTotal += hskCounts.get(lvl) ?? 0;
+      const atLevel = hskCounts.get(lvl) ?? 0;
+      cumTotal += atLevel;
       cumKnown += hskKnown.get(lvl) ?? 0;
-      if (cumTotal >= MIN_SAMPLE && cumKnown / cumTotal >= threshold) {
+      // Only a level the note actually has words at can be its top level. A level with none leaves the running share
+      // exactly where the level below left it, so without this check any note that passed the threshold once was
+      // labelled "Top HSK 7".
+      if (atLevel > 0 && cumTotal >= MIN_SAMPLE && cumKnown / cumTotal >= threshold) {
         topHsk = lvl;
       }
     }

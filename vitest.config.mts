@@ -23,7 +23,6 @@ export default defineConfig({
         // harness (src/tests/*.dom.test.ts, with the shared Obsidian DOM fixture) mounts the
         // real toolbar and the real view with a real CodeMirror editor. What is still here
         // needs more of Obsidian than that fixture provides (#119).
-        "src/main.ts",
       ],
       // Thresholds creep up as we add tests. Current values are the
       // floor — CI fails if we regress. Bump after each coverage push
