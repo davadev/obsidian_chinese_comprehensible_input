@@ -134,6 +134,8 @@ export class Notice {
   /** Every notice shown since the last `Notice.instances.length = 0`, so a test can assert what the user was told. */
   static instances: Notice[] = [];
   message: string;
+  /** The element a notice's own buttons are built into (only exists when there is a `document`). */
+  messageEl: HTMLElement = (typeof document !== "undefined" ? document.createElement("div") : undefined) as HTMLElement;
   /** Milliseconds the notice stays (0 = until dismissed), as passed by the caller. */
   duration?: number;
   constructor(message: string, duration?: number) { this.message = message; this.duration = duration; Notice.instances.push(this); }
@@ -152,6 +154,11 @@ export class TextFileView {
 }
 export class WorkspaceLeaf {}
 export class TFile {}
+export class TAbstractFile {}
+export class TFolder {}
+export class MarkdownView {}
+/** Registers an icon with the app: nothing to draw in a test. */
+export function addIcon(_id: string, _svg: string): void {}
 export const Platform = { isMobile: false, isIosApp: false, isAndroidApp: false };
 /** Like the app's: forward slashes, no doubled, leading or trailing slash. */
 export function normalizePath(p: string): string {

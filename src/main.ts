@@ -1596,9 +1596,13 @@ export default class CciPlugin extends Plugin {
     let cumKnown = 0;
     let topHsk = "";
     for (const lvl of ["1", "2", "3", "4", "5", "6", "7"]) {
-      cumTotal += hskCounts.get(lvl) ?? 0;
+      const atLevel = hskCounts.get(lvl) ?? 0;
+      cumTotal += atLevel;
       cumKnown += hskKnown.get(lvl) ?? 0;
-      if (cumTotal >= MIN_SAMPLE && cumKnown / cumTotal >= threshold) {
+      // Only a level the note actually has words at can be its top level. A level with none leaves the running share
+      // exactly where the level below left it, so without this check any note that passed the threshold once was
+      // labelled "Top HSK 7".
+      if (atLevel > 0 && cumTotal >= MIN_SAMPLE && cumKnown / cumTotal >= threshold) {
         topHsk = lvl;
       }
     }
