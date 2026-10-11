@@ -1,0 +1,71 @@
+name: Model compare
+
+# Head-to-head comparison of the two OpenAI models the plugin offers (#115): the real story, repair and dictionary-
+# enhancement prompts across four scenarios, many runs each, with objective metrics and a blind reading copy. Start it by
+# hand from the Actions tab; a run costs tens of cents.
+#
+# Same trust model as model-eval.yml: the key is an environment secret of `model-lifecycle`, which only deploys from
+# `main`; workflow_dispatch only; the key is visible to one step; inputs reach the script through env. Pinned to full
+# commit SHAs, as in ci.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      a:
+        description: "Model A as id:input:output:cached:choice (USD per 1M tokens; choice default|legacy)"
+        type: string
+        default: "gpt-6-luna:0.10:0.50:0.01:default"
+      b:
+        description: "Model B, same format"
+        type: string
+        default: "gpt-5.4-mini:0.75:4.50:0.075:legacy"
+      runs:
+        description: "Runs per scenario and model (1-10)"
+        type: string
+        default: "6"
+
+concurrency:
+  group: model-compare
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment: model-lifecycle
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run the comparison
+        # The only step that can see the key. It is sent only to api.openai.com and never printed.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL_A: ${{ inputs.a }}
+          MODEL_B: ${{ inputs.b }}
+          RUNS: ${{ inputs.runs }}
+        run: node scripts/model-compare.mjs --a "$MODEL_A" --b "$MODEL_B" --runs "$RUNS"
+
+      - name: Upload the stories for reading
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: model-compare-out
+          path: model-eval-out/
+          retention-days: 7
+          if-no-files-found: ignore
