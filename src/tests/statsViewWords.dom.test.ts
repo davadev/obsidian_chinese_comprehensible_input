@@ -102,6 +102,23 @@ describe("filters", () => {
     expect(words(root)).toEqual([]);
   });
 
+  it("typing in the search box does not rebuild the box (a rebuilt input loses focus, which closed the phone keyboard after every letter)", async () => {
+    const { root } = await open([w("学习"), w("天气")]);
+    const search = q(root, "input[type=search]") as HTMLInputElement;
+    document.body.appendChild(root);
+    search.focus();
+    search.value = "天";
+    search.dispatchEvent(new Event("input"));
+    expect(q(root, "input[type=search]")).toBe(search);
+    expect(document.activeElement).toBe(search);
+    expect(words(root)).toEqual(["天气"]);
+    search.value = "";
+    search.dispatchEvent(new Event("input"));
+    expect(q(root, "input[type=search]")).toBe(search);
+    expect(words(root)).toHaveLength(2);
+    expect(qa(root, "table")).toHaveLength(1);
+  });
+
   it("search copes with records that lack optional fields", async () => {
     const { root } = await open([w("学习", { surfaces: undefined, simplified: undefined, traditional: undefined, pinyin: undefined, definitions: undefined }), w("天气")]);
     const search = q(root, "input[type=search]") as HTMLInputElement;
