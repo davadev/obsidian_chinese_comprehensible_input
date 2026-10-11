@@ -39,10 +39,9 @@ import {
 } from "./SettingsIO";
 import { getByPath, setByPath } from "./settingsPath";
 import {
-  OPENAI_MODEL_DESC,
-  OPENAI_MODEL_DISPLAY,
-  OPENAI_PRICE_PER_1M,
+  OPENAI_MODELS,
   computeOpenAiCostUsd,
+  resolveOpenAiChoice,
 } from "../ai/openaiProfile";
 import { loadApiKey, saveApiKey } from "../ai/secrets";
 import { confirmAsync } from "../ui/confirmInput";
@@ -258,7 +257,7 @@ export class CciSettingsTab extends PluginSettingTab {
       if (prevScript && indexedSetChanged(prevScript, this.plugin.settings.scriptVariant)) {
         this.plugin.offerReindexAfterScriptChange();
       }
-    } else if (key === "ai.provider") {
+    } else if (key === "ai.provider" || key === "ai.openaiModel") {
       // Swaps which provider block is visible — a structural change, so the
       // definitions have to be re-evaluated rather than just re-read.
       this.update();
@@ -951,7 +950,7 @@ export class CciSettingsTab extends PluginSettingTab {
         { name: "Enabled", control: { type: "toggle", key: "ai.enabled" } },
         {
           name: "Provider",
-          desc: "OpenAI: cloud, pay-per-token, hardcoded to GPT-5.4 mini. Ollama: self-hosted, free, your choice of model.",
+          desc: "OpenAI: cloud, pay-per-token, one of two hardcoded models (below). Ollama: self-hosted, free, your choice of model.",
           control: {
             type: "dropdown",
             key: "ai.provider",
@@ -975,6 +974,21 @@ export class CciSettingsTab extends PluginSettingTab {
             "never written to data.json or the settings-mirror file.",
           visible: isOpenAi,
           control: { type: "text", key: SECRET_PREFIX + "openai", placeholder: "sk-…" },
+        },
+        {
+          name: "OpenAI model",
+          desc:
+            `${OPENAI_MODELS.default.display} is the default: much cheaper, same quality for graded stories in our tests. ` +
+            `Switch to ${OPENAI_MODELS.legacy.display} if its text reads worse for you.`,
+          visible: isOpenAi,
+          control: {
+            type: "dropdown",
+            key: "ai.openaiModel",
+            options: {
+              default: OPENAI_MODELS.default.display,
+              legacy: OPENAI_MODELS.legacy.display,
+            },
+          },
         },
         {
           ...this.custom("OpenAI usage & pricing", (el) => this.renderOpenAiUsage(el)),
@@ -1154,12 +1168,13 @@ export class CciSettingsTab extends PluginSettingTab {
     };
   }
 
-  /** GPT-5.4 mini info card + rolling token / cost totals. Mimics the
+  /** Active-model info card + rolling token / cost totals. Mimics the
    *  OpenAI pricing page layout. */
   private renderOpenAiUsage(c: HTMLElement) {
+    const model = OPENAI_MODELS[resolveOpenAiChoice(this.plugin.settings.ai.openaiModel)];
     const wrap = c.createDiv({ cls: "cci-openai-usage" });
-    wrap.createDiv({ cls: "cci-openai-usage-name", text: OPENAI_MODEL_DISPLAY });
-    wrap.createEl("p", { cls: "cci-openai-usage-desc", text: OPENAI_MODEL_DESC });
+    wrap.createDiv({ cls: "cci-openai-usage-name", text: model.display });
+    wrap.createEl("p", { cls: "cci-openai-usage-desc", text: model.desc });
 
     const priceBlock = wrap.createDiv({ cls: "cci-openai-usage-pricing" });
     priceBlock.createDiv({ cls: "cci-openai-usage-section", text: "Price" });
@@ -1168,9 +1183,9 @@ export class CciSettingsTab extends PluginSettingTab {
       row.createSpan({ cls: "cci-openai-usage-label", text: label });
       row.createSpan({ cls: "cci-openai-usage-value", text: value });
     };
-    priceRow("Input:", `$${OPENAI_PRICE_PER_1M.input.toFixed(2)} / 1M tokens`);
-    priceRow("Cached input:", `$${OPENAI_PRICE_PER_1M.cachedInput.toFixed(3)} / 1M tokens`);
-    priceRow("Output:", `$${OPENAI_PRICE_PER_1M.output.toFixed(2)} / 1M tokens`);
+    priceRow("Input:", `$${model.price.input.toFixed(2)} / 1M tokens`);
+    priceRow("Cached input:", `$${model.price.cachedInput.toFixed(3)} / 1M tokens`);
+    priceRow("Output:", `$${model.price.output.toFixed(2)} / 1M tokens`);
 
     const usageBlock = wrap.createDiv({ cls: "cci-openai-usage-spent" });
     usageBlock.createDiv({ cls: "cci-openai-usage-section", text: "Your usage" });
@@ -1209,7 +1224,8 @@ export class CciSettingsTab extends PluginSettingTab {
         if (metric === "Input") text = fmtTok(totals.inputTokens);
         else if (metric === "Cached") text = fmtTok(totals.cachedInputTokens);
         else if (metric === "Output") text = fmtTok(totals.outputTokens);
-        else text = fmtUsd(computeOpenAiCostUsd(totals));
+        // Each call is billed at its own model's price, so the cost cannot be derived from the token totals.
+        else text = fmtUsd(slice.reduce((sum, e) => sum + computeOpenAiCostUsd(e, e.model), 0));
         grid.createSpan({ cls: "cci-openai-usage-gridval", text });
       }
     }

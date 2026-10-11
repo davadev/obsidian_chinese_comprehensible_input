@@ -166,6 +166,11 @@ describe("what a change does beyond saving", () => {
     const { tab } = await set("ai.provider", "openai");
     expect(tab.update).toHaveBeenCalled();
   });
+
+  it("changing the OpenAI model rebuilds the page so the price card follows", async () => {
+    const { tab } = await set("ai.openaiModel", "legacy");
+    expect(tab.update).toHaveBeenCalled();
+  });
 });
 
 describe("resets", () => {
@@ -274,6 +279,36 @@ describe("AI buttons and the usage card", () => {
     const { tab } = makeSettingsTab({ settings: (s) => (s.ai.usageLog = [{ ts: Date.now(), provider: "openai", inputTokens: 10_000_000, cachedInputTokens: 0, outputTokens: 0 }]) });
     const el = renderDef(byName(tab, "OpenAI usage & pricing"));
     expect(Array.from(el.querySelectorAll(".cci-openai-usage-gridval")).map((c) => c.textContent).slice(9, 12)).toEqual(["$7.50", "$7.50", "$7.50"]);
+  });
+
+  it("each call is billed at its own model's price, and an entry from before models were recorded at the previous default's", () => {
+    const now = Date.now();
+    const e = (model: string | undefined) => ({ ts: now, provider: "openai", model, inputTokens: 10_000_000, cachedInputTokens: 0, outputTokens: 0 });
+    const { tab } = makeSettingsTab({ settings: (s) => (s.ai.usageLog = [e("gpt-6-luna"), e("gpt-5.4-mini"), e(undefined)]) });
+    const el = renderDef(byName(tab, "OpenAI usage & pricing"));
+    // 10M × $0.10 + 10M × $0.75 + 10M × $0.75 = $1.00 + $7.50 + $7.50
+    expect(Array.from(el.querySelectorAll(".cci-openai-usage-gridval")).map((c) => c.textContent).slice(9, 12)).toEqual(["$16.00", "$16.00", "$16.00"]);
+  });
+
+  it("the card describes the model the setting selects, with its price", () => {
+    const def = makeSettingsTab({ settings: (s) => (s.ai.openaiModel = "default") });
+    const a = renderDef(byName(def.tab, "OpenAI usage & pricing"));
+    expect(a.querySelector(".cci-openai-usage-name")!.textContent).toBe("GPT-6 luna");
+    expect(a.textContent).toContain("$0.10 / 1M tokens");
+    const old = makeSettingsTab({ settings: (s) => (s.ai.openaiModel = "legacy") });
+    const b = renderDef(byName(old.tab, "OpenAI usage & pricing"));
+    expect(b.querySelector(".cci-openai-usage-name")!.textContent).toBe("GPT-5.4 mini (previous)");
+    expect(b.textContent).toContain("$0.75 / 1M tokens");
+  });
+
+  it("the model dropdown offers both models and only shows for OpenAI", () => {
+    const { tab } = makeSettingsTab({ settings: (s) => (s.ai.provider = "openai") });
+    const def: any = byName(tab, "OpenAI model");
+    expect(def.control).toMatchObject({ type: "dropdown", key: "ai.openaiModel" });
+    expect(Object.keys(def.control.options)).toEqual(["default", "legacy"]);
+    expect(def.visible()).toBe(true);
+    const ollama = makeSettingsTab({ settings: (s) => (s.ai.provider = "ollama") });
+    expect((byName(ollama.tab, "OpenAI model") as any).visible()).toBe(false);
   });
 
   it("with no usage recorded the card shows zeros, and tiny costs keep four decimals", () => {

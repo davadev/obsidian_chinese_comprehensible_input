@@ -11,10 +11,21 @@ export const FAIL_WITHIN_DAYS = 90;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** Reads the hardcoded model id out of src/ai/openaiProfile.ts, so the model name lives in exactly one place. */
-export function parseModelId(source) {
-  const m = /export\s+const\s+OPENAI_MODEL_ID\s*=\s*"([^"]+)"/.exec(source);
-  return m ? m[1] : null;
+/**
+ * Reads the hardcoded model ids out of src/ai/openaiProfile.ts, so the names live in exactly one place. The default
+ * is what every user gets; the legacy one is the previous default kept as an opt-in fallback.
+ */
+export function parseModelIds(source) {
+  const read = (name) => {
+    const m = new RegExp(`export\\s+const\\s+${name}\\s*=\\s*"([^"]+)"`).exec(source);
+    return m ? m[1] : null;
+  };
+  return { default: read("OPENAI_MODEL_ID"), legacy: read("OPENAI_LEGACY_MODEL_ID") };
+}
+
+/** A fallback going away is worth knowing about but must not fail the run or open an issue: users are not on it by default. */
+export function capAtWarn(result) {
+  return result.level === "fail" ? { level: "warn", message: result.message } : result;
 }
 
 /**

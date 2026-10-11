@@ -8,10 +8,11 @@ import { DEFAULT_SETTINGS } from "../../src/settings/defaults";
 export const ENHANCE_SCHEMA = buildEnhanceSchema(false);
 export { STORY_SCHEMA };
 
-export function makeServices(apiKey, onUsage) {
+export function makeServices(apiKey, choice, onUsage) {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.ai.enabled = true;
   settings.ai.provider = "openai";
+  settings.ai.openaiModel = choice;
   const app = { loadLocalStorage: () => apiKey };
   const ai = new AiProviderService(() => settings.ai, app, () => "", onUsage);
   const enhance = new EnhanceDictionaryService(ai, () => settings);

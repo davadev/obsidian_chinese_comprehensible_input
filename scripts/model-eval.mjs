@@ -4,7 +4,7 @@
  * migration (#115) is decided on evidence instead of on a pricing table.
  *
  *   OPENAI_API_KEY=... node scripts/model-eval.mjs --models gpt-x:0.10:0.50:0.01,gpt-y:0.2:1.2 \
- *       --variants default,effort-none --runs 3
+ *       --variants default,effort-none --runs 3 [--choice default|legacy]
  *
  * It bundles the real AiProviderService (the request builder), prompts and EnhanceDictionaryService with `obsidian`
  * swapped for a tiny shim, so an `unsupported_parameter` 400 here is a 400 a user would hit. `--variants` patches the
@@ -70,6 +70,10 @@ for (const v of variants) if (!VARIANTS[v]) {
 }
 const runs = Math.max(1, Math.min(5, Number(arg("runs", "3")) || 3));
 const hsk = String(arg("hsk", "3"));
+// Which of the plugin's two OpenAI profiles the candidate is run as: "default" sends that model's extra body fields
+// (reasoning_effort), "legacy" sends none. Evaluate the previous model as "legacy" to get exactly today's request.
+const choice = arg("choice", "default") === "legacy" ? "legacy" : "default";
+const idConst = choice === "legacy" ? "OPENAI_LEGACY_MODEL_ID" : "OPENAI_MODEL_ID";
 const outDir = arg("out", path.join(root, "model-eval-out"));
 mkdirSync(outDir, { recursive: true });
 
@@ -93,8 +97,8 @@ await esbuild.build({
         build.onLoad({ filter: /openaiProfile\.ts$/ }, async (args) => {
           const { readFile } = await import("node:fs/promises");
           const src = await readFile(args.path, "utf8");
-          const patched = src.replace(/export const OPENAI_MODEL_ID = "[^"]+";/, "export const OPENAI_MODEL_ID = process.env.EVAL_MODEL;");
-          if (patched === src) throw new Error("Could not patch OPENAI_MODEL_ID in openaiProfile.ts");
+          const patched = src.replace(new RegExp(`export const ${idConst} = "[^"]+";`), `export const ${idConst} = process.env.EVAL_MODEL;`);
+          if (patched === src) throw new Error(`Could not patch ${idConst} in openaiProfile.ts`);
           return { contents: patched, loader: "ts" };
         });
       },
@@ -146,7 +150,7 @@ for (const [modelIndex, model] of models.entries()) {
     activeVariant = variant;
     for (let run = 1; run <= runs; run++) {
       const usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
-      const { ai } = lib.makeServices(key, (u) => {
+      const { ai } = lib.makeServices(key, choice, (u) => {
         usage.inputTokens += u.inputTokens;
         usage.cachedInputTokens += u.cachedInputTokens;
         usage.outputTokens += u.outputTokens;
@@ -180,7 +184,7 @@ for (const [modelIndex, model] of models.entries()) {
 
     // One dictionary enhancement per model and variant, on a deliberately messy CC-CEDICT gloss.
     const usage = { inputTokens: 0, cachedInputTokens: 0, outputTokens: 0 };
-    const { enhance } = lib.makeServices(key, (u) => {
+    const { enhance } = lib.makeServices(key, choice, (u) => {
       usage.inputTokens += u.inputTokens;
       usage.cachedInputTokens += u.cachedInputTokens;
       usage.outputTokens += u.outputTokens;

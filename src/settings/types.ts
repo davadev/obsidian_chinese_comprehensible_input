@@ -195,6 +195,8 @@ export interface AiOllamaConfig {
 export interface AiUsageEntry {
   ts: number;
   provider: AiProviderKind;
+  /** Model that served the call; absent on entries logged before it was recorded (they were all the previous default). */
+  model?: string;
   inputTokens: number;
   cachedInputTokens: number;
   outputTokens: number;
@@ -207,6 +209,11 @@ export interface AiSettings {
    *  config is preserved verbatim so toggling is lossless. */
   provider: AiProviderKind;
   ollama: AiOllamaConfig;
+  /**
+   * Which of the two hardcoded OpenAI models to use. "default" is the current model; "legacy" is the previous one,
+   * kept in case the new one reads worse. Anything else is treated as "default".
+   */
+  openaiModel: "default" | "legacy";
   /**
    * Whether the "Enhance dictionary entry" popup action is allowed to
    * rewrite the pinyin field. Off by default — pinyin in this plugin is

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Platform } from "obsidian";
 import { Notice } from "./__mocks__/obsidian"; // the stub itself: `Notice.instances` is not in the real typings
 import { AiProviderService } from "../ai/AiProviderService";
-import { OPENAI_BASE_URL, OPENAI_MODEL_ID } from "../ai/openaiProfile";
+import { OPENAI_BASE_URL, OPENAI_LEGACY_MODEL_ID, OPENAI_MODEL_ID } from "../ai/openaiProfile";
 
 /**
  * The provider layer between the plugin and whatever model answers: request shape per endpoint mode and provider,
@@ -35,6 +35,7 @@ const baseCfg = (over: Record<string, unknown> = {}) => ({
 
 interface Setup {
   provider?: "ollama" | "openai";
+  openaiModel?: string;
   enabled?: boolean;
   debug?: boolean;
   ollama?: Record<string, unknown>;
@@ -52,7 +53,7 @@ function make(o: Setup = {}) {
     loadLocalStorage: vi.fn(() => o.key ?? ""),
     vault: { adapter, createFolder: vi.fn(async () => {}) },
   };
-  const settings: any = { enabled: o.enabled ?? true, debug: o.debug ?? false, provider: o.provider ?? "ollama", ollama: baseCfg(o.ollama) };
+  const settings: any = { enabled: o.enabled ?? true, debug: o.debug ?? false, provider: o.provider ?? "ollama", openaiModel: o.openaiModel, ollama: baseCfg(o.ollama) };
   const usage: any[] = [];
   const svc = new AiProviderService(() => settings, app, () => o.folder ?? "", (e) => void usage.push(e));
   return { svc, app, adapter, files, settings, usage };
@@ -155,6 +156,39 @@ describe("the request that is sent", () => {
     expect(body).toMatchObject({ max_completion_tokens: 8000, stream: true, stream_options: { include_usage: true } });
     expect(body.max_tokens).toBeUndefined();
     expect(fetchMock().mock.calls[0][1].headers).toEqual({ "Content-Type": "application/json", Authorization: "Bearer sk" });
+  });
+
+  it("the default OpenAI model is asked to skip reasoning, which keeps temperature legal and the call fast and cheap", async () => {
+    fetchMock().mockResolvedValue(streaming([sse("ok"), "data: [DONE]\n"]));
+    await chat(make({ provider: "openai", key: "sk" }).svc);
+    expect(sentBody()).toMatchObject({ model: OPENAI_MODEL_ID, reasoning_effort: "none", temperature: 0.2 });
+  });
+
+  it("the previous OpenAI model gets exactly the request it always did: no reasoning field", async () => {
+    fetchMock().mockResolvedValue(streaming([sse("ok"), "data: [DONE]\n"]));
+    await chat(make({ provider: "openai", key: "sk", openaiModel: "legacy" }).svc);
+    const body = sentBody();
+    expect(body.model).toBe(OPENAI_LEGACY_MODEL_ID);
+    expect(body).not.toHaveProperty("reasoning_effort");
+    expect(body).toMatchObject({ temperature: 0.2, max_completion_tokens: 8000 });
+  });
+
+  it("an unrecognised stored choice falls back to the default model", async () => {
+    fetchMock().mockResolvedValue(streaming([sse("ok"), "data: [DONE]\n"]));
+    await chat(make({ provider: "openai", key: "sk", openaiModel: "gpt-9" }).svc);
+    expect(sentBody().model).toBe(OPENAI_MODEL_ID);
+  });
+
+  it("Ollama never receives OpenAI's reasoning field, whatever the stored OpenAI choice", async () => {
+    await chat(make({ openaiModel: "default" }).svc);
+    expect(sentBody()).not.toHaveProperty("reasoning_effort");
+  });
+
+  it("usage is logged against the model that served the call", async () => {
+    fetchMock().mockResolvedValue(streaming([sse("ok"), `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 10, completion_tokens: 4 } })}\n`, "data: [DONE]\n"]));
+    const { svc, usage } = make({ provider: "openai", key: "sk", openaiModel: "legacy" });
+    await chat(svc);
+    expect(usage[0]).toMatchObject({ provider: "openai", model: OPENAI_LEGACY_MODEL_ID, inputTokens: 10, outputTokens: 4 });
   });
 
   it("a streaming local server gets stream: true but no usage option", async () => {

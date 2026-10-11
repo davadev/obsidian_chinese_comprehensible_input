@@ -21,7 +21,7 @@ Rough guide:
 | `gemma4:12b` | Decent GPU / Apple Silicon M-series with 16 GB+ | **Recommended when your machine can handle it** — what the developer runs daily. Output is consistently graded, target words reliably included. |
 | `qwen2.5:14b`, `qwen2.5-coder:14b` | Same as above | Good Chinese-first alternative if Gemma doesn't fit your stack. |
 | `qwen2.5:32b`, `llama3.1:70b` | Strong workstation / multi-GPU | Near-OpenAI quality on instruction following. Slow on consumer hardware. |
-| Cloud (OpenAI GPT-5.4 mini) | n/a | See [OpenAI setup](./openai-setup.md) — best output, ~$0.21/month at one story/day. |
+| Cloud (OpenAI GPT-6 luna) | n/a | See [OpenAI setup](./openai-setup.md) — best output, ~$0.03/month at one story/day. |
 
 Below `gemma4:e4b`-class (e.g. 1–3B models) the output gets noticeably
 worse — frequent missing target words, higher-HSK vocabulary than

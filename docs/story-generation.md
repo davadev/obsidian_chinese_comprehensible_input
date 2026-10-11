@@ -95,7 +95,7 @@ Each generated note opens with frontmatter you can read:
 chinese_learning_generated: true
 generated_at: 2026-06-16T08:00:12Z
 provider: openai
-model: gpt-5.4-mini
+model: gpt-6-luna
 target_hsk: 4
 target_words:
   - 学习

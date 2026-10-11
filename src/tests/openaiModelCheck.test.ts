@@ -3,8 +3,9 @@ import { readFileSync } from "node:fs";
 import {
   FAIL_WITHIN_DAYS,
   classifyCatalog,
+  capAtWarn,
   classifyModel,
-  parseModelId,
+  parseModelIds,
   worst,
 } from "../../scripts/lib/openaiModelCheck.mjs";
 
@@ -13,14 +14,25 @@ import {
 const NOW = Date.parse("2026-10-11T00:00:00Z");
 const inDays = (d: number) => new Date(NOW + d * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
-describe("parseModelId", () => {
-  it("reads the id we actually ship", () => {
-    const id = parseModelId(readFileSync("src/ai/openaiProfile.ts", "utf8"));
-    expect(id).toMatch(/^[\w.-]+$/);
+describe("parseModelIds", () => {
+  it("reads both ids we actually ship", () => {
+    const ids = parseModelIds(readFileSync("src/ai/openaiProfile.ts", "utf8"));
+    expect(ids.default).toMatch(/^[\w.-]+$/);
+    expect(ids.legacy).toMatch(/^[\w.-]+$/);
+    expect(ids.default).not.toBe(ids.legacy);
   });
 
-  it("returns null when the constant is gone, rather than guessing", () => {
-    expect(parseModelId('export const OTHER = "x";')).toBeNull();
+  it("returns null for a constant that is gone, rather than guessing", () => {
+    expect(parseModelIds('export const OPENAI_MODEL_ID = "a";')).toEqual({ default: "a", legacy: null });
+    expect(parseModelIds('export const OTHER = "x";')).toEqual({ default: null, legacy: null });
+  });
+});
+
+describe("capAtWarn", () => {
+  it("turns a fail into a warning, so a retiring fallback cannot open the tracking issue", () => {
+    expect(capAtWarn({ level: "fail", message: "gone" })).toEqual({ level: "warn", message: "gone" });
+    expect(capAtWarn({ level: "pass", message: "ok" })).toEqual({ level: "pass", message: "ok" });
+    expect(capAtWarn({ level: "warn", message: "soon" })).toEqual({ level: "warn", message: "soon" });
   });
 });
 

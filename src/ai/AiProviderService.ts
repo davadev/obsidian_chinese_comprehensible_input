@@ -1,6 +1,6 @@
 import { App, normalizePath, Notice, Platform, requestUrl } from "obsidian";
 import { AiOllamaConfig, AiProviderKind, AiSettings, AiUsageEntry } from "../settings/types";
-import { buildOpenAiActiveConfig } from "./openaiProfile";
+import { buildOpenAiActiveConfig, openAiExtraBody } from "./openaiProfile";
 import { loadApiKey } from "./secrets";
 
 /**
@@ -179,7 +179,7 @@ export class AiProviderService {
     const s = this.getSettings();
     const apiKey = loadApiKey(this.app, s.provider);
     if (s.provider === "openai") {
-      return { active: buildOpenAiActiveConfig(apiKey), provider: "openai" };
+      return { active: buildOpenAiActiveConfig(apiKey, s.openaiModel), provider: "openai" };
     }
     return { active: { ...s.ollama, apiKey }, provider: "ollama" };
   }
@@ -268,7 +268,7 @@ export class AiProviderService {
             // the classic name, so gate by active provider rather than
             // blanket-swapping.
             ...(provider === "openai"
-              ? { max_completion_tokens: s.maxOutputTokens }
+              ? { max_completion_tokens: s.maxOutputTokens, ...openAiExtraBody(s.chatModel) }
               : { max_tokens: s.maxOutputTokens }),
             ...(responseFormat ? { response_format: responseFormat } : {}),
           };
@@ -342,7 +342,7 @@ export class AiProviderService {
       dbg.fail(msg);
       throw new Error(msg);
     }
-    this.maybeRecordUsageFromOpenAi(json, provider);
+    this.maybeRecordUsageFromOpenAi(json, provider, s.chatModel);
     this.maybeRecordUsageFromOllamaResponse(json, provider);
     const out = extractText(json);
     if (!out || out.trim() === "") {
@@ -561,7 +561,7 @@ export class AiProviderService {
           if (typeof delta === "string") content += delta;
           const finish = json?.choices?.[0]?.finish_reason;
           if (finish) lastFinish = finish;
-          this.maybeRecordUsageFromOpenAi(json, provider);
+          this.maybeRecordUsageFromOpenAi(json, provider, s.chatModel);
         } catch {
           // ignore malformed lines / keep-alive comments
         }
@@ -666,7 +666,7 @@ export class AiProviderService {
             if (typeof delta === "string") content += delta;
             const finish = json?.choices?.[0]?.finish_reason;
             if (finish) lastFinish = finish;
-            this.maybeRecordUsageFromOpenAi(json, provider);
+            this.maybeRecordUsageFromOpenAi(json, provider, s.chatModel);
           } catch {
             // ignore malformed chunks; some providers emit keep-alive comments
           }
@@ -707,7 +707,7 @@ export class AiProviderService {
   /** Forward an OpenAI-shape `usage` block. Picks both regular input
    *  and cached input tokens (the latter is billed at 10× discount and
    *  is what makes prompt caching worth showing separately). */
-  private maybeRecordUsageFromOpenAi(json: MaybeChatJson, provider: AiProviderKind): void {
+  private maybeRecordUsageFromOpenAi(json: MaybeChatJson, provider: AiProviderKind, model: string): void {
     const u = json?.usage;
     if (!u || typeof u !== "object") return;
     const inputTokens = numberOr(u.prompt_tokens, 0);
@@ -717,6 +717,7 @@ export class AiProviderService {
     this.onUsage({
       ts: Date.now(),
       provider,
+      model,
       // Subtract cached portion so the buckets sum cleanly to total
       // prompt tokens without double-counting.
       inputTokens: Math.max(0, inputTokens - cachedInputTokens),

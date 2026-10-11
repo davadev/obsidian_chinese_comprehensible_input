@@ -126,6 +126,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
       suppressThinking: true,
       stream: true,
     },
+    openaiModel: "default",
     enhanceCanRewritePinyin: false,
     mnemonicPrompt: DEFAULT_MNEMONIC_USER_TEMPLATE,
     usageLog: [],

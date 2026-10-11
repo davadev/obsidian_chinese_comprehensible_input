@@ -2,7 +2,7 @@
 
 The OpenAI provider in Chinese Comprehensible Input is the "just works" path
 to daily story generation: paste an API key and the plugin does the rest,
-using **GPT-5.4 mini** under the hood. This page explains what that means
+using **GPT-6 luna** under the hood (with the previous model, GPT-5.4 mini, one tap away). This page explains what that means
 for your data, what it costs, and how to get an API key.
 
 If you'd rather keep everything local, use the **Ollama** provider instead
@@ -16,10 +16,12 @@ document is only relevant if you've picked OpenAI.
 When you generate a story (manually via Flashcards → Smart story, or
 automatically once per day if you enable that), the plugin sends a prompt
 to OpenAI's `chat/completions` endpoint and writes the returned Chinese
-text to a note in your vault. The model is pinned to **GPT-5.4 mini** —
-the cheapest current OpenAI model strong enough for graded Chinese
-generation. You don't get to pick a different model from the OpenAI side
-of the UI; if you want full control over model and prompts, run Ollama.
+text to a note in your vault. The model is pinned to **GPT-6 luna** —
+the efficient tier of OpenAI's newest family, and the cheapest one strong
+enough for graded Chinese generation. You can't pick an arbitrary model, but
+Settings → AI provider → **OpenAI model** lets you switch to the previous one,
+**GPT-5.4 mini**, if the new model's text reads worse for you. If you want full
+control over model and prompts, run Ollama.
 
 A configured provider also unlocks **Enhance** on the word popup card: tap it
 to enrich a sparse dictionary entry with fuller senses and grammar info.
@@ -70,14 +72,13 @@ note content you didn't explicitly target.
 
 ## 3. It costs money — but probably less than you think
 
-OpenAI bills per token (roughly per word fragment). Pricing for
-GPT-5.4 mini:
+OpenAI bills per token (roughly per word fragment). Pricing:
 
-| What | Price per 1M tokens |
-|------|---------------------|
-| Input | $0.75 |
-| Cached input | $0.075 |
-| Output | $4.50 |
+| What | GPT-6 luna (default) | GPT-5.4 mini (previous) |
+|------|---------------------|-------------------------|
+| Input, per 1M tokens | $0.10 | $0.75 |
+| Cached input, per 1M tokens | $0.01 | $0.075 |
+| Output, per 1M tokens | $0.50 | $4.50 |
 
 A typical story generation breaks down like this:
 
@@ -89,17 +90,18 @@ A typical story generation breaks down like this:
 | One repair pass (average across 0–4 reps) | ~1500 input + ~600 output |
 | **Per story (average)** | **~2100 input + ~1200 output** |
 
-Math: `(2100 × 0.75 + 1200 × 4.50) / 1,000,000 ≈ $0.0070` per story.
+Math with the default model: `(2100 × 0.10 + 1200 × 0.50) / 1,000,000 ≈ $0.0008` per story
+(about `$0.0070` on GPT-5.4 mini).
 
 That works out to:
 
-- **1 story per day → ~$0.21 / month, ~$2.55 / year.**
+- **1 story per day → ~$0.025 / month, ~$0.30 / year** (GPT-5.4 mini: ~$0.21 / month).
 - Worst case (full 4 repairs every call, known-words sample on, longer
-  stories) tops out around **$1 / month**.
+  stories) stays well under **$1 / month**, on either model.
 
 You can verify in real time: Settings → AI provider → OpenAI shows a
 **Your usage** widget with rolling 24h / 7d / 30d token counts and the
-exact dollar cost. Every successful call updates it. No nasty surprises.
+exact dollar cost, each call billed at the price of the model that served it. Every successful call updates it. No nasty surprises.
 
 ---
 
