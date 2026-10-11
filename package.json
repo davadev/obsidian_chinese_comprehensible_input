@@ -1,6 +1,6 @@
 {
 	"name": "chinese-comprehensible-input",
-	"version": "0.7.9",
+	"version": "0.8.0",
 	"description": "Obsidian plugin: Chinese comprehensible input reading view with dictionary tokenization, SRS, and AI story generation.",
 	"main": "main.js",
 	"scripts": {
@@ -42,7 +42,7 @@
 		"eslint": "^10.11.0",
 		"eslint-plugin-obsidianmd": "^0.4.2",
 		"happy-dom": "20.14.5",
-		"obsidian": "^1.5.7",
+		"obsidian": "^1.13.0",
 		"playwright": "1.63.0",
 		"stylelint": "17.15.0",
 		"stylelint-no-unsupported-browser-features": "8.1.2",
