@@ -358,7 +358,7 @@ describe("the dictionary's user data", () => {
       const { o } = self();
       await o.setDictionaryOverride("k", { pinyin: "p" });
       expect(o.dictionaryOverrides.k).toMatchObject({ pinyin: "p", updatedAt: expect.any(String) });
-      expect(o.dictionary.reload).toHaveBeenCalled();
+      expect(o.dictionary.reload).not.toHaveBeenCalled();
       expect(o.vocab.clearSurfaceCache).toHaveBeenCalled();
       expect(o.forceRetokenizeViews).toHaveBeenCalled();
       expect(o.refreshChineseViews).toHaveBeenCalled();
@@ -369,7 +369,7 @@ describe("the dictionary's user data", () => {
       const { o } = self({ dictionaryOverrides: { k: {} } });
       await o.deleteDictionaryOverride("k");
       expect(o.dictionaryOverrides.k).toBeUndefined();
-      expect(o.dictionary.reload).toHaveBeenCalled();
+      expect(o.dictionary.reload).not.toHaveBeenCalled();
       expect(o.forceRetokenizeViews).toHaveBeenCalled();
     });
   });
@@ -427,7 +427,7 @@ describe("the dictionary's user data", () => {
       expect(o.dictionaryCustomWords["火锅"].pinyin).toBe("ours");
       expect(o.dictionaryCustomWords["麻辣"].pinyin).toBe("new");
       expect(o.updateDataBlob).toHaveBeenCalled();
-      expect(o.dictionary.reload).toHaveBeenCalled();
+      expect(o.dictionary.reload).not.toHaveBeenCalled();
       expect(o.vocab.clearSurfaceCache).toHaveBeenCalled();
       expect(o.tokenizer.setOverrides).toHaveBeenCalled();
       expect(o.refreshChineseViews).toHaveBeenCalled();

@@ -113,6 +113,12 @@ export class VocabularyStore {
   private lastFullMirrorReadMs: number | null = null;
   private dictBridge: DictionaryMirrorBridge | null = null;
   private surfaceLookupCache = new Map<string, WordRecord | null>();
+  /**
+   * surface -> first record (in insertion order) that lists it in `surfaces`. Built lazily the first time a surface
+   * misses its canonical key, dropped wherever `surfaceLookupCache` is, so the O(N) walk happens once per
+   * invalidation instead of once per unmet word.
+   */
+  private surfaceIndex: Map<string, WordRecord> | null = null;
 
   /** Wire up the bridge after construction (avoids circular deps with CciPlugin). */
   setDictionaryMirrorBridge(bridge: DictionaryMirrorBridge): void {
@@ -541,14 +547,9 @@ export class VocabularyStore {
       this.surfaceLookupCache.set(surface, direct);
       return direct;
     }
-    for (const r of Object.values(this.data.words)) {
-      if (r.surfaces.includes(surface)) {
-        this.surfaceLookupCache.set(surface, r);
-        return r;
-      }
-    }
-    this.surfaceLookupCache.set(surface, null);
-    return undefined;
+    const found = this.surfaceRecordIndex().get(surface);
+    this.surfaceLookupCache.set(surface, found ?? null);
+    return found;
   }
 
   ensure(surface: string): WordRecord {
@@ -876,9 +877,8 @@ export class VocabularyStore {
    *
    * Public because callers outside this class can invalidate it: the
    * dictionary reloading (which changes what `lookup()` resolves a surface
-   * to) and a script switch both do. `DictionaryService.reload()` has eight
-   * call sites and none of them could reach this before, so a freshly added
-   * custom word could keep resolving to a cached `null`.
+   * to) and a script switch both do, and so does a custom word being added,
+   * which would otherwise keep resolving to a cached `null`.
    */
   clearSurfaceCache(): void {
     this.clearSurfaceLookupCache();
@@ -886,6 +886,20 @@ export class VocabularyStore {
 
   private clearSurfaceLookupCache(): void {
     this.surfaceLookupCache.clear();
+    this.surfaceIndex = null;
+  }
+
+  /** First-write-wins, so it resolves exactly as scanning `Object.values(words)` for `surfaces.includes()` did. */
+  private surfaceRecordIndex(): Map<string, WordRecord> {
+    if (this.surfaceIndex) return this.surfaceIndex;
+    const index = new Map<string, WordRecord>();
+    for (const r of Object.values(this.data.words)) {
+      for (const s of r.surfaces) {
+        if (!index.has(s)) index.set(s, r);
+      }
+    }
+    this.surfaceIndex = index;
+    return index;
   }
 
   private scheduleMirrorWrite(): void {

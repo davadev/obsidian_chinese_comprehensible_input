@@ -15,6 +15,28 @@ function makeService() {
 }
 
 describe("DictionaryService", () => {
+  it("returns native entries untouched while there are no overrides, and picks one up the moment it appears", async () => {
+    const service = makeService();
+    let overrides: Record<string, any> = {};
+    service.setOverlay(() => overrides, () => ({}));
+    await service.ensureLoaded();
+
+    const before = service.lookup("学习");
+    expect(before.length).toBeGreaterThan(0);
+    expect(before[0].definitions).not.toEqual(["live override"]);
+
+    // The overlay is a live getter: no reload() is needed for a new override to apply.
+    overrides = { [makeKey("学习", before[0].pinyin)]: { definitions: ["live override"], updatedAt: "2026-01-01T00:00:00.000Z" } };
+    expect(service.lookup("学习")[0].definitions).toEqual(["live override"]);
+
+    // An override for some other word leaves this word's entries exactly as they were.
+    overrides = { [makeKey("苹果", "píng guǒ")]: { definitions: ["unrelated"], updatedAt: "2026-01-01T00:00:00.000Z" } };
+    expect(service.lookup("学习")).toEqual(before);
+
+    overrides = {};
+    expect(service.lookup("学习")[0].definitions).toEqual(before[0].definitions);
+  });
+
   it("prefers custom words and applies overrides to native entries", async () => {
     const service = makeService();
     service.setOverlay(

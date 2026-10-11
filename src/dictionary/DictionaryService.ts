@@ -5,6 +5,15 @@ import { HSK_MAP, HSK_SOURCE } from "./hskMap.generated";
 import { makeKey, repairPinyin } from "./normalizeChinese";
 import { extractTaiwanReading } from "./taiwanReading";
 
+/** True when a plain object has any key; allocation-free, unlike `Object.keys(o).length`. */
+function hasAnyKey(o: object): boolean {
+  for (const k in o) {
+    void k;
+    return true;
+  }
+  return false;
+}
+
 /**
  * Lazy dictionary store.
  * - In-memory simplified -> entry[] and traditional -> entry[] maps.
@@ -199,6 +208,12 @@ export class DictionaryService {
     }
     const native = this.native(surface);
     const overrides = this.getOverrides();
+    // Most users have no overrides, and makeKey() walks the pinyin per entry. This runs once per lattice edge, so
+    // skip it when there is nothing to look up. A for-in probe rather than Object.keys(): that would allocate.
+    if (!hasAnyKey(overrides)) {
+      for (const e of native) out.push(e);
+      return out;
+    }
     for (const e of native) {
       const key = makeKey(e.simplified, e.pinyin);
       const ov = overrides[key];

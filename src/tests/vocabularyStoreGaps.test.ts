@@ -180,6 +180,36 @@ describe("VocabularyStore remaining branches", () => {
     });
   });
 
+  describe("bySurface resolves a surface the canonical key misses through the surface index", () => {
+    const load = async (words: Record<string, unknown>) => {
+      const s = setup();
+      await s.store.load({ vocab: { schemaVersion: 3, words } });
+      return s;
+    };
+    // pinyin undefined keeps the stored key equal to the simplified form, so dedupeOnLoad leaves it alone
+    const r = (key: string, surfaces: string[]) => rec(key, { simplified: key, pinyin: undefined, surfaces });
+
+    it("returns the FIRST record in insertion order when two records list the same surface", async () => {
+      const { store } = await load({ a: r("a", ["a", "共"]), b: r("b", ["b", "共"]) });
+      expect(store.bySurface("共")!.key).toBe("a");
+    });
+
+    it("a remembered miss is dropped when ensure() adds the word", async () => {
+      const { store } = await load({ a: r("a", ["a", "共"]) });
+      expect(store.bySurface("无")).toBeUndefined();
+      store.ensure("无");
+      expect(store.bySurface("无")!.key).toBe("无");
+      expect(store.bySurface("共")!.key).toBe("a");
+    });
+
+    it("rebuilds the index after the data is reloaded", async () => {
+      const s = await load({ a: r("a", ["a", "共"]) });
+      expect(s.store.bySurface("共")!.key).toBe("a");
+      await s.store.load({ vocab: { schemaVersion: 3, words: { c: r("c", ["c", "共"]) } } });
+      expect(s.store.bySurface("共")!.key).toBe("c");
+    });
+  });
+
   describe("records from older versions (dedupe on load)", () => {
     const load = async (words: Record<string, unknown>) => {
       const s = setup();
