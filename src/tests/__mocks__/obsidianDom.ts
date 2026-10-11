@@ -96,6 +96,14 @@ export function installObsidianDom(): void {
     cb?.(el);
     return el;
   };
+  // Obsidian puts the same builders on DocumentFragment (`createFragment(f => f.createSpan(...))`).
+  const fproto = DocumentFragment.prototype as unknown as Record<string, unknown>;
+  fproto.createEl = proto.createEl;
+  fproto.createDiv = proto.createDiv;
+  fproto.createSpan = proto.createSpan;
+  fproto.appendText = function (this: DocumentFragment, text: string) {
+    this.appendChild(document.createTextNode(text));
+  };
   proto.empty = function (this: HTMLElement) {
     while (this.firstChild) this.removeChild(this.firstChild);
   };
