@@ -1333,6 +1333,9 @@
    added when the app publishes it (absent on desktop, where it adds nothing). */
 .workspace-leaf-content[data-type="cci-stats-view"] .view-content.cci-stats {
   padding-bottom: calc(5.5rem + var(--mobile-navbar-height, 0px) + env(safe-area-inset-bottom, 0px));
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+  max-width: 100%;
 }
 .cci-stats > * {
   max-width: 100%;
@@ -1908,6 +1911,9 @@
 }
 .cci-dash-notes-tablewrap {
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overscroll-behavior-x: contain;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--background-modifier-border);
