@@ -2,7 +2,7 @@ import type { BackupEntry, BackupKind } from "../data/backupPolicy";
 import { formatBytes, pinnedBackup } from "../data/backupPolicy";
 
 /**
- * The list of backups in Settings > Backups (#149): when each was taken, which version's data it holds, how big it is,
+ * The list of backups in Settings > Data > Backups (#149): when each was taken, which version's data it holds, how big it is,
  * and Restore and Delete buttons. Plain DOM and a small host interface, so the settings tab supplies the confirmation and the
  * staging, and this file can be tested under a DOM.
  */

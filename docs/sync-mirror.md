@@ -129,7 +129,7 @@ same name as the file.
 A word is stored under a key made of the word and its pinyin (`差不多|chà bu duō`), and the pinyin comes from the
 dictionary the device had when it first met the word. A device that has downloaded CC-CEDICT and one that only has the
 small built-in seed dictionary can therefore hold the same word under two keys, the second one without pinyin. Until
-0.8.0-beta.5 the two were never combined, and a word marked known on one device could keep showing as new on the other.
+0.8.0 the two were never combined, and a word marked known on one device could keep showing as new on the other.
 
 Now, whenever data is loaded or merged from the mirror, a record without pinyin is folded into the single pinyin record
 for the same word (its status, counts and notes are merged by the same rules as any sync, and the pinyin key is the one

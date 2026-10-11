@@ -111,7 +111,7 @@ in [Vault-mirror sync](./sync-mirror.md) and
 [BRAT](https://github.com/TfTHacker/obsidian42-brat) is the supported way
 to install beta builds. Every release of this plugin ships `main.js`,
 `manifest.json`, and `styles.css` as release assets, which is exactly
-what BRAT needs. Prereleases (`0.X.Y-rc.N`) are visible to
+what BRAT needs. Prereleases (`0.X.Y-beta.N`) are visible to
 **Add Beta Plugin** testers only; regular BRAT users stay on the last
 stable release. See [Install via BRAT](./install.md).
 
