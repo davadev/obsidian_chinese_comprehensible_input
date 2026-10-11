@@ -976,10 +976,9 @@ export default class CciPlugin extends Plugin {
       blob.dictionaryOverrides = this.dictionaryOverrides;
       blob.dictionaryCustomWords = this.dictionaryCustomWords;
     });
-    await this.dictionary.reload();
-    // reload() changes what lookup() resolves a surface to, and bySurface()
-    // memoises that. Nothing cleared it before, so a newly absorbed custom
-    // word could keep resolving to a cached miss.
+    // No dictionary reload: overrides and custom words are a live overlay read inside lookup(), and the file on
+    // disk did not change. But bySurface() memoises what lookup() resolves, so a newly absorbed custom word
+    // could keep resolving to a cached miss.
     this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
@@ -989,7 +988,6 @@ export default class CciPlugin extends Plugin {
   async setDictionaryOverride(key: string, ov: DictionaryOverride): Promise<void> {
     this.dictionaryOverrides[key] = { ...ov, updatedAt: new Date().toISOString() };
     await this.saveDictionaryUserData();
-    await this.dictionary.reload();
     this.vocab.clearSurfaceCache();
     this.refreshChineseViews();
     // The 3-line ruby gloss reads from the cached token's `selected`
@@ -1005,7 +1003,6 @@ export default class CciPlugin extends Plugin {
   async deleteDictionaryOverride(key: string): Promise<void> {
     delete this.dictionaryOverrides[key];
     await this.saveDictionaryUserData();
-    await this.dictionary.reload();
     this.vocab.clearSurfaceCache();
     this.refreshChineseViews();
     clearTokenCache();
@@ -1023,7 +1020,6 @@ export default class CciPlugin extends Plugin {
       updatedAt: now,
     };
     await this.saveDictionaryUserData();
-    await this.dictionary.reload();
     this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
@@ -1034,7 +1030,6 @@ export default class CciPlugin extends Plugin {
   async deleteCustomWord(surface: string): Promise<void> {
     delete this.dictionaryCustomWords[surface];
     await this.saveDictionaryUserData();
-    await this.dictionary.reload();
     this.vocab.clearSurfaceCache();
     this.refreshTokenizerCustomWords();
     this.refreshChineseViews();
