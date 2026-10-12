@@ -716,3 +716,12 @@ the one that governs rendering risk.
 would drop ~20 KB from `main.js` and remove this risk class permanently. If it
 does not, bundling is mandatory and getting it wrong breaks the reading view
 outright — so this needs its own investigation, not a mid-release guess.
+
+## Regenerating the annotated screenshots
+
+The toolbar, lightbulb, Explain, Proof read and What's new images in `resources/screenshots/` are rendered, not captured:
+`node scripts/render-screenshots.mjs [scene …]` mounts the real toolbar and dialogs (fixture data, no AI call) beside the
+shipped `styles.css` in headless Chromium on Obsidian's default light theme, and draws the same green callouts as the
+older images. It needs `$CHROME_HEADLESS_SHELL` or Playwright's browser cache. After changing any of those screens, re-run
+it, **look at every image**, and check the numbered legends in `README.md` and the docs still match. Obsidian's own modal
+frame is approximated; the content inside is the plugin's.

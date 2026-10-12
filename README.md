@@ -21,10 +21,12 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 - **2 · Known**, **3 · Unknown**, **4 · Partial** — tap a word to set its status.
 - **5 · Add custom word** — tap characters to build a dictionary entry.
 - **6 · Highlighter** — arm tap-to-format mode (see [Formatting](./docs/formatting.md)).
-- **Lightbulb** — tap the first and the last word of a phrase, then **Explain** it or **Proof read** it (needs AI; see [Explain](./docs/explain.md)).
-- **7 · Status / HSK** — one button that shows how words are coloured (by learning status or by HSK level); tap it to switch to the other.
-- **8 · More** — the display menu (below).
-- **9 · Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
+- **7 · Lightbulb** — tap the first and the last word of a phrase, then **Explain** it or **Proof read** it (needs AI; see [Explain](./docs/explain.md)).
+- **8 · Status / HSK** — one button that shows how words are coloured (by learning status or by HSK level); tap it to switch to the other.
+- **9 · More** — the display menu (below).
+- **10 · Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
+
+*These toolbar images are rendered from the plugin's own code and stylesheet on Obsidian's default light theme (`node scripts/render-screenshots.mjs`), so they are regenerated rather than re-captured when the interface changes.*
 
 ### Display menu (the "More" button)
 
@@ -209,6 +211,18 @@ Reading real Chinese raises questions a dictionary cannot answer. The plugin can
 
 - **Why does this word work here?** Tap a word and choose *Explain*: when to use it, how learners get it wrong, similar words and how its characters are built. Save it as a note if it is worth keeping.
 - **What is this sentence doing?** Tap the lightbulb, then the first and last word. You get the meaning, the structure, the job of every word and the grammar points.
+
+<img src="resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown" width="560">
+
+1. **Lightbulb** — armed. 2. **Hint** — tap the last word. 3. **Explain / Proof read** — pick what happens. 4. **Exit**.
+
+<p>
+<img src="resources/screenshots/explain-phrase-annotated.png" alt="A phrase explained word by word" height="430">
+&nbsp;
+<img src="resources/screenshots/explain-proofread-annotated.png" alt="Proof reading with Apply" height="430">
+</p>
+
+Left: a phrase explained (1 · meaning, 2 · the job of every word, 3 · what it cost, 4 · save). Right: proof reading (1 · **Apply** one fix into your note, 2 · copy the corrected text, or **Apply all**).
 - **Is my Chinese right?** *Proof read* finds real mistakes in what you wrote, suggests the simplest fix, and puts it into your note with one tap.
 - **I keep forgetting the tones.** Mnemonics give each character a picture of its meaning followed by its tone number, written by the plugin so the tone is always right. Fill in a whole note at once from the ⋯ menu.
 - **You stay in control.** Every answer shows what it cost, you can tell the AI how you like things explained (language, level, focus), and nothing is saved to your vault until you say so.
