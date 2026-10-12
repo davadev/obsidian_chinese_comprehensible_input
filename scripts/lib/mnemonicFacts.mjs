@@ -251,3 +251,40 @@ export function ccdFacts(ch, map) {
 export function ccdLeaves(ch, map) {
   return (map.get(ch)?.tree ?? []).map((n) => n.ch);
 }
+
+/** First clause of a reference definition, short enough to sit in a prompt line. */
+export function shortDef(ch, map) {
+  const d = map.get(ch)?.definition;
+  if (!d) return "";
+  const first = String(d).split(/[;]/)[0].trim();
+  return first.length > 40 ? `${first.slice(0, 39)}…` : first;
+}
+
+/**
+ * Facts for a SINGLE-character word: its parts with the role each plays. `labelRoles` marks the sound part "(sound only)"
+ * and the meaning part "(meaning)" so the model does not build a story that makes a phonetic part explain the meaning.
+ * Pictographic characters get the origin hint instead of drawing strokes; characters without etymology get nothing.
+ */
+export function singleCharFacts(ch, map, labelRoles) {
+  const e = map.get(ch);
+  const type = e?.etymology?.type;
+  if (!e || !type) return null;
+  const hint = e.etymology.hint ? `; origin: ${e.etymology.hint}` : "";
+  if (type === "pictographic") return e.etymology.hint ? `${ch}: pictographic${hint}` : null;
+  const parts = idsLeaves(e.decomposition);
+  if (parts.length < 2) return hint ? `${ch}: ${type}${hint}` : null;
+  const phon = e.etymology.phonetic;
+  const sem = e.etymology.semantic;
+  const tag = (p) => (!labelRoles ? "" : p === phon && p !== sem ? " [sound only]" : p === sem ? " [meaning]" : "");
+  const gloss = (p) => {
+    const g = shortDef(p, map);
+    return g ? ` (${g})` : "";
+  };
+  return `${ch}: ${type}; parts: ${parts.map((p) => `${p}${gloss(p)}${tag(p)}`).join(" + ")}${hint}`;
+}
+
+/** The line the app assembles: each character's picture group followed by its own tone cue, then the meaning. */
+export function assembleLine(groups, syllables, meaning) {
+  const cues = syllables.map((s) => TONE_CUES[toneOf(s)]);
+  return syllables.map((_, i) => `${(groups[i] ?? "").trim()}${cues[i]}`).join("") + String(meaning ?? "").trim();
+}
