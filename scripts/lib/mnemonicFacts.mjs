@@ -284,7 +284,68 @@ export function singleCharFacts(ch, map, labelRoles) {
 }
 
 /** The line the app assembles: each character's picture group followed by its own tone cue, then the meaning. */
-export function assembleLine(groups, syllables, meaning) {
-  const cues = syllables.map((s) => TONE_CUES[toneOf(s)]);
+export function assembleLine(groups, syllables, meaning, style = "arrow") {
+  const cues = syllables.map((s) => toneMark(toneOf(s), style));
   return syllables.map((_, i) => `${(groups[i] ?? "").trim()}${cues[i]}`).join("") + String(meaning ?? "").trim();
+}
+
+// ── round 5: tone numbers instead of arrows, deterministic story repair, role-gated facts ──
+
+export const TONE_SUP = { 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁰" };
+export const TONE_SUB = { 1: "₁", 2: "₂", 3: "₃", 4: "₄", 5: "₀" };
+
+/** The tone mark the app attaches after a picture group, by style: arrow (legend), sup, sub or plain digits. */
+export function toneMark(tone, style = "arrow") {
+  if (style === "sup") return TONE_SUP[tone];
+  if (style === "sub") return TONE_SUB[tone];
+  if (style === "digit") return String(tone === 5 ? 0 : tone);
+  return TONE_CUES[tone];
+}
+
+/** Tone numbers found as superscripts in a line. */
+export function extractSup(line) {
+  const rev = { "¹": 1, "²": 2, "³": 3, "⁴": 4, "⁰": 5 };
+  return Array.from(String(line).matchAll(/[¹²³⁴⁰]/g), (m) => rev[m[0]]);
+}
+
+/** Facts for a single character that keep only what a learner can use: the meaning part, never the sound part. */
+export function semanticFacts(ch, map) {
+  const e = map.get(ch);
+  const type = e?.etymology?.type;
+  if (!e || !type) return null;
+  const hint = e.etymology.hint ? `; origin: ${e.etymology.hint}` : "";
+  if (type === "pictographic") return e.etymology.hint ? `${ch}: pictographic${hint}` : null;
+  const gloss = (p) => shortDef(p, map);
+  if (type === "pictophonetic") {
+    const sem = e.etymology.semantic;
+    if (!sem || !gloss(sem)) return null;
+    return `${ch}: pictophonetic; meaning part: ${sem} (${gloss(sem)}); the other part only hints at the sound, so do not picture it${hint}`;
+  }
+  const parts = idsLeaves(e.decomposition);
+  if (parts.length < 2 || !parts.every((p) => gloss(p))) return e.etymology.hint ? `${ch}: ${type}${hint}` : null;
+  return `${ch}: ${type}; parts: ${parts.map((p) => `${p} (${gloss(p)})`).join(" + ")}${hint}`;
+}
+
+/**
+ * The app can write the word's own pinyin itself, so it does not have to trust the model with it: every run of the
+ * word's own characters in the story gets the right pinyin after it (added if missing, replaced if wrong or a gloss).
+ * Parts and other characters are left alone. Returns the repaired story and how many runs were touched.
+ */
+export function repairStoryPinyin(story, word, syllables) {
+  const chars = Array.from(word);
+  if (chars.length !== syllables.length) return { story, changes: 0 };
+  const own = new Set(chars);
+  let changes = 0;
+  const out = String(story).replace(/([㐀-䶿一-鿿豈-﫿]+)(\s*[(（]([^)）]*)[)）])?/gu, (whole, run, _p, inner) => {
+    const rc = Array.from(run);
+    if (!rc.every((c) => own.has(c))) return whole;
+    const idx = word.indexOf(run);
+    if (idx < 0) return whole;
+    const start = Array.from(word.slice(0, idx)).length;
+    const expected = syllables.slice(start, start + rc.length).join(" ");
+    if (inner !== undefined && normPinyinRun(inner) === normPinyinRun(expected)) return whole;
+    changes++;
+    return `${run} (${expected})`;
+  });
+  return { story: out, changes };
 }

@@ -6,6 +6,10 @@ import {
   ccdLeaves,
   charFacts,
   extractCues,
+  extractSup,
+  repairStoryPinyin,
+  semanticFacts,
+  toneMark,
   idsLeaves,
   normSyllable,
   pairCorrect,
@@ -180,5 +184,58 @@ describe("round 4: per-character line and single-character facts", () => {
   it("puts each tone cue straight after its own group and the meaning last", () => {
     expect(assembleLine(["🖼️", "📖", "🏛️"], ["tú", "shū", "guǎn"], "📚")).toBe("🖼️↗️📖➡️🏛️↘️↗️📚");
     expect(assembleLine(["🌳"], ["xiǎng", "x"], "🤔")).toBe("🌳↘️↗️〰️🤔");
+  });
+});
+
+describe("round 5: tone numbers, semantic facts and pinyin repair", () => {
+  const M4 = parseMmah(
+    [
+      '{"character":"想","definition":"think","decomposition":"⿱相心","etymology":{"type":"pictophonetic","phonetic":"相","semantic":"心","hint":"mind"}}',
+      '{"character":"相","definition":"mutual","decomposition":"？"}',
+      '{"character":"心","definition":"heart","decomposition":"？"}',
+      '{"character":"明","definition":"bright","decomposition":"⿰日月","etymology":{"type":"ideographic","hint":"sun and moon"}}',
+      '{"character":"日","definition":"sun"}',
+      '{"character":"月","definition":"moon"}',
+      '{"character":"休","decomposition":"⿰亻木","etymology":{"type":"ideographic"}}',
+      '{"character":"山","definition":"mountain","etymology":{"type":"pictographic","hint":"Three peaks"}}',
+      '{"character":"田","definition":"field","etymology":{"type":"pictographic"}}',
+      '{"character":"河","definition":"river","decomposition":"⿰氵可","etymology":{"type":"pictophonetic","phonetic":"可"}}',
+      '{"character":"无","definition":"none","decomposition":"？"}',
+    ].join("\n")
+  );
+
+  it("marks tones in four styles and reads superscripts back", () => {
+    expect(toneMark(3, "arrow")).toBe("↘️↗️");
+    expect(toneMark(3, "sup")).toBe("³");
+    expect(toneMark(5, "sup")).toBe("⁰");
+    expect(toneMark(2, "sub")).toBe("₂");
+    expect(toneMark(5, "digit")).toBe("0");
+    expect(toneMark(4, "digit")).toBe("4");
+    expect(assembleLine(["🗺️", "📖", "🏛️"], ["tú", "shū", "guǎn"], "📚", "sup")).toBe("🗺️²📖¹🏛️³📚");
+    expect(extractSup("🗺️²📖¹🏛️³📚⁴ ⁰")).toEqual([2, 1, 3, 4, 5]);
+  });
+
+  it("keeps only the meaning part of a pictophonetic character", () => {
+    expect(semanticFacts("想", M4)).toBe("想: pictophonetic; meaning part: 心 (heart); the other part only hints at the sound, so do not picture it; origin: mind");
+    expect(semanticFacts("河", M4)).toBeNull();
+  });
+
+  it("lists ideographic parts only when every part has a gloss, else falls back to the hint", () => {
+    expect(semanticFacts("明", M4)).toBe("明: ideographic; parts: 日 (sun) + 月 (moon); origin: sun and moon");
+    expect(semanticFacts("休", M4)).toBeNull();
+    expect(semanticFacts("山", M4)).toBe("山: pictographic; origin: Three peaks");
+    expect(semanticFacts("田", M4)).toBeNull();
+    expect(semanticFacts("无", M4)).toBeNull();
+    expect(semanticFacts("水", M4)).toBeNull();
+    expect(semanticFacts("明", parseMmah('{"character":"明","decomposition":"⿰日月","etymology":{"type":"ideographic","hint":"h"}}'))).toBe("明: ideographic; origin: h");
+  });
+
+  it("writes the word's own pinyin itself and leaves parts and other text alone", () => {
+    const r = repairStoryPinyin("You see 图 (picture), then 书 and 馆 (guǎn), plus 木 (mù) and 图书馆 (tú shū guǎn).", "图书馆", ["tú", "shū", "guǎn"]);
+    expect(r.story).toBe("You see 图 (tú), then 书 (shū) and 馆 (guǎn), plus 木 (mù) and 图书馆 (tú shū guǎn).");
+    expect(r.changes).toBe(2);
+    expect(repairStoryPinyin("a 书馆 b", "图书馆", ["tú", "shū", "guǎn"])).toEqual({ story: "a 书馆 (shū guǎn) b", changes: 1 });
+    expect(repairStoryPinyin("a 馆书 b", "图书馆", ["tú", "shū", "guǎn"])).toEqual({ story: "a 馆书 b", changes: 0 });
+    expect(repairStoryPinyin("玩儿 x", "玩儿", ["wán"])).toEqual({ story: "玩儿 x", changes: 0 });
   });
 });
