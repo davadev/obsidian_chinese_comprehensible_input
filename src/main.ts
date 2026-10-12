@@ -34,6 +34,8 @@ import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
 import { ExplainService } from "./ai/ExplainService";
+import { PhraseExplainService } from "./ai/PhraseExplainService";
+import { ProofreadService } from "./ai/ProofreadService";
 import { MnemonicService } from "./ai/MnemonicService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import {
@@ -77,6 +79,8 @@ export default class CciPlugin extends Plugin {
   enhance!: EnhanceDictionaryService;
   mnemonic!: MnemonicService;
   explain!: ExplainService;
+  phraseExplain!: PhraseExplainService;
+  proofread!: ProofreadService;
   popup!: WordPopup;
   /**
    * Per-entry dictionary overrides + user-added custom words. Live at
@@ -564,6 +568,8 @@ export default class CciPlugin extends Plugin {
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.mnemonic = new MnemonicService(this.ai, () => this.settings);
     this.explain = new ExplainService(this.ai);
+    this.phraseExplain = new PhraseExplainService(this.ai);
+    this.proofread = new ProofreadService(this.ai);
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));

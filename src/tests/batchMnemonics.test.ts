@@ -3,7 +3,6 @@ import {
   BatchItem,
   batchInput,
   estimateOpenAiUsd,
-  formatSpentUsd,
   formatUsd,
   runBatch,
   selectBatchWords,
@@ -147,13 +146,6 @@ describe("cost estimate", () => {
     const mini = estimateOpenAiUsd(100, "gpt-5.4-mini");
     expect(luna).toBeCloseTo(0.0135, 4);
     expect(mini).toBeGreaterThan(luna * 5);
-  });
-
-  it("shows what a finished run cost with enough digits to be useful", () => {
-    expect(formatSpentUsd(0.0123456)).toBe("$0.0123");
-    expect(formatSpentUsd(0.00004)).toBe("$0.0000");
-    expect(formatSpentUsd(0.1)).toBe("$0.10");
-    expect(formatSpentUsd(2.349)).toBe("$2.35");
   });
 
   it("words the amount without false precision", () => {

@@ -1,17 +1,17 @@
 import { App, Modal, Notice } from "obsidian";
 import type CciPlugin from "../main";
-import { OPENAI_MODELS, computeOpenAiCostUsd, resolveOpenAiChoice } from "../ai/openaiProfile";
+import { OPENAI_MODELS, resolveOpenAiChoice } from "../ai/openaiProfile";
 import {
   BatchItem,
   BatchOutcome,
   batchInput,
   estimateOpenAiUsd,
-  formatSpentUsd,
   formatUsd,
   runBatch,
   selectBatchWords,
 } from "../vocabulary/batchMnemonics";
 import { liftModal } from "./modalLayer";
+import { UsageMeter } from "./usageMeter";
 
 const SCOPE_TEXT = {
   notKnown: "words that are not known yet",
@@ -35,8 +35,7 @@ export class BatchMnemonicModal extends Modal {
   /** Every word of the note with a mnemonic, in scope or not: what "remove" covers. */
   private removable: BatchItem[] = [];
   /** What this dialog's requests cost on OpenAI, summed over every run in it (a retry adds to it). */
-  private spentUsd = 0;
-  private requests = 0;
+  private meter: UsageMeter;
 
   constructor(
     app: App,
@@ -44,6 +43,7 @@ export class BatchMnemonicModal extends Modal {
     private text: string
   ) {
     super(app);
+    this.meter = new UsageMeter(plugin);
   }
 
   onOpen(): void {
@@ -239,11 +239,7 @@ export class BatchMnemonicModal extends Modal {
     // A local model serves one request at a time; a hosted one takes a few at once.
     const concurrency = plugin.settings.ai.provider === "openai" ? 3 : 1;
     // Every request the run makes (including a repair attempt) reports its tokens; add up what OpenAI will bill.
-    const stopCounting = plugin.onAiUsage((entry) => {
-      if (entry.provider !== "openai") return;
-      this.requests++;
-      this.spentUsd += computeOpenAiCostUsd(entry, entry.model);
-    });
+    this.meter.start();
     let result;
     try {
       result = await runBatch(
@@ -269,7 +265,7 @@ export class BatchMnemonicModal extends Modal {
         }
       );
     } finally {
-      stopCounting();
+      this.meter.stop();
     }
     plugin.refreshChineseViews();
     if (run !== this.runId) return;
@@ -283,12 +279,8 @@ export class BatchMnemonicModal extends Modal {
     const caveats = outcomes.filter((o) => o.ok && o.caveats?.length);
     const saved = outcomes.length - failed.length;
     if (saved > 0) contentEl.createEl("p", { text: `Saved ${saved} ${saved === 1 ? "mnemonic" : "mnemonics"}.` });
-    if (this.plugin.settings.ai.provider === "openai" && this.requests > 0) {
-      contentEl.createEl("p", {
-        cls: "cci-batch-muted",
-        text: `Cost on OpenAI: ${formatSpentUsd(this.spentUsd)} (${this.requests} ${this.requests === 1 ? "request" : "requests"}).`,
-      });
-    }
+    const cost = this.meter.line();
+    if (cost) contentEl.createEl("p", { cls: "cci-batch-muted", text: cost });
     if (stopped === "user") {
       contentEl.createEl("p", { cls: "cci-batch-muted", text: `Stopped; ${total - outcomes.length} not started.` });
     } else if (stopped === "failures") {
