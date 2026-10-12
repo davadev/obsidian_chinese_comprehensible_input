@@ -88,7 +88,7 @@ describe("MNEMONIC_SYSTEM_PROMPT", () => {
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/picture group/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/story/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no markdown code fences/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toContain('{"isName":boolean,"characters":[string],"meaning":string,"story":string}');
+    expect(MNEMONIC_SYSTEM_PROMPT).toContain('{"isName":boolean,"characters":[string],"story":string}');
   });
 
   it("leaves the tones to the app and forbids Chinese characters and digits in the groups", () => {
@@ -97,9 +97,11 @@ describe("MNEMONIC_SYSTEM_PROMPT", () => {
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no Chinese characters, no English words, no letters, no digits/);
   });
 
-  it("allows only emoji in the meaning strip and says what to use for an abstract sense", () => {
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/emoji only\. Never an English word or letters/);
+  it("pictures the meaning of each character, single ones included, and says what to use for an abstract sense", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/a picture of what that character MEANS in this word/);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/For a single character, picture its meaning; do not draw its strokes or parts/);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/symbol emoji, for example ✅ completed/);
+    expect(MNEMONIC_SYSTEM_PROMPT).not.toMatch(/"meaning"/);
   });
 
   it("tells the model to flag a name and leave the picture to the app", () => {
@@ -107,9 +109,9 @@ describe("MNEMONIC_SYSTEM_PROMPT", () => {
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/the app writes a name badge itself/);
   });
 
-  it("asks for the word's own pinyin in the story and none for parts", () => {
+  it("asks for the word's own pinyin in the story and none for anything else", () => {
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone-marked pinyin in parentheses right after each of the word's own characters/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/Do not give pinyin for parts/);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/Do not give pinyin for anything else/);
   });
 });
 
@@ -120,15 +122,15 @@ describe("mnemonic facts block and repair prompt", () => {
     expect(block).toContain("1. 图 tú — tone number ² — means: diagram");
     expect(block).toContain("2. 书 shū — tone number ¹ — means: book");
     expect(block).toContain("3. 馆 guǎn — tone number ³\n");
-    expect(block).toContain("Budget for all groups + meaning together: 37 characters. Return exactly 3 string(s)");
-    expect(block).toContain('Return "" for "meaning".');
+    expect(block).toContain('Budget for all groups together: 37 characters. Return exactly 3 string(s) in "characters".');
   });
 
-  it("asks for the meaning strip on a single character and ignores glosses there", () => {
+  it("asks for one group for a single character and ignores glosses there", () => {
     const block = buildMnemonicFactsBlock(wordShape("想", "xiǎng"), ["think"]);
     expect(block).toContain("1. 想 xiǎng — tone number ³");
     expect(block).not.toContain("means:");
-    expect(block).toContain('Return exactly 1 string(s) in "characters". Also fill "meaning".');
+    expect(block).toContain('Return exactly 1 string(s) in "characters".');
+    expect(block).not.toContain("meaning");
   });
 
   it("treats a word whose pinyin does not split as one group", () => {
@@ -139,7 +141,7 @@ describe("mnemonic facts block and repair prompt", () => {
 
   it("lists the defects in the repair prompt", () => {
     expect(buildMnemonicRepairPrompt(["a", "b"])).toBe(
-      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good. Where a Chinese character, an English word or a letter crept into a picture group or the meaning, replace it with an emoji or leave it out."
+      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good. Where a Chinese character, an English word or a letter crept into a picture group, replace it with an emoji or leave it out."
     );
   });
 
@@ -193,12 +195,12 @@ describe("MnemonicService.generate", () => {
 
   it("sends the fixed system prompt, the user's template plus the facts, and the schema", async () => {
     const { chatJson, service } = serviceWith(
-      [reply({ characters: ["🐱"], meaning: "🐾", story: "You see 猫 (māo) purr." })],
+      [reply({ characters: ["🐱"], story: "You see 猫 (māo) purr." })],
       "Make a mnemonic for {word} ({pinyin})."
     );
     const out = await service.generate(single);
 
-    expect(out).toEqual({ mnemonic: "🐱¹🐾", story: "You see 猫 (māo) purr." });
+    expect(out).toEqual({ mnemonic: "🐱¹", story: "You see 猫 (māo) purr." });
     expect(chatJson).toHaveBeenCalledTimes(1);
     expect(chatJson).toHaveBeenCalledWith(
       MNEMONIC_SYSTEM_PROMPT,
@@ -209,16 +211,16 @@ describe("MnemonicService.generate", () => {
   });
 
   it("falls back to the default template when the setting was cleared", async () => {
-    const { chatJson, service } = serviceWith([reply({ characters: ["🐱"], meaning: "🐾", story: "" })], "");
+    const { chatJson, service } = serviceWith([reply({ characters: ["🐱"], story: "" })], "");
     await service.generate(single);
     expect(chatJson.mock.calls[0][1]).toBe(
       `${buildMnemonicUserPrompt(DEFAULT_MNEMONIC_USER_TEMPLATE, single)}\n\n${buildMnemonicFactsBlock(wordShape("猫", "māo"))}`
     );
   });
 
-  it("puts each tone number right after its own character's group and drops the meaning strip", async () => {
+  it("puts each tone number right after its own character's group, with no separate meaning strip", async () => {
     const { chatJson, service } = serviceWith(
-      [reply({ characters: ["🗺️", "📖", "🏛️"], meaning: "📚🏛️", story: "A 图书馆 and 馆 (guān)." })],
+      [reply({ characters: ["🗺️", "📖", "🏛️"], story: "A 图书馆 and 馆 (guān)." })],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
     const out = await service.generate(multi);
@@ -232,8 +234,8 @@ describe("MnemonicService.generate", () => {
   it("asks once more when a rule is broken and uses the corrected answer", async () => {
     const { chatJson, service } = serviceWith(
       [
-        reply({ characters: ["🗺️图", "📖", "🏛️"], meaning: "", story: "x" }),
-        reply({ characters: ["🗺️", "📖", "🏛️"], meaning: "", story: "y" }),
+        reply({ characters: ["🗺️图", "📖", "🏛️"], story: "x" }),
+        reply({ characters: ["🗺️", "📖", "🏛️"], story: "y" }),
       ],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
@@ -246,8 +248,8 @@ describe("MnemonicService.generate", () => {
   it("keeps the first answer when the repair is worse, and reports what is still wrong", async () => {
     const { service } = serviceWith(
       [
-        reply({ characters: ["🗺️图", "📖", "🏛️"], meaning: "", story: "x" }),
-        reply({ characters: ["🗺️图", "📖书", "🏛️"], meaning: "", story: "y" }),
+        reply({ characters: ["🗺️图", "📖", "🏛️"], story: "x" }),
+        reply({ characters: ["🗺️图", "📖书", "🏛️"], story: "y" }),
       ],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
@@ -261,7 +263,7 @@ describe("MnemonicService.generate", () => {
   it("keeps the first answer when the repair call fails or is unreadable", async () => {
     for (const second of [new Error("rate limited"), "not json at all"]) {
       const { service } = serviceWith(
-        [reply({ characters: ["🗺️", "📖"], meaning: "", story: "x" }), second],
+        [reply({ characters: ["🗺️", "📖"], story: "x" }), second],
         DEFAULT_MNEMONIC_USER_TEMPLATE
       );
       const out = await service.generate(multi);
@@ -272,7 +274,7 @@ describe("MnemonicService.generate", () => {
 
   it("writes the name badge and the tones itself when the model says the word is a name", async () => {
     const { chatJson, service } = serviceWith(
-      [reply({ isName: true, characters: [], meaning: "", story: "Here 马 (mǎ) is part of a name." })],
+      [reply({ isName: true, characters: [], story: "Here 马 (mǎ) is part of a name." })],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
     const out = await service.generate({ surface: "马克", pinyin: "mǎ kè", sentence: "马克来了。" });
@@ -281,45 +283,42 @@ describe("MnemonicService.generate", () => {
   });
 
   it("says plainly that it is a name when the model gave no sentence", async () => {
-    const { service } = serviceWith([reply({ isName: true, characters: [], meaning: "", story: "" })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    const { service } = serviceWith([reply({ isName: true, characters: [], story: "" })], DEFAULT_MNEMONIC_USER_TEMPLATE);
     expect((await service.generate({ surface: "马克", pinyin: "mǎ kè" })).story).toBe("马克 (mǎ kè) is a name here.");
-    const odd = serviceWith([reply({ isName: true, characters: [], meaning: "", story: "" })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    const odd = serviceWith([reply({ isName: true, characters: [], story: "" })], DEFAULT_MNEMONIC_USER_TEMPLATE);
     expect((await odd.service.generate({ surface: "马克", pinyin: "mǎ" })).story).toBe("马克 is a name here.");
   });
 
-  it("asks again when the meaning is a word, and never lets the word reach the line", async () => {
+  it("asks again when a group is a word, and never lets the word reach the line", async () => {
     const { chatJson, service } = serviceWith(
-      [
-        reply({ characters: ["🏁"], meaning: "done", story: "x" }),
-        reply({ characters: ["🏁"], meaning: "done", story: "x" }),
-      ],
+      [reply({ characters: ["🏁 done"], story: "x" }), reply({ characters: ["🏁 done"], story: "x" })],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
     const out = await service.generate({ surface: "了", pinyin: "le" });
     expect(chatJson).toHaveBeenCalledTimes(2);
-    expect(chatJson.mock.calls[1][1]).toContain('"meaning" contains something other than emoji');
+    expect(chatJson.mock.calls[1][1]).toContain("Picture group 1 contains something other than emoji");
     expect(out.mnemonic).toBe("🏁⁰");
-    expect(out.notes).toEqual([expect.stringContaining("use a symbol emoji")]);
+    expect(out.notes).toEqual([expect.stringContaining("something other than emoji")]);
     const fixed = serviceWith(
-      [reply({ characters: ["🏁"], meaning: "done", story: "x" }), reply({ characters: ["🏁"], meaning: "✅", story: "x" })],
+      [reply({ characters: ["🏁 done"], story: "x" }), reply({ characters: ["✅"], story: "x" })],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
-    expect((await fixed.service.generate({ surface: "了", pinyin: "le" })).mnemonic).toBe("🏁⁰✅");
+    expect((await fixed.service.generate({ surface: "了", pinyin: "le" })).mnemonic).toBe("✅⁰");
   });
 
   it("writes one group plus every tone for a word whose pinyin does not split", async () => {
     const { service } = serviceWith(
-      [reply({ characters: ["🎮👶"], meaning: "🎉", story: "x" })],
+      [reply({ characters: ["🎮👶"], story: "x" })],
       DEFAULT_MNEMONIC_USER_TEMPLATE
     );
     const out = await service.generate({ surface: "玩儿", pinyin: "wánr" });
-    expect(out.mnemonic).toBe("🎮👶²🎉");
+    expect(out.mnemonic).toBe("🎮👶²");
   });
 
   it("omits an empty story and clamps a runaway one", async () => {
-    const empty = serviceWith([reply({ characters: ["🐱"], meaning: "🐾", story: "   " })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    const empty = serviceWith([reply({ characters: ["🐱"], story: "   " })], DEFAULT_MNEMONIC_USER_TEMPLATE);
     expect((await empty.service.generate(single)).story).toBeUndefined();
-    const long = serviceWith([reply({ characters: ["🐱"], meaning: "🐾", story: "s".repeat(2500) })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    const long = serviceWith([reply({ characters: ["🐱"], story: "s".repeat(2500) })], DEFAULT_MNEMONIC_USER_TEMPLATE);
     expect((await long.service.generate(single)).story).toHaveLength(2000);
   });
 
@@ -331,21 +330,20 @@ describe("MnemonicService.generate", () => {
 
 describe("parseMnemonicAnswer", () => {
   it("parses a clean JSON object", () => {
-    expect(parseMnemonicAnswer('{"isName":false,"characters":["a"],"meaning":"m","story":"s"}')).toEqual({
+    expect(parseMnemonicAnswer('{"isName":false,"characters":["a"],"story":"s"}')).toEqual({
       isName: false,
       characters: ["a"],
-      meaning: "m",
       story: "s",
     });
   });
 
   it("salvages JSON wrapped in prose and code fences", () => {
     const raw = 'Sure! Here you go:\n```json\n{"characters":["a"]}\n```\nHope that helps.';
-    expect(parseMnemonicAnswer(raw)).toEqual({ isName: false, characters: ["a"], meaning: "", story: "" });
+    expect(parseMnemonicAnswer(raw)).toEqual({ isName: false, characters: ["a"], story: "" });
   });
 
-  it("treats a missing or non-string meaning and story as empty", () => {
-    expect(parseMnemonicAnswer('{"characters":[],"meaning":3,"story":null}')).toEqual({ isName: false, characters: [], meaning: "", story: "" });
+  it("treats a missing or non-string story as empty, and ignores a meaning an older prompt would have sent", () => {
+    expect(parseMnemonicAnswer('{"characters":[],"meaning":"x","story":null}')).toEqual({ isName: false, characters: [], story: "" });
   });
 
   it("reads the name flag only when it is exactly true", () => {
@@ -369,7 +367,7 @@ describe("parseMnemonicAnswer", () => {
   });
 
   it("advertises a schema matching what the parser accepts", () => {
-    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["isName", "characters", "meaning", "story"]);
+    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["isName", "characters", "story"]);
     expect(MNEMONIC_SCHEMA.additionalProperties).toBe(false);
   });
 

@@ -27,8 +27,6 @@ const EMOJI_TOKEN =
 /** The emoji a model writes to say that a word is a name in the sentence it came from. */
 export const NAME_EMOJI = "\u{1F4DB}";
 
-export const MNEMONIC_MEANING_MAX_GRAPHEMES = 14;
-
 const TONE_SUPERSCRIPT: Record<number, string> = { 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁰" };
 
 export function isHanChar(ch: string): boolean {
@@ -76,11 +74,6 @@ export function expectedGroups(shape: WordShape): number {
   return shape.syllables ? shape.chars.length : 1;
 }
 
-/** Only a single group leaves room for a separate "meaning" strip; several groups carry the meaning between them. */
-export function wantsMeaning(shape: WordShape): boolean {
-  return expectedGroups(shape) === 1;
-}
-
 /** Graphemes left for the model's own emoji once the tone numbers are in. */
 export function pictureBudget(shape: WordShape): number {
   return MNEMONIC_LINE_MAX_GRAPHEMES - shape.tones.length;
@@ -88,7 +81,6 @@ export function pictureBudget(shape: WordShape): number {
 
 export interface MnemonicParts {
   characters: string[];
-  meaning: string;
   /** The model says the word is used as a name in the sentence; the app then writes the name badge itself. */
   isName?: boolean;
 }
@@ -105,7 +97,7 @@ function hasNonEmoji(text: string): boolean {
 /**
  * The line the app writes: each character's picture group followed by that character's tone number, so the tone
  * stays attached to the right character. A single group (one character, or a word whose pinyin did not split) is
- * followed by every tone in order, then the meaning strip.
+ * followed by every tone in order.
  */
 export function assembleLine(parts: MnemonicParts, shape: WordShape): string {
   return clampGraphemes(assembleLineUnclamped(parts, shape));
@@ -128,15 +120,6 @@ export function validateParts(parts: MnemonicParts, shape: WordShape): string[] 
       issues.push(`Picture group ${i + 1} contains something other than emoji (no Chinese characters, words, letters, digits or punctuation; the app adds the tone numbers).`);
     }
   });
-  if (wantsMeaning(shape)) {
-    const m = parts.meaning.trim();
-    if (!m) issues.push(`"meaning" is empty.`);
-    else if (hasNonEmoji(m)) {
-      issues.push(`"meaning" contains something other than emoji; no words or letters, so use a symbol emoji (for example ✅ for completed).`);
-    } else if (graphemeLength(emojiOnly(m)) > MNEMONIC_MEANING_MAX_GRAPHEMES) {
-      issues.push(`"meaning" must be one short emoji strip (at most ${MNEMONIC_MEANING_MAX_GRAPHEMES} characters), not a sentence or a list.`);
-    }
-  }
   if (graphemeLength(assembleLineUnclamped(parts, shape)) > MNEMONIC_LINE_MAX_GRAPHEMES) {
     issues.push(`The finished line is over the ${MNEMONIC_LINE_MAX_GRAPHEMES}-character limit; use fewer emoji.`);
   }
@@ -151,7 +134,7 @@ function assembleLineUnclamped(parts: MnemonicParts, shape: WordShape): string {
   if (shape.syllables && shape.chars.length > 1) {
     return shape.chars.map((_, i) => `${groups[i] ?? ""}${toneMark(shape.tones[i])}`).join("");
   }
-  return `${groups[0] ?? ""}${marks}${emojiOnly(parts.meaning)}`;
+  return `${groups[0] ?? ""}${marks}`;
 }
 
 function normPinyin(p: string): string {
