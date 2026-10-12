@@ -2240,3 +2240,89 @@
   gap: 0.5rem;
   margin-top: 1rem;
 }
+
+/* Illustrations in the "What's new" popup: built from the real interface elements, not clickable. */
+.cci-whatsnew-modal .cci-whatsnew-figure {
+  pointer-events: none;
+  margin: 0.5rem 0 0.2rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+}
+.cci-whatsnew-modal .cci-fig-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+}
+.cci-whatsnew-modal .cci-fig-label {
+  flex: 0 0 3rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.cci-whatsnew-modal .cci-fig-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+  overflow: hidden;
+}
+.cci-whatsnew-modal .cci-fig-btn {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+}
+.cci-whatsnew-modal .cci-fig-btn svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+.cci-whatsnew-modal .cci-fig-pills {
+  display: inline-flex;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.cci-whatsnew-modal .cci-fig-pill {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.7rem;
+  background: var(--interactive-normal);
+}
+.cci-whatsnew-modal .cci-fig-pill.is-on {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+.cci-whatsnew-modal .cci-fig-mode {
+  padding: 0.25rem 0.55rem;
+  border-radius: 4px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.cci-whatsnew-modal .cci-fig-caption {
+  margin-top: 0.3rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.cci-whatsnew-modal .cci-fig-word {
+  text-align: center;
+  line-height: 1.3;
+}
+.cci-whatsnew-modal .cci-fig-mnemonic {
+  font-size: 1.2rem;
+}
+.cci-whatsnew-modal .cci-fig-pinyin {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.cci-whatsnew-modal .cci-fig-hanzi {
+  font-size: 1.6rem;
+}

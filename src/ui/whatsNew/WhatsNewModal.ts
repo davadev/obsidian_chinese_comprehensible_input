@@ -1,5 +1,6 @@
 import { App, Modal } from "obsidian";
 import { liftModal } from "../modalLayer";
+import { renderFigure } from "./figures";
 import type { ReleaseNote } from "./releaseNotes";
 
 /** The "What's new" popup: one section per release note, one button. See `releaseNotes.ts` for when it appears. */
@@ -23,6 +24,7 @@ export class WhatsNewModal extends Modal {
         const li = list.createEl("li");
         li.createEl("strong", { text: item.title });
         li.appendChild(activeDocument.createTextNode(` — ${item.text}`));
+        if (item.figure) renderFigure(li, item.figure);
       }
     });
     const actions = contentEl.createDiv({ cls: "cci-whatsnew-actions" });

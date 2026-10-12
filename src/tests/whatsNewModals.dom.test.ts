@@ -5,6 +5,8 @@ import { installObsidianDom } from "./__mocks__/obsidianDom";
 import { WhatsNewModal } from "../ui/whatsNew/WhatsNewModal";
 import { AiSetupModal } from "../ui/AiSetupModal";
 import type { ReleaseNote } from "../ui/whatsNew/releaseNotes";
+import { FIGURE_IDS, renderFigure } from "../ui/whatsNew/figures";
+import { RELEASE_NOTES } from "../ui/whatsNew/releaseNotes";
 
 /** The two small dialogs: the one-time "What's new" popup and the "Set up AI first" prompt. */
 
@@ -31,6 +33,15 @@ describe("WhatsNewModal", () => {
     const close = vi.spyOn(modal, "close");
     btn(root, "Got it").click();
     expect(close).toHaveBeenCalled();
+  });
+
+  it("draws an item's illustration under its text, and only for items that have one", () => {
+    const withFigure: ReleaseNote[] = [{ version: "0.9.0", title: "T", intro: "I", items: [{ title: "A", text: "a", figure: "toolbar" }, { title: "B", text: "b" }] }];
+    const modal = new WhatsNewModal(new App() as any, withFigure);
+    modal.open();
+    const items = Array.from((modal.contentEl as HTMLElement).querySelectorAll("li"));
+    expect(items[0].querySelector(".cci-whatsnew-figure.cci-fig-toolbar")).toBeTruthy();
+    expect(items[1].querySelector(".cci-whatsnew-figure")).toBeNull();
   });
 
   it("empties itself when closed", () => {
@@ -77,5 +88,41 @@ describe("AiSetupModal", () => {
     expect(close).toHaveBeenCalled();
     again.modal.close();
     expect(again.root.textContent).toBe("");
+  });
+});
+
+describe("figures", () => {
+  const draw = (id: "toolbar" | "mnemonic") => renderFigure(document.createElement("div"), id);
+
+  it("are decoration only: hidden from screen readers and not clickable", () => {
+    for (const id of FIGURE_IDS) expect(draw(id).getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("show the toolbar before and now: two pills become one button", () => {
+    const fig = draw("toolbar");
+    const lines = Array.from(fig.querySelectorAll(".cci-fig-line"));
+    expect(lines.map((l) => l.querySelector(".cci-fig-label")!.textContent)).toEqual(["Before", "Now"]);
+    expect(lines[0].querySelectorAll(".cci-fig-pill")).toHaveLength(2);
+    expect(lines[0].querySelector(".cci-fig-pill.is-on")!.textContent).toBe("Status");
+    expect(lines[0].querySelector(".cci-fig-mode")).toBeNull();
+    expect(lines[1].querySelectorAll(".cci-fig-pill")).toHaveLength(0);
+    expect(lines[1].querySelector(".cci-fig-mode")!.textContent).toBe("Status");
+    // the same icon buttons around it on both rows
+    expect(lines[0].querySelectorAll(".cci-fig-btn")).toHaveLength(lines[1].querySelectorAll(".cci-fig-btn").length);
+    expect(fig.querySelector(".cci-fig-caption")!.textContent).toContain("tap it to switch");
+  });
+
+  it("show a mnemonic as it appears over a word, with the tone after each picture", () => {
+    const fig = draw("mnemonic");
+    expect(fig.querySelector(".cci-fig-mnemonic")!.textContent).toBe("🗺️²📖¹🏛️³");
+    expect(fig.querySelector(".cci-fig-hanzi")!.textContent).toBe("图书馆");
+    expect(fig.querySelector(".cci-fig-pinyin")!.textContent).toBe("tú shū guǎn");
+  });
+
+  it("are all known: every figure a release note asks for exists", () => {
+    for (const n of RELEASE_NOTES) for (const i of n.items) if (i.figure) expect(FIGURE_IDS).toContain(i.figure);
+    // few enough that the popup does not become a gallery
+    const count = RELEASE_NOTES[0].items.filter((i) => i.figure).length;
+    expect(count).toBeLessThanOrEqual(3);
   });
 });

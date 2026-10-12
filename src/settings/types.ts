@@ -382,6 +382,8 @@ export interface CciSettings {
   mnemonicsFirst: boolean;
   /** The newest release the "What's new" popup has already shown (see ui/whatsNew). Per device: never synced. */
   lastSeenVersion: string;
+  /** The newest release note this device has already been *hinted* about (an update applied while Obsidian was running). Per device. */
+  whatsNewHintedFor: string;
   explain: ExplainSettings;
   /** Which words "Mnemonics for this note" in the reader menu covers (known and ignored words are never included). */
   batchMnemonicScope: BatchMnemonicScope;

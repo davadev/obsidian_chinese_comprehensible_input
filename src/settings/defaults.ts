@@ -158,6 +158,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   mnemonicsFirst: false,
   batchMnemonicScope: "notKnown",
   lastSeenVersion: "",
+  whatsNewHintedFor: "",
   // A subfolder of where generated stories go, so everything the AI writes into the vault lives in one place.
   explain: { folder: `${GENERATED_NOTES_FOLDER_DEFAULT}/Explanations`, openAfterSave: true, pinyinInExamples: true },
   readerFontPx: 22,
