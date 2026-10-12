@@ -443,12 +443,13 @@ describe("Explain prompts", () => {
     );
   });
 
-  it("asks for every section the issue promises, honesty about etymology, and JSON only", () => {
+  it("asks for every section the issue promises, no invented breakdown or etymology, and JSON only", () => {
     for (const field of ["summary", "whenYouNeedIt", "senses", "grammar", "collocations", "examples", "pitfalls", "similar", "characters", "notes"]) {
       expect(EXPLAIN_SYSTEM_PROMPT).toContain(`"${field}"`);
     }
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/DIFFERENT contexts and registers/);
-    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Do not invent a breakdown or an etymology/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Do not write the radical, how the character is built or where it comes from/);
+    expect(EXPLAIN_SYSTEM_PROMPT).not.toMatch(/etymology|decomposition|confidence/i);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Build each one only from something you have already put in this note/);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/\"similar-word\".*\"pattern\".*\"english-habit\".*\"register\"/);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/an empty list is better than a weak pitfall/);

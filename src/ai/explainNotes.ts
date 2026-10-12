@@ -1,6 +1,7 @@
 import { App, normalizePath, TFile } from "obsidian";
 import type { DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { displayPinyin } from "../dictionary/displayForms";
+import { radicalOf } from "../dictionary/radicals";
 import { makeKey, shortenDefinition } from "../dictionary/normalizeChinese";
 import type { PronunciationRegion, ScriptVariant } from "../settings/types";
 import type { WordRecord } from "../vocabulary/VocabularyTypes";
@@ -63,6 +64,7 @@ export function explainInputFor(deps: ExplainDeps, surface: string, sentence: st
       char,
       pinyin: shape.syllables?.[i] ?? displayPinyin(deps.lookup(char)[0], undefined, deps.region),
       gloss: characterGloss(deps.lookup(char)),
+      radical: radicalOf(char),
     })),
     sentence,
     script: resolveAiScript(deps.scriptVariant, [surface], deps.countTraditionalMarkers),

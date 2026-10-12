@@ -14,8 +14,8 @@ const INPUT = {
   hskLevels: ["3"],
   entries: [{ pinyin: "fāng biàn", definitions: ["convenient"] }],
   chars: [
-    { char: "方", pinyin: "fāng", gloss: "square" },
-    { char: "便", pinyin: "biàn", gloss: "convenient" },
+    { char: "方", pinyin: "fāng", gloss: "square", radical: "方 (square)" },
+    { char: "便", pinyin: "biàn", gloss: "convenient", radical: "人 / 亻 (person)" },
   ],
   sentence: "住在这里很方便。",
   script: "simplified" as const,
@@ -53,6 +53,23 @@ describe("ExplainService.generate", () => {
     const expected = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, { extra: "Explain in German.", override: "" });
     expect(chatJson.mock.calls.map((c) => c[0])).toEqual([expected, expected]);
     expect(expected).toContain("Explain in German.");
+  });
+
+  it("takes each character's radical from the plugin's own lookup, whatever the model wrote, for the answer and for the repair", async () => {
+    const wrong = (raw: string) => {
+      const r = JSON.parse(raw);
+      r.characters = r.characters.map((c: any) => ({ ...c, radical: "佳 (made up)", components: "invented", etymology: "invented", confidence: "established" }));
+      return JSON.stringify(r);
+    };
+    const first = serviceWith([wrong(good())]);
+    const out = await first.service.generate(INPUT);
+    expect(out.result.characters.map((c) => c.radical)).toEqual(["方 (square)", "人 / 亻 (person)"]);
+    expect(out.result.characters[0]).not.toHaveProperty("components");
+    const repaired = serviceWith([bad(), wrong(good())]);
+    expect((await repaired.service.generate(INPUT)).result.characters.map((c) => c.radical)).toEqual(["方 (square)", "人 / 亻 (person)"]);
+    // a character the facts did not list gets no radical rather than a stale one
+    const short = serviceWith([good()]);
+    expect((await short.service.generate({ ...INPUT, chars: [INPUT.chars[0]] })).result.characters[1].radical).toBe("");
   });
 
   it("asks once more with the specific defects and keeps the corrected answer", async () => {

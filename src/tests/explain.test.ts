@@ -20,7 +20,8 @@ const CTX = { forms: ["方便"], charCount: 2 };
 
 describe("normaliseExplain", () => {
   it("keeps a complete answer as it is", () => {
-    expect(normaliseExplain(clone(FULL))).toEqual(FULL);
+    // the radical is filled in by the plugin afterwards, so a bare normalise leaves it empty
+    expect(normaliseExplain(clone(FULL))).toEqual({ ...FULL, characters: FULL.characters.map((c) => ({ ...c, radical: "" })) });
   });
 
   it("turns anything missing, mistyped or odd into empty values instead of crashing", () => {
@@ -36,11 +37,17 @@ describe("normaliseExplain", () => {
     expect(r.whenYouNeedIt).toEqual(["a"]);
     expect(r.senses).toEqual([{ label: "L", meaning: "", example: "", exampleEnglish: "" }]);
     expect(r.grammar).toEqual({ pattern: "", measureWord: "", notes: [] });
-    expect(r.characters[0]).toMatchObject({ character: "方", confidence: "uncertain" });
+    expect(r.characters[0]).toMatchObject({ character: "方", radical: "" });
     expect(r.examples).toEqual([]);
     expect(normaliseExplain(null).summary).toBe("");
     expect(normaliseExplain("text").notes).toEqual([]);
-    expect(normaliseExplain({ characters: [{ confidence: "established" }] }).characters[0].confidence).toBe("established");
+    // the radical is the plugin's to fill in; whatever a model writes there, or for the breakdown and origin, is dropped
+    expect(normaliseExplain({ characters: [{ character: "方", radical: "亻 (person)", components: "x", etymology: "y", confidence: "established" }] }).characters[0]).toEqual({
+      character: "方",
+      pinyin: "",
+      meaning: "",
+      radical: "",
+    });
   });
 });
 
@@ -218,22 +225,11 @@ describe("renderExplainMarkdown", () => {
     expect(validateExplain({ ...clone(FULL), pitfalls: r.pitfalls }, CTX)).toEqual([]);
   });
 
-  it("describes each character, and marks an uncertain origin", () => {
-    expect(md).toContain("- **Radical:** 亻 (person)");
-    expect(md).toContain("- **Built from:** 亻 (person) beside 更 (change)");
-    expect(md).toContain("- **Origin:** A person adjusting things.\n");
-    const uncertain = renderExplainMarkdown(
-      { ...FULL, characters: [{ ...FULL.characters[0], etymology: "A folk story.", confidence: "uncertain" }] },
-      META
-    );
-    expect(uncertain).toContain("- **Origin:** A folk story. *(not settled; a popular or uncertain account)*");
-    // the doubt covers the breakdown too: with no origin it goes on the "Built from" line
-    const split = renderExplainMarkdown(
-      { ...FULL, characters: [{ ...FULL.characters[0], components: "A and B", etymology: "", confidence: "uncertain" }] },
-      META
-    );
-    expect(split).toContain("- **Built from:** A and B *(not settled; a popular or uncertain account)*");
-    expect(split).not.toContain("**Origin:**");
+  it("describes each character with its radical, and nothing about how it was built or where it comes from", () => {
+    expect(md).toContain("- **Radical:** 人 / 亻 (person)");
+    expect(md).not.toContain("Built from");
+    expect(md).not.toContain("Origin");
+    expect(md).not.toContain("not settled");
   });
 
   it("can leave the pinyin lines out", () => {
@@ -271,7 +267,7 @@ describe("renderExplainMarkdown", () => {
   it("copes with rows that have no pinyin, no example or no translation", () => {
     const r = clone(FULL);
     r.similar = [{ word: "便利", pinyin: "", difference: "More formal." }];
-    r.characters = [{ ...FULL.characters[0], pinyin: "", etymology: "", components: "", radical: "" }];
+    r.characters = [{ ...FULL.characters[0], pinyin: "", radical: "" }];
     r.collocations = [{ chinese: "很方便", pinyin: "", english: "very convenient" }];
     r.senses = [{ label: "Only", meaning: "m", example: "例子", exampleEnglish: "" }];
     r.examples = [{ context: "", chinese: "很方便。", pinyin: "", english: "Handy." }];

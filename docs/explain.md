@@ -1,7 +1,7 @@
 # Explain
 
 **Explain** writes a thorough usage note for one word: not just the translation (the dictionary card and **Enhance**
-already do that), but *when you need it, how to use it, how learners get it wrong, and how it is built*. It shows the
+already do that), but *when you need it, how to use it, how learners get it wrong, and what its characters are*. It shows the
 note in a dialog first (with a progress bar while it is written, usually 20 to 40 seconds); nothing is saved to your vault until you press **Save**.
 
 It appears on the word card as **Explain**, next to Mnemonic and Edit. If AI is not set up yet, pressing it explains what
@@ -15,7 +15,7 @@ Beyond single words, the lightbulb tool [explains a phrase or sentence](#explain
 <img width="560" src="../resources/screenshots/explain-word-annotated.png" alt="A word note: sections, watch-out list, cost and Save">
 
 **1** *When you need this word*: concrete situations · **2** *Watch out*: a rule and the correct form · **3** *The characters*:
-meaning, radical, how each is built · **4** what it cost on OpenAI · **5** **Save as note** (next to Copy, Regenerate and Close).
+meaning and radical · **4** what it cost on OpenAI · **5** **Save as note** (next to Copy, Regenerate and Close).
 
 Every note has the same layout, so it is easy to scan on a phone:
 
@@ -29,7 +29,7 @@ Every note has the same layout, so it is easy to scan on a phone:
 | **Examples** | Five to eight natural sentences in different contexts and registers (daily life, work, spoken, formal), each with pinyin and English. |
 | **Watch out** | Pitfalls that really trip learners up: a rule in one line and the correct form. Each is built from something the note already says (a confusion with a similar word, the sentence pattern, a habit carried over from English, or a register slip), and there may be none. |
 | **Similar words** | Near-synonyms and easily confused words, and when to choose which. |
-| **The characters** | For each character: its meaning, radical, how it is built from parts (which part gives the sound and which the meaning), and where it comes from. |
+| **The characters** | For each character: its pinyin, its meaning, and its radical. The radical is looked up in Unicode's Unihan data by the plugin, not written by the AI. |
 | **Notes** | Mainland vs Taiwan differences, politeness, frequency, related idioms. |
 
 Example sentences are ordinary Chinese paragraphs in the note, so the plugin's reader annotates them like any other note
@@ -50,8 +50,10 @@ model free rein:
 - **Pitfalls are the weakest part.** Writing a realistic wrong sentence needs knowledge of real learner errors, which a
   model does not reliably have (in tests it often called fine Chinese wrong). So the note shows no wrong examples at
   all: only a short rule tied to the rest of the note and the correct form, and the section is left out rather than padded.
-- **Etymology is marked when it is shaky.** Each character's origin is labelled *established* or *a popular or uncertain
-  account*; the model is told to leave it out rather than invent one.
+- **No made-up character stories.** How a character was built and where it comes from are not asked of the AI at all:
+  models answer those from memory and small ones invent them (a local model once gave 的 the radical 阝 and a
+  "grain pictograph" origin). The only structural fact shown is the **radical**, which the plugin looks up itself in
+  Unicode's Unihan data; a simplified character shows the simplified form of its radical (讠 for 讲).
 
 ## Explaining or proof reading a phrase (the lightbulb)
 

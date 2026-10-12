@@ -40,10 +40,10 @@ export class ExplainService {
     const user = buildExplainUserPrompt(input);
     const ctx = contextFor(input);
     const system = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, this.custom());
-    let result = parse(await this.ai.chatJson(system, user, "Explain", EXPLAIN_SCHEMA, true));
+    let result = withRadicals(parse(await this.ai.chatJson(system, user, "Explain", EXPLAIN_SCHEMA, true)), input);
     let issues = validateExplain(result, ctx);
     if (issues.length > 0) {
-      const again = await this.repair(system, user, issues);
+      const again = await this.repair(system, user, issues, input);
       if (again) {
         const remaining = validateExplain(again, ctx);
         // Keep the repair only if it is no worse than the first answer.
@@ -57,16 +57,13 @@ export class ExplainService {
   }
 
   /** One extra try. A failure here must not cost the learner the first answer. */
-  private async repair(system: string, user: string, issues: string[]): Promise<ExplainResult | null> {
+  private async repair(system: string, user: string, issues: string[], input: ExplainInput): Promise<ExplainResult | null> {
     try {
-      return parse(
-        await this.ai.chatJson(
-          system,
-          `${user}\n\n${buildExplainRepairPrompt(issues)}`,
-          "Explain",
-          EXPLAIN_SCHEMA,
-          true
-        )
+      return withRadicals(
+        parse(
+          await this.ai.chatJson(system, `${user}\n\n${buildExplainRepairPrompt(issues)}`, "Explain", EXPLAIN_SCHEMA, true)
+        ),
+        input
       );
     } catch {
       return null;
@@ -82,6 +79,14 @@ export function contextFor(input: ExplainInput): ExplainContext {
 }
 
 /** Pull the first balanced `{ … }` block out of `raw` and read it. Tolerant of prose and code fences around it. */
+/**
+ * Each character's radical comes from the plugin's own lookup (Unicode Unihan), matched by position, whatever the model
+ * wrote. A model answering from memory gets radicals and decompositions wrong; the lookup does not.
+ */
+function withRadicals(result: ExplainResult, input: ExplainInput): ExplainResult {
+  return { ...result, characters: result.characters.map((c, i) => ({ ...c, radical: input.chars[i]?.radical ?? "" })) };
+}
+
 function parse(raw: string): ExplainResult {
   const trimmed = raw.trim();
   const first = trimmed.indexOf("{");

@@ -20,6 +20,7 @@
 | `src/view/ViewToolbar.ts` | Toolbar with display mode selector, marking buttons, overflow menu |
 | `src/ai/prompts.ts` | Every built-in prompt and `systemPromptWith()`, which adds the learner's own instructions or replacement (Settings → AI provider → AI prompts) |
 | `src/ai/mnemonicFacts.ts` | What the app computes for a mnemonic itself: word shape, tone numbers, the assembled emoji line |
+| `src/dictionary/radicals.ts` | `radicalOf()`: a character's Kangxi radical from the generated Unihan table (`radicalMap.generated.ts`, `npm run build:radicals`) |
 | `src/ai/explain.ts`, `phrase.ts`, `proofread.ts` | Schemas, validators and the shared `Block` model that the previews and the saved Markdown both render |
 | `src/ui/ExplainModal.ts`, `PhraseModal.ts`, `BatchMnemonicModal.ts` | The Explain, lightbulb (phrase / proof read) and "Mnemonics for this note" dialogs; `usageMeter.ts` shows the OpenAI cost |
 | `src/ui/whatsNew/` | The one-time "What's new" popup: `releaseNotes.ts` (add an entry per release), `figures.ts` (illustrations drawn from the real UI) |

@@ -25,8 +25,8 @@ export const FULL: ExplainResult = {
   ],
   similar: [{ word: "便利", pinyin: "biànlì", difference: "More formal, used for facilities and services." }],
   characters: [
-    { character: "方", pinyin: "fāng", meaning: "square; direction", radical: "方 (square)", components: "a single form", etymology: "", confidence: "uncertain" },
-    { character: "便", pinyin: "biàn", meaning: "convenient", radical: "亻 (person)", components: "亻 (person) beside 更 (change)", etymology: "A person adjusting things.", confidence: "established" },
+    { character: "方", pinyin: "fāng", meaning: "square; direction", radical: "方 (square)" },
+    { character: "便", pinyin: "biàn", meaning: "convenient", radical: "人 / 亻 (person)" },
   ],
   notes: ["In Taiwan 方便 is used the same way."],
 };
