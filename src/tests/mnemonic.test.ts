@@ -4,6 +4,9 @@ import {
   LEGACY_MNEMONIC_USER_TEMPLATE,
   MNEMONIC_SCHEMA,
   MNEMONIC_SYSTEM_PROMPT,
+  EXPLAIN_SYSTEM_PROMPT,
+  buildExplainRepairPrompt,
+  buildExplainUserPrompt,
   buildMnemonicFactsBlock,
   buildMnemonicRepairPrompt,
   buildMnemonicUserPrompt,
@@ -392,5 +395,60 @@ describe("graphemes on a runtime without Intl.Segmenter", () => {
       vi.unstubAllGlobals();
       vi.resetModules();
     }
+  });
+});
+
+describe("Explain prompts", () => {
+  const args = {
+    surface: "方便",
+    pinyin: "fāng biàn",
+    traditional: "方便",
+    hskLevels: ["3"],
+    entries: [
+      { pinyin: "fāng biàn", definitions: ["convenient", " ", "to make things easy"] },
+      { pinyin: "fāng bian", definitions: [] },
+    ],
+    chars: [
+      { char: "方", pinyin: "fāng", gloss: "square" },
+      { char: "便", pinyin: "biàn", gloss: "" },
+    ],
+    sentence: "  住在这里很方便。 ",
+    script: "traditional" as const,
+  };
+
+  it("hands the model the facts the plugin has, in a fixed order", () => {
+    const out = buildExplainUserPrompt(args);
+    expect(out).toContain("Word: 方便\nPinyin: fāng biàn\nTraditional: (same)\nLevel: HSK 3\n");
+    expect(out).toContain("Traditional characters as used in Taiwan");
+    expect(out).toContain("1. fāng biàn — convenient; to make things easy\n2. fāng bian — (no definition)");
+    expect(out).toContain("1. 方 fāng — square\n2. 便 biàn\n");
+    expect(out).toContain("(use it to pick the sense they need, but cover the other senses too): 住在这里很方便。");
+    expect(out.endsWith("Write the note now. Reply with JSON only.")).toBe(true);
+  });
+
+  it("copes with a word that is not in the dictionary, has no sentence and no HSK level", () => {
+    const out = buildExplainUserPrompt({ ...args, pinyin: "", traditional: "方便書", hskLevels: [], entries: [], sentence: undefined, script: "simplified" });
+    expect(out).toContain("Pinyin: (unknown)");
+    expect(out).toContain("Traditional: 方便書");
+    expect(out).toContain("Level: not in the HSK lists");
+    expect(out).toContain("(none: the word is not in the dictionary)");
+    expect(out).not.toContain("The learner met the word");
+    expect(buildExplainUserPrompt({ ...args, sentence: "   " })).not.toContain("The learner met the word");
+  });
+
+  it("lists the defects in the repair prompt", () => {
+    expect(buildExplainRepairPrompt(["a", "b"])).toBe(
+      "Your last answer broke these rules:\n- a\n- b\nReply again with the complete corrected JSON only, keeping what was already good."
+    );
+  });
+
+  it("asks for every section the issue promises, honesty about etymology, and JSON only", () => {
+    for (const field of ["summary", "whenYouNeedIt", "senses", "grammar", "collocations", "examples", "mistakes", "similar", "characters", "notes"]) {
+      expect(EXPLAIN_SYSTEM_PROMPT).toContain(`"${field}"`);
+    }
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/DIFFERENT contexts and registers/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Do not invent an etymology/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/no Markdown/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/No markdown code fences/);
   });
 });

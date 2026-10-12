@@ -33,6 +33,7 @@ import { AiProviderService } from "./ai/AiProviderService";
 import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
+import { ExplainService } from "./ai/ExplainService";
 import { MnemonicService } from "./ai/MnemonicService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import {
@@ -45,6 +46,7 @@ import { effectiveFormats } from "./editor/formatOptions";
 import { StatsView } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
 import { BatchMnemonicModal } from "./ui/BatchMnemonicModal";
+import { ExplainModal } from "./ui/ExplainModal";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
@@ -66,6 +68,7 @@ export default class CciPlugin extends Plugin {
   story!: StoryGenerator;
   enhance!: EnhanceDictionaryService;
   mnemonic!: MnemonicService;
+  explain!: ExplainService;
   popup!: WordPopup;
   /**
    * Per-entry dictionary overrides + user-added custom words. Live at
@@ -373,6 +376,8 @@ export default class CciPlugin extends Plugin {
     if (dm === "popup-only" || dm === "color-only") {
       this.settings.defaultDisplayMode = "none";
     }
+    // Same for the Explain settings (#186): a blob from before 0.9.0 has none, and a hand-edited one may miss a key.
+    this.settings.explain = { ...DEFAULT_SETTINGS.explain, ...this.settings.explain };
     // Merge customColors deeply so older blobs missing hsk subkeys get the defaults.
     this.settings.customColors = {
       ...DEFAULT_SETTINGS.customColors,
@@ -483,6 +488,7 @@ export default class CciPlugin extends Plugin {
     this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings, this.dictionary);
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.mnemonic = new MnemonicService(this.ai, () => this.settings);
+    this.explain = new ExplainService(this.ai);
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));
@@ -1492,6 +1498,15 @@ export default class CciPlugin extends Plugin {
         try { v.render(); } catch (e) { console.warn("CCI stats render failed", e); }
       }
     }
+  }
+
+  /** Word card: write (and optionally save) a thorough usage note for the word (see ExplainModal). */
+  openExplainModal(surface: string, sentence: string | undefined): void {
+    if (!this.settings.ai.enabled) {
+      new Notice("Enable AI in plugin settings first.");
+      return;
+    }
+    new ExplainModal(this.app, this, surface, sentence).open();
   }
 
   /** Reader menu: a mnemonic for every word of the open note that has none (see BatchMnemonicModal). */

@@ -5,7 +5,7 @@ import { axesFromStatus } from "../vocabulary/axes";
 import { clampGraphemes } from "../vocabulary/mnemonicText";
 import { DictionaryCustomWord, DictionaryEntry } from "../dictionary/DictionaryTypes";
 import { makeKey } from "../dictionary/normalizeChinese";
-import { counterpartSurface, displayPinyin } from "../dictionary/displayForms";
+import { counterpartSurface, displayPinyin, displaySurface } from "../dictionary/displayForms";
 
 export class WordPopup {
   private el: HTMLElement | null = null;
@@ -142,6 +142,7 @@ export class WordPopup {
       this.refresh();
     });
     this.action(actions, "Mnemonic", () => this.openMnemonicEditor(rec));
+    if (this.plugin.settings.ai.enabled) this.action(actions, "Explain", () => this.openExplain(rec));
     this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
     this.maybeRenderEnhance(actions, rec);
     this.maybeRenderRevert(actions, rec);
@@ -195,6 +196,15 @@ export class WordPopup {
       new MnemonicModal(this.plugin.app, this.plugin, rec, sentence).open();
       this.close();
     });
+  }
+
+  /** The Explain action (#186): a thorough usage note, previewed before anything is saved. Closes the card first for the
+   *  same z-index reason as the mnemonic editor above. */
+  private openExplain(rec: WordRecord): void {
+    // The form the learner reads, like the mnemonic editor: never a converted guess.
+    const surface = displaySurface(rec, this.plugin.settings.scriptVariant, this.plugin.dictionary);
+    this.plugin.openExplainModal(surface, this.sentence);
+    this.close();
   }
 
   /** "Enhance" button — only shown when AI is enabled, a sentence was

@@ -325,6 +325,21 @@ describe("the story modal, the word popup and marking", () => {
     expect(document.body.querySelector(".cci-modal-front")).toBeTruthy();
   });
 
+  it("the Explain dialog needs AI switched on too, and opens for the word", () => {
+    const off = plugin({ settings: settings((s) => (s.ai.enabled = false)) });
+    off.openExplainModal("方便", undefined);
+    expect(Notice.instances.at(-1)!.message).toBe("Enable AI in plugin settings first.");
+    const on = plugin({
+      settings: settings((s) => (s.ai.enabled = true)),
+      app: { workspace: workspace(), vault: { getMarkdownFiles: () => [] }, metadataCache: {} },
+      dictionary: { lookup: () => [], isTraditionalMarker: () => false },
+      vocab: { bySurface: () => undefined },
+      explain: { generate: () => new Promise(() => {}) },
+    });
+    on.openExplainModal("方便", "住在这里很方便。");
+    expect(document.body.querySelector(".cci-explain-modal")).toBeTruthy();
+  });
+
   it("the batch mnemonic dialog needs AI switched on too", () => {
     const off = plugin({ settings: settings((s) => (s.ai.enabled = false)) });
     off.openBatchMnemonicModal("你好");

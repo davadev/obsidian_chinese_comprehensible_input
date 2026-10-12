@@ -97,6 +97,7 @@ function make(o: Setup = {}) {
     setDictionaryOverride: vi.fn(async () => {}),
     setCustomWord: vi.fn(async () => {}),
     deleteDictionaryOverride: vi.fn(async () => {}),
+    openExplainModal: vi.fn(),
     enhance: { enhance: vi.fn(async () => ({ definitions: ["new def"], grammar: "verb", pinyin: "xué xi" })) },
   };
   const popup = new WordPopup(plugin);
@@ -402,6 +403,30 @@ describe("actions", () => {
     expect(modals.mnemonic[0].at(-1)).toBe("opened");
     await flush();
     expect(el()).toBeNull();
+  });
+
+  it("Explain hands the shown form of the word and the sentence to the dialog, then closes the card", () => {
+    const { popup, anchor, plugin } = make({ settings: (s) => (s.ai.enabled = true) });
+    popup.open("学习", anchor, new Event("click"), "我学习。");
+    btn("Explain").click();
+    expect(plugin.openExplainModal).toHaveBeenCalledWith("学习", "我学习。");
+    expect(el()).toBeNull();
+  });
+
+  it("Explain follows the script setting when the word was first met in the other script", () => {
+    const { popup, anchor, plugin } = make({
+      rec: rec({ surfaces: ["學習", "学习"] }),
+      settings: (s) => ((s.ai.enabled = true), (s.scriptVariant = "traditional")),
+    });
+    popup.open("學習", anchor, new Event("click"));
+    btn("Explain").click();
+    expect(plugin.openExplainModal).toHaveBeenCalledWith("學習", "");
+  });
+
+  it("offers Explain only when AI is on", () => {
+    const off = make({ settings: (s) => (s.ai.enabled = false) });
+    off.popup.open("学习", off.anchor, new Event("click"));
+    expect(btn("Explain")).toBeUndefined();
   });
 
   describe("Edit", () => {

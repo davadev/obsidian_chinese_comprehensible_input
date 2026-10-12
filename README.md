@@ -90,7 +90,7 @@ See [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md
 2. **"I know"** — tick characters / pinyin / translation; this sets the word's status.
 3. **Per-word stats** — HSK, times seen, last seen, status, SRS due date.
 4. **Exposure history** — recent sightings, feeding the stats and charts.
-5. **Actions** — Ignore, **Mnemonic** (write your own emoji line + story, or generate them with AI), Edit, or **Enhance** (AI, see below).
+5. **Actions** — Ignore, **Mnemonic** (write your own emoji line + story, or generate them with AI), **Explain** (AI: a thorough usage note you can save, see [Explain](./docs/explain.md)), Edit, or **Enhance** (AI, see below).
 
 ### Tap-to-format & highlights (mobile)
 
@@ -246,6 +246,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [OpenAI setup, privacy, and cost](./docs/openai-setup.md)
 - [Ollama tips: model choice and getting good output](./docs/ollama-tips.md)
 - [Mnemonics](./docs/mnemonics.md) — hand-written and AI-generated memory hooks, personalising the prompt
+- [Explain](./docs/explain.md) — an AI usage note for one word (senses, grammar, examples, common mistakes, similar words, character origins), previewed before you save it
 - [Story generation, end to end](./docs/story-generation.md)
 - [Display modes & colors](./docs/display-modes.md)
 - [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md) — Taiwan / Hong Kong script, Taiwan readings, and what is not covered
