@@ -223,6 +223,7 @@ export class WordPopup {
       const btn = parent.createEl("button", { text: "Enhance" });
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (!this.aiReady("Enhance")) return;
         void this.runEnhanceCustom(btn, custom, surface);
       });
       return;
@@ -234,8 +235,17 @@ export class WordPopup {
     const btn = parent.createEl("button", { text: "Enhance" });
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
+      if (!this.aiReady("Enhance")) return;
       void this.runEnhance(btn, rawTop, merged, surface);
     });
+  }
+
+  /** AI is switched on but may still have no key (OpenAI) or address (Ollama): say how to finish setting it up. */
+  private aiReady(what: string): boolean {
+    if (this.plugin.aiConfigured()) return true;
+    this.plugin.promptAiSetup(what);
+    this.close();
+    return false;
   }
 
   /** "Revert" button — only shown when an override exists for the top

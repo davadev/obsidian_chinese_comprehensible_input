@@ -161,6 +161,10 @@ In Obsidian → Settings → **Chinese Comprehensible Input** → AI provider:
 2. Paste the key into **OpenAI API key**.
 3. Click **Test connection**. You should see "AI provider reachable."
 
+If AI is switched on but no key is saved yet, every AI action (Explain, the lightbulb tool, Enhance, Generate with AI,
+Mnemonics for this note, story generation) opens a short "Set up AI" dialog with an **Open settings** button instead of
+failing; for Ollama the same applies while the server address is empty.
+
 The key stays on this device only. It's written to Obsidian's per-vault
 `localStorage` (via `app.saveLocalStorage`), **not** to `data.json` —
 which means it's never copied into a vault sync (iCloud, Obsidian Sync,

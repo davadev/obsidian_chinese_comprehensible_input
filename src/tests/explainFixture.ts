@@ -20,8 +20,8 @@ export const FULL: ExplainResult = {
     { context: "Travel", chinese: "坐地铁最方便。", pinyin: "Zuò dìtiě zuì fāngbiàn.", english: "The subway is the most convenient." },
   ],
   pitfalls: [
-    { kind: "pattern", rule: "Put the time before 方便, then the activity.", wrong: "你方便明天见面吗？", right: "你明天方便见面吗？" },
-    { kind: "similar-word", rule: "Use 便利 for facilities, 方便 for people and times.", wrong: "", right: "交通便利 / 你方便吗？" },
+    { kind: "pattern", rule: "Put the time before 方便, then the activity.", right: "你明天方便见面吗？" },
+    { kind: "similar-word", rule: "Use 便利 for facilities, 方便 for people and times.", right: "交通便利 / 你方便吗？" },
   ],
   similar: [{ word: "便利", pinyin: "biànlì", difference: "More formal, used for facilities and services." }],
   characters: [

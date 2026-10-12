@@ -64,6 +64,7 @@ interface Setup {
   overrides?: Record<string, any>;
   custom?: Record<string, any>;
   stored?: any;
+  configured?: boolean;
 }
 function make(o: Setup = {}) {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
@@ -98,6 +99,8 @@ function make(o: Setup = {}) {
     setCustomWord: vi.fn(async () => {}),
     deleteDictionaryOverride: vi.fn(async () => {}),
     openExplainModal: vi.fn(),
+    aiConfigured: vi.fn(() => o.configured !== false),
+    promptAiSetup: vi.fn(),
     enhance: { enhance: vi.fn(async () => ({ definitions: ["new def"], grammar: "verb", pinyin: "xué xi" })) },
   };
   const popup = new WordPopup(plugin);
@@ -482,6 +485,19 @@ describe("Enhance and Revert", () => {
     return m;
   };
   const has = (label: string) => Array.from(el()!.querySelectorAll("button")).some((b) => b.textContent === label);
+
+  it("Enhance with AI on but no key yet closes the card and points to the setup, for a dictionary word and a custom word", () => {
+    const dict = open({ configured: false });
+    btn("Enhance").click();
+    expect(dict.plugin.promptAiSetup).toHaveBeenCalledWith("Enhance");
+    expect(dict.plugin.enhance.enhance).not.toHaveBeenCalled();
+    expect(el()).toBeNull();
+    document.body.innerHTML = "";
+    const custom = open({ configured: false, custom: { 学习: { simplified: "学习", pinyin: "xué xí", definitions: ["x"] } } });
+    btn("Enhance").click();
+    expect(custom.plugin.promptAiSetup).toHaveBeenCalledWith("Enhance");
+    expect(custom.plugin.enhance.enhance).not.toHaveBeenCalled();
+  });
 
   it("Enhance needs AI on, a sentence from the tap, and a native entry", () => {
     open();

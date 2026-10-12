@@ -203,18 +203,17 @@ describe("renderExplainMarkdown", () => {
     expect(md).toContain("### Daily life\n\n这里买东西很方便。\n\n*Zhèlǐ mǎi dōngxi hěn fāngbiàn.*\n\nShopping here is convenient.");
   });
 
-  it("shows a pitfall as a rule, then the wrong form (when the model was sure of one) and the right form", () => {
-    expect(md).toContain("- **Put the time before 方便, then the activity.**\n   - ❌ 你方便明天见面吗？\n   - ✅ 你明天方便见面吗？");
-    // no wrong form given: only the rule and the correct form
+  it("shows a pitfall as a rule and the correct form, never a wrong example", () => {
+    expect(md).toContain("- **Put the time before 方便, then the activity.**\n   - ✅ 你明天方便见面吗？");
     expect(md).toContain("- **Use 便利 for facilities, 方便 for people and times.**\n   - ✅ 交通便利 / 你方便吗？\n");
-    expect(md).not.toContain("❌ \n");
+    expect(md).not.toContain("❌");
   });
 
-  it("accepts a pitfall without a wrong form and reads an unknown kind as a pattern", () => {
+  it("reads an unknown pitfall kind as a pattern, and ignores a wrong form an older or stubborn model still sends", () => {
     const r = normaliseExplain({ pitfalls: [{ kind: "nonsense", rule: "R", right: "Y" }, { kind: "register", rule: "R2", wrong: "X", right: "Y2" }] });
     expect(r.pitfalls).toEqual([
-      { kind: "pattern", rule: "R", wrong: "", right: "Y" },
-      { kind: "register", rule: "R2", wrong: "X", right: "Y2" },
+      { kind: "pattern", rule: "R", right: "Y" },
+      { kind: "register", rule: "R2", right: "Y2" },
     ]);
     expect(validateExplain({ ...clone(FULL), pitfalls: r.pitfalls }, CTX)).toEqual([]);
   });
