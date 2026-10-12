@@ -232,7 +232,7 @@ export const MNEMONIC_SYSTEM_PROMPT =
 
 /**
  * Default user-prompt template for mnemonic generation. Users can rewrite
- * this in Settings → AI provider → AI prompts → Mnemonic prompt to personalise the
+ * this in Settings → AI provider → AI prompts → Mnemonics to personalise the
  * result (their own imagery, humour, language, memory palace, …). The facts
  * block (characters, tones, budget) is appended by the app whatever the
  * template says, so a rewritten template cannot lose it.

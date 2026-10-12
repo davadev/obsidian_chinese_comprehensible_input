@@ -25,11 +25,11 @@ const OUT = join(ROOT, "resources/screenshots");
 const SCENES = {
   toolbar: ["desktop-toolbar-annotated.png", 560],
   lightbulb: ["desktop-lightbulb-annotated.png", 560],
-  "phrase-confirm": ["explain-phrase-confirm-annotated.png", 520],
-  "phrase-explain": ["explain-phrase-annotated.png", 520],
-  proofread: ["explain-proofread-annotated.png", 520],
-  "explain-word": ["explain-word-annotated.png", 520],
-  whatsnew: ["whats-new-annotated.png", 520],
+  "phrase-confirm": ["explain-phrase-confirm-annotated.png", 560],
+  "phrase-explain": ["explain-phrase-annotated.png", 560],
+  proofread: ["explain-proofread-annotated.png", 560],
+  "explain-word": ["explain-word-annotated.png", 560],
+  whatsnew: ["whats-new-annotated.png", 560],
 };
 
 function findChrome() {
@@ -70,7 +70,7 @@ const THEME = `
 --font-ui-small:13px;--font-ui-medium:15px;
 font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Noto Sans CJK SC",sans-serif;font-size:15px;color:#222}
 html,body{margin:0;background:#fff}
-body{position:relative;padding:14px 44px 14px 14px}
+body{position:relative;padding:14px 50px 14px 50px}
 body.scene-toolbar,body.scene-lightbulb{padding:50px 44px 14px 14px}
 /* Obsidian's own button, icon-button and modal chrome (app.css), approximated */
 button{font:inherit;font-size:13px;background:var(--interactive-normal);border:0;border-radius:6px;padding:6px 12px;color:var(--text-normal);cursor:pointer;box-shadow:0 1px 1px rgba(0,0,0,.08)}

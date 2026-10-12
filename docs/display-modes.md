@@ -7,7 +7,7 @@ them.
 
 ## The toolbar
 
-<img src="../resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar" width="620">
+<img width="560" src="../resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar">
 
 - **1 · Edit** (read ↔ edit) · **2 · Known** · **3 · Unknown** · **4 · Partial** — tap a word to set its status.
 - **5 · Add custom word** · **6 · Highlighter** ([formatting mode](./formatting.md)) · **7 · Lightbulb** (tap the first
