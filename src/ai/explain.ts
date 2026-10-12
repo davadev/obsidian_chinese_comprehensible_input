@@ -185,8 +185,9 @@ export function validateExplain(r: ExplainResult, ctx: ExplainContext): string[]
     if (!e.english || HAS_HAN(e.english)) issues.push(`Example ${i + 1} needs an English translation without Chinese characters.`);
     if (!e.pinyin) issues.push(`Example ${i + 1} needs pinyin.`);
   });
-  if (r.mistakes.length === 0 || r.mistakes.some((m) => !m.wrong || !m.right || !m.why)) {
-    issues.push('"mistakes" needs at least one entry, each with the wrong sentence, the corrected one and the reason.');
+  // An empty list is allowed: an invented mistake is worse than none. A row must be whole, though.
+  if (r.mistakes.some((m) => !m.wrong || !m.right || !m.why)) {
+    issues.push('Each entry in "mistakes" needs the wrong sentence, the corrected one and the reason.');
   }
   if (r.similar.some((s) => !s.word || !s.difference)) {
     issues.push('Each entry in "similar" needs the word and how it differs.');
@@ -194,8 +195,8 @@ export function validateExplain(r: ExplainResult, ctx: ExplainContext): string[]
   if (r.collocations.some((c) => !c.chinese || !c.english)) {
     issues.push('Each collocation needs the Chinese and its English.');
   }
-  if (r.characters.length !== ctx.charCount || r.characters.some((c) => !c.character || !c.meaning)) {
-    issues.push(`"characters" needs exactly ${ctx.charCount} entr${ctx.charCount === 1 ? "y" : "ies"}, one per character of the word, each with its meaning.`);
+  if (r.characters.length !== ctx.charCount || r.characters.some((c) => !c.character || !c.pinyin || !c.meaning)) {
+    issues.push(`"characters" needs exactly ${ctx.charCount} entr${ctx.charCount === 1 ? "y" : "ies"}, one per character of the word, each with its pinyin and meaning.`);
   }
   return issues;
 }
@@ -314,12 +315,10 @@ export function explainBlocks(r: ExplainResult, m: ExplainMeta): Block[] {
     for (const c of r.characters) {
       h(3, `${c.character}${c.pinyin ? ` (${c.pinyin})` : ""} — ${c.meaning}`);
       if (c.radical) out.push({ kind: "li", depth: 0, inline: [{ b: "Radical:" }, ` ${c.radical}`] });
-      if (c.components) out.push({ kind: "li", depth: 0, inline: [{ b: "Built from:" }, ` ${c.components}`] });
-      if (c.etymology) {
-        const inline: Inline[] = [{ b: "Origin:" }, ` ${c.etymology}`];
-        if (c.confidence === "uncertain") inline.push(" ", { i: "(a popular or uncertain account, not settled)" });
-        out.push({ kind: "li", depth: 0, inline });
-      }
+      // The doubt covers the breakdown as well as the origin, so it is said on the last of the two lines.
+      const doubt: Inline[] = c.confidence === "uncertain" ? [" ", { i: "(a popular or uncertain account, not settled)" }] : [];
+      if (c.components) out.push({ kind: "li", depth: 0, inline: [{ b: "Built from:" }, ` ${c.components}`, ...(c.etymology ? [] : doubt)] });
+      if (c.etymology) out.push({ kind: "li", depth: 0, inline: [{ b: "Origin:" }, ` ${c.etymology}`, ...doubt] });
     }
   }
 

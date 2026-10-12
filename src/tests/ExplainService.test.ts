@@ -30,9 +30,10 @@ function serviceWith(replies: Array<string | Error>) {
   return { chatJson, service: new ExplainService({ chatJson } as unknown as AiProviderService) };
 }
 const good = () => JSON.stringify(FULL);
+const BAD_ISSUE = '"examples" needs 4 to 10 sentences; you sent 0.';
 const bad = () => {
   const r = clone(FULL);
-  r.mistakes = [];
+  r.examples = [];
   return JSON.stringify(r);
 };
 
@@ -50,20 +51,20 @@ describe("ExplainService.generate", () => {
     const out = await service.generate(INPUT);
     expect(chatJson).toHaveBeenCalledTimes(2);
     expect(chatJson.mock.calls[1][1]).toBe(
-      `${buildExplainUserPrompt(INPUT)}\n\n${buildExplainRepairPrompt(['"mistakes" needs at least one entry, each with the wrong sentence, the corrected one and the reason.'])}`
+      `${buildExplainUserPrompt(INPUT)}\n\n${buildExplainRepairPrompt([BAD_ISSUE])}`
     );
-    expect(out.result.mistakes).toHaveLength(1);
+    expect(out.result.examples).toHaveLength(4);
     expect(out.issues).toEqual([]);
   });
 
   it("keeps the first answer and reports what is wrong when the repair is worse, fails, or is unreadable", async () => {
     const worse = clone(FULL);
-    worse.mistakes = [];
+    worse.examples = [];
     worse.similar = [{ word: "", pinyin: "", difference: "" }];
     for (const second of [JSON.stringify(worse), new Error("rate limited"), "not json"]) {
       const { service } = serviceWith([bad(), second]);
       const out = await service.generate(INPUT);
-      expect(out.result.mistakes).toEqual([]);
+      expect(out.result.examples).toEqual([]);
       expect(out.issues).toHaveLength(1);
     }
   });

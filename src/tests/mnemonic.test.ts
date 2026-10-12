@@ -447,7 +447,9 @@ describe("Explain prompts", () => {
       expect(EXPLAIN_SYSTEM_PROMPT).toContain(`"${field}"`);
     }
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/DIFFERENT contexts and registers/);
-    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Do not invent an etymology/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Do not invent a breakdown or an etymology/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/GENUINE learner errors/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/cover every common reading/);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/no Markdown/);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/No markdown code fences/);
   });
