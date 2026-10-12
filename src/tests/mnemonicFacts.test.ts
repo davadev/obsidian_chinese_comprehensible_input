@@ -80,3 +80,30 @@ describe("story pinyin", () => {
     expect(pairCorrect("河水", "hé shuǐ", "河", ["hé"], MMAH)).toBeNull();
   });
 });
+
+describe("gloss instead of pinyin", () => {
+  it("flags a gloss in the parenthesis and tolerates a neutral-tone reference", () => {
+    expect(pairCorrect("氵", "water", "河", ["hé"], MMAH)).toBe("gloss");
+    expect(pairCorrect("河", "river", "河", ["hé"], MMAH)).toBe("gloss");
+    expect(pairCorrect("可", "kě", "河", ["hé"], MMAH)).toBe(true);
+    expect(pairCorrect("水", "water", "河", ["hé"], MMAH)).toBe("gloss");
+    expect(pairCorrect("子", "zǐ", "好", ["hǎo"], parseMmah('{"character":"子","pinyin":["zi"],"decomposition":"？"}'))).toBe(true);
+  });
+});
+
+describe("gated reference facts", () => {
+  const M2 = parseMmah(
+    [
+      '{"character":"山","definition":"mountain","decomposition":"⿻凵丨","etymology":{"type":"pictographic","hint":"Three mountain peaks"}}',
+      '{"character":"了","definition":"finish","decomposition":"⿻乛亅"}',
+      '{"character":"田","definition":"field","decomposition":"？","etymology":{"type":"pictographic"}}',
+    ].join("\n")
+  );
+
+  it("replaces pictographic parts by the hint and skips characters without etymology", () => {
+    expect(charFacts("山", M2, { gated: true })).toBe("山: pictographic; origin: Three mountain peaks");
+    expect(charFacts("山", M2)).toContain("parts: 凵 + 丨");
+    expect(charFacts("了", M2, { gated: true })).toBeNull();
+    expect(charFacts("田", M2, { gated: true })).toBeNull();
+  });
+});

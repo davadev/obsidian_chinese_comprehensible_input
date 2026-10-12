@@ -76,9 +76,16 @@ function shortGloss(def) {
 }
 
 /** One line of reference facts for a character, or null when the dictionary has no useful structure for it. */
-export function charFacts(ch, map) {
+export function charFacts(ch, map, opts = {}) {
   const e = map.get(ch);
   if (!e) return null;
+  if (opts.gated) {
+    // Only structure that means something: a pictographic character is a picture, so its "parts" are drawing strokes and
+    // are replaced by the origin hint; a character with no etymology has no reliable story to build on.
+    const type = e.etymology?.type;
+    if (!type) return null;
+    if (type === "pictographic") return e.etymology.hint ? `${ch}: pictographic; origin: ${e.etymology.hint}` : null;
+  }
   const parts = idsLeaves(e.decomposition);
   const label = (c) => {
     const g = shortGloss(map.get(c)?.definition);
@@ -136,14 +143,18 @@ export function wordSyllables(pinyin) {
 }
 
 /**
- * Is the pinyin written after `hanzi` right? true / false, or null when the plugin has no truth for that run.
+ * Is the pinyin written after `hanzi` right? true / false, "gloss" when the parenthesis holds a gloss instead of pinyin, or null when there is no truth for that run.
  * Truth = the word's own pinyin (whole word, or a single character of it by position) or the reference reading of a
  * component character.
  */
 export function pairCorrect(hanzi, pinyin, word, syllables, map) {
   const got = normPinyinRun(pinyin);
+  const marked = /[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ1-4]/.test(pinyin);
   const wordChars = Array.from(word);
-  if (hanzi === word) return got === normPinyinRun(syllables.join(" "));
+  // "watched" tolerance: a reference reading with no tone (neutral) is matched by its base syllable at any tone
+  const same = (a, b) => a === b || (b.endsWith("5") && a.slice(0, -1) === b.slice(0, -1));
+  const verdict = (ok) => (ok || marked ? ok : "gloss");
+  if (hanzi === word) return verdict(got === normPinyinRun(syllables.join(" ")));
   const accepted = [];
   wordChars.forEach((c, i) => {
     if (c === hanzi && syllables[i]) accepted.push(normSyllable(syllables[i]));
@@ -156,9 +167,10 @@ export function pairCorrect(hanzi, pinyin, word, syllables, map) {
       const idx = wordChars.indexOf(c);
       return idx >= 0 && syllables[idx] ? normSyllable(syllables[idx]) : map.get(c)?.pinyin?.[0] ? normSyllable(map.get(c).pinyin[0]) : null;
     });
-    return per.every(Boolean) ? got === per.join("") : null;
+    return per.every(Boolean) ? verdict(got === per.join("")) : null;
   }
-  return accepted.length ? accepted.includes(got) : null;
+  if (accepted.length) return verdict(accepted.some((a) => same(got, a)));
+  return marked ? null : "gloss";
 }
 
 /** Line checks shared by every arm. */
