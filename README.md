@@ -93,7 +93,7 @@ See [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md
 2. **"I know"** — tick characters / pinyin / translation; this sets the word's status.
 3. **Per-word stats** — HSK, times seen, last seen, status, SRS due date.
 4. **Exposure history** — recent sightings, feeding the stats and charts.
-5. **Actions** — Ignore, **Mnemonic** (write your own emoji line + story, or generate them with AI), **Explain** (AI: a thorough usage note you can save, see [Explain](./docs/explain.md)), Edit, or **Enhance** (AI, see below).
+5. **Actions** — Ignore, **Mnemonic** (write your own emoji line + story, or generate them with AI), **Explain** (AI: a thorough usage note you can save, see [Explain](./docs/explain.md); added in 0.9.0, so it is not in this older screenshot), Edit, or **Enhance** (AI, see below).
 
 ### Tap-to-format & highlights (mobile)
 

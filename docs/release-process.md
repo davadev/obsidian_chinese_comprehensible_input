@@ -725,3 +725,7 @@ shipped `styles.css` in headless Chromium on Obsidian's default light theme, and
 older images. It needs `$CHROME_HEADLESS_SHELL` or Playwright's browser cache. After changing any of those screens, re-run
 it, **look at every image**, and check the numbered legends in `README.md` and the docs still match. Obsidian's own modal
 frame is approximated; the content inside is the plugin's.
+
+## Stable release notes
+
+Write the public notes for a minor release ahead of time in `docs/release-notes-X.Y.Z.md` (what is new, changed, fixed, how to upgrade, and the issues the release **closes**), and paste them into the GitHub release when the stable tag is published. Keep the in-app "What's new" entry short and benefit-led; the longer text lives here. After promotion: close the listed issues, move their board items to Done, and update `ROADMAP.md`.

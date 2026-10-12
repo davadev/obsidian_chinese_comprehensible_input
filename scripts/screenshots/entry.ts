@@ -20,7 +20,7 @@ installObsidianDom();
 (window as any).activeDocument = document;
 (window as any).activeWindow = window;
 
-type Callout = { sel: string; n: number; text?: string; pad?: number; nth?: number; side?: "right" | "top" };
+type Callout = { sel: string; n: number; text?: string; pad?: number; nth?: number; side?: "right" | "top" | "bottom" };
 const scene = new URLSearchParams(location.search).get("scene") ?? "";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -176,7 +176,7 @@ function whatsNewScene() {
 }
 
 /** Draw the dashed boxes and numbered circles (colours from scripts/annotate-screenshots.py). */
-function callouts(items: Callout[], side: "right" | "top") {
+function callouts(items: Callout[], side: "right" | "top" | "bottom") {
   const layer = document.body.appendChild(document.createElement("div"));
   layer.className = "co-layer";
   const origin = document.documentElement.getBoundingClientRect();
@@ -196,7 +196,7 @@ function callouts(items: Callout[], side: "right" | "top") {
     c.textContent = String(it.n);
     const where = it.side ?? side;
     const cx = where === "right" ? origin.width - 24 : r.left - origin.left + r.width / 2;
-    const cy = where === "right" ? r.top - origin.top + r.height / 2 : 22;
+    const cy = where === "right" ? r.top - origin.top + r.height / 2 : where === "bottom" ? origin.height - 22 : 22;
     Object.assign(c.style, { left: `${cx - 13}px`, top: `${cy - 13}px` });
   }
 }
@@ -217,7 +217,7 @@ const TOOLBAR: Callout[] = [
 async function main() {
   document.body.classList.add("scene-" + scene);
   let items: Callout[] = [];
-  let side: "right" | "top" = "right";
+  let side: "right" | "top" | "bottom" = "right";
   switch (scene) {
     case "toolbar":
       await mountToolbar("read", false);
@@ -228,9 +228,9 @@ async function main() {
       await mountToolbar("explain", true);
       items = [
         { sel: "[data-mode=explain]", n: 1 },
-        { sel: ".cci-banner.is-explain > span", n: 2 },
-        { sel: ".cci-banner.is-explain button", n: 3, text: "Explain" },
-        { sel: ".cci-banner.is-explain button", n: 4, text: "Exit" },
+        { sel: ".cci-banner.is-explain > span", n: 2, side: "bottom" },
+        { sel: ".cci-banner.is-explain button", n: 3, text: "Explain", side: "bottom" },
+        { sel: ".cci-banner.is-explain button", n: 4, text: "Exit", side: "bottom" },
       ];
       side = "top";
       break;

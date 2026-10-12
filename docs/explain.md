@@ -8,9 +8,14 @@ It appears on the word card as **Explain**, next to Mnemonic and Edit. If AI is 
 is missing and takes you to the settings. It works with or without a sentence; if you opened the card from a sentence, that sentence is sent too so the model can pick the sense
 you met (it still covers the other senses).
 
+Beyond single words, the lightbulb tool [explains a phrase or sentence](#explaining-or-proof-reading-a-phrase-the-lightbulb) or proof reads it. Explain and Proof read both need an AI provider and cost a fraction of a cent per answer on OpenAI.
+
 ## What is in a note
 
 <img width="560" src="../resources/screenshots/explain-word-annotated.png" alt="A word note: sections, watch-out list, cost and Save">
+
+**1** *When you need this word*: concrete situations · **2** *Watch out*: a rule and the correct form · **3** *The characters*:
+meaning, radical, how each is built · **4** what it cost on OpenAI · **5** **Save as note** (next to Copy, Regenerate and Close).
 
 Every note has the same layout, so it is easy to scan on a phone:
 
@@ -62,6 +67,9 @@ earlier last word.
 
 <img width="560" src="../resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown">
 
+**1** the lightbulb, armed · **2** the hint (it names the word you tapped first) · **3** the dropdown: **Explain** or **Proof read** ·
+**4** **Exit**.
+
 <img width="560" src="../resources/screenshots/explain-phrase-confirm-annotated.png" alt="The confirm dialog: text, length, cost, Explain">
 
 The confirm dialog: **1** the text that will be sent, **2** its length against the limit, **3** the estimated cost, **4** the button
@@ -81,6 +89,8 @@ that actually sends it.
   offers **Proof read this instead**; it does not explain wrong grammar.
 <img width="560" src="../resources/screenshots/explain-phrase-annotated.png" alt="A phrase explained word by word">
 
+**1** the translation and what it expresses · **2** *Word by word*: each word's job in this sentence · **3** the cost · **4** **Save as note**.
+
 - Like the word note: preview first, then **Save as note** (same folder; `cci-explain-phrase` in its header), **Copy**
   or **Regenerate**.
 
@@ -96,6 +106,8 @@ highlights, links) can still be applied when the wrong part itself is plain text
 the corrected text instead.
 
 <img width="560" src="../resources/screenshots/explain-proofread-annotated.png" alt="Proof reading with Apply and Apply all">
+
+**1** **Apply** puts this one fix into your note · **2** **Copy corrected text** (beside it, **Apply all** applies every fix).
 
 ### Cost
 
