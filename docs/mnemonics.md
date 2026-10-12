@@ -103,6 +103,13 @@ yet and, once you confirm, writes one for each.
   marked unknown.
 - **Nothing is overwritten.** A word that already has a mnemonic (a line or
   a story) is left alone, so you can run it again after adding words.
+- **What is sent** — for each word: the word, its pinyin, traditional form,
+  HSK level and dictionary definitions, a short gloss per character for words
+  of several characters, and the sentence of the word's first occurrence in
+  the note. With OpenAI these go to OpenAI's servers, one request per word
+  (see [OpenAI setup, privacy, and cost](./openai-setup.md#2-privacy--your-text-leaves-obsidian));
+  with Ollama they go to your own server. Nothing else from the note or your
+  vault is sent.
 - **Before it starts** you see how many words it will do, an estimate of the
   cost on OpenAI (a local Ollama model costs nothing), and what is sent: each
   word plus the sentence it first appears in. The list of words is one tap
