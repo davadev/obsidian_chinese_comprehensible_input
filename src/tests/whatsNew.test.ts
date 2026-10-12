@@ -78,12 +78,14 @@ describe("the shipped release notes", () => {
     expect(RELEASE_NOTES.map((n) => n.version)).toEqual(newestFirst.map((n) => n.version));
   });
 
-  it("say what changed in 0.9.0: the merged button, mnemonics and Explain", () => {
+  it("say what changed in 0.9.0: the merged button, mnemonics, word and sentence help, proof reading and the settings", () => {
     const titles = RELEASE_NOTES.find((n) => n.version === "0.9.0")?.items.map((i) => i.title.toLowerCase()).join(" | ") ?? "";
-    expect(titles).toContain("status / hsk");
+    expect(titles).toContain("one button for colouring");
     expect(titles).toContain("mnemonics");
-    expect(titles).toContain("explain a word");
-    expect(titles).toContain("proof read");
+    expect(titles).toContain("understand any word");
+    expect(titles).toContain("whole sentence");
+    expect(titles).toContain("check your own chinese");
+    expect(titles).toContain("in control");
   });
 });
 

@@ -9,6 +9,9 @@ import {
 import {
   EXPLAIN_SYSTEM_PROMPT,
   ExplainPromptArgs,
+  NO_CUSTOM,
+  PromptCustom,
+  systemPromptWith,
   buildExplainRepairPrompt,
   buildExplainUserPrompt,
 } from "./prompts";
@@ -28,15 +31,19 @@ export interface ExplainOutcome {
  * attached so the dialog can say what is off instead of presenting a silently worse note.
  */
 export class ExplainService {
-  constructor(private ai: AiProviderService) {}
+  constructor(
+    private ai: AiProviderService,
+    private custom: () => PromptCustom = () => NO_CUSTOM
+  ) {}
 
   async generate(input: ExplainInput): Promise<ExplainOutcome> {
     const user = buildExplainUserPrompt(input);
     const ctx = contextFor(input);
-    let result = parse(await this.ai.chatJson(EXPLAIN_SYSTEM_PROMPT, user, "Explain", EXPLAIN_SCHEMA));
+    const system = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, this.custom());
+    let result = parse(await this.ai.chatJson(system, user, "Explain", EXPLAIN_SCHEMA));
     let issues = validateExplain(result, ctx);
     if (issues.length > 0) {
-      const again = await this.repair(user, issues);
+      const again = await this.repair(system, user, issues);
       if (again) {
         const remaining = validateExplain(again, ctx);
         // Keep the repair only if it is no worse than the first answer.
@@ -50,11 +57,11 @@ export class ExplainService {
   }
 
   /** One extra try. A failure here must not cost the learner the first answer. */
-  private async repair(user: string, issues: string[]): Promise<ExplainResult | null> {
+  private async repair(system: string, user: string, issues: string[]): Promise<ExplainResult | null> {
     try {
       return parse(
         await this.ai.chatJson(
-          EXPLAIN_SYSTEM_PROMPT,
+          system,
           `${user}\n\n${buildExplainRepairPrompt(issues)}`,
           "Explain",
           EXPLAIN_SCHEMA

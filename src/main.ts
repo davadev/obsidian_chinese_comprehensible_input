@@ -581,9 +581,10 @@ export default class CciPlugin extends Plugin {
     this.story = new StoryGenerator(this.app, this.ai, this.tokenizer, this.srs, this.vocab, () => this.settings, this.dictionary);
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.mnemonic = new MnemonicService(this.ai, () => this.settings);
-    this.explain = new ExplainService(this.ai);
-    this.phraseExplain = new PhraseExplainService(this.ai);
-    this.proofread = new ProofreadService(this.ai);
+    const ai = () => this.settings.ai;
+    this.explain = new ExplainService(this.ai, () => ({ extra: ai().promptExtras.explain, override: ai().promptOverrides.explain }));
+    this.phraseExplain = new PhraseExplainService(this.ai, () => ({ extra: ai().promptExtras.phrase, override: ai().promptOverrides.phrase }));
+    this.proofread = new ProofreadService(this.ai, () => ({ extra: ai().promptExtras.proofread, override: ai().promptOverrides.proofread }));
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));

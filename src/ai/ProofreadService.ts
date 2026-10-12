@@ -1,7 +1,7 @@
 import { AiProviderService } from "./AiProviderService";
 import { extractJsonObject } from "./jsonReply";
 import { PROOFREAD_SCHEMA, ProofreadResult, normaliseProofread, validateProofread } from "./proofread";
-import { PROOFREAD_SYSTEM_PROMPT, buildExplainRepairPrompt, buildProofreadUserPrompt } from "./prompts";
+import { NO_CUSTOM, PROOFREAD_SYSTEM_PROMPT, PromptCustom, buildExplainRepairPrompt, buildProofreadUserPrompt, systemPromptWith } from "./prompts";
 
 export interface ProofreadOutcome {
   result: ProofreadResult;
@@ -11,7 +11,10 @@ export interface ProofreadOutcome {
 
 /** Proof reads a selection (#186): the corrections, checked against the text they claim to fix, one repair attempt. */
 export class ProofreadService {
-  constructor(private ai: AiProviderService) {}
+  constructor(
+    private ai: AiProviderService,
+    private custom: () => PromptCustom = () => NO_CUSTOM
+  ) {}
 
   async proofread(text: string): Promise<ProofreadOutcome> {
     const user = buildProofreadUserPrompt(text);
@@ -31,7 +34,7 @@ export class ProofreadService {
   }
 
   private async ask(user: string): Promise<ProofreadResult> {
-    const raw = await this.ai.chatJson(PROOFREAD_SYSTEM_PROMPT, user, "Proofread", PROOFREAD_SCHEMA);
+    const raw = await this.ai.chatJson(systemPromptWith(PROOFREAD_SYSTEM_PROMPT, this.custom()), user, "Proofread", PROOFREAD_SCHEMA);
     return normaliseProofread(extractJsonObject(raw, "proofreading"));
   }
 }

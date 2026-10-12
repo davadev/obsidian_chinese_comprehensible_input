@@ -2289,12 +2289,12 @@
 }
 .cci-whatsnew-modal .cci-fig-pills {
   display: inline-flex;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 4px;
-  overflow: hidden;
+  gap: 0.25rem;
 }
 .cci-whatsnew-modal .cci-fig-pill {
-  padding: 0.25rem 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
   font-size: 0.7rem;
   background: var(--interactive-normal);
 }

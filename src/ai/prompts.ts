@@ -232,7 +232,7 @@ export const MNEMONIC_SYSTEM_PROMPT =
 
 /**
  * Default user-prompt template for mnemonic generation. Users can rewrite
- * this in Settings → AI provider → Mnemonic prompt to personalise the
+ * this in Settings → AI provider → AI prompts → Mnemonic prompt to personalise the
  * result (their own imagery, humour, language, memory palace, …). The facts
  * block (characters, tones, budget) is appended by the app whatever the
  * template says, so a rewritten template cannot lose it.
@@ -509,4 +509,28 @@ export const PROOFREAD_SYSTEM_PROMPT =
 
 export function buildProofreadUserPrompt(text: string): string {
   return `Text to proofread:\n${text}\n\nReply with JSON only.`;
+}
+
+/** Which learner-tunable prompt a request uses. */
+export type TunablePrompt = "explain" | "phrase" | "proofread";
+
+/** What the learner changed for one prompt: text to add, or a replacement for the whole system prompt. */
+export interface PromptCustom {
+  extra: string;
+  override: string;
+}
+
+export const NO_CUSTOM: PromptCustom = { extra: "", override: "" };
+
+/**
+ * The system prompt to send: the built-in one, or the learner's replacement when they wrote one, followed by their extra
+ * instructions. The JSON schema and the checks that follow every answer do not change, so a prompt that ignores the
+ * format falls into the normal repair path instead of producing a broken note.
+ */
+export function systemPromptWith(builtin: string, custom: PromptCustom): string {
+  const base = custom.override.trim() ? custom.override.trim() : builtin;
+  const extra = custom.extra.trim();
+  return extra
+    ? `${base}\n\nThe learner's own instructions (follow them, but keep the required JSON structure and every rule above): ${extra}`
+    : base;
 }

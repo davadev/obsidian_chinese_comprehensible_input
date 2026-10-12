@@ -25,6 +25,7 @@ function row(parent: HTMLElement, label: string, build: (strip: HTMLElement) => 
 
 function toolbarFigure(fig: HTMLElement): void {
   row(fig, "Before", (strip) => {
+    // Two separate buttons side by side, as the toolbar used to have them.
     const pills = strip.createDiv({ cls: "cci-fig-pills" });
     pills.createSpan({ cls: "cci-fig-pill is-on", text: "Status" });
     pills.createSpan({ cls: "cci-fig-pill", text: "HSK" });
@@ -39,7 +40,7 @@ function toolbarFigure(fig: HTMLElement): void {
   );
   fig.createDiv({
     cls: "cci-fig-caption",
-    text: "One button names the colouring in use; tap it to switch. That made room for the new lightbulb, ringed.",
+    text: "Two buttons became one: it names the colouring in use, tap it to switch. The room it freed holds the new lightbulb, ringed.",
   });
 }
 
