@@ -28,7 +28,7 @@ worse — frequent missing target words, higher-HSK vocabulary than
 asked, occasional non-Chinese filler. Usable for casual reading
 practice but disappointing for graded stories.
 
-The **Chat model** field in advanced AI settings is where you set this
+The **Chat model** field under Settings → AI provider is where you set this
 (e.g. `gemma4:e4b` or `gemma4:12b`).
 
 ## Repair iterations rescue weaker models

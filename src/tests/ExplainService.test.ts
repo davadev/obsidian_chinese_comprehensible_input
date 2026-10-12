@@ -48,11 +48,11 @@ describe("ExplainService.generate", () => {
 
   it("sends the learner's own instructions with the request and with the repair request", async () => {
     const chatJson = vi.fn().mockResolvedValueOnce(bad()).mockResolvedValueOnce(good());
-    const service = new ExplainService({ chatJson } as unknown as AiProviderService, () => ({ extra: "Explain in Czech.", override: "" }));
+    const service = new ExplainService({ chatJson } as unknown as AiProviderService, () => ({ extra: "Explain in German.", override: "" }));
     await service.generate(INPUT);
-    const expected = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, { extra: "Explain in Czech.", override: "" });
+    const expected = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, { extra: "Explain in German.", override: "" });
     expect(chatJson.mock.calls.map((c) => c[0])).toEqual([expected, expected]);
-    expect(expected).toContain("Explain in Czech.");
+    expect(expected).toContain("Explain in German.");
   });
 
   it("asks once more with the specific defects and keeps the corrected answer", async () => {

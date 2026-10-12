@@ -309,10 +309,10 @@ describe("systemPromptWith", () => {
   });
 
   it("adds the learner's instructions after the built-in prompt, reminding the model the format rules stay", () => {
-    const out = systemPromptWith("BASE", { extra: " Explain in Czech. ", override: "" });
+    const out = systemPromptWith("BASE", { extra: " Explain in German. ", override: "" });
     expect(out.startsWith("BASE\n\n")).toBe(true);
     expect(out).toContain("keep the required JSON structure");
-    expect(out.endsWith("Explain in Czech.")).toBe(true);
+    expect(out.endsWith("Explain in German.")).toBe(true);
   });
 
   it("uses the learner's replacement instead of the built-in prompt, and still appends their extras", () => {

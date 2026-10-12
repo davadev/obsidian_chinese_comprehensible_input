@@ -4,8 +4,8 @@
 already do that), but *when you need it, how to use it, how learners get it wrong, and how it is built*. It shows the
 note in a dialog first (with a progress bar while it is written, usually 20 to 40 seconds); nothing is saved to your vault until you press **Save**.
 
-It appears on the word card as **Explain**, next to Mnemonic and Edit, whenever AI is switched on. It works with or
-without a sentence; if you opened the card from a sentence, that sentence is sent too so the model can pick the sense
+It appears on the word card as **Explain**, next to Mnemonic and Edit. If AI is not set up yet, pressing it explains what
+is missing and takes you to the settings. It works with or without a sentence; if you opened the card from a sentence, that sentence is sent too so the model can pick the sense
 you met (it still covers the other senses).
 
 ## What is in a note
@@ -126,7 +126,7 @@ rule was broken. Nothing else from the note is sent, and the confirm dialog show
 
 **Settings → AI provider → AI prompts ▾** has one box per feature (Explain a word, Explain a phrase or sentence,
 Proof read). Whatever you write there is added to the end of the built-in prompt with every request, so it is the place
-for "explain in Czech", "I am at HSK 3, keep it simple" or "I care about grammar more than vocabulary". The answer format
+for "explain in German", "I am at HSK 3, keep it simple" or "I care about grammar more than vocabulary". The answer format
 is still checked by the plugin, so an instruction cannot break the saved note. These words are sent to the AI provider
 along with the text.
 

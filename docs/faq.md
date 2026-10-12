@@ -52,7 +52,7 @@ Most often this is a slow or unreachable AI endpoint, not the plugin.
   on. Streaming keeps bytes flowing so corporate / VPN timeouts don't
   fire while the model is still thinking.
 - For very long stories on small Ollama models, bump **Timeout (ms)** in
-  the advanced AI settings.
+  the **Advanced AI** page (Settings → AI provider → Advanced AI, shown for Ollama).
 - If you suspect something is hanging silently, flip on **Verbose AI
   debug notifications**. It shows you each milestone (HTTP status, first
   byte, streaming chunks).
@@ -145,6 +145,24 @@ start whether to restore the copy taken just before the newer one first ran (ans
 **Restore**, then restart Obsidian). You can also do it any time from
 Settings → Data → Backups. See [Backups](./backups.md), including what sync can undo and
 which old versions cannot restore.
+
+## Where did the Status and HSK buttons go?
+
+Since 0.9.0 they are one toolbar button. It shows how words are coloured right now (**Status** or **HSK**); tap it to
+switch to the other. It keeps the same width either way so the toolbar does not jump.
+
+## I did not see the "What's new" popup (or I want to see it again)
+
+The popup appears once, at the first start of Obsidian after the plugin is updated; an update installed while Obsidian is
+running shows a restart hint first and the popup after the restart. Press **Don't show again** in it, or use **Settings →
+About → Show what's new after an update**, to turn it off. Switching that setting off and on again makes the current
+notes appear at the next start, and **Show what's new now** (also a command) opens them immediately.
+
+## Where are the Explain and prompt settings?
+
+**Settings → Explain & proof read** has the folder for saved notes and the length limit. What the AI is asked (your own
+instructions, the mnemonic template, or a full replacement prompt) is under **Settings → AI provider → AI prompts**. See
+[Explain](./explain.md).
 
 ## I want to fund this project
 

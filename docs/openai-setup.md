@@ -73,6 +73,8 @@ sentence you tapped it in:
   follow-up each when a rule was broken. A single word under Explain is sent as the word note above, with its
   sentence. The confirm dialog shows the text and the estimated cost before anything is sent. See
   [Explain](./explain.md).
+- **Your own prompt text** — anything you wrote under Settings → AI provider → AI prompts (extra instructions, or a
+  replacement for a whole prompt) is sent with the matching requests above, so keep it free of anything private.
 - **Mnemonics for this note…** (the reader's ⋯ menu) — the same as a single
   Mnemonic request, once per word, for each word in the **open note** that
   has no mnemonic yet (or, if you choose Regenerate all, every word in scope)
