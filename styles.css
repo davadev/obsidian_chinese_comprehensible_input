@@ -2217,6 +2217,15 @@
   color: var(--text-warning, var(--text-muted));
   font-size: var(--font-ui-small);
 }
+.cci-explain-modal .cci-explain-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.8rem 0;
+}
+.cci-explain-modal .cci-explain-progress progress {
+  flex: 1;
+}
 .cci-explain-modal .cci-explain-actions {
   display: flex;
   flex-wrap: wrap;

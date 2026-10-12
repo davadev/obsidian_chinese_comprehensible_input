@@ -22,6 +22,8 @@ export class ExplainModal extends Modal {
   private issues: string[] = [];
   private meta!: ExplainMeta;
   private existing: TFile | null = null;
+  /** Stops the clock behind the progress bar; set only while an answer is being waited for. */
+  private stopProgress: (() => void) | null = null;
 
   constructor(
     app: App,
@@ -42,6 +44,7 @@ export class ExplainModal extends Modal {
 
   onClose(): void {
     this.runId++;
+    this.stopProgress?.();
     this.contentEl.empty();
   }
 
@@ -57,6 +60,8 @@ export class ExplainModal extends Modal {
   }
 
   private heading(sub?: string): void {
+    this.stopProgress?.();
+    this.stopProgress = null;
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: `Explain ${this.surface}` });
     if (sub) this.contentEl.createEl("p", { cls: "cci-explain-muted", text: sub });
@@ -82,6 +87,7 @@ export class ExplainModal extends Modal {
   private async generate(): Promise<void> {
     const run = ++this.runId;
     this.heading("Writing the explanation… this usually takes 20 to 40 seconds.");
+    this.showProgress();
     const bar = this.actions();
     bar.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
     try {
@@ -99,6 +105,26 @@ export class ExplainModal extends Modal {
       fail.createEl("button", { text: "Close" }).addEventListener("click", () => this.close());
       fail.createEl("button", { text: "Try again", cls: "mod-cta" }).addEventListener("click", () => void this.generate());
     }
+  }
+
+  /**
+   * A bar that fills while the answer is awaited. The request reports no progress, so this is a clock, not a measurement:
+   * it rises quickly at first and slows towards 95%, so it never reaches the end before the answer does, and it shows the
+   * seconds so a slow answer still looks alive. No timer outlives the screen: `heading()` and `onClose()` stop it.
+   */
+  private showProgress(): void {
+    const wrap = this.contentEl.createDiv({ cls: "cci-explain-progress" });
+    const bar = wrap.createEl("progress");
+    bar.max = 100;
+    bar.value = 0;
+    const label = wrap.createSpan({ cls: "cci-explain-muted", text: "0 s" });
+    const started = Date.now();
+    const tick = window.setInterval(() => {
+      const seconds = (Date.now() - started) / 1000;
+      bar.value = 95 * (1 - Math.exp(-seconds / 22));
+      label.setText(`${Math.floor(seconds)} s`);
+    }, 250);
+    this.stopProgress = () => window.clearInterval(tick);
   }
 
   private metaFor(pinyin: string, hskLevels: string[]): ExplainMeta {
