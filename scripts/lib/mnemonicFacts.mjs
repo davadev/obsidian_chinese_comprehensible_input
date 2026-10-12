@@ -177,3 +177,77 @@ export function pairCorrect(hanzi, pinyin, word, syllables, map) {
 export function lineChecks(line, graphemeCount) {
   return { graphemes: graphemeCount, hanFree: !HAN.test(line) };
 }
+
+/**
+ * Furio Petrossi's "Decomposition 7120" (Pleco forum): `char<TAB>pinyin<TAB>parts   names`, e.g.
+ * `明<TAB>ming2<TAB>日月     sun/day, moon`. Returns Map char -> { parts: string[], names: string[] }; first entry wins.
+ */
+export function parsePlecoFlat(text) {
+  const map = new Map();
+  for (const line of String(text).split(/\r?\n/)) {
+    const cols = line.split("\t");
+    if (cols.length < 3 || line.startsWith("//") || Array.from(cols[0]).length !== 1 || map.has(cols[0])) continue;
+    const [comps, names = ""] = cols[2].split(/\s{3,}/);
+    const parts = Array.from(comps.trim());
+    if (!parts.length) continue;
+    map.set(cols[0], { parts, names: names.split(",").map((n) => n.trim()).filter(Boolean) });
+  }
+  return map;
+}
+
+export function plecoFacts(ch, map) {
+  const e = map.get(ch);
+  if (!e || (e.parts.length === 1 && e.parts[0] === ch)) return null;
+  const named = e.parts.length === e.names.length;
+  return `${ch}: parts: ${named ? e.parts.map((p, i) => `${p} (${e.names[i]})`).join(" + ") : `${e.parts.join(" + ")} (${e.names.join(", ")})`}`;
+}
+
+/**
+ * catusf's "CCD v0.1" (Pleco forum, built from the chin_dict package): `char<TAB>pinyin<TAB>MEANING① … TREE… COMPONENTS»…`.
+ * The TREE is a box-drawing outline flattened onto one line; depth comes from the indent in front of each connector.
+ * Returns Map char -> { gloss, tree: [{ ch, depth }] }.
+ */
+export function parseCcd(text) {
+  const map = new Map();
+  for (const line of String(text).split(/\r?\n/)) {
+    const cols = line.split("\t");
+    if (cols.length < 3 || line.startsWith("//") || Array.from(cols[0]).length !== 1 || map.has(cols[0])) continue;
+    const body = cols.slice(2).join("\t");
+    const head = body.slice(0, [body.indexOf("TREE"), body.indexOf("COMPONENTS»"), body.indexOf("CONTAINS"), body.length].filter((i) => i >= 0).sort((x, y) => x - y)[0]);
+    const meanings = head.split(/[①-⑩]/).slice(1).map((x) => x.replace(/Alternative.*/s, "").replace(/\([^)]*\)?/g, "").replace(/\[[^\]]*\]?/g, "").replace(/["“”]/g, "").trim());
+    const gloss = meanings.find((x) => x.length > 1 && /[a-z]/i.test(x) && !/^(surname|variant of|abbr|archaic|old variant|\(no meaning|no meaning|.*radical in)/i.test(x)) ?? "";
+    const treeStart = body.indexOf("TREE");
+    const treeEnd = body.indexOf("COMPONENTS»");
+    const tree = [];
+    if (treeStart >= 0) {
+      const seg = body.slice(treeStart, treeEnd > treeStart ? treeEnd : undefined);
+      const re = /((?:│   |    )*)(?:├──|└──) (\S+) \((\d+)\)/gu;
+      let m;
+      while ((m = re.exec(seg))) tree.push({ ch: m[2].replace(/[\uE000-\uF8FF]/g, ""), depth: m[1].length / 4 });
+    }
+    map.set(cols[0], { gloss: gloss.slice(0, 30), tree });
+  }
+  return map;
+}
+
+export function ccdFacts(ch, map) {
+  const e = map.get(ch);
+  if (!e || !e.tree.length) return null;
+  const label = (c) => {
+    const g = map.get(c)?.gloss;
+    return g ? `${c} (${g})` : c;
+  };
+  // top level parts in order, each followed by its own parts in brackets
+  const out = [];
+  e.tree.forEach((n, i) => {
+    if (n.depth !== 0) return;
+    const kids = [];
+    for (let j = i + 1; j < e.tree.length && e.tree[j].depth > 0; j++) if (e.tree[j].depth === 1) kids.push(label(e.tree[j].ch));
+    out.push(kids.length ? `${label(n.ch)} [= ${kids.join(" + ")}]` : label(n.ch));
+  });
+  return `${ch}: parts: ${out.join(" + ")}`;
+}
+
+export function ccdLeaves(ch, map) {
+  return (map.get(ch)?.tree ?? []).map((n) => n.ch);
+}
