@@ -36,8 +36,17 @@ describe("radicalOf", () => {
     expect(radicalOf("錢")).toBe("金 (gold)");
   });
 
-  it("falls back to the Kangxi form when a simplified radical has no simplified glyph listed", () => {
-    expect(radicalOf("鼡")).toBe("鼠 (rat)");
+  it("knows the simplified form of the rarest simplified radical too", () => {
+    expect(radicalOf("鼡")).toBe("鼡 (rat)");
+  });
+
+  it("shows the other written forms of a radical beside the full one", () => {
+    expect(radicalOf("故")).toBe("攴 / 攵 (rap)");
+    expect(radicalOf("爱")).toBe("爪 / 爫 (claw)");
+    expect(radicalOf("牧")).toBe("牛 / 牜 (cow)");
+    expect(radicalOf("玩")).toBe("玉 / 王 (jade)");
+    expect(radicalOf("罗")).toBe("网 / 罒 (net)");
+    expect(radicalOf("川")).toBe("川 (river)");
   });
 
   it("says nothing for anything that is not one character of the common block", () => {
@@ -71,5 +80,16 @@ describe("radicalOf with a gap in the data", () => {
     const { radicalOf: gappy } = await import("../dictionary/radicals");
     expect(gappy("一")).toBe("");
     expect(gappy("丁")).toBe("目 (eye)");
+  });
+
+  it("falls back to the Kangxi form for a simplified-form flag on a radical with no simplified glyph listed", async () => {
+    vi.resetModules();
+    vi.doMock("../dictionary/radicalMap.generated", () => ({
+      RADICAL_FIRST_CODE_POINT: 0x4e00,
+      RADICAL_NUMBERS_B64: btoa(String.fromCharCode(1)),
+      RADICAL_SIMPLIFIED_B64: btoa(String.fromCharCode(1)),
+    }));
+    const { radicalOf: flagged } = await import("../dictionary/radicals");
+    expect(flagged("一")).toBe("一 (one)");
   });
 });

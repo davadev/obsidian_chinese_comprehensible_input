@@ -7,7 +7,7 @@ const KANGXI: Array<[string, string]> = [
   ["凵", "open box"], ["刀", "knife"], ["力", "power"], ["勹", "wrap"], ["匕", "spoon"], ["匚", "right open box"], ["匸", "hiding enclosure"], ["十", "ten"],
   ["卜", "divination"], ["卩", "seal"], ["厂", "cliff"], ["厶", "private"], ["又", "again"], ["口", "mouth"], ["囗", "enclosure"], ["土", "earth"],
   ["士", "scholar"], ["夂", "go"], ["夊", "go slowly"], ["夕", "evening"], ["大", "big"], ["女", "woman"], ["子", "child"], ["宀", "roof"],
-  ["寸", "inch"], ["小", "small"], ["尢", "lame"], ["尸", "corpse"], ["屮", "sprout"], ["山", "mountain"], ["巛", "river"], ["工", "work"],
+  ["寸", "inch"], ["小", "small"], ["尢", "lame"], ["尸", "corpse"], ["屮", "sprout"], ["山", "mountain"], ["川", "river"], ["工", "work"],
   ["己", "oneself"], ["巾", "cloth"], ["干", "dry"], ["幺", "short thread"], ["广", "dotted cliff"], ["廴", "long stride"], ["廾", "two hands"], ["弋", "shoot"],
   ["弓", "bow"], ["彐", "snout"], ["彡", "bristle"], ["彳", "step"], ["心", "heart"], ["戈", "spear"], ["戶", "door"], ["手", "hand"],
   ["支", "branch"], ["攴", "rap"], ["文", "script"], ["斗", "dipper"], ["斤", "axe"], ["方", "square"], ["无", "not"], ["日", "sun"],
@@ -34,11 +34,11 @@ const KANGXI: Array<[string, string]> = [
 /** The simplified forms of the radicals a simplified character can carry (Unihan marks them with an apostrophe). */
 const SIMPLIFIED_FORM: Record<number, string> = {
   90: "丬", 120: "纟", 147: "见", 149: "讠", 154: "贝", 159: "车", 167: "钅", 168: "长", 169: "门", 178: "韦", 181: "页", 182: "风",
-  183: "飞", 184: "饣", 187: "马", 195: "鱼", 196: "鸟", 197: "卤", 199: "麦", 205: "黾", 210: "齐", 211: "齿", 212: "龙", 213: "龟",
+  183: "飞", 184: "饣", 187: "马", 195: "鱼", 196: "鸟", 197: "卤", 199: "麦", 205: "黾", 208: "鼡", 210: "齐", 211: "齿", 212: "龙", 213: "龟",
 };
 
 /** Radicals that are written differently beside other parts (氵 for 水): shown with the full form first, "水 / 氵". */
-const WRITTEN_BESIDE: Record<number, string> = { 9: "亻", 18: "刂", 61: "忄", 64: "扌", 85: "氵", 86: "灬", 94: "犭", 113: "礻", 145: "衤" };
+const WRITTEN_BESIDE: Record<number, string> = { 9: "亻", 18: "刂", 61: "忄", 64: "扌", 66: "攵", 85: "氵", 86: "灬", 87: "爫", 93: "牜", 94: "犭", 96: "王", 113: "礻", 122: "罒", 145: "衤" };
 /** Radicals whose Kangxi form is rarely seen in print: show the form learners actually meet. */
 const SHOWN_AS: Record<number, string> = { 140: "艹", 162: "辶", 163: "阝", 170: "阝" };
 
