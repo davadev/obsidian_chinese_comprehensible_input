@@ -59,7 +59,7 @@ export class MnemonicService {
     const template = this.settings().ai.mnemonicPrompt;
     const user = `${buildMnemonicUserPrompt(template, input)}\n\n${buildMnemonicFactsBlock(shape, input.charGlosses)}`;
     let answer = parseMnemonicAnswer(
-      await this.ai.chatJson(MNEMONIC_SYSTEM_PROMPT, user, "Mnemonic", MNEMONIC_SCHEMA)
+      await this.ai.chatJson(MNEMONIC_SYSTEM_PROMPT, user, "Mnemonic", MNEMONIC_SCHEMA, true)
     );
     let issues = validateParts(answer, shape);
     if (issues.length > 0) {
@@ -84,7 +84,8 @@ export class MnemonicService {
           MNEMONIC_SYSTEM_PROMPT,
           `${user}\n\n${buildMnemonicRepairPrompt(issues)}`,
           "Mnemonic",
-          MNEMONIC_SCHEMA
+          MNEMONIC_SCHEMA,
+          true
         )
       );
     } catch {

@@ -2231,12 +2231,15 @@
 .cci-explain-modal .cci-explain-actions {
   display: flex;
   flex-wrap: wrap;
+  /* Buttons that no longer fit one row wrap to the right edge (the spacer used to leave the last one alone, at the left). */
+  justify-content: flex-end;
   gap: 0.5rem;
   align-items: center;
   margin-top: 1rem;
 }
 .cci-explain-modal .cci-explain-spacer {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* One-time "What's new" popup and the "Set up AI" prompt. */

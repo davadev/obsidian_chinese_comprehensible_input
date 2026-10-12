@@ -34,7 +34,7 @@ export class ProofreadService {
   }
 
   private async ask(user: string): Promise<ProofreadResult> {
-    const raw = await this.ai.chatJson(systemPromptWith(PROOFREAD_SYSTEM_PROMPT, this.custom()), user, "Proofread", PROOFREAD_SCHEMA);
+    const raw = await this.ai.chatJson(systemPromptWith(PROOFREAD_SYSTEM_PROMPT, this.custom()), user, "Proofread", PROOFREAD_SCHEMA, true);
     return normaliseProofread(extractJsonObject(raw, "proofreading"));
   }
 }

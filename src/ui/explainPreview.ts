@@ -1,5 +1,17 @@
 import type { Block, Inline } from "../ai/explain";
 
+const SHOWN_ISSUES = 3;
+
+/**
+ * The line under a note the plugin could not fully verify. A model that ignores the format can break a dozen rules at once;
+ * the first few are enough to see what is wrong, and the rest would bury the note.
+ */
+export function describeIssues(issues: string[]): string {
+  const shown = issues.slice(0, SHOWN_ISSUES).join(" ");
+  const more = issues.length > SHOWN_ISSUES ? ` (and ${issues.length - SHOWN_ISSUES} more)` : "";
+  return `The plugin could not get every rule right even after asking again: ${shown}${more} Regenerate often fixes it; a larger model follows the format more reliably.`;
+}
+
 function fill(el: HTMLElement, inline: Inline[]): void {
   for (const part of inline) {
     if (typeof part === "string") el.appendChild(activeDocument.createTextNode(part));

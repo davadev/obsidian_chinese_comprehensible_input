@@ -43,7 +43,7 @@ describe("ExplainService.generate", () => {
     const out = await service.generate(INPUT);
     expect(out).toEqual({ result: FULL, issues: [] });
     expect(chatJson).toHaveBeenCalledTimes(1);
-    expect(chatJson).toHaveBeenCalledWith(EXPLAIN_SYSTEM_PROMPT, buildExplainUserPrompt(INPUT), "Explain", EXPLAIN_SCHEMA);
+    expect(chatJson).toHaveBeenCalledWith(EXPLAIN_SYSTEM_PROMPT, buildExplainUserPrompt(INPUT), "Explain", EXPLAIN_SCHEMA, true);
   });
 
   it("sends the learner's own instructions with the request and with the repair request", async () => {

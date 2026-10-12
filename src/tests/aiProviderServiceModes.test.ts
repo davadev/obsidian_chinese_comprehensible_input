@@ -206,6 +206,50 @@ describe("the request that is sent", () => {
     expect(sentBody().response_format).toEqual(expected);
   });
 
+  describe("strictSchema (answers whose exact shape the plugin relies on)", () => {
+    const strict = (svc: AiProviderService) => svc.chatJson("SYS", "USER", "Story", SCHEMA, true);
+
+    it("holds a local model to the schema over the OpenAI-compatible path, whatever json_object says", async () => {
+      await strict(make({ ollama: { responseFormat: "json_object" } }).svc);
+      expect(sentBody().response_format).toEqual({ type: "json_schema", json_schema: { name: "Story", schema: SCHEMA, strict: true } });
+    });
+
+    it("sends the schema itself as Ollama's native format", async () => {
+      fetchMock().mockResolvedValue(buffered(JSON.stringify({ message: { content: "hi" } })));
+      await strict(make({ ollama: { endpointMode: "ollama", baseUrl: "http://host:11434" } }).svc);
+      expect(sentBody().format).toEqual(SCHEMA);
+    });
+
+    it("a learner who turned structured output off stays off", async () => {
+      await strict(make({ ollama: { responseFormat: "none" } }).svc);
+      expect(sentBody()).not.toHaveProperty("response_format");
+    });
+
+    it("does not change what OpenAI is sent", async () => {
+      fetchMock().mockResolvedValue(streaming([sse("ok"), "data: [DONE]\n"]));
+      await strict(make({ provider: "openai", key: "sk", ollama: { responseFormat: "json_object" } }).svc);
+      expect(sentBody().response_format).toEqual({ type: "json_object" });
+    });
+
+    it("repeats once with the format from settings when the server refuses the schema (HTTP 400 or 422)", async () => {
+      fetchMock().mockResolvedValueOnce({ ok: false, status: 400, text: async () => "schema not supported", body: null }).mockResolvedValue(buffered(JSON.stringify({ choices: [{ message: { content: "{}" } }] })));
+      const out = await strict(make({ ollama: { responseFormat: "json_object" } }).svc);
+      expect(out).toBe("{}");
+      expect(sentBody(0).response_format.type).toBe("json_schema");
+      expect(sentBody(1).response_format).toEqual({ type: "json_object" });
+    });
+
+    it("does not retry other failures, nor a refusal when the schema was not asked for", async () => {
+      fetchMock().mockResolvedValue({ ok: false, status: 500, text: async () => "boom", body: null });
+      await expect(strict(make().svc)).rejects.toThrow();
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+      fetchMock().mockReset();
+      fetchMock().mockResolvedValue({ ok: false, status: 400, text: async () => "bad", body: null });
+      await expect(chat(make().svc)).rejects.toThrow();
+      expect(fetchMock()).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("response format none sends none", async () => {
     await chat(make({ ollama: { responseFormat: "none" } }).svc);
     expect(sentBody()).not.toHaveProperty("response_format");

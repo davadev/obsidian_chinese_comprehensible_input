@@ -1087,7 +1087,9 @@ export class CciSettingsTab extends PluginSettingTab {
               desc:
                 "json_object works on the widest range of providers (Ollama, OpenAI, vLLM). " +
                 "json_schema is stricter but only OpenAI + Ollama >= 0.5.7 honour it. " +
-                "none sends no response_format flag — the prompt alone steers the model.",
+                "none sends no response_format flag — the prompt alone steers the model. " +
+                "Explain, Proof read and mnemonics need an exact shape, so they ask a local model for the schema " +
+                "(unless this is none), whatever is chosen here; if the server refuses it they fall back to this setting.",
               control: {
                 type: "dropdown",
                 key: "ai.ollama.responseFormat",

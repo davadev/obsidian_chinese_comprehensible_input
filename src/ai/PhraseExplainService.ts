@@ -38,7 +38,7 @@ export class PhraseExplainService {
   ) {}
 
   async check(text: string): Promise<PhraseCheck> {
-    const raw = await this.ai.chatJson(PHRASE_CHECK_SYSTEM_PROMPT, buildPhraseCheckUserPrompt(text), "PhraseCheck", PHRASE_CHECK_SCHEMA);
+    const raw = await this.ai.chatJson(PHRASE_CHECK_SYSTEM_PROMPT, buildPhraseCheckUserPrompt(text), "PhraseCheck", PHRASE_CHECK_SCHEMA, true);
     return normalisePhraseCheck(extractJsonObject(raw, "phrase check"));
   }
 
@@ -62,7 +62,7 @@ export class PhraseExplainService {
   }
 
   private async ask(user: string): Promise<PhraseResult> {
-    const raw = await this.ai.chatJson(systemPromptWith(PHRASE_SYSTEM_PROMPT, this.custom()), user, "PhraseExplain", PHRASE_SCHEMA);
+    const raw = await this.ai.chatJson(systemPromptWith(PHRASE_SYSTEM_PROMPT, this.custom()), user, "PhraseExplain", PHRASE_SCHEMA, true);
     return normalisePhrase(extractJsonObject(raw, "explanation"));
   }
 }

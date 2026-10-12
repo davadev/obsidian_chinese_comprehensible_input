@@ -7,7 +7,7 @@ import { LocatedCorrection, ProofreadResult, applyCorrections, locateCorrections
 import { OPENAI_MODELS, resolveOpenAiChoice } from "../ai/openaiProfile";
 import { formatUsd } from "../vocabulary/batchMnemonics";
 import { copyMarkdown, saveExplanation } from "./explainFiles";
-import { renderExplainBlocks } from "./explainPreview";
+import { describeIssues, renderExplainBlocks } from "./explainPreview";
 import { liftModal } from "./modalLayer";
 import { startProgressClock } from "./progressClock";
 import { UsageMeter } from "./usageMeter";
@@ -192,7 +192,7 @@ export class PhraseModal extends Modal {
     if (this.issues.length > 0) {
       this.contentEl.createEl("p", {
         cls: "cci-explain-caveat",
-        text: `The plugin could not get every rule right even after asking again: ${this.issues.join(" ")}`,
+        text: describeIssues(this.issues),
       });
     }
   }

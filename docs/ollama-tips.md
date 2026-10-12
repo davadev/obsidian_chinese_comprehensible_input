@@ -131,3 +131,12 @@ Most users never touch this.
   does end-to-end.
 - [OpenAI setup](./openai-setup.md) — the "just works" alternative.
 - [FAQ](./faq.md) — the top user issues in summary form.
+
+## Explain, Proof read and mnemonics on a local model
+
+These features need the model's answer in an exact JSON shape. Held only to "some JSON" (`json_object`), models such as
+gemma tend to invent their own field names, which used to produce a note with empty examples and a long list of
+problems. The plugin therefore asks a local model for the **schema itself** (Ollama's structured outputs, version 0.5.7 or
+newer) for these features, whatever **Structured-output format** says, unless you set it to **none**. If your Ollama is
+older and refuses the schema, the plugin repeats the request once with your chosen format. If a note still comes back
+with problems, **Regenerate**; a larger model follows the format more reliably than a small one.

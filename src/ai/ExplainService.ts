@@ -40,7 +40,7 @@ export class ExplainService {
     const user = buildExplainUserPrompt(input);
     const ctx = contextFor(input);
     const system = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, this.custom());
-    let result = parse(await this.ai.chatJson(system, user, "Explain", EXPLAIN_SCHEMA));
+    let result = parse(await this.ai.chatJson(system, user, "Explain", EXPLAIN_SCHEMA, true));
     let issues = validateExplain(result, ctx);
     if (issues.length > 0) {
       const again = await this.repair(system, user, issues);
@@ -64,7 +64,8 @@ export class ExplainService {
           system,
           `${user}\n\n${buildExplainRepairPrompt(issues)}`,
           "Explain",
-          EXPLAIN_SCHEMA
+          EXPLAIN_SCHEMA,
+          true
         )
       );
     } catch {

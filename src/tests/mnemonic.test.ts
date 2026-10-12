@@ -209,7 +209,8 @@ describe("MnemonicService.generate", () => {
       MNEMONIC_SYSTEM_PROMPT,
       `Make a mnemonic for 猫 (māo).\n\n${buildMnemonicFactsBlock(wordShape("猫", "māo"))}`,
       "Mnemonic",
-      MNEMONIC_SCHEMA
+      MNEMONIC_SCHEMA,
+      true
     );
   });
 
@@ -438,7 +439,7 @@ describe("Explain prompts", () => {
 
   it("lists the defects in the repair prompt", () => {
     expect(buildExplainRepairPrompt(["a", "b"])).toBe(
-      "Your last answer broke these rules:\n- a\n- b\nReply again with the complete corrected JSON only, keeping what was already good."
+      "Your last answer broke these rules:\n- a\n- b\nReply again with the complete corrected JSON only, keeping what was already good and using exactly the field names and nesting from the instructions."
     );
   });
 

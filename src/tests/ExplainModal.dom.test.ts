@@ -152,6 +152,16 @@ describe("writing the explanation", () => {
     expect(text(root)).toContain("even after asking again: Example 2 needs pinyin. Another.");
   });
 
+  it("shows only the first few problems when a model broke many rules, and says how many more", async () => {
+    const issues = Array.from({ length: 12 }, (_, i) => `Example ${i + 1} has no Chinese sentence.`);
+    const { root } = make({ explain: async () => ({ result: clone(FULL), issues }) });
+    await vi.waitFor(() => expect(root.querySelector(".cci-explain-caveat")).toBeTruthy());
+    const caveat = root.querySelector(".cci-explain-caveat")!.textContent!;
+    expect(caveat).toContain("Example 3 has no Chinese sentence. (and 9 more)");
+    expect(caveat).not.toContain("Example 4");
+    expect(caveat).toContain("larger model");
+  });
+
   it("Regenerate asks again and replaces the preview", async () => {
     let n = 0;
     const second = clone(FULL);

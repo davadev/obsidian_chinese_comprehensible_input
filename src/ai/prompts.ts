@@ -453,7 +453,7 @@ export function buildExplainUserPrompt(a: ExplainPromptArgs): string {
 export function buildExplainRepairPrompt(issues: string[]): string {
   return (
     `Your last answer broke these rules:\n${issues.map((i) => `- ${i}`).join("\n")}\n` +
-    `Reply again with the complete corrected JSON only, keeping what was already good.`
+    `Reply again with the complete corrected JSON only, keeping what was already good and using exactly the field names and nesting from the instructions.`
   );
 }
 
