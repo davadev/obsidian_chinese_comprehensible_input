@@ -19,6 +19,10 @@ on:
         description: "Runs per word and arm (1-5)"
         type: string
         default: "2"
+      arms:
+        description: "Arms: old,tones,facts,gated (Make Me a Hanzi), pleco (Petrossi list), ccd (catusf tree)"
+        type: string
+        default: "old,tones,gated,pleco,ccd"
 
 concurrency:
   group: mnemonic-compare
@@ -56,13 +60,28 @@ jobs:
           wc -l dictionary.txt
           curl -fsSL https://api.github.com/repos/skishore/makemeahanzi/commits/master | grep -m1 '"sha"'
 
+      - name: Download the Pleco-forum component files (experiment only, never stored or shipped)
+        # Furio Petrossi's decomposition7120.txt and catusf's CCD_v0.1. No licence is stated for either; they are fetched to
+        # measure whether the data is worth pursuing, not redistributed.
+        continue-on-error: true
+        run: |
+          curl -fsSL -A "Mozilla/5.0" -o pleco.txt https://www.plecoforums.com/download/decomposition7120-txt.2340/
+          curl -fsSL -o ccd.zip https://github.com/catusf/make_pleco_dicts/releases/download/CCD_v0.1/CCD_v0.1.zip
+          unzip -o -q ccd.zip -d ccd
+          ls -la pleco.txt ccd
+
       - name: Run the comparison
         # The only step that can see the key. It is sent only to api.openai.com and never printed.
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MODELS: ${{ inputs.models }}
           RUNS: ${{ inputs.runs }}
-        run: node scripts/mnemonic-compare.mjs --mmah dictionary.txt --models "$MODELS" --runs "$RUNS"
+          ARMS: ${{ inputs.arms }}
+        run: |
+          EXTRA=""
+          [ -f pleco.txt ] && EXTRA="$EXTRA --pleco pleco.txt"
+          [ -f ccd/CCD_v0.1.txt ] && EXTRA="$EXTRA --ccd ccd/CCD_v0.1.txt"
+          node scripts/mnemonic-compare.mjs --mmah dictionary.txt --models "$MODELS" --runs "$RUNS" --arms "$ARMS" $EXTRA
 
       - name: Upload the results
         if: ${{ always() }}

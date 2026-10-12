@@ -22,11 +22,16 @@ import { costUsd, safeError } from "./lib/modelEval.mjs";
 import { mean, pct } from "./lib/storyMetrics.mjs";
 import {
   allowedHanzi,
+  ccdFacts,
+  ccdLeaves,
   charFacts,
   extractCues,
   idsLeaves,
   pairCorrect,
+  parseCcd,
   parseMmah,
+  parsePlecoFlat,
+  plecoFacts,
   storyPairs,
   toneOf,
   toneStrip,
@@ -47,6 +52,10 @@ const mmahPath = arg("mmah", "");
 if (!mmahPath) throw new Error("--mmah <dictionary.txt> is required");
 const MMAH = parseMmah(readFileSync(mmahPath, "utf8"));
 if (MMAH.size < 5000) throw new Error(`Reference data looks wrong: only ${MMAH.size} characters parsed`);
+
+// Optional second and third reference sources (Pleco forum files): used only when their paths are given.
+const PLECO = arg("pleco", "") ? parsePlecoFlat(readFileSync(arg("pleco", ""), "utf8")) : new Map();
+const CCD = arg("ccd", "") ? parseCcd(readFileSync(arg("ccd", ""), "utf8")) : new Map();
 
 function parseSpec(spec) {
   const [id, input, output, cached, choice] = String(spec).trim().split(":");
@@ -131,7 +140,13 @@ function syllableFacts(g, syllables) {
   return rows;
 }
 
-function newUserPrompt(g, withFacts, graphemeLength, gated = false) {
+function factsFor(c, arm) {
+  if (arm === "pleco") return plecoFacts(c, PLECO);
+  if (arm === "ccd") return ccdFacts(c, CCD);
+  return charFacts(c, MMAH, { gated: arm === "gated" });
+}
+
+function newUserPrompt(g, withFacts, graphemeLength, arm = "facts") {
   const syl = wordSyllables(g.pinyin);
   const strip = toneStrip(syl);
   const budget = Math.max(6, 40 - graphemeLength(strip));
@@ -148,7 +163,7 @@ function newUserPrompt(g, withFacts, graphemeLength, gated = false) {
   ];
   if (withFacts) {
     const facts = Array.from(new Set(Array.from(g.word)))
-      .map((c) => charFacts(c, MMAH, { gated }))
+      .map((c) => factsFor(c, arm))
       .filter(Boolean);
     lines.push(``, `Character facts (from a reference dictionary; use ONLY these parts, do not add others):`);
     lines.push(...(facts.length ? facts.map((f) => `- ${f}`) : [`- (no reliable structure data for these characters)`]));
@@ -180,7 +195,7 @@ async function load(spec) {
   return import(`${pathToFileURL(bundleFile).href}?m=${++loadN}`);
 }
 
-const ARMS = ["old", "tones", "facts", "gated"];
+const ARMS = String(arg("arms", "old,tones,gated,pleco,ccd")).split(",").filter(Boolean);
 const rows = [];
 const jobs = [];
 
@@ -216,7 +231,7 @@ async function oneJob({ spec, lib }, g, arm, run) {
       story = p.obj.story.trim();
       row.toneExact = JSON.stringify(extractCues(line)) === JSON.stringify(syl.map(toneOf));
     } else {
-      const built = newUserPrompt(g, arm === "facts" || arm === "gated", graphemeLength, arm === "gated");
+      const built = newUserPrompt(g, !["old", "tones"].includes(arm), graphemeLength, arm);
       const raw = await ai.chatJson(SYSTEM_NEW, built.text, "Mnemonic", SCHEMA_NEW);
       const p = parseJson(raw, ["components", "meaning", "story"]);
       if (!p.ok) throw new Error(p.reason);
@@ -238,10 +253,16 @@ async function oneJob({ spec, lib }, g, arm, run) {
     row.pinyinChecked = verdicts.filter((v) => v !== null && v !== "gloss").length;
     row.pinyinWrong = verdicts.filter((v) => v === false).length;
     row.pinyinGloss = verdicts.filter((v) => v === "gloss").length;
+    // "Outside the reference" is judged against every source loaded, so a part any source lists is not called invented.
     const allowed = allowedHanzi(g.word, MMAH);
+    for (const c of Array.from(g.word)) {
+      for (const p of PLECO.get(c)?.parts ?? []) allowed.add(p);
+      for (const p of ccdLeaves(c, CCD)) allowed.add(p);
+    }
     const named = new Set(Array.from(story).filter((c) => HAN_RE.test(c)));
     row.unsupported = [...named].filter((c) => !allowed.has(c));
-    const refParts = new Set(Array.from(g.word).flatMap((c) => idsLeaves(MMAH.get(c)?.decomposition)));
+    const own = (c) => (arm === "pleco" ? PLECO.get(c)?.parts ?? [] : arm === "ccd" ? ccdLeaves(c, CCD) : idsLeaves(MMAH.get(c)?.decomposition));
+    const refParts = new Set(Array.from(g.word).flatMap(own));
     row.refParts = refParts.size;
     row.refPartsNamed = [...refParts].filter((c) => named.has(c)).length;
   } catch (err) {
@@ -279,14 +300,16 @@ const goldMissing = [...goldChars].filter((c) => !MMAH.has(c));
 
 // ── report ──
 const fmt = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : "–");
-const lines = [`### Mnemonic harness comparison`, ``, `${GOLD.length} words × ${runs} runs × 4 arms per model. Arms: **old** = current prompt; **tones** = app writes syllables + tone strip; **facts** = tones + all Make Me a Hanzi parts; **gated** = facts only where the structure is meaningful.`, ``];
+const lines = [`### Mnemonic harness comparison`, ``, `${GOLD.length} words × ${runs} runs × ${ARMS.length} arms per model. Arms: **old** = current prompt; **tones** = app writes syllables + tone strip; **facts** = tones + all Make Me a Hanzi parts; **gated** = Make Me a Hanzi where meaningful; **pleco** = Petrossi flat parts with English names; **ccd** = catusf component tree with glosses. Arms run: ${ARMS.join(", ")}.`, ``];
 lines.push(`#### Reference data coverage (Make Me a Hanzi, ${MMAH.size} characters)`, ``);
 lines.push(`- HSK characters in the plugin's lists: ${hskChars.size}`);
 lines.push(`- found in reference: ${inRef} (${pct(inRef / hskChars.size)})`);
 lines.push(`- with 2+ parts: ${withParts} (${pct(withParts / hskChars.size)}); with sound/meaning roles: ${withRoles} (${pct(withRoles / hskChars.size)}); with an origin hint: ${withHint} (${pct(withHint / hskChars.size)})`);
+if (PLECO.size) lines.push(`- Petrossi flat list: ${PLECO.size} characters; covers ${[...hskChars].filter((c) => PLECO.has(c)).length} of ${hskChars.size} HSK characters (${pct([...hskChars].filter((c) => PLECO.has(c)).length / hskChars.size)})`);
+if (CCD.size) lines.push(`- catusf component tree: ${CCD.size} characters; covers ${[...hskChars].filter((c) => CCD.get(c)?.tree.length).length} of ${hskChars.size} HSK characters with a tree (${pct([...hskChars].filter((c) => CCD.get(c)?.tree.length).length / hskChars.size)})`);
 lines.push(`- gold-set characters missing from reference: ${goldMissing.length ? goldMissing.join(" ") : "none"}`, ``);
 for (const spec of SPECS) {
-  const tbl = [`#### ${spec.id}`, ``, `| metric | old | tones | facts | gated |`, `| --- | --- | --- | --- | --- |`];
+  const tbl = [`#### ${spec.id}`, ``, `| metric | ${ARMS.join(" | ")} |`, `| ${ARMS.map(() => "---").join(" | ")} | --- |`];
   const rs = (arm) => rows.filter((r) => r.model === spec.id && r.arm === arm);
   const ok = (arm) => rs(arm).filter((r) => r.ok);
   const metric = (name, f) => tbl.push(`| ${name} | ${ARMS.map((a) => f(a)).join(" | ")} |`);
@@ -304,7 +327,7 @@ for (const spec of SPECS) {
   metric("cost per mnemonic (mean)", (a) => `$${fmt(mean(rs(a).map((r) => r.cost)), 5)}`);
   lines.push(...tbl, ``);
   const cats = [...new Set(GOLD.map((g) => g.cat))];
-  const ct = [`By word type: tone cues right / stories naming a hanzi outside the reference parts (ok runs)`, ``, `| type | old | tones | facts | gated |`, `| --- | --- | --- | --- | --- |`];
+  const ct = [`By word type: tone cues right / stories naming a hanzi outside the reference parts (ok runs)`, ``, `| type | ${ARMS.join(" | ")} |`, `| ${ARMS.map(() => "---").join(" | ")} | --- |`];
   for (const cat of cats) {
     const cell = (a) => {
       const x = ok(a).filter((r) => r.cat === cat);
@@ -320,18 +343,21 @@ if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMM
 console.log(summary);
 
 // Blind reading copy: arms shuffled per word, reference parts shown so a reader can judge component fidelity.
-const blind = [`# Blind reading copy`, ``, `Per word the four results are labelled P/Q/R/S in a shuffled order; the key is in mnemonic-key.md. "Reference" is Make Me a Hanzi data, shown only so you can judge whether the named parts are right (it is not always right either).`, ``];
+const blind = [`# Blind reading copy`, ``, `Per word the four results are labelled P, Q, R… in a shuffled order; the key is in mnemonic-key.md. "Reference" is Make Me a Hanzi data, shown only so you can judge whether the named parts are right (it is not always right either).`, ``];
 const keyLines = [`# Key`, ``];
-const perms = [["old", "tones", "facts", "gated"], ["tones", "gated", "old", "facts"], ["facts", "old", "gated", "tones"], ["gated", "facts", "tones", "old"], ["old", "gated", "facts", "tones"], ["tones", "old", "facts", "gated"]];
+const orderFor = (idx) => {
+  const rot = ARMS.map((_, k) => ARMS[(k + idx * 2 + 1) % ARMS.length]);
+  return idx % 2 ? rot.reverse() : rot;
+};
 const shown = SPECS[0];
 GOLD.forEach((g, idx) => {
-  const order = perms[(idx * 5 + g.word.length) % perms.length];
-  const facts = Array.from(new Set(Array.from(g.word))).map((c) => charFacts(c, MMAH)).filter(Boolean);
+  const order = orderFor(idx);
+  const facts = Array.from(new Set(Array.from(g.word))).flatMap((c) => [charFacts(c, MMAH), PLECO.size ? plecoFacts(c, PLECO) : null, CCD.size ? ccdFacts(c, CCD) : null].filter(Boolean));
   blind.push(`## ${g.word} — ${g.pinyin} — ${g.def} (${g.cat})`, ``, facts.length ? `Reference: ${facts.join(" | ")}` : `Reference: none`, ``);
-  keyLines.push(`- ${g.word}: ${order.map((a, i) => `${"PQRS"[i]} = ${a}`).join(", ")}`);
+  keyLines.push(`- ${g.word}: ${order.map((a, i) => `${"PQRSTU"[i]} = ${a}`).join(", ")}`);
   order.forEach((arm, i) => {
     const r = rows.find((q) => q.model === shown.id && q.word === g.word && q.arm === arm && q.run === 1);
-    blind.push(`**${"PQRS"[i]}** ${r?.ok ? `${r.line}\n\n${r.story}` : `(failed: ${r?.error})`}`, ``);
+    blind.push(`**${"PQRSTU"[i]}** ${r?.ok ? `${r.line}\n\n${r.story}` : `(failed: ${r?.error})`}`, ``);
   });
 });
 writeFileSync(path.join(outDir, "mnemonic-blind.md"), blind.join("\n"));

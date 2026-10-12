@@ -1,12 +1,17 @@
 import { describe, it, expect } from "vitest";
 import {
   allowedHanzi,
+  ccdFacts,
+  ccdLeaves,
   charFacts,
   extractCues,
   idsLeaves,
   normSyllable,
   pairCorrect,
+  parseCcd,
   parseMmah,
+  parsePlecoFlat,
+  plecoFacts,
   storyPairs,
   toneOf,
   toneStrip,
@@ -105,5 +110,33 @@ describe("gated reference facts", () => {
     expect(charFacts("山", M2)).toContain("parts: 凵 + 丨");
     expect(charFacts("了", M2, { gated: true })).toBeNull();
     expect(charFacts("田", M2, { gated: true })).toBeNull();
+  });
+});
+
+describe("Pleco-forum files", () => {
+  it("reads the flat list with English part names", () => {
+    const m = parsePlecoFlat("//Decomposition 7120\t\t\n妈\tma\t女马     woman, horse\n山\tshan\t山     mountain, \n明\tming2\t日月     sun/day, moon\n妈\tx\t女     dup\n");
+    expect(m.size).toBe(3);
+    expect(plecoFacts("妈", m)).toBe("妈: parts: 女 (woman) + 马 (horse)");
+    expect(plecoFacts("山", m)).toBeNull();
+    expect(plecoFacts("无", m)).toBeNull();
+  });
+
+  it("reads the component tree with depth and clean glosses", () => {
+    const tree = "TREE想├── 心 (4)└── 相 (1)    ├── 木 (2)    └── 目 (3)COMPONENTS» 心 ① heart";
+    const m = parseCcd(
+      [
+        "// header",
+        `想\txiǎng\tMEANING① to think ${tree}`,
+        "心\txīn\tMEANING① heart (radical number 61) Alternative(s): 忄 CONTAINS想",
+        "相\txiāng\tMEANING① surname Xiang ② each other CONTAINS想",
+        "木\tmù\tMEANING① tree CONTAINS相",
+        "目\tmù\tMEANING① eye CONTAINS相",
+      ].join("\n")
+    );
+    expect(ccdLeaves("想", m)).toEqual(["心", "相", "木", "目"]);
+    expect(ccdFacts("想", m)).toBe("想: parts: 心 (heart) + 相 (each other) [= 木 (tree) + 目 (eye)]");
+    expect(ccdFacts("心", m)).toBeNull();
+    expect(ccdLeaves("无", m)).toEqual([]);
   });
 });
