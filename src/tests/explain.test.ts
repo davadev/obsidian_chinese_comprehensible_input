@@ -74,8 +74,7 @@ describe("validateExplain", () => {
         '"whenYouNeedIt" needs at least one situation.',
         '"senses" needs at least one sense, each with a label and a meaning.',
         '"examples" needs 4 to 10 sentences; you sent 0.',
-        '"mistakes" needs at least one entry, each with the wrong sentence, the corrected one and the reason.',
-        '"characters" needs exactly 2 entries, one per character of the word, each with its meaning.',
+        '"characters" needs exactly 2 entries, one per character of the word, each with its pinyin and meaning.',
       ])
     );
   });
@@ -84,7 +83,7 @@ describe("validateExplain", () => {
     const r = clone(FULL);
     r.characters = [];
     expect(validateExplain(r, { forms: ["方便"], charCount: 1 })).toEqual([
-      '"characters" needs exactly 1 entry, one per character of the word, each with its meaning.',
+      '"characters" needs exactly 1 entry, one per character of the word, each with its pinyin and meaning.',
     ]);
   });
 
@@ -110,6 +109,16 @@ describe("validateExplain", () => {
     expect(validateExplain(r, CTX)).toEqual(['"examples" needs 4 to 10 sentences; you sent 11.']);
   });
 
+  it("allows no mistakes at all, since an invented one is worse than none, but needs a pinyin for every character", () => {
+    const r = clone(FULL);
+    r.mistakes = [];
+    expect(validateExplain(r, CTX)).toEqual([]);
+    r.characters[1].pinyin = "";
+    expect(validateExplain(r, CTX)).toEqual([
+      '"characters" needs exactly 2 entries, one per character of the word, each with its pinyin and meaning.',
+    ]);
+  });
+
   it("rejects half-filled rows", () => {
     const r = clone(FULL);
     r.mistakes[0].why = "";
@@ -118,7 +127,7 @@ describe("validateExplain", () => {
     r.senses[0].meaning = "";
     expect(validateExplain(r, CTX)).toEqual([
       '"senses" needs at least one sense, each with a label and a meaning.',
-      '"mistakes" needs at least one entry, each with the wrong sentence, the corrected one and the reason.',
+      'Each entry in "mistakes" needs the wrong sentence, the corrected one and the reason.',
       'Each entry in "similar" needs the word and how it differs.',
       "Each collocation needs the Chinese and its English.",
     ]);
@@ -199,6 +208,13 @@ describe("renderExplainMarkdown", () => {
       META
     );
     expect(uncertain).toContain("- **Origin:** A folk story. *(a popular or uncertain account, not settled)*");
+    // the doubt covers the breakdown too: with no origin it goes on the "Built from" line
+    const split = renderExplainMarkdown(
+      { ...FULL, characters: [{ ...FULL.characters[0], components: "A and B", etymology: "", confidence: "uncertain" }] },
+      META
+    );
+    expect(split).toContain("- **Built from:** A and B *(a popular or uncertain account, not settled)*");
+    expect(split).not.toContain("**Origin:**");
   });
 
   it("can leave the pinyin lines out", () => {
