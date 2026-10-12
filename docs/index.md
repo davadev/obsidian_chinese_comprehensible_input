@@ -28,7 +28,7 @@ the whole tree from here.
 - [Mnemonics](./mnemonics.md) — hand-written and AI-generated memory
   hooks, and how to personalise the mnemonic prompt.
 - [Explain](./explain.md) — an AI usage note for one word (senses, grammar, examples, common
-  mistakes, similar words, character origins), previewed before you save it; the lightbulb tool that explains
+  mistakes, similar words, each character's radical), previewed before you save it; the lightbulb tool that explains
   a phrase or sentence word by word or proof reads your own Chinese; and how to tell the AI how you like things explained
 - [Story generation, end to end](./story-generation.md) — what Smart
   Story actually does, how the repair loop validates, the YAML

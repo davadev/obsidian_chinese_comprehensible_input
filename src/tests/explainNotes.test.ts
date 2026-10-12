@@ -46,8 +46,8 @@ describe("explainInputFor", () => {
       hskLevels: ["3"],
       entries: [{ pinyin: "fāng biàn", definitions: ["convenient"] }],
       chars: [
-        { char: "方", pinyin: "fāng", gloss: "square; direction; side" },
-        { char: "便", pinyin: "biàn", gloss: "convenient" },
+        { char: "方", pinyin: "fāng", gloss: "square; direction; side", radical: "方 (square)" },
+        { char: "便", pinyin: "biàn", gloss: "convenient", radical: "人 / 亻 (person)" },
       ],
       sentence: "住在这里很方便。",
       script: "simplified",
@@ -57,7 +57,7 @@ describe("explainInputFor", () => {
   it("gives a single polyphone character the reading of the word, not the character's first one", () => {
     const d = deps({ lookup: (s: string) => (s === "行" ? [entry({ pinyin: "háng", definitions: ["row"] }), entry()] : []) });
     const input = explainInputFor(d, "行", undefined);
-    expect(input.chars).toEqual([{ char: "行", pinyin: "háng", gloss: "row" }]);
+    expect(input.chars).toEqual([{ char: "行", pinyin: "háng", gloss: "row", radical: "行 (walk)" }]);
     expect(input.entries.map((e) => e.pinyin)).toEqual(["háng", "xíng"]);
   });
 
@@ -95,7 +95,7 @@ describe("explainInputFor", () => {
     expect(unaligned.chars.map((c) => c.pinyin)).toEqual(["wán", "wán"]);
     const bare = explainInputFor(deps(), "囧", undefined);
     expect(bare).toMatchObject({ pinyin: "", hskLevels: [], traditional: undefined, entries: [] });
-    expect(bare.chars).toEqual([{ char: "囧", pinyin: "", gloss: "" }]);
+    expect(bare.chars).toEqual([{ char: "囧", pinyin: "", gloss: "", radical: "囗 (enclosure)" }]);
   });
 
   it("chooses a script for the AI when the setting is automatic", () => {

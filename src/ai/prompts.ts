@@ -389,7 +389,7 @@ export const EXPLAIN_SYSTEM_PROMPT =
   "The note is read on a phone as well as on a desktop, so every item is short and concrete: no long paragraphs.\n" +
   "\n" +
   "How to treat the facts: the request gives the pinyin, the HSK level and the dictionary entries. They are ground truth for pronunciation and for the meanings they list; you may add senses and usage that real speakers have, but never contradict the dictionary on pronunciation. " +
-  "Be honest. If you are not sure of a usage rule, an etymology or a decomposition, say so in that field or leave it out; an empty list is better than a padded or invented one. Every Chinese sentence must be natural Mandarin that a native speaker would say.\n" +
+  "Be honest. If you are not sure of a usage rule, say so in that field or leave it out; an empty list is better than a padded or invented one. Every Chinese sentence must be natural Mandarin that a native speaker would say.\n" +
   "\n" +
   "Fields:\n" +
   "- \"summary\": one or two sentences saying what the word is and why a learner needs it.\n" +
@@ -403,7 +403,7 @@ export const EXPLAIN_SYSTEM_PROMPT =
   "- \"examples\": 5 to 8 natural sentences that each contain the word itself, across DIFFERENT contexts and registers (daily life, work or study, social, formal or written, spoken). Give each a short \"context\" label, tone-marked pinyin and an English translation. Use common vocabulary at or just above the word's HSK level so the learner can read them.\n" +
   "- \"pitfalls\": 0 to 3 pitfalls that really trip learners up with this word. Build each one only from something you have already put in this note: \"similar-word\" (mixing it up with one of the words you list under \"similar\"), \"pattern\" (breaking the sentence pattern or negation rule you gave), \"english-habit\" (word order or a missing or extra particle carried over from English), or \"register\" (using it in the wrong register). \"kind\" is one of those four. \"rule\" is the pitfall as one short instruction (\"Put the time before the place.\"). \"right\" is the correct fragment or sentence that follows the rule. Do not write the wrong version. Leave out anything you are not sure of: an empty list is better than a weak pitfall.\n" +
   "- \"similar\": near-synonyms or easily confused words (0 to 4), each with pinyin and how it differs and when to choose which. Leave empty if there are none worth contrasting.\n" +
-  "- \"characters\": exactly one entry per character of the word, in order, each with its tone-marked \"pinyin\" as it is read in this word. \"meaning\" is what the character means on its own, in at most 8 words. \"radical\" is the radical with its meaning. \"components\" says how the character is built from parts, for example \"木 (tree) on top of 目 (eye)\", and for a character built from a part that gives the sound and a part that gives the meaning, say which is which. \"etymology\" is where the character comes from, in one or two sentences, only if you know a well-established account, else \"\". Set \"confidence\" to \"established\" only when both the breakdown (including which part gives the sound or the meaning) and the origin are the standard scholarly account; use \"uncertain\" for a popular story, a folk etymology, a doubtful split or when you are not sure. Do not invent a breakdown or an etymology to fill a field. If the character is a single indivisible form, or you know of no reliable structure, leave \"components\" and \"etymology\" as empty strings and set \"confidence\" to \"established\" (there is nothing doubtful to flag).\n" +
+  "- \"characters\": exactly one entry per character of the word, in order, each with its tone-marked \"pinyin\" as it is read in this word and \"meaning\", what the character means on its own, in at most 8 words. Do not write the radical, how the character is built or where it comes from: the app adds the radical itself.\n" +
   "- \"notes\": 0 to 4 useful extras: differences between mainland and Taiwan usage, politeness or tone, frequency, related idioms, or other tips. Empty if nothing is worth adding.\n" +
   "\n" +
   "Rules: Chinese and English only, no Markdown, no emoji. Give tone-marked pinyin for every Chinese sentence, collocation and character. Explain in English. " +
@@ -417,7 +417,7 @@ export interface ExplainPromptArgs {
   /** Every dictionary entry for the surface (several readings are possible). */
   entries: { pinyin: string; definitions: string[] }[];
   /** One line of facts per character of the word. */
-  chars: { char: string; pinyin: string; gloss: string }[];
+  chars: { char: string; pinyin: string; gloss: string; radical?: string }[];
   /** The sentence the learner met the word in, when known. */
   sentence?: string;
   script: AiScript;

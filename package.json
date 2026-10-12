@@ -8,6 +8,7 @@
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"build:hsk": "node scripts/build-hsk-map.mjs",
 		"build:topics": "node scripts/build-topic-map.mjs",
+		"build:radicals": "node scripts/build-radicals.mjs",
 		"build:fixture": "node scripts/build-cedict-fixture.mjs",
 		"check-release": "node scripts/check-release.mjs",
 		"lint": "eslint 'src/**/*.ts'",

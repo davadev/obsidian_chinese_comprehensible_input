@@ -209,7 +209,7 @@ The result is a reading experience that provides help when necessary without con
 
 Reading real Chinese raises questions a dictionary cannot answer. The plugin can help when you get stuck, without taking you out of the text. This part uses AI, is optional, and the rest of the plugin works fully without it.
 
-- **Why does this word work here?** Tap a word and choose *Explain*: when to use it, how learners get it wrong, similar words and how its characters are built. Save it as a note if it is worth keeping.
+- **Why does this word work here?** Tap a word and choose *Explain*: when to use it, how learners get it wrong, similar words and the radical of each character. Save it as a note if it is worth keeping.
 - **What is this sentence doing?** Tap the lightbulb, then the first and last word. You get the meaning, the structure, the job of every word and the grammar points.
 
 <img width="560" src="resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown">
@@ -273,7 +273,7 @@ Detailed guides live in [`docs/`](./docs/index.md). Each settings section also l
 - [OpenAI setup, privacy, and cost](./docs/openai-setup.md)
 - [Ollama tips: model choice and getting good output](./docs/ollama-tips.md)
 - [Mnemonics](./docs/mnemonics.md) — hand-written and AI-generated memory hooks, personalising the prompt
-- [Explain](./docs/explain.md) — an AI usage note for one word (senses, grammar, examples, common mistakes, similar words, character origins), previewed before you save it
+- [Explain](./docs/explain.md) — an AI usage note for one word (senses, grammar, examples, common mistakes, similar words, each character's radical), previewed before you save it
 - [Story generation, end to end](./docs/story-generation.md)
 - [Display modes & colors](./docs/display-modes.md)
 - [Traditional Chinese & regional pronunciation](./docs/traditional-chinese.md) — Taiwan / Hong Kong script, Taiwan readings, and what is not covered

@@ -55,14 +55,12 @@ export interface ExplainCharacter {
   character: string;
   pinyin: string;
   meaning: string;
-  /** The radical with its meaning, or "". */
+  /**
+   * The radical with its meaning, or "". Filled in by the plugin from Unicode's Unihan data (`radicalOf`), never taken from
+   * the model: how a character was built and where it comes from are not asked for, because a model answers those from
+   * memory and a small one invents them.
+   */
   radical: string;
-  /** How the character is built from parts, or "". */
-  components: string;
-  /** Where the character comes from, or "" when there is no well-established account. */
-  etymology: string;
-  /** "established" when scholars agree, "uncertain" when it is a popular guess or the model is not sure. */
-  confidence: "established" | "uncertain";
 }
 
 export interface ExplainResult {
@@ -115,10 +113,6 @@ export const EXPLAIN_SCHEMA = obj({
       character: str,
       pinyin: str,
       meaning: str,
-      radical: str,
-      components: str,
-      etymology: str,
-      confidence: { type: "string", enum: ["established", "uncertain"] },
     }),
   },
   notes: strList,
@@ -156,10 +150,7 @@ export function normaliseExplain(raw: unknown): ExplainResult {
       character: text(x.character),
       pinyin: text(x.pinyin),
       meaning: text(x.meaning),
-      radical: text(x.radical),
-      components: text(x.components),
-      etymology: text(x.etymology),
-      confidence: x.confidence === "established" ? "established" : "uncertain",
+      radical: "",
     })),
     notes: strings(o.notes),
   };
@@ -331,10 +322,6 @@ export function explainBlocks(r: ExplainResult, m: ExplainMeta): Block[] {
     for (const c of r.characters) {
       h(3, `${c.character}${c.pinyin ? ` (${c.pinyin})` : ""} — ${c.meaning}`);
       if (c.radical) out.push({ kind: "li", depth: 0, inline: [{ b: "Radical:" }, ` ${c.radical}`] });
-      // The doubt covers the breakdown as well as the origin, so it is said on the last of the two lines.
-      const doubt: Inline[] = c.confidence === "uncertain" ? [" ", { i: "(not settled; a popular or uncertain account)" }] : [];
-      if (c.components) out.push({ kind: "li", depth: 0, inline: [{ b: "Built from:" }, ` ${c.components}`, ...(c.etymology ? [] : doubt)] });
-      if (c.etymology) out.push({ kind: "li", depth: 0, inline: [{ b: "Origin:" }, ` ${c.etymology}`, ...doubt] });
     }
   }
 
