@@ -107,9 +107,12 @@ describe("figures", () => {
     expect(lines[0].querySelector(".cci-fig-mode")).toBeNull();
     expect(lines[1].querySelectorAll(".cci-fig-pill")).toHaveLength(0);
     expect(lines[1].querySelector(".cci-fig-mode")!.textContent).toBe("Status");
-    // the same icon buttons around it on both rows
-    expect(lines[0].querySelectorAll(".cci-fig-btn")).toHaveLength(lines[1].querySelectorAll(".cci-fig-btn").length);
+    // the same icon buttons around it on both rows, plus the new lightbulb (ringed) on the "Now" row only
+    expect(lines[0].querySelectorAll(".cci-fig-btn")).toHaveLength(lines[1].querySelectorAll(".cci-fig-btn").length - 1);
+    expect(lines[0].querySelector(".cci-fig-new")).toBeNull();
+    expect(lines[1].querySelectorAll(".cci-fig-new")).toHaveLength(1);
     expect(fig.querySelector(".cci-fig-caption")!.textContent).toContain("tap it to switch");
+    expect(fig.querySelector(".cci-fig-caption")!.textContent).toContain("lightbulb");
   });
 
   it("show a mnemonic as it appears over a word, with the tone after each picture", () => {

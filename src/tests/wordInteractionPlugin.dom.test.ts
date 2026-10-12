@@ -25,6 +25,9 @@ function mount(mode = "read", attrs: Record<string, string> | null = { "data-cci
     beginFormatRange: vi.fn(),
     applyFormatRange: vi.fn(),
     pendingFormatStart: null,
+    beginPhraseRange: vi.fn(),
+    finishPhraseRange: vi.fn(),
+    pendingPhraseStart: null,
     vocab: { bySurface: vi.fn(() => undefined) },
     settings: { knownWordPopups: true },
   };
@@ -75,7 +78,7 @@ describe("a press that is not on a word", () => {
 
 describe("pressing a word", () => {
   it("in the reading modes keeps the editor from taking focus (no caret, no keyboard)", () => {
-    for (const mode of ["read", "mark-known", "mark-unknown", "mark-partial", "select-word", "format"]) {
+    for (const mode of ["read", "mark-known", "mark-unknown", "mark-partial", "select-word", "format", "explain"]) {
       const { word } = mount(mode);
       expect(fire(word, "pointerdown").defaultPrevented, mode).toBe(true);
       document.body.innerHTML = "";
@@ -243,6 +246,30 @@ describe("tapping a word, by mode", () => {
       fire(word, "click");
       expect(plugin.openWordPopup).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe("the lightbulb tool (explain mode)", () => {
+  it("the first tap starts the selection at the word's live position, the second ends it after the word", () => {
+    const { plugin, word, view } = mount("explain");
+    vi.spyOn(view, "posAtDOM").mockReturnValue(10);
+    expect(fire(word, "click").defaultPrevented).toBe(true);
+    expect(plugin.beginPhraseRange).toHaveBeenCalledWith(10, "学习");
+    expect(plugin.finishPhraseRange).not.toHaveBeenCalled();
+    plugin.pendingPhraseStart = 10;
+    fire(word, "click");
+    expect(plugin.finishPhraseRange).toHaveBeenCalledWith(12);
+  });
+
+  it("does nothing when the position cannot be found, and never opens the word popup", () => {
+    const { plugin, word, view } = mount("explain", { "data-cci-surface": "学习", "data-cci-start": "x", "data-cci-end": "2" });
+    vi.spyOn(view, "posAtDOM").mockImplementation(() => {
+      throw new Error("detached");
+    });
+    expect(fire(word, "click").defaultPrevented).toBe(true);
+    expect(plugin.beginPhraseRange).not.toHaveBeenCalled();
+    expect(plugin.finishPhraseRange).not.toHaveBeenCalled();
+    expect(plugin.openWordPopup).not.toHaveBeenCalled();
   });
 });
 

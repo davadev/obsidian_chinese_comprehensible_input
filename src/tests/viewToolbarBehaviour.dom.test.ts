@@ -24,6 +24,10 @@ function makePlugin(settings: Record<string, unknown> = {}, startMode = "read", 
     pendingCustomSurface: "",
     pendingFormatStart: null,
     pendingFormatStartSurface: null,
+    pendingPhraseStart: null,
+    pendingPhraseStartSurface: null,
+    aiConfigured: vi.fn(() => true),
+    promptAiSetup: vi.fn(),
     saveSettings: vi.fn(async () => {}),
     activeViewMode: vi.fn(() => mode),
     setActiveViewMode: vi.fn((m: string) => void (mode = m)),
@@ -204,6 +208,116 @@ describe("format banner text", () => {
 
   it("Exit leaves format mode", () => {
     const { container, plugin } = mount({ mode: "format" });
+    btn(container, "Exit").click();
+    expect(plugin.setActiveViewMode).toHaveBeenCalledWith("read");
+  });
+});
+
+describe("the lightbulb button", () => {
+  const bulb = (c: HTMLElement) => c.querySelector<HTMLElement>(".cci-explain-btn")!;
+
+  it("sits next to the highlighter, as an icon button of the same kind", () => {
+    const { container } = mount();
+    expect(bulb(container).classList.contains("cci-icon-btn")).toBe(true);
+    expect(bulb(container).getAttribute("data-mode")).toBe("explain");
+    expect(bulb(container).getAttribute("aria-label")).toBe("Explain or proof read (tap first + last word)");
+    const buttons = Array.from(container.querySelectorAll(".cci-toolbar-row > button"));
+    expect(buttons.indexOf(bulb(container))).toBe(buttons.indexOf(container.querySelector(".cci-format-btn")!) + 1);
+  });
+
+  it("starts the mode when AI is set up, and leaves it on a second tap", () => {
+    const { container, plugin } = mount();
+    bulb(container).click();
+    expect(plugin.setActiveViewMode).toHaveBeenLastCalledWith("explain");
+    expect(plugin.promptAiSetup).not.toHaveBeenCalled();
+    bulb(container).click();
+    expect(plugin.setActiveViewMode).toHaveBeenLastCalledWith("read");
+  });
+
+  it("tells a user who has not set AI up how to, instead of entering a mode that cannot work", () => {
+    const { container, plugin } = mount();
+    plugin.aiConfigured.mockReturnValue(false);
+    bulb(container).click();
+    expect(plugin.promptAiSetup).toHaveBeenCalledWith("Explain and proof read");
+    expect(plugin.setActiveViewMode).not.toHaveBeenCalled();
+  });
+
+  it("is lit while the mode is on", () => {
+    expect(bulb(mount({ mode: "explain" }).container).classList.contains("is-active")).toBe(true);
+    expect(bulb(mount().container).classList.contains("is-active")).toBe(false);
+  });
+});
+
+describe("the lightbulb banner", () => {
+  const banner = (c: HTMLElement) => c.querySelector<HTMLElement>(".cci-banner.is-explain")!;
+  const text = (c: HTMLElement) => banner(c).querySelector("span")!.textContent;
+  const dropdown = (c: HTMLElement) => Array.from(banner(c).querySelectorAll("button")).find((b) => /▾/.test(b.textContent ?? ""))!;
+  const choiceMenu = () => document.body.querySelector<HTMLElement>(".cci-overflow-menu");
+
+  it("says what to tap, naming the verb that is chosen", () => {
+    expect(text(mount({ mode: "explain" }).container)).toBe("Tap the first word, then the last word, to explain");
+    expect(text(mount({ mode: "explain", settings: { phraseAction: "proofread" } }).container)).toBe("Tap the first word, then the last word, to proof read");
+    expect(dropdown(mount({ mode: "explain" }).container).textContent).toBe("Explain ▾");
+    expect(dropdown(mount({ mode: "explain", settings: { phraseAction: "proofread" } }).container).textContent).toBe("Proof read ▾");
+  });
+
+  it("after the first tap confirms which start was registered", () => {
+    const m = mount({ mode: "explain" });
+    m.plugin.pendingPhraseStart = 3;
+    m.plugin.pendingPhraseStartSurface = " 打算 ";
+    m.toolbar.refresh();
+    expect(text(m.container)).toBe("Start “打算” selected — tap the last word to explain");
+    m.plugin.pendingPhraseStartSurface = null;
+    m.toolbar.refresh();
+    expect(text(m.container)).toBe("Start selected — tap the last word to explain");
+  });
+
+  it("the dropdown offers Explain and Proof read, marks the current one, saves a choice and relabels the banner", async () => {
+    const m = mount({ mode: "explain" });
+    dropdown(m.container).click();
+    const rows = Array.from(choiceMenu()!.querySelectorAll<HTMLElement>(".cci-overflow-item"));
+    expect(rows.map((r) => r.textContent)).toEqual(["Explain", "Proof read"]);
+    expect(rows.map((r) => r.querySelector<HTMLInputElement>("input")!.checked)).toEqual([true, false]);
+    rows[1].click();
+    await flush();
+    expect(m.plugin.settings.phraseAction).toBe("proofread");
+    expect(m.plugin.saveSettings).toHaveBeenCalled();
+    expect(dropdown(m.container).textContent).toBe("Proof read ▾");
+    expect(text(m.container)).toContain("to proof read");
+    expect(choiceMenu()).toBeNull();
+  });
+
+  it("choosing through the radio itself works too, and choosing Explain again keeps it", async () => {
+    const m = mount({ mode: "explain", settings: { phraseAction: "proofread" } });
+    dropdown(m.container).click();
+    const radio = choiceMenu()!.querySelectorAll<HTMLInputElement>("input")[0];
+    radio.dispatchEvent(new Event("change"));
+    await flush();
+    expect(m.plugin.settings.phraseAction).toBe("explain");
+    expect(dropdown(m.container).textContent).toBe("Explain ▾");
+  });
+
+  it("clicking the radio button itself chooses too, once", async () => {
+    const m = mount({ mode: "explain" });
+    dropdown(m.container).click();
+    choiceMenu()!.querySelectorAll<HTMLInputElement>("input")[1].click();
+    await flush();
+    expect(m.plugin.settings.phraseAction).toBe("proofread");
+    expect(m.plugin.saveSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second tap on the dropdown closes its menu, and the next tap reopens it", () => {
+    const m = mount({ mode: "explain" });
+    dropdown(m.container).click();
+    expect(choiceMenu()).toBeTruthy();
+    dropdown(m.container).click();
+    expect(choiceMenu()).toBeNull();
+    dropdown(m.container).click();
+    expect(choiceMenu()).toBeTruthy();
+  });
+
+  it("Exit leaves the mode", () => {
+    const { container, plugin } = mount({ mode: "explain" });
     btn(container, "Exit").click();
     expect(plugin.setActiveViewMode).toHaveBeenCalledWith("read");
   });

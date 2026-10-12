@@ -23,6 +23,7 @@ function sentenceFor(view: EditorView, target: HTMLElement): string {
  * Word tap / long-press behavior, per view mode:
  *  - Read: short tap = popup. PointerDown is preventDefault'd so the editor
  *    doesn't claim focus (no mobile keyboard, no caret move).
+ *  - Explain (the lightbulb tool): tap the first word, then the last word of the text to explain or proof read.
  *  - Mark known / Mark unknown: short tap marks the word. PointerDown
  *    preventDefault'd for the same reason.
  *  - Edit: short tap is normal CM6 cursor placement (with on-screen keyboard
@@ -201,6 +202,19 @@ export function wordInteractionPlugin(plugin: CciPlugin) {
             plugin.beginFormatRange(span.start, surface);
           } else {
             plugin.applyFormatRange(span.end);
+          }
+          return;
+        }
+        if (mode === "explain") {
+          ev.preventDefault();
+          ev.stopPropagation();
+          // Same two-tap selection as the highlighter, with offsets from the live view.
+          const span = this.formatSpanFor(target, surface);
+          if (!span) return;
+          if (plugin.pendingPhraseStart == null) {
+            plugin.beginPhraseRange(span.start, surface);
+          } else {
+            void plugin.finishPhraseRange(span.end);
           }
           return;
         }

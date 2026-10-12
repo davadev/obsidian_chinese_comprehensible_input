@@ -83,9 +83,9 @@ export interface ExplainResult {
   notes: string[];
 }
 
-const str = { type: "string" };
-const strList = { type: "array", items: str };
-const obj = (props: Record<string, unknown>) => ({
+export const str = { type: "string" };
+export const strList = { type: "array", items: str };
+export const obj = (props: Record<string, unknown>) => ({
   type: "object",
   required: Object.keys(props),
   additionalProperties: false,
@@ -235,9 +235,9 @@ export interface ExplainMeta {
   showPinyin: boolean;
 }
 
-const BANNER = "AI-generated. Check anything important against a dictionary or a teacher before relying on it.";
+export const BANNER = "AI-generated. Check anything important against a dictionary or a teacher before relying on it.";
 
-function yamlString(v: string): string {
+export function yamlString(v: string): string {
   return `"${v.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
@@ -353,6 +353,21 @@ const inlineMd = (parts: Inline[]): string =>
   parts.map((x) => (typeof x === "string" ? x : "b" in x ? `**${x.b}**` : `*${x.i}*`)).join("");
 
 /** The saved note: frontmatter so it can be found again whatever it is renamed to, then the blocks as Markdown. */
+/** The blocks as Markdown lines: a blank line between blocks, none inside a run of list items. */
+export function blocksToMarkdown(blocks: Block[]): string[] {
+  const lines: string[] = [];
+  let prev: Block | null = null;
+  for (const b of blocks) {
+    const listContinues = prev?.kind === "li" && b.kind === "li";
+    if (prev && !listContinues) lines.push("");
+    if (b.kind === "h") lines.push(`${"#".repeat(b.level)} ${b.text}`);
+    else if (b.kind === "p") lines.push(`${b.callout ? "> [!warning] " : ""}${inlineMd(b.inline)}`);
+    else lines.push(`${"   ".repeat(b.depth)}${b.number ? `${b.number}.` : "-"} ${inlineMd(b.inline)}`);
+    prev = b;
+  }
+  return lines;
+}
+
 export function renderExplainMarkdown(r: ExplainResult, m: ExplainMeta): string {
   const lines = [
     "---",
@@ -366,15 +381,7 @@ export function renderExplainMarkdown(r: ExplainResult, m: ExplainMeta): string 
     `promptVersion: ${EXPLAIN_PROMPT_VERSION}`,
     "---",
     "",
+    ...blocksToMarkdown(explainBlocks(r, m)),
   ];
-  let prev: Block | null = null;
-  for (const b of explainBlocks(r, m)) {
-    const listContinues = prev?.kind === "li" && b.kind === "li";
-    if (prev && !listContinues) lines.push("");
-    if (b.kind === "h") lines.push(`${"#".repeat(b.level)} ${b.text}`);
-    else if (b.kind === "p") lines.push(`${b.callout ? "> [!warning] " : ""}${inlineMd(b.inline)}`);
-    else lines.push(`${"   ".repeat(b.depth)}${b.number ? `${b.number}.` : "-"} ${inlineMd(b.inline)}`);
-    prev = b;
-  }
   return `${lines.join("\n")}\n`;
 }

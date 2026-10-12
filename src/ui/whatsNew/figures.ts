@@ -12,11 +12,13 @@ export const FIGURE_IDS: FigureId[] = ["toolbar", "mnemonic"];
 /** The toolbar's icon buttons in order, as in `ViewToolbar`: known, unknown, partial, add custom word, highlighter. */
 const TOOLBAR_ICONS = ["check-circle-2", "x-circle", "circle-help", "square-plus", "highlighter"];
 
-function row(parent: HTMLElement, label: string, build: (strip: HTMLElement) => void): void {
+function row(parent: HTMLElement, label: string, build: (strip: HTMLElement) => void, withBulb = false): void {
   const line = parent.createDiv({ cls: "cci-fig-line" });
   line.createSpan({ cls: "cci-fig-label", text: label });
   const strip = line.createDiv({ cls: "cci-fig-strip" });
   for (const icon of TOOLBAR_ICONS) setIcon(strip.createDiv({ cls: "cci-fig-btn" }), icon);
+  // The new lightbulb button, right after the highlighter, ringed so the eye finds it.
+  if (withBulb) setIcon(strip.createDiv({ cls: "cci-fig-btn cci-fig-new" }), "lightbulb");
   build(strip);
   setIcon(strip.createDiv({ cls: "cci-fig-btn" }), "more-horizontal");
 }
@@ -27,10 +29,18 @@ function toolbarFigure(fig: HTMLElement): void {
     pills.createSpan({ cls: "cci-fig-pill is-on", text: "Status" });
     pills.createSpan({ cls: "cci-fig-pill", text: "HSK" });
   });
-  row(fig, "Now", (strip) => {
-    strip.createDiv({ cls: "cci-fig-mode", text: "Status" });
+  row(
+    fig,
+    "Now",
+    (strip) => {
+      strip.createDiv({ cls: "cci-fig-mode", text: "Status" });
+    },
+    true
+  );
+  fig.createDiv({
+    cls: "cci-fig-caption",
+    text: "One button names the colouring in use; tap it to switch. That made room for the new lightbulb, ringed.",
   });
-  fig.createDiv({ cls: "cci-fig-caption", text: "One button names the colouring in use; tap it to switch." });
 }
 
 function mnemonicFigure(fig: HTMLElement): void {

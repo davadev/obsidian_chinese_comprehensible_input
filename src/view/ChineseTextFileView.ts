@@ -556,6 +556,37 @@ export class ChineseTextFileView extends TextFileView {
     this.editor.dispatch({ effects: cciReTokenizeEffect.of(null) });
   }
 
+  /** The whole document as the editor holds it (frontmatter is not in it), or null when the editor is not open. */
+  docText(): string | null {
+    return this.editor ? this.editor.state.doc.toString() : null;
+  }
+
+  /** The document text between two offsets, or null when the editor is not open. */
+  docSlice(from: number, to: number): string | null {
+    if (!this.editor) return null;
+    const doc = this.editor.state.doc;
+    if (from < 0 || to > doc.length || from > to) return null;
+    return doc.sliceString(from, to);
+  }
+
+  /**
+   * Proof read: replace [from, to) with `replacement`, but only if the document there is still exactly `expected`. The
+   * dialog can stay open while the note changes, so the offsets it remembers may no longer point at what it showed; writing
+   * anyway would damage the note. Dispatches a user-event-annotated transaction so the existing listener saves the file.
+   * Returns whether the replacement was made, after telling the user why not.
+   */
+  replaceRange(from: number, to: number, expected: string, replacement: string): boolean {
+    if (this.docSlice(from, to) !== expected) {
+      new Notice("The note has changed since you selected this text, so nothing was replaced. Select it again.");
+      return false;
+    }
+    (this.editor as EditorView).dispatch({
+      changes: { from, to, insert: replacement },
+      annotations: Transaction.userEvent.of("input.cci-proofread"),
+    });
+    return true;
+  }
+
   /**
    * Format mode (#21): wrap [from, to) in the armed markdown formats. Dispatches
    * a user-event-annotated transaction so the existing updateListener saves the

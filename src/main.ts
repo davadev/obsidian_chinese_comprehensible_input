@@ -34,6 +34,8 @@ import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
 import { ExplainService } from "./ai/ExplainService";
+import { PhraseExplainService } from "./ai/PhraseExplainService";
+import { ProofreadService } from "./ai/ProofreadService";
 import { MnemonicService } from "./ai/MnemonicService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import {
@@ -43,10 +45,13 @@ import {
   type HighlightWrap,
 } from "./editor/highlightPalette";
 import { effectiveFormats } from "./editor/formatOptions";
-import { StatsView } from "./ui/StatsView";
+import { StatsView, extractSentenceAround } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
 import { BatchMnemonicModal } from "./ui/BatchMnemonicModal";
 import { ExplainModal } from "./ui/ExplainModal";
+import { PhraseModal } from "./ui/PhraseModal";
+import { prepareSelection } from "./ai/phrase";
+import { isHanChar } from "./ai/mnemonicFacts";
 import { AiSetupModal } from "./ui/AiSetupModal";
 import { WhatsNewModal } from "./ui/whatsNew/WhatsNewModal";
 import { latestNote, notesToShow } from "./ui/whatsNew/releaseNotes";
@@ -77,6 +82,8 @@ export default class CciPlugin extends Plugin {
   enhance!: EnhanceDictionaryService;
   mnemonic!: MnemonicService;
   explain!: ExplainService;
+  phraseExplain!: PhraseExplainService;
+  proofread!: ProofreadService;
   popup!: WordPopup;
   /**
    * Per-entry dictionary overrides + user-added custom words. Live at
@@ -98,6 +105,9 @@ export default class CciPlugin extends Plugin {
   pendingCustomSurface = "";
   /** Document offset of the first tapped word while viewMode === "format". */
   pendingFormatStart: number | null = null;
+  /** First tap of the lightbulb tool: where the selection starts (a document offset), and the word that was tapped. */
+  pendingPhraseStart: number | null = null;
+  pendingPhraseStartSurface: string | null = null;
   /** Surface of that first tapped word, shown in the banner as feedback (#21). */
   pendingFormatStartSurface: string | null = null;
   private injectedMarkdownViews = new WeakSet<MarkdownView>();
@@ -564,6 +574,8 @@ export default class CciPlugin extends Plugin {
     this.enhance = new EnhanceDictionaryService(this.ai, () => this.settings);
     this.mnemonic = new MnemonicService(this.ai, () => this.settings);
     this.explain = new ExplainService(this.ai);
+    this.phraseExplain = new PhraseExplainService(this.ai);
+    this.proofread = new ProofreadService(this.ai);
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));
@@ -1390,7 +1402,8 @@ export default class CciPlugin extends Plugin {
       m === "mark-known" ||
       m === "mark-unknown" ||
       m === "mark-partial" ||
-      m === "select-word"
+      m === "select-word" ||
+      m === "explain"
     );
   }
 
@@ -1451,6 +1464,65 @@ export default class CciPlugin extends Plugin {
     this.refreshChineseViewToolbars();
   }
 
+  /** First tap of the lightbulb tool: remember where the selection starts, and which word was tapped. */
+  beginPhraseRange(pos: number, surface?: string): void {
+    this.pendingPhraseStart = pos;
+    this.pendingPhraseStartSurface = surface ?? null;
+    this.refreshChineseViewToolbars();
+  }
+
+  /**
+   * Second tap of the lightbulb tool: turn the two taps into a selection and open the dialog for it (explain or proof read,
+   * as chosen in the banner). A selection that is too long or has no Chinese is refused with a reason and the start stays
+   * armed, so the end word can simply be tapped again. A single word under Explain goes to the word note instead.
+   */
+  async finishPhraseRange(endPos: number): Promise<void> {
+    const anchor = this.pendingPhraseStart;
+    if (anchor == null) return;
+    const view = this.app.workspace
+      .getLeavesOfType(VIEW_TYPE_CHINESE)
+      .map((l) => l.view)
+      .find((v): v is ChineseTextFileView => v instanceof ChineseTextFileView);
+    const from = Math.min(anchor, endPos);
+    const to = Math.max(anchor, endPos);
+    const abandon = (): void => {
+      this.pendingPhraseStart = null;
+      this.pendingPhraseStartSurface = null;
+      this.refreshChineseViewToolbars();
+    };
+    if (!view) return abandon();
+    const raw = view.docSlice(from, to);
+    if (raw === null) return abandon();
+    const { text, hasMarkup } = prepareSelection(raw);
+    const cap = this.settings.explain.maxPhraseChars;
+    const length = Array.from(text).length;
+    if (!Array.from(text).some(isHanChar)) {
+      new Notice("Select some Chinese text: tap the first word, then the last word.");
+      return;
+    }
+    if (length > cap) {
+      new Notice(`${length} characters selected; the limit is ${cap}. Tap an earlier last word.`);
+      return;
+    }
+    this.pendingPhraseStart = null;
+    this.pendingPhraseStartSurface = null;
+    this.refreshChineseViewToolbars();
+    if (!this.aiConfigured()) {
+      this.promptAiSetup("Explain and proof read");
+      return;
+    }
+    const action = this.settings.phraseAction;
+    if (action === "explain") {
+      const words = (await this.tokenizer.tokenize(text)).filter((t) => t.isWord && t.candidates.length > 0);
+      const hanChars = Array.from(text).filter(isHanChar).length;
+      if (words.length === 1 && Array.from(words[0].surface).length === hanChars) {
+        this.openExplainModal(words[0].surface, extractSentenceAround(view.docText() ?? raw, from).text);
+        return;
+      }
+    }
+    new PhraseModal(this.app, this, { text, raw, from, to, view, hasMarkup }, action).open();
+  }
+
   private refreshChineseViewToolbars(): void {
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {
       const v = leaf.view;
@@ -1472,6 +1544,10 @@ export default class CciPlugin extends Plugin {
     if (prev !== m && (prev === "format" || m === "format")) {
       this.pendingFormatStart = null;
       this.pendingFormatStartSurface = null;
+    }
+    if (prev !== m && (prev === "explain" || m === "explain")) {
+      this.pendingPhraseStart = null;
+      this.pendingPhraseStartSurface = null;
     }
     const editBoundaryCrossed = (prev === "edit") !== (m === "edit");
     for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_CHINESE)) {

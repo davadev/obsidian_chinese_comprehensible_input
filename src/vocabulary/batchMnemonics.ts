@@ -117,11 +117,6 @@ export function formatUsd(usd: number): string {
   return usd < 0.01 ? "under $0.01" : `about $${usd.toFixed(2)}`;
 }
 
-/** What a finished run actually cost: a few thousandths of a dollar are worth showing, so no rounding up to a cent. */
-export function formatSpentUsd(usd: number): string {
-  return `$${usd.toFixed(usd >= 0.1 ? 2 : 4)}`;
-}
-
 export interface BatchOutcome {
   item: BatchItem;
   ok: boolean;

@@ -1,11 +1,13 @@
-import { App, Modal, Notice, TFile } from "obsidian";
+import { App, Modal, TFile } from "obsidian";
 import type CciPlugin from "../main";
 import { ExplainMeta, ExplainResult, explainBlocks, explainFileName, renderExplainMarkdown } from "../ai/explain";
-import { explainInputFor, explainKey, findExplainNote, saveExplainNote } from "../ai/explainNotes";
+import { explainInputFor, explainKey, findExplainNote } from "../ai/explainNotes";
 import { OPENAI_MODELS, resolveOpenAiChoice } from "../ai/openaiProfile";
 import { countTraditionalMarkers } from "../dictionary/scriptDetect";
-import { VIEW_TYPE_CHINESE } from "../constants";
 import { renderExplainBlocks } from "./explainPreview";
+import { copyMarkdown, openInReader, saveExplanation } from "./explainFiles";
+import { startProgressClock } from "./progressClock";
+import { UsageMeter } from "./usageMeter";
 import { liftModal } from "./modalLayer";
 
 /**
@@ -22,6 +24,7 @@ export class ExplainModal extends Modal {
   private issues: string[] = [];
   private meta!: ExplainMeta;
   private existing: TFile | null = null;
+  private meter: UsageMeter;
   /** Stops the clock behind the progress bar; set only while an answer is being waited for. */
   private stopProgress: (() => void) | null = null;
 
@@ -32,6 +35,7 @@ export class ExplainModal extends Modal {
     private sentence: string | undefined
   ) {
     super(app);
+    this.meter = new UsageMeter(plugin);
   }
 
   onOpen(): void {
@@ -44,6 +48,7 @@ export class ExplainModal extends Modal {
 
   onClose(): void {
     this.runId++;
+    this.meter.stop();
     this.stopProgress?.();
     this.contentEl.empty();
   }
@@ -79,7 +84,7 @@ export class ExplainModal extends Modal {
     bar.createEl("button", { text: "Close" }).addEventListener("click", () => this.close());
     bar.createEl("button", { text: "Write a new version" }).addEventListener("click", () => void this.generate());
     bar.createEl("button", { text: "Open it", cls: "mod-cta" }).addEventListener("click", () => {
-      void this.openInReader(file);
+      void openInReader(this.app, file);
       this.close();
     });
   }
@@ -87,44 +92,29 @@ export class ExplainModal extends Modal {
   private async generate(): Promise<void> {
     const run = ++this.runId;
     this.heading("Writing the explanation… this usually takes 20 to 40 seconds.");
-    this.showProgress();
+    this.stopProgress = startProgressClock(this.contentEl);
     const bar = this.actions();
     bar.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+    this.meter.usd = 0;
+    this.meter.requests = 0;
+    this.meter.start();
     try {
       const input = explainInputFor(this.deps(), this.surface, this.sentence);
       const { result, issues } = await this.plugin.explain.generate(input);
+      this.meter.stop();
       if (run !== this.runId) return;
       this.result = result;
       this.issues = issues;
       this.meta = this.metaFor(input.pinyin, input.hskLevels);
       this.renderPreview();
     } catch (err) {
+      this.meter.stop();
       if (run !== this.runId) return;
       this.heading(`The explanation failed: ${(err as Error).message}`);
       const fail = this.actions();
       fail.createEl("button", { text: "Close" }).addEventListener("click", () => this.close());
       fail.createEl("button", { text: "Try again", cls: "mod-cta" }).addEventListener("click", () => void this.generate());
     }
-  }
-
-  /**
-   * A bar that fills while the answer is awaited. The request reports no progress, so this is a clock, not a measurement:
-   * it rises quickly at first and slows towards 95%, so it never reaches the end before the answer does, and it shows the
-   * seconds so a slow answer still looks alive. No timer outlives the screen: `heading()` and `onClose()` stop it.
-   */
-  private showProgress(): void {
-    const wrap = this.contentEl.createDiv({ cls: "cci-explain-progress" });
-    const bar = wrap.createEl("progress");
-    bar.max = 100;
-    bar.value = 0;
-    const label = wrap.createSpan({ cls: "cci-explain-muted", text: "0 s" });
-    const started = Date.now();
-    const tick = window.setInterval(() => {
-      const seconds = (Date.now() - started) / 1000;
-      bar.value = 95 * (1 - Math.exp(-seconds / 22));
-      label.setText(`${Math.floor(seconds)} s`);
-    }, 250);
-    this.stopProgress = () => window.clearInterval(tick);
   }
 
   private metaFor(pinyin: string, hskLevels: string[]): ExplainMeta {
@@ -154,6 +144,8 @@ export class ExplainModal extends Modal {
     }
     const body = contentEl.createDiv({ cls: "cci-explain-body" });
     renderExplainBlocks(body, explainBlocks(result, this.meta));
+    const cost = this.meter.line();
+    if (cost) contentEl.createEl("p", { cls: "cci-explain-muted", text: cost });
 
     const bar = this.actions();
     bar.createEl("button", { text: "Close" }).addEventListener("click", () => this.close());
@@ -168,35 +160,19 @@ export class ExplainModal extends Modal {
   }
 
   private async copy(): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(this.markdown());
-      new Notice("Explanation copied.");
-    } catch {
-      new Notice("Could not copy to the clipboard.");
-    }
+    await copyMarkdown(this.markdown(), "Explanation");
   }
 
   private async save(): Promise<void> {
     const run = this.runId;
-    try {
-      const file = await saveExplainNote(
-        this.app,
-        this.plugin.settings.explain.folder,
-        explainFileName(this.meta.word, this.meta.pinyin),
-        this.markdown()
-      );
-      new Notice(`Saved ${file.path}`);
-      if (this.plugin.settings.explain.openAfterSave) await this.openInReader(file);
-      if (run === this.runId) this.close();
-    } catch (err) {
-      new Notice(`Could not save the explanation: ${(err as Error).message}`);
-    }
-  }
-
-  /** In the reader, so the Chinese in the note is annotated and tappable like any other note. */
-  private async openInReader(file: TFile): Promise<void> {
-    const leaf = this.app.workspace.getLeaf(true);
-    await leaf.setViewState({ type: VIEW_TYPE_CHINESE, state: { file: file.path } });
+    const file = await saveExplanation(
+      this.app,
+      this.plugin,
+      explainFileName(this.meta.word, this.meta.pinyin),
+      this.markdown(),
+      "explanation"
+    );
+    if (file && run === this.runId) this.close();
   }
 }
 

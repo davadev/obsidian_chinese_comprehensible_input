@@ -363,6 +363,9 @@
 .cci-toolbar .cci-banner.is-format {
   background: var(--color-blue, #2d7ff9);
 }
+.cci-toolbar .cci-banner.is-explain {
+  background: var(--color-purple, #8957e5);
+}
 .cci-toolbar .cci-banner.is-format.is-remove {
   background: var(--color-red, #e5534b);
 }
@@ -2325,4 +2328,41 @@
 }
 .cci-whatsnew-modal .cci-fig-hanzi {
   font-size: 1.6rem;
+}
+
+.cci-whatsnew-modal .cci-fig-new {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px var(--interactive-accent);
+}
+
+/* The lightbulb dialog: the selected text, and the proof reading list. */
+.cci-explain-modal .cci-explain-quote {
+  margin: 0.4rem 0;
+  padding: 0.4rem 0.7rem;
+  border-left: 3px solid var(--text-faint);
+  background: var(--background-secondary);
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+.cci-explain-modal .cci-proof-list {
+  margin: 0.6rem 0;
+}
+.cci-explain-modal .cci-proof-item {
+  margin-bottom: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+.cci-explain-modal .cci-proof-line {
+  font-size: 1.05rem;
+  margin-bottom: 0.2rem;
+}
+.cci-explain-modal .cci-proof-old {
+  color: var(--text-error, var(--text-normal));
+}
+.cci-explain-modal .cci-proof-new {
+  color: var(--text-success, var(--text-normal));
+}
+.cci-explain-modal .cci-proof-item button {
+  margin-top: 0.4rem;
 }

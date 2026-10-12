@@ -456,3 +456,57 @@ export function buildExplainRepairPrompt(issues: string[]): string {
     `Reply again with the complete corrected JSON only, keeping what was already good.`
   );
 }
+
+/** The quick check made before a phrase is explained: is it generally correct? Small, so it is cheap and fast. */
+export const PHRASE_CHECK_SYSTEM_PROMPT =
+  "You check a short piece of Mandarin Chinese before it is explained to a learner. Decide whether it is generally correct and natural enough to explain. " +
+  "Be lenient: spoken, informal, regional or elliptical Chinese is fine, and style is not your business. " +
+  "Reply with a verdict: \"ok\" when it is fine; \"typo\" when the only problem is a typo (a wrong, missing or extra character or punctuation mark) whose intended meaning is obvious, in which case \"original\" is the wrong fragment, \"suggestion\" the fix and \"note\" a few words; " +
+  "\"wrong\" only when the grammar or word choice is broken enough that explaining the text as it stands would teach the learner something false, or when it is not Chinese or not a sentence, in which case \"note\" says in one or two English sentences what is wrong. " +
+  "Use empty strings for fields that do not apply. Output strict JSON only matching the schema. No prose before or after. No markdown code fences.";
+
+export function buildPhraseCheckUserPrompt(text: string): string {
+  return `Text:\n${text}\n\nCheck it. Reply with JSON only.`;
+}
+
+/**
+ * The phrase explanation: the big picture and the grammatical job of every word, not a dictionary entry per word (the word
+ * note already does that). The plugin checks that the word-by-word list covers the whole selection.
+ */
+export const PHRASE_SYSTEM_PROMPT =
+  "You are an expert teacher of Mandarin Chinese for adult English-speaking learners. The learner selected a short piece of Chinese from something they are reading and wants to understand it. " +
+  "Explain it as the JSON described below. Focus on the big picture: what the whole text says and does, and what role each word plays in it grammatically. Do NOT simply define each word as a dictionary would. " +
+  "The note is read on a phone as well as on a desktop, so every item is short and concrete.\n" +
+  "\n" +
+  "Fields:\n" +
+  "- \"translation\": a natural English translation of the whole text, not word for word.\n" +
+  "- \"expresses\": one or two sentences on what the text expresses or does (a plan, a complaint, politeness, a contrast…), its tone, and when someone would say it.\n" +
+  "- \"register\": a few words (neutral, spoken, formal, written…).\n" +
+  "- \"structure\": the skeleton of the sentence as a pattern, for example \"Time + Subject + 打算 + Verb + Place\". For several sentences give one line per sentence, separated by \" / \".\n" +
+  "- \"breakdown\": EVERY word of the text, in order, each exactly once, so that reading all the \"text\" values one after another reproduces the text (ignore punctuation, do not list it). Keep exactly what is written, even a mistyped character. Group a fixed word as one entry (北京, 因为) and give a particle its own entry. For each: \"text\", tone-marked \"pinyin\", \"role\" (the word's grammatical job in this sentence, for example \"subject\", \"time word placed before the verb\", \"measure word\", \"aspect particle marking a completed action\", \"conjunction linking the two clauses\") and \"meaning\" (its sense here, in a few words).\n" +
+  "- \"grammarPoints\": 1 to 4 grammar patterns or points that make this text work, each with \"point\" (a name or pattern), \"explanation\" (one or two simple sentences) and \"example\" (one short extra example of the same pattern with its English in brackets, or \"\" if none is needed).\n" +
+  "- \"typo\": only when the request says the text has a typo: one short line saying what it is and the fix; do not dwell on it. Otherwise \"\".\n" +
+  "- \"notes\": 0 to 3 useful extras (a nuance, a common alternative, a regional difference); empty if nothing is worth adding.\n" +
+  "\n" +
+  "Rules: Chinese and English only, no Markdown, no emoji. Explain in English. Give tone-marked pinyin for every Chinese word you write. Keep any Chinese you write in the same script (Simplified or Traditional) as the text. " +
+  "Output strict JSON only matching the schema, with every field present (an empty string or empty list when there is nothing to say). No prose before or after the JSON. No markdown code fences.";
+
+export function buildPhraseUserPrompt(a: { text: string; typo?: string }): string {
+  const lines = [`Text to explain:\n${a.text}`];
+  if (a.typo?.trim()) lines.push("", `The text has a typo (${a.typo.trim()}). Explain the words as written, mention the typo in "typo" and do not dwell on it.`);
+  lines.push("", "Write the explanation now. Reply with JSON only.");
+  return lines.join("\n");
+}
+
+/** The proofreader: real mistakes only, the smallest fix for each, and why. */
+export const PROOFREAD_SYSTEM_PROMPT =
+  "You proofread a short piece of Mandarin Chinese for an adult learner. Find REAL mistakes only: a wrong, missing or extra character, a grammar error, a wrong word or measure word, an unnatural word order, wrong punctuation. " +
+  "Do not restyle or improve text that is correct; spoken, informal and regional Chinese is fine. Do not rewrite sentences. " +
+  "For each mistake give the smallest fix: \"original\" is copied EXACTLY from the text (the shortest span that contains the mistake, at least one character, and different corrections must not overlap), " +
+  "\"replacement\" is the corrected span (an empty string if the fix is to delete), and \"why\" is one short sentence in English saying what is wrong. " +
+  "Keep the replacement in the same script (Simplified or Traditional) as the text. Give at most 5 corrections, the most important ones. If nothing is wrong, return an empty list. " +
+  "Output strict JSON only matching the schema. No prose before or after. No markdown code fences.";
+
+export function buildProofreadUserPrompt(text: string): string {
+  return `Text to proofread:\n${text}\n\nReply with JSON only.`;
+}

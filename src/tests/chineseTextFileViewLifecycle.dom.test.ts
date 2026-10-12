@@ -312,6 +312,53 @@ describe("unsaved smart-story preview bar", () => {
   });
 });
 
+describe("proof read: replacing a range in the note", () => {
+  const doc = "我昨天去了商店。\n";
+
+  it("reads the whole document, or nothing when the editor is not open", async () => {
+    const { view } = makeView(doc);
+    expect(view.docText()).toBeNull();
+    await view.onOpen();
+    expect(view.docText()).toBe(doc);
+  });
+
+  it("reads a slice of the document, and refuses ranges outside it or a closed editor", async () => {
+    const { view } = makeView(doc);
+    expect(view.docSlice(0, 2)).toBeNull();
+    await view.onOpen();
+    expect(view.docSlice(0, 3)).toBe("我昨天");
+    expect(view.docSlice(-1, 3)).toBeNull();
+    expect(view.docSlice(3, 2)).toBeNull();
+    expect(view.docSlice(0, 999)).toBeNull();
+  });
+
+  it("replaces the range as a USER edit, so the note is saved, when the text there is what was shown", async () => {
+    const { view } = makeView(doc);
+    await view.onOpen();
+    const save = vi.spyOn(view, "requestSave");
+    expect(view.replaceRange(4, 5, "了", "")).toBe(true);
+    expect(editorOf(view)!.state.doc.toString()).toBe("我昨天去商店。\n");
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(view.replaceRange(0, 3, "我昨天", "我今天")).toBe(true);
+    expect(editorOf(view)!.state.doc.toString()).toBe("我今天去商店。\n");
+  });
+
+  it("writes nothing, and says why, when the note has changed since the text was selected", async () => {
+    const { view } = makeView(doc);
+    await view.onOpen();
+    const dispatch = vi.spyOn(editorOf(view)!, "dispatch");
+    expect(view.replaceRange(4, 5, "到", "")).toBe(false);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(editorOf(view)!.state.doc.toString()).toBe(doc);
+    expect(Notice.instances.at(-1)!.message).toBe("The note has changed since you selected this text, so nothing was replaced. Select it again.");
+  });
+
+  it("with no editor open it replaces nothing", () => {
+    const { view } = makeView(doc);
+    expect(view.replaceRange(0, 1, "我", "你")).toBe(false);
+  });
+});
+
 describe("tap-to-format on the editor", () => {
   const doc = "你好世界\n";
 

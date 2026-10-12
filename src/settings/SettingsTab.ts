@@ -1356,6 +1356,11 @@ export class CciSettingsTab extends PluginSettingTab {
           control: { type: "toggle", key: "explain.openAfterSave" },
         },
         {
+          name: "Longest text to explain or proof read (characters)",
+          desc: "The lightbulb tool refuses a longer selection: it costs more and the answer gets worse. 150 is about two or three sentences.",
+          control: { type: "number", key: "explain.maxPhraseChars", min: 20, max: 400 },
+        },
+        {
           name: "Pinyin under example sentences",
           desc: "Show a pinyin line under each example and combination. The reader can also show pinyin over the Chinese itself.",
           control: { type: "toggle", key: "explain.pinyinInExamples" },

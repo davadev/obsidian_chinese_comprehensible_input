@@ -24,6 +24,7 @@ const NOT_IN_SETTINGS_TAB: Record<string, string> = {
   traditionalPromptDismissed:
     "set by the one-time 'this note looks Traditional' prompt's Don't ask again",
   whatsNewHintedFor: "per-device record of the restart hint for an in-session update; not a preference",
+  phraseAction: "chosen from the dropdown in the lightbulb tool's banner",
   lastSeenVersion: "per-device record of the last \"What's new\" popup shown; not a preference",
   trackedBaselineRepaired:
     "one-shot bookkeeping for the vault-index baseline pass; not a preference",

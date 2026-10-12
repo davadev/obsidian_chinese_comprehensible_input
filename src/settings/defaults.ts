@@ -158,9 +158,10 @@ export const DEFAULT_SETTINGS: CciSettings = {
   mnemonicsFirst: false,
   batchMnemonicScope: "notKnown",
   lastSeenVersion: "",
+  phraseAction: "explain",
   whatsNewHintedFor: "",
   // A subfolder of where generated stories go, so everything the AI writes into the vault lives in one place.
-  explain: { folder: `${GENERATED_NOTES_FOLDER_DEFAULT}/Explanations`, openAfterSave: true, pinyinInExamples: true },
+  explain: { folder: `${GENERATED_NOTES_FOLDER_DEFAULT}/Explanations`, openAfterSave: true, pinyinInExamples: true, maxPhraseChars: 150 },
   readerFontPx: 22,
   readerLineSpacing: 1.0,
   // 100 = the ratios that shipped before #103, so an upgrade changes nothing.

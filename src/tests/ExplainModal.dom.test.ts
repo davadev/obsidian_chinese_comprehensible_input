@@ -25,6 +25,8 @@ function make(
     provider?: string;
     saveFails?: boolean;
     openAfterSave?: boolean;
+    /** An OpenAI usage record reported for every generate call, as the real service does. */
+    usage?: Record<string, unknown>;
   } = {}
 ) {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
@@ -46,11 +48,23 @@ function make(
   };
   app.metadataCache = { getFileCache: () => ({ frontmatter: { "cci-explain": true, "cci-word": "方便|fang1 bian4" } }) };
   app.workspace = { getLeaf: vi.fn(() => leaf) };
+  const listeners = new Set<(e: any) => void>();
+  const inner: (i: any) => Promise<any> = opts.explain ?? (async () => ({ result: clone(FULL), issues: [] }));
   const plugin: any = {
     settings,
+    onAiUsage: vi.fn((cb: (e: any) => void) => {
+      listeners.add(cb);
+      return () => void listeners.delete(cb);
+    }),
     dictionary: { lookup: (s: string) => (s === "方便" ? [ENTRY] : []), isTraditionalMarker: () => false },
     vocab: { bySurface: () => undefined },
-    explain: { generate: vi.fn(opts.explain ?? (async () => ({ result: clone(FULL), issues: [] }))) },
+    explain: {
+      generate: vi.fn(async (input: any) => {
+        const out = await inner(input);
+        if (opts.usage) for (const l of listeners) l(opts.usage);
+        return out;
+      }),
+    },
   };
   const modal = new ExplainModal(app, plugin, "方便", "住在这里很方便。");
   modal.open();
@@ -186,6 +200,28 @@ describe("writing the explanation", () => {
     const close = vi.spyOn(modal, "close");
     btn(root, "Cancel").click();
     expect(close).toHaveBeenCalled();
+  });
+});
+
+describe("what it cost", () => {
+  const USAGE = { ts: 1, provider: "openai", model: "gpt-6-luna", inputTokens: 1000, cachedInputTokens: 0, outputTokens: 2000 };
+
+  it("shows the OpenAI cost under the note, from the real token usage", async () => {
+    const { root } = make({ usage: USAGE });
+    await vi.waitFor(() => expect(btn(root, "Save as note")).toBeTruthy());
+    // 1000 x $0.10 + 2000 x $0.50 per million tokens
+    expect(text(root)).toContain("Cost on OpenAI: $0.0011 (1 request).");
+  });
+
+  it("shows nothing for a local model or when nothing was billed, and starts again on Regenerate", async () => {
+    const local = make({ usage: { ...USAGE, provider: "ollama" } });
+    await vi.waitFor(() => expect(btn(local.root, "Save as note")).toBeTruthy());
+    expect(text(local.root)).not.toContain("Cost on OpenAI");
+    document.body.innerHTML = "";
+    const { root } = make({ usage: USAGE });
+    await vi.waitFor(() => expect(btn(root, "Regenerate")).toBeTruthy());
+    btn(root, "Regenerate").click();
+    await vi.waitFor(() => expect(text(root)).toContain("Cost on OpenAI: $0.0011 (1 request)."));
   });
 });
 

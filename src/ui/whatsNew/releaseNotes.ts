@@ -48,6 +48,11 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         text:
           "Tap a word and choose Explain for a full usage note: meanings, grammar, examples in different contexts, common pitfalls, similar words and how each character is built. Read it in a preview, then save it as a note or copy it. Needs an AI provider.",
       },
+      {
+        title: "Explain a phrase, or proof read it",
+        text:
+          "The new lightbulb button in the toolbar: tap the first word and the last word of a phrase or a few sentences, then choose Explain (what it says and what every word is doing in it) or Proof read (real mistakes with the simplest fix, which you can apply to your note with one tap) from the dropdown. Needs an AI provider.",
+      },
     ],
   },
 ];

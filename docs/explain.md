@@ -47,6 +47,50 @@ model free rein:
 - **Etymology is marked when it is shaky.** Each character's origin is labelled *established* or *a popular or uncertain
   account*; the model is told to leave it out rather than invent one.
 
+## Explaining or proof reading a phrase (the lightbulb)
+
+The lightbulb button in the reader's toolbar (next to the highlighter) works on a stretch of text instead of one word.
+Tap it, tap the **first word** of the text, then the **last word**. A dropdown in the banner chooses what happens:
+**Explain** or **Proof read**. The second tap opens a dialog that shows the text, its length and the likely cost, and
+nothing is sent until you press the button there. **Exit** in the banner leaves the mode. With no AI set up, the button
+tells you how to set it up instead of starting the mode.
+
+The selection is limited (default 150 characters, about two or three sentences; **Settings → Explanations → Longest
+text**): more costs more and is explained worse. A longer selection is refused with the count, and you can simply tap an
+earlier last word.
+
+### Explain
+
+- **One word** selected: you get the normal word note described above.
+- **Several words or sentences**: a quick, cheap check first asks whether the text is generally correct (it is lenient:
+  spoken or informal Chinese is fine). Then comes the explanation, which is about the **big picture**, not a dictionary
+  entry per word: a natural translation, what the text expresses and when you would say it, its sentence skeleton, a
+  **word by word** list that gives every word's *grammatical job in this sentence*, the grammar points that make it work,
+  and notes. The plugin checks that the list covers the whole selection, in order (nothing left out, nothing added) and
+  asks once more if it does not.
+- A **typo** is mentioned briefly in the note, and the words are explained as written.
+- If the check says the text is **wrong** (so broken that an explanation would teach something false), the dialog says why and
+  offers **Proof read this instead**; it does not explain wrong grammar.
+- Like the word note: preview first, then **Save as note** (same folder; `cci-explain-phrase` in its header), **Copy**
+  or **Regenerate**.
+
+### Proof read
+
+It looks for real mistakes only (a wrong or missing character, a grammar slip, a wrong word or measure word, unnatural
+word order, punctuation), not style. Each correction shows the wrong part, the fix, and a one-line reason. **Apply**
+replaces that text **in your note** with one tap, **Apply all** does every one; **Copy corrected text** copies the whole
+selection with the fixes. The corrected text is worked out by the plugin from the listed fixes, never taken from the model,
+and a fix is written into the note only if the text there is still exactly what was shown (if the note changed while the
+dialog was open, nothing is replaced and you are told to select again). Text that has formatting in the note (bold,
+highlights, links) can still be applied when the wrong part itself is plain text; if the formatting runs through it, copy
+the corrected text instead.
+
+### Cost
+
+Explaining a phrase makes two requests and proof reading one. The dialog shows an estimate before you start (OpenAI only;
+a local model costs nothing) and the real cost afterwards, from the token usage the API reports. The word note shows its
+real cost too.
+
 ## Saving, finding and regenerating
 
 - **Save as note** writes `<word> <pinyin>.md` (so 行 xíng and 行 háng never collide) into **Settings → Explanations →
@@ -59,11 +103,15 @@ model free rein:
 
 ## What is sent to the AI
 
-One request (plus at most one follow-up when a rule was broken): the word, its pinyin and traditional form, its HSK
+**A word:** one request (plus at most one follow-up when a rule was broken): the word, its pinyin and traditional form, its HSK
 level, its dictionary readings and definitions, one line per character (its pinyin and a short dictionary meaning), and
 the sentence you opened the card from, if any. Nothing else from your vault is sent. With OpenAI this goes to OpenAI's
 servers, with Ollama to your own; see [OpenAI setup, privacy, and cost](./openai-setup.md#2-privacy--your-text-leaves-obsidian).
 A note costs a fraction of a cent to a few cents on OpenAI, depending on the model.
+
+**A phrase or proof read** (the lightbulb): only the **selected text** is sent (with the note's formatting taken off), in two
+requests for Explain (the quick check, then the explanation) and one for Proof read, plus at most one follow-up each when a
+rule was broken. Nothing else from the note is sent, and the confirm dialog shows exactly what will go.
 
 ## Settings
 
@@ -71,4 +119,5 @@ A note costs a fraction of a cent to a few cents on OpenAI, depending on the mod
 
 - **Folder** — where saved notes go.
 - **Open the note after saving** — in the reader.
+- **Longest text to explain or proof read** — the limit for the lightbulb tool.
 - **Pinyin under example sentences** — the pinyin line under each example and combination.
