@@ -153,6 +153,12 @@ export class MnemonicModal extends Modal {
 
   private async generate(): Promise<void> {
     if (this.busy) return;
+    if (!this.plugin.aiConfigured()) {
+      // AI is on but has no key or server address yet: close this editor (the setup dialog must not sit behind it).
+      this.close();
+      this.plugin.promptAiSetup("Generate with AI");
+      return;
+    }
     const run = ++this.runId;
     this.setBusy(true);
     try {

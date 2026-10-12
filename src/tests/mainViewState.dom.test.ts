@@ -320,7 +320,16 @@ describe("the story modal, the word popup and marking", () => {
     const off = plugin({ settings: settings((s) => (s.ai.enabled = false)) });
     off.openGenerateStoryModal();
     expect(Notice.instances.at(-1)!.message).toBe("Enable AI in plugin settings first.");
-    const on = plugin({ settings: settings((s) => (s.ai.enabled = true)) });
+    document.body.innerHTML = "";
+    const noKey = plugin({
+      settings: settings((s) => ((s.ai.enabled = true), (s.ai.provider = "openai"))),
+      manifest: { id: "p" },
+      app: { workspace: workspace(), loadLocalStorage: () => null },
+    });
+    noKey.openGenerateStoryModal();
+    expect(document.body.querySelector(".cci-aisetup-modal")).toBeTruthy();
+    document.body.innerHTML = "";
+    const on = plugin({ settings: settings((s) => (s.ai.enabled = true)), app: { workspace: workspace(), loadLocalStorage: () => "sk-test" } });
     on.openGenerateStoryModal();
     expect(document.body.querySelector(".cci-modal-front")).toBeTruthy();
   });

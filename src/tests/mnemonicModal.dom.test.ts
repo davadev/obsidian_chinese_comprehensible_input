@@ -31,7 +31,7 @@ const REC = (over: Record<string, unknown> = {}): any => ({
   ...over,
 });
 
-function make(opts: { rec?: any; aiEnabled?: boolean; script?: string; generate?: (i: any) => Promise<any>; dict?: any[] } = {}) {
+function make(opts: { rec?: any; aiEnabled?: boolean; configured?: boolean; script?: string; generate?: (i: any) => Promise<any>; dict?: any[] } = {}) {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   settings.ai.enabled = opts.aiEnabled !== false;
   settings.scriptVariant = opts.script ?? "auto";
@@ -41,6 +41,8 @@ function make(opts: { rec?: any; aiEnabled?: boolean; script?: string; generate?
     vocab: { updateMnemonic: vi.fn() },
     mnemonic: { generate: vi.fn(opts.generate ?? (async () => ({ mnemonic: "📖🧠", story: "A book in the brain." }))) },
     refreshChineseViews: vi.fn(),
+    aiConfigured: vi.fn(() => opts.configured !== false),
+    promptAiSetup: vi.fn(),
   };
   const modal = new MnemonicModal(new App() as any, plugin, opts.rec ?? REC(), "我每天学习中文。");
   modal.open();
@@ -157,6 +159,15 @@ describe("Generate with AI", () => {
     expect(Array.from(make({ aiEnabled: false }).root.querySelectorAll("button")).some((b) => b.textContent === "Generate with AI")).toBe(false);
     document.body.innerHTML = "";
     expect(btn(make().root, "Generate with AI")).toBeTruthy();
+  });
+
+  it("with AI on but no key or server yet, closes the editor and points to the setup instead of failing", () => {
+    const { root, modal, plugin } = make({ configured: false });
+    const close = vi.spyOn(modal, "close");
+    btn(root, "Generate with AI").click();
+    expect(close).toHaveBeenCalled();
+    expect(plugin.promptAiSetup).toHaveBeenCalledWith("Generate with AI");
+    expect(plugin.mnemonic.generate).not.toHaveBeenCalled();
   });
 
   it("sends the word, the sentence and what is in the fields right now, then fills them in without saving", async () => {

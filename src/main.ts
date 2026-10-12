@@ -1695,6 +1695,10 @@ export default class CciPlugin extends Plugin {
       new Notice("Enable AI in plugin settings first.");
       return;
     }
+    if (!this.aiConfigured()) {
+      this.promptAiSetup("Story generation");
+      return;
+    }
     new GenerateStoryModal(this.app, this).open();
   }
 

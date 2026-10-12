@@ -22,7 +22,7 @@ Every note has the same layout, so it is easy to scan on a phone:
 | **How it behaves in a sentence** | The sentence pattern, the measure word for a noun, and notes on position, negation, objects and complements. For particles and other function words this is written as a grammar point. |
 | **Common combinations** | Frequent collocations and set phrases, with pinyin. |
 | **Examples** | Five to eight natural sentences in different contexts and registers (daily life, work, spoken, formal), each with pinyin and English. |
-| **Watch out** | Pitfalls that really trip learners up: a rule in one line, the wrong form when the model is sure of one, and the right form. Each is built from something the note already says (a confusion with a similar word, the sentence pattern, a habit carried over from English, or a register slip), and there may be none. |
+| **Watch out** | Pitfalls that really trip learners up: a rule in one line and the correct form. Each is built from something the note already says (a confusion with a similar word, the sentence pattern, a habit carried over from English, or a register slip), and there may be none. |
 | **Similar words** | Near-synonyms and easily confused words, and when to choose which. |
 | **The characters** | For each character: its meaning, radical, how it is built from parts (which part gives the sound and which the meaning), and where it comes from. |
 | **Notes** | Mainland vs Taiwan differences, politeness, frequency, related idioms. |
@@ -37,15 +37,14 @@ model free rein:
 
 - **The facts come from your dictionary.** The pinyin, the HSK level, every dictionary reading and its meanings, and a
   line per character (using the reading *this* word has) are put in the request as ground truth.
-- **The plugin checks what it can see.** Every example must contain the word, each mistake needs the wrong sentence, the
-  correction and the reason, rows may not be half-filled, and there must be one entry per character. If a rule is
+- **The plugin checks what it can see.** Every example must contain the word, each pitfall needs its rule and the correct form, rows may not be half-filled, and there must be one entry per character. If a rule is
   broken the model is asked once more with the specific problem; if it is still wrong the dialog tells you what is off
   instead of hiding it.
 - **It cannot check that a rule is true.** A note says so on its face: *AI-generated; check anything important against
   a dictionary or a teacher.*
 - **Pitfalls are the weakest part.** Writing a realistic wrong sentence needs knowledge of real learner errors, which a
-  model does not reliably have, so the section asks for short rules tied to the rest of the note, shows a wrong form
-  only when the model is sure of it, and is left out rather than padded.
+  model does not reliably have (in tests it often called fine Chinese wrong). So the note shows no wrong examples at
+  all: only a short rule tied to the rest of the note and the correct form, and the section is left out rather than padded.
 - **Etymology is marked when it is shaky.** Each character's origin is labelled *established* or *a popular or uncertain
   account*; the model is told to leave it out rather than invent one.
 
