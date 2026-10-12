@@ -158,7 +158,7 @@ running shows a restart hint first and the popup after the restart. Press **Don'
 About → Show what's new after an update**, to turn it off. Switching that setting off and on again makes the current
 notes appear at the next start, and **Show what's new now** (also a command) opens them immediately.
 
-<img src="../resources/screenshots/whats-new-annotated.png" alt="The What's new popup" width="420">
+<img width="560" src="../resources/screenshots/whats-new-annotated.png" alt="The What's new popup">
 
 ## Where are the Explain and prompt settings?
 

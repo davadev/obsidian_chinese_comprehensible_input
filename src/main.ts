@@ -449,6 +449,10 @@ export default class CciPlugin extends Plugin {
         ...migrated.ai,
         ollama: { ...DEFAULT_SETTINGS.ai.ollama, ...migrated.ai.ollama },
         usageLog: migrated.ai.usageLog ?? [],
+        // Copies, and merged key by key: a hand-edited blob may hold only some of the keys, and the defaults object
+        // must never be the one a settings change writes into.
+        promptExtras: { ...DEFAULT_SETTINGS.ai.promptExtras, ...migrated.ai.promptExtras },
+        promptOverrides: { ...DEFAULT_SETTINGS.ai.promptOverrides, ...migrated.ai.promptOverrides },
       };
       // Belt-and-suspenders: the localStorage move means apiKey must
       // never be persisted to data.json. Force it back to "" in case a
@@ -1679,8 +1683,8 @@ export default class CciPlugin extends Plugin {
 
   /** Reader menu: a mnemonic for every word of the open note that has none (see BatchMnemonicModal). */
   openBatchMnemonicModal(noteText: string): void {
-    if (!this.settings.ai.enabled) {
-      new Notice("Enable AI in plugin settings first.");
+    if (!this.aiConfigured()) {
+      this.promptAiSetup("Mnemonics for this note");
       return;
     }
     new BatchMnemonicModal(this.app, this, noteText).open();

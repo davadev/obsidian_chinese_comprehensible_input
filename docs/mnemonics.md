@@ -128,7 +128,7 @@ Details of generating and regenerating:
 - **Which words** — by default every word that is not known: new words you
   have not classified yet, unknown words and the partly-known ones. Known
   words are never included, and neither are ignored ones. Change this under
-  **Settings → Display → Advanced display → Words covered by "Mnemonics for
+  **Settings → AI provider → AI prompts ▾ → Mnemonics ▾ → Words covered by "Mnemonics for
   this note"**: only words you marked unknown or partial, or only words marked
   unknown.
 - **What is sent** — for each word: the word, its pinyin, traditional form,
@@ -156,7 +156,7 @@ Details of generating and regenerating:
 
 ## Personalising the prompt
 
-**Settings → AI provider → AI prompts ▾ → Mnemonic prompt ▾** holds the *user* half of
+**Settings → AI provider → AI prompts ▾ → Mnemonics ▾** holds the *user* half of
 the prompt. Rewrite it to use imagery you personally remember, ask for a
 different language, or point it at a memory palace you already use.
 

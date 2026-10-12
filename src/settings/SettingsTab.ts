@@ -541,23 +541,6 @@ export class CciSettingsTab extends PluginSettingTab {
               name: "Show mnemonic before full definition",
               control: { type: "toggle", key: "mnemonicsFirst" },
             },
-            {
-              name: "Words covered by \"Mnemonics for this note\"",
-              desc:
-                "The reader's ⋯ menu (Mnemonics for this note…) can generate a mnemonic for every word in " +
-                "the open note that has none yet, or regenerate them all. Known and ignored words are " +
-                "never included, and generating the missing ones never touches a word that already " +
-                "has a mnemonic.",
-              control: {
-                type: "dropdown",
-                key: "batchMnemonicScope",
-                options: {
-                  notKnown: "All words that are not known",
-                  marked: "Words I marked unknown or partial (not new ones)",
-                  unknown: "Only words marked unknown",
-                },
-              },
-            },
             { type: "group", heading: "Annotation lines", items: [] },
             this.prose(
               "Rows are numbered upward from the Chinese: line 2 sits directly above the " +
@@ -1048,6 +1031,20 @@ export class CciSettingsTab extends PluginSettingTab {
           control: { type: "text", key: "ai.ollama.chatModel" },
         },
         {
+          name: "Test connection",
+          desc: "Check that the active provider answers.",
+          action: () => {
+            void (async () => {
+              try {
+                const ok = await this.plugin.ai.testConnection();
+                new Notice(ok ? "AI provider reachable." : "AI provider unreachable.");
+              } catch (e) {
+                new Notice("AI test error: " + (e as Error).message);
+              }
+            })();
+          },
+        },
+        {
           type: "page",
           name: "Advanced AI",
           desc: "Self-hosted model options, how pinyin is handled when enhancing, and request tracing. Most people never need this page.",
@@ -1135,20 +1132,6 @@ export class CciSettingsTab extends PluginSettingTab {
           ],
         },
         this.aiPromptsPage(),
-        {
-          name: "Test connection",
-          desc: "Check that the active provider answers.",
-          action: () => {
-            void (async () => {
-              try {
-                const ok = await this.plugin.ai.testConnection();
-                new Notice(ok ? "AI provider reachable." : "AI provider unreachable.");
-              } catch (e) {
-                new Notice("AI test error: " + (e as Error).message);
-              }
-            })();
-          },
-        },
       ],
     };
   }
@@ -1234,9 +1217,26 @@ export class CciSettingsTab extends PluginSettingTab {
   private mnemonicPromptPage(): SettingDefinitionPage {
     return {
       type: "page",
-      name: "Mnemonic prompt",
-      desc: "Personalise what the AI is asked for when you generate a mnemonic.",
+      name: "Mnemonics",
+      desc: "Which words \"Mnemonics for this note\" covers, and what the AI is asked for a mnemonic.",
       items: [
+        {
+          name: "Words covered by \"Mnemonics for this note\"",
+          desc:
+            "The reader's ⋯ menu (Mnemonics for this note…) can generate a mnemonic for every word in " +
+            "the open note that has none yet, or regenerate them all. Known and ignored words are " +
+            "never included, and generating the missing ones never touches a word that already " +
+            "has a mnemonic.",
+          control: {
+            type: "dropdown",
+            key: "batchMnemonicScope",
+            options: {
+              notKnown: "All words that are not known",
+              marked: "Words I marked unknown or partial (not new ones)",
+              unknown: "Only words marked unknown",
+            },
+          },
+        },
         this.docLink(
           "Mnemonics",
           "How the generated mnemonic is built (a picture per character, tone numbers, story) and how to make it yours.",

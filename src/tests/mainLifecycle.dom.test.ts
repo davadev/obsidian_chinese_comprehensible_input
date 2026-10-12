@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { DEFAULT_SETTINGS } from "../settings/defaults";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Platform } from "obsidian";
 import { installObsidianDom } from "./__mocks__/obsidianDom";
@@ -255,6 +256,16 @@ describe("the stored settings are merged with the defaults", () => {
     expect(Object.keys(env.plugin.settings.customColors.hsk)).toHaveLength(7);
     await vi.advanceTimersByTimeAsync(0);
     expect((env.plugin.data as any).settings.hskColorsDerivedFromAccent).toBe(true);
+  });
+
+  it("a saved blob that holds only some of the prompt texts keeps them and gets the rest empty, without touching the defaults", async () => {
+    const env = load({ data: { settings: { ai: { ollama: {}, promptExtras: { explain: "in German" }, promptOverrides: { phrase: "MINE" } } } } });
+    await env.plugin.onload();
+    const ai = env.plugin.settings.ai;
+    expect(ai.promptExtras).toEqual({ explain: "in German", phrase: "", proofread: "" });
+    expect(ai.promptOverrides).toEqual({ explain: "", phrase: "MINE", proofread: "" });
+    ai.promptExtras.phrase = "changed";
+    expect(DEFAULT_SETTINGS.ai.promptExtras.phrase).toBe("");
   });
 
   it("an already-derived palette is left as the user saved it", async () => {

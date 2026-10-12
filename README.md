@@ -15,7 +15,7 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 
 ### Reading toolbar (desktop)
 
-<img src="resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar" width="620">
+<img width="560" src="resources/screenshots/desktop-toolbar-annotated.png" alt="Annotated Chinese-view toolbar">
 
 - **1 · Edit** — toggle between read and edit (type Chinese with annotations off).
 - **2 · Known**, **3 · Unknown**, **4 · Partial** — tap a word to set its status.
@@ -212,14 +212,14 @@ Reading real Chinese raises questions a dictionary cannot answer. The plugin can
 - **Why does this word work here?** Tap a word and choose *Explain*: when to use it, how learners get it wrong, similar words and how its characters are built. Save it as a note if it is worth keeping.
 - **What is this sentence doing?** Tap the lightbulb, then the first and last word. You get the meaning, the structure, the job of every word and the grammar points.
 
-<img src="resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown" width="560">
+<img width="560" src="resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown">
 
 1. **Lightbulb** — armed. 2. **Hint** — tap the last word. 3. **Explain / Proof read** — pick what happens. 4. **Exit**.
 
 <p>
-<img src="resources/screenshots/explain-phrase-annotated.png" alt="A phrase explained word by word" height="430">
+<img width="400" src="resources/screenshots/explain-phrase-annotated.png" alt="A phrase explained word by word">
 &nbsp;
-<img src="resources/screenshots/explain-proofread-annotated.png" alt="Proof reading with Apply" height="430">
+<img width="400" src="resources/screenshots/explain-proofread-annotated.png" alt="Proof reading with Apply">
 </p>
 
 Left: a phrase explained (1 · meaning, 2 · the job of every word, 3 · what it cost, 4 · save). Right: proof reading (1 · **Apply** one fix into your note, 2 · copy the corrected text, or **Apply all**).

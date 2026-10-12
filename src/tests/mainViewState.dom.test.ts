@@ -351,11 +351,25 @@ describe("the story modal, the word popup and marking", () => {
     expect(document.body.querySelector(".cci-explain-modal")).toBeTruthy();
   });
 
-  it("the batch mnemonic dialog needs AI switched on too", () => {
-    const off = plugin({ settings: settings((s) => (s.ai.enabled = false)) });
+  it("the batch mnemonic dialog asks a user who has not set AI up to do so, and opens once it is set up", () => {
+    const off = plugin({ settings: settings((s) => (s.ai.enabled = false)), manifest: { id: "p" } });
     off.openBatchMnemonicModal("你好");
-    expect(Notice.instances.at(-1)!.message).toBe("Enable AI in plugin settings first.");
-    const on = plugin({ settings: settings((s) => (s.ai.enabled = true)), tokenizer: { tokenize: async () => [] } });
+    expect(document.body.querySelector(".cci-aisetup-modal")).toBeTruthy();
+    expect(document.body.querySelector(".cci-batch-mnemonic-modal")).toBeNull();
+    document.body.innerHTML = "";
+    const noKey = plugin({
+      settings: settings((s) => ((s.ai.enabled = true), (s.ai.provider = "openai"))),
+      manifest: { id: "p" },
+      app: { workspace: workspace(), loadLocalStorage: () => null },
+    });
+    noKey.openBatchMnemonicModal("你好");
+    expect(document.body.querySelector(".cci-aisetup-modal")).toBeTruthy();
+    document.body.innerHTML = "";
+    const on = plugin({
+      settings: settings((s) => (s.ai.enabled = true)),
+      app: { workspace: workspace(), loadLocalStorage: () => "sk-test" },
+      tokenizer: { tokenize: async () => [] },
+    });
     on.openBatchMnemonicModal("你好");
     expect(document.body.querySelector(".cci-batch-mnemonic-modal")).toBeTruthy();
   });
