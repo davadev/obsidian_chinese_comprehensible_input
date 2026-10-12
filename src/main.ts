@@ -357,6 +357,7 @@ export default class CciPlugin extends Plugin {
       await this.saveSettingsSilently();
       return;
     }
+    if (!this.settings.showWhatsNew) return;
     const notes = notesToShow(this.settings.lastSeenVersion, current);
     if (notes.length === 0) return;
     if (!this.loadedAtStartup()) {
@@ -373,7 +374,14 @@ export default class CciPlugin extends Plugin {
     }
     this.settings.lastSeenVersion = current;
     await this.saveSettingsSilently();
-    new WhatsNewModal(this.app, notes).open();
+    new WhatsNewModal(this.app, notes, () => void this.stopShowingWhatsNew()).open();
+  }
+
+  /** "Don't show again" in the popup: turns the setting off and says where to turn it back on. */
+  private async stopShowingWhatsNew(): Promise<void> {
+    this.settings.showWhatsNew = false;
+    await this.saveSettingsSilently();
+    new Notice("Release notes turned off. You can turn them back on under Settings → Chinese → About.", 8_000);
   }
 
   /** The "Show what's new" command: the latest note again, on demand. */
@@ -383,7 +391,7 @@ export default class CciPlugin extends Plugin {
       new Notice("There are no release notes for this version.");
       return;
     }
-    new WhatsNewModal(this.app, [note]).open();
+    new WhatsNewModal(this.app, [note], () => void this.stopShowingWhatsNew()).open();
   }
 
   /** Is an AI provider usable (AI on, and a key or a server address)? */

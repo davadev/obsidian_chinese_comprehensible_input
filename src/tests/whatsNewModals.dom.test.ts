@@ -21,7 +21,7 @@ const btn = (root: HTMLElement, text: string) => Array.from(root.querySelectorAl
 
 describe("WhatsNewModal", () => {
   it("shows a section per note with its items, and closes on Got it", () => {
-    const modal = new WhatsNewModal(new App() as any, NOTES);
+    const modal = new WhatsNewModal(new App() as any, NOTES, () => {});
     modal.open();
     const root = modal.contentEl as HTMLElement;
     expect(Array.from(root.querySelectorAll("h2")).map((h) => h.textContent)).toEqual(["What's new in 0.9.0", "What's new in 0.9.1"]);
@@ -37,15 +37,25 @@ describe("WhatsNewModal", () => {
 
   it("draws an item's illustration under its text, and only for items that have one", () => {
     const withFigure: ReleaseNote[] = [{ version: "0.9.0", title: "T", intro: "I", items: [{ title: "A", text: "a", figure: "toolbar" }, { title: "B", text: "b" }] }];
-    const modal = new WhatsNewModal(new App() as any, withFigure);
+    const modal = new WhatsNewModal(new App() as any, withFigure, () => {});
     modal.open();
     const items = Array.from((modal.contentEl as HTMLElement).querySelectorAll("li"));
     expect(items[0].querySelector(".cci-whatsnew-figure.cci-fig-toolbar")).toBeTruthy();
     expect(items[1].querySelector(".cci-whatsnew-figure")).toBeNull();
   });
 
+  it("Don't show again reports the opt-out and closes", () => {
+    const onOptOut = vi.fn();
+    const modal = new WhatsNewModal(new App() as any, NOTES, onOptOut);
+    modal.open();
+    const close = vi.spyOn(modal, "close");
+    btn(modal.contentEl as HTMLElement, "Don't show again").click();
+    expect(onOptOut).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalled();
+  });
+
   it("empties itself when closed", () => {
-    const modal = new WhatsNewModal(new App() as any, NOTES);
+    const modal = new WhatsNewModal(new App() as any, NOTES, () => {});
     modal.open();
     modal.close();
     expect((modal.contentEl as HTMLElement).textContent).toBe("");

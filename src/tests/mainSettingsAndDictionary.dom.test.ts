@@ -588,10 +588,30 @@ describe("the one-time What's new popup", () => {
     expect(popup()).toBeTruthy();
   });
 
+  it("shows nothing at all when the release notes are switched off", async () => {
+    const { self } = make({ settings: settings((s) => ((s.lastSeenVersion = "0.8.2"), (s.showWhatsNew = false))) });
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeNull();
+    expect(self.settings.lastSeenVersion).toBe("0.8.2");
+  });
+
+  it("Don't show again in the popup switches the setting off and says where to turn it on", async () => {
+    const { self } = make();
+    await self.maybeShowWhatsNew();
+    const btn = Array.from(document.body.querySelectorAll(".cci-whatsnew-modal button")).find((b) => b.textContent === "Don't show again") as HTMLElement;
+    btn.click();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(self.settings.showWhatsNew).toBe(false);
+    expect(Notice.instances.at(-1)!.message).toContain("Settings → Chinese → About");
+  });
+
   it("the command shows the latest note again on demand, or says there is none", () => {
     const { self } = make();
     self.showWhatsNew();
     expect(popup()).toBeTruthy();
+    (Array.from(document.body.querySelectorAll(".cci-whatsnew-modal button")).find((b) => b.textContent === "Don't show again") as HTMLElement).click();
+    expect(self.settings.showWhatsNew).toBe(false);
     document.body.innerHTML = "";
     const old = make({ manifest: { version: "0.1.0", id: "p" } }).self;
     old.showWhatsNew();

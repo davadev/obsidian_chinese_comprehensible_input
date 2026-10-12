@@ -176,6 +176,7 @@ How it behaves, so nobody has to rediscover it:
   so it follows the theme and cannot go stale like a screenshot). Keep it to a few per release; a popup of pictures reads as
   clutter. A new figure id needs a builder there.
 - The command **Show what's new** re-opens the newest entry on demand.
+- **Opt-out.** The popup has a *Don't show again* button, and Settings → About has the same switch (*Show what's new after an update*) plus a *Show what's new now* button. Turning the switch back on clears `lastSeenVersion`, so the next start shows the current note again; that is also how to re-test the popup on a beta, since betas of one X.Y.Z share a single note.
 - A user who skips releases is shown every entry they missed, oldest first.
 
 Keep entries short: what moved or what is new, and where to find it. Longer explanations belong in `docs/`.

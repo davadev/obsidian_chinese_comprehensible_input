@@ -157,6 +157,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   storeAllExactTimestamps: false,
   mnemonicsFirst: false,
   batchMnemonicScope: "notKnown",
+  showWhatsNew: true,
   lastSeenVersion: "",
   phraseAction: "explain",
   whatsNewHintedFor: "",

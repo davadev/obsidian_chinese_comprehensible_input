@@ -49,6 +49,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("the release notes row", () => {
+  it("Show what's new now opens the note through the plugin", async () => {
+    const { tab, plugin } = makeSettingsTab();
+    (plugin as any).showWhatsNew = vi.fn();
+    await click(tab, "Show what's new now");
+    expect((plugin as any).showWhatsNew).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("how a key reaches the settings", () => {
   it("API keys go to the device-local store, per provider, and never to the settings", () => {
     const { tab, plugin, storage } = makeSettingsTab();
