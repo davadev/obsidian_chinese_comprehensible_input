@@ -99,7 +99,7 @@ Commit convention: `0.X.Y — short description`.
 What goes into the next release is decided by the **Planning project board** ([https://github.com/users/davadev/projects/3](https://github.com/users/davadev/projects/3)) and the rules in [`ROADMAP.md`](./ROADMAP.md). Read both before proposing or starting work.
 
 **Priority order, strictly top-down:**
-1. **Maintenance** (label `maintenance`): bugs, security, dependency/toolchain updates, supply-chain and CI problems, data-safety risks, performance, anything that is not a new feature. Ships as the next **fix release** of the current line (`0.8.x`), without waiting for a feature release.
+1. **Maintenance** (label `maintenance`): bugs, security, dependency/toolchain updates, supply-chain and CI problems, data-safety risks, performance, anything that is not a new feature. Ships as the next **fix release** of the current line (`0.9.x`), without waiting for a feature release.
 2. **User feature requests** (label `user-request`): a reasonable request from an actual user that fits the plugin's scope.
 3. **Planned features** assigned to the next minor releases (see the Release column / ROADMAP.md).
 4. **Long-term direction**, in order: text to speech (#67), custom fine-tuned local LLM (#184), Active Reading (#183). Local-first and offline wherever possible.
@@ -107,7 +107,7 @@ What goes into the next release is decided by the **Planning project board** ([h
 **Board rules (every issue, always):**
 - **Every open issue is on the board** with a **Tier** (Maintenance / User request / Planned feature / Long-term / Needs decision) and a **Release** (next fix release, a version such as `0.9.0`, or Unscheduled). Add new issues at creation or at the first triage; do not leave an issue off the board.
 - When creating an issue: add it to the project, set Tier and Release, and apply the matching label (`maintenance`, `security`, `user-request`, `bug`, `enhancement`). Large features start as a research-and-design issue (verified facts / hypotheses / open questions kept separate, a timeboxed spike, explicit continue/stop criteria).
-- Fields: **Status** (Backlog, Ready, In progress, In beta = published prerelease, Done), **Tier** (1 Maintenance, 2 User request, 3 Planned feature, 4 Long-term, 5 Needs decision), **Release** (Next fix release (0.8.x), 0.9.0, 0.10.0, Unscheduled; add an option when a new minor release is planned), and **Order** (sequence within the long-term tier). Views (board, roadmap, table) are configured in the web UI.
+- Fields: **Status** (Backlog, Ready, In progress, In beta = published prerelease, Done), **Tier** (1 Maintenance, 2 User request, 3 Planned feature, 4 Long-term, 5 Needs decision), **Release** (Next fix release (the option is still labelled 0.8.x on the board), 0.9.0, 0.10.0, Unscheduled; add an option when a new minor release is planned), and **Order** (sequence within the long-term tier). Views (board, roadmap, table) are configured in the web UI.
 - When picking the next release: look at the board top-down by Tier; if any Maintenance item is open, the next release is a fix release containing those items.
 - When a release is published: move its issues to Done, then re-check that the Release column of the remaining issues is still right and update `ROADMAP.md` if the plan changed.
 - Commands: `gh project item-add <number> --owner davadev --url <issue-url>` and `gh project item-edit` (field ids via `gh project field-list <number> --owner davadev --format json`). Needs a token with the `project` scope (`gh auth refresh -s project`).
