@@ -7,7 +7,9 @@ import type { ReleaseNote } from "./releaseNotes";
 export class WhatsNewModal extends Modal {
   constructor(
     app: App,
-    private notes: ReleaseNote[]
+    private notes: ReleaseNote[],
+    /** Called when the person presses "Don't show again". */
+    private onOptOut: () => void
   ) {
     super(app);
   }
@@ -28,6 +30,10 @@ export class WhatsNewModal extends Modal {
       }
     });
     const actions = contentEl.createDiv({ cls: "cci-whatsnew-actions" });
+    actions.createEl("button", { text: "Don't show again" }).addEventListener("click", () => {
+      this.onOptOut();
+      this.close();
+    });
     actions.createEl("button", { text: "Got it", cls: "mod-cta" }).addEventListener("click", () => this.close());
   }
 

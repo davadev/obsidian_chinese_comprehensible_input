@@ -231,6 +231,19 @@ describe("settings tab definitions", () => {
     expect(tab.getControlValue("ai.ollama.chatModel")).toBe("qwen3:14b");
   });
 
+  it("turning the release notes back on re-arms them for the next start; other changes leave them alone", async () => {
+    const tab = makeTab();
+    const s = (tab as any).plugin.settings;
+    s.lastSeenVersion = "0.9.0";
+    s.showWhatsNew = false;
+    await tab.setControlValue("showWhatsNew", true);
+    expect(s.showWhatsNew).toBe(true);
+    expect(s.lastSeenVersion).toBe("");
+    s.lastSeenVersion = "0.9.0";
+    await tab.setControlValue("showWhatsNew", false);
+    expect(s.lastSeenVersion).toBe("0.9.0");
+  });
+
   it("converts the HSK comfort slider between percent and fraction", async () => {
     const tab = makeTab();
     await tab.setControlValue("topHskComfortThreshold", 80);

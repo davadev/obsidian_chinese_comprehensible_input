@@ -384,6 +384,8 @@ export interface CciSettings {
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
   mnemonicsFirst: boolean;
+  /** Show the "What's new" popup at the first start after an update. Off after "Don't show again". */
+  showWhatsNew: boolean;
   /** The newest release the "What's new" popup has already shown (see ui/whatsNew). Per device: never synced. */
   lastSeenVersion: string;
   /** What the lightbulb tool does with a selection. Chosen from the dropdown in its banner. */

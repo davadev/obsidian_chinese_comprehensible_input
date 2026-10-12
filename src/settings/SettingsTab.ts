@@ -144,6 +144,10 @@ export class CciSettingsTab extends PluginSettingTab {
     // Captured before the write: persist() needs to know whether the script
     // move actually changed what the tokenizer indexes, and by then the new
     // value is already in place.
+    // Turning the notes back on re-arms them: the next start shows the current release's note again.
+    if (key === "showWhatsNew" && value === true && !this.plugin.settings.showWhatsNew) {
+      this.plugin.settings.lastSeenVersion = "";
+    }
     const prevScript = key === "scriptVariant" ? this.plugin.settings.scriptVariant : undefined;
     if (key === "topHskComfortThreshold") {
       this.plugin.settings.topHskComfortThreshold = Number(value) / 100;
@@ -1908,6 +1912,16 @@ export class CciSettingsTab extends PluginSettingTab {
       type: "group",
       heading: "About / licenses",
       items: [
+        {
+          name: "Show what's new after an update",
+          desc: "A short popup at the first start of Obsidian after the plugin is updated. Turn it off and on again to see the current one at the next start.",
+          control: { type: "toggle", key: "showWhatsNew" },
+        },
+        {
+          name: "Show what's new now",
+          desc: "Open the release note for this version.",
+          action: () => this.plugin.showWhatsNew(),
+        },
         this.docLink(
           "Documentation index",
           "Browse the full set of user guides on GitHub: FAQ, AI tips, SRS, sync, word states, and more.",
