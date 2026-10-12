@@ -28,7 +28,9 @@ if (!key) {
 }
 const [id, input, output, cached, choice] = String(arg("model", "gpt-6-luna:0.10:0.50:0.01:default")).split(":");
 const price = { input: Number(input), output: Number(output), cached: Number(cached) };
-const words = String(arg("words", "方便")).split(",").map((w) => w.trim()).filter(Boolean);
+const mode = arg("mode", "word");
+// Words are split on commas; phrases may contain Chinese commas but not ASCII ones, so a phrase list uses "|".
+const words = String(arg("words", "方便")).split(mode === "word" ? "," : "|").map((w) => w.trim()).filter(Boolean);
 const sentences = JSON.parse(arg("sentences", "{}"));
 const outDir = arg("out", path.join(root, "explain-out"));
 mkdirSync(outDir, { recursive: true });
@@ -52,10 +54,48 @@ const service = lib.makeExplain(key, choice, (u) => {
   for (const k of Object.keys(usage)) usage[k] += u[k];
 });
 
-const summary = [`### Explain trial (${id})`, ``, `| word | seconds | issues | cost |`, `| --- | --- | --- | --- |`];
+const phraseServices = lib.makePhrase(key, choice, (u) => {
+  for (const k of Object.keys(usage)) usage[k] += u[k];
+});
+
+async function oneText(text) {
+  const { text: clean } = lib.prepareSelection(text);
+  const date = new Date().toISOString().slice(0, 10);
+  if (mode === "proof") {
+    const { result, issues } = await phraseServices.proof.proofread(clean);
+    const placed = lib.locateCorrections(clean, result.corrections);
+    const lines = [`# Proof read`, ``, clean, ``, ...placed.map((c) => `- ❌ ${c.original} → ✅ ${c.replacement || "(delete)"} — ${c.why}`), ``, `Corrected: ${lib.applyCorrections(clean, result.corrections)}`, ``, issues.length ? `Unverified: ${issues.join(" ")}` : "Checked: ok"];
+    writeFileSync(path.join(outDir, `proof ${lib.phraseFileName(clean, date)}`), lines.join("\n"));
+    return issues;
+  }
+  const check = await phraseServices.phrase.check(clean);
+  writeFileSync(path.join(outDir, `check ${lib.phraseFileName(clean, date)}.json`), JSON.stringify(check, null, 2));
+  if (check.verdict === "wrong") return [`quick check says wrong: ${check.note}`];
+  const typo = check.verdict === "typo" ? `${check.original} should be ${check.suggestion}` : undefined;
+  const { result, issues } = await phraseServices.phrase.explain(clean, typo);
+  writeFileSync(
+    path.join(outDir, lib.phraseFileName(clean, date)),
+    lib.renderPhraseMarkdown(result, { text: clean, provider: "openai", model: id, date, showPinyin: true })
+  );
+  return issues;
+}
+
+const summary = [`### Explain trial (${id}, ${mode})`, ``, `| word | seconds | issues | cost |`, `| --- | --- | --- | --- |`];
 for (const word of words) {
   const t0 = Date.now();
   const before = { ...usage };
+  if (mode !== "word") {
+    try {
+      const issues = await oneText(word);
+      const cost = costUsd(price, { inputTokens: usage.inputTokens - before.inputTokens, cachedInputTokens: usage.cachedInputTokens - before.cachedInputTokens, outputTokens: usage.outputTokens - before.outputTokens });
+      summary.push(`| ${word} | ${((Date.now() - t0) / 1000).toFixed(1)} | ${issues.length ? issues.join(" ") : "none"} | $${cost.toFixed(4)} |`);
+      console.log(`${word}: ok, ${issues.length} issue(s)`);
+    } catch (err) {
+      summary.push(`| ${word} | – | FAILED: ${whole(err)} | – |`);
+      console.log(`${word}: FAILED ${whole(err)}`);
+    }
+    continue;
+  }
   try {
     const inputForWord = lib.explainInputFor(deps, word, sentences[word]);
     writeFileSync(path.join(outDir, `${word}.prompt.json`), JSON.stringify(inputForWord, null, 2));
