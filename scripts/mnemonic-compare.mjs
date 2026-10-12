@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /**
- * Does supplying facts make mnemonics better? (#185) Runs a gold set of words through three "harnesses" on the same
+ * Does supplying facts make mnemonics better? (#185) Runs a gold set of words through four "harnesses" on the same
  * OpenAI model(s) and measures what can be measured:
  *
  *   old    the plugin's current prompt, unchanged (the model must know tones, parts and pinyin by itself)
  *   tones  the app computes syllables + tone cues and writes the tone strip itself; the model writes parts + meaning
  *   facts  tones + reference character facts from Make Me a Hanzi (decomposition, roles, hint, part glosses)
+ *   gated  as facts, but pictographic characters get only the origin hint and characters without etymology get none
  *
  *   OPENAI_API_KEY=... node scripts/mnemonic-compare.mjs --mmah dictionary.txt \
  *       --models gpt-6-luna:0.10:0.50:0.01:default,gpt-5.4-mini:0.75:4.50:0.075:legacy --runs 2
@@ -106,9 +107,11 @@ const SYSTEM_NEW =
   "\"components\" — emoji picturing the parts the characters are built from, in reading order. Mostly emoji; no Chinese characters; no tone cue (the app adds that itself).\n" +
   "\"meaning\" — emoji for the meaning. An ENGLISH word (one or two at most) only where no emoji can carry it (particles, abstract senses). No Chinese characters.\n" +
   "components and meaning TOGETHER must fit the grapheme budget given in the request. Shorter is better. No sentences, no trailing punctuation.\n\n" +
-  "\"story\" — one short paragraph, plain English, second person (\"you\"). Say which emoji stands for which part, mention the tone strip the app inserted between your two parts, and finish on the English meaning as the punchline.\n" +
+  "\"story\" — one short paragraph, plain English, second person (\"you\"). Say which emoji stands for which part, and finish on the English meaning as the punchline.\n" +
   "- Every time you name a Chinese character or word, put its tone-marked pinyin in parentheses right after it — 学 (xué), 习 (xí). Never leave a bare hanzi.\n" +
   "- Concrete, sensory, slightly absurd imagery.\n" +
+  "- The tone strip is added by the app: never mention the app or say it inserts anything. You may refer to the strip's arrows as the tone cue.\n" +
+  "- Pinyin is required for the word's own characters and for parts that are ordinary words (木, 女, 日). For a radical or stroke that is not a word, name it by its English picture instead of giving pinyin.\n" +
   "- Never invent parts a character does not have. When 'Character facts' are given, use ONLY the parts listed there; otherwise describe what the character actually looks like.\n\n" +
   "Output strict JSON only: {\"components\":string,\"meaning\":string,\"story\":string}. No prose before or after. No markdown code fences.";
 
@@ -128,7 +131,7 @@ function syllableFacts(g, syllables) {
   return rows;
 }
 
-function newUserPrompt(g, withFacts, graphemeLength) {
+function newUserPrompt(g, withFacts, graphemeLength, gated = false) {
   const syl = wordSyllables(g.pinyin);
   const strip = toneStrip(syl);
   const budget = Math.max(6, 40 - graphemeLength(strip));
@@ -145,7 +148,7 @@ function newUserPrompt(g, withFacts, graphemeLength) {
   ];
   if (withFacts) {
     const facts = Array.from(new Set(Array.from(g.word)))
-      .map((c) => charFacts(c, MMAH))
+      .map((c) => charFacts(c, MMAH, { gated }))
       .filter(Boolean);
     lines.push(``, `Character facts (from a reference dictionary; use ONLY these parts, do not add others):`);
     lines.push(...(facts.length ? facts.map((f) => `- ${f}`) : [`- (no reliable structure data for these characters)`]));
@@ -177,7 +180,7 @@ async function load(spec) {
   return import(`${pathToFileURL(bundleFile).href}?m=${++loadN}`);
 }
 
-const ARMS = ["old", "tones", "facts"];
+const ARMS = ["old", "tones", "facts", "gated"];
 const rows = [];
 const jobs = [];
 
@@ -213,7 +216,7 @@ async function oneJob({ spec, lib }, g, arm, run) {
       story = p.obj.story.trim();
       row.toneExact = JSON.stringify(extractCues(line)) === JSON.stringify(syl.map(toneOf));
     } else {
-      const built = newUserPrompt(g, arm === "facts", graphemeLength);
+      const built = newUserPrompt(g, arm === "facts" || arm === "gated", graphemeLength, arm === "gated");
       const raw = await ai.chatJson(SYSTEM_NEW, built.text, "Mnemonic", SCHEMA_NEW);
       const p = parseJson(raw, ["components", "meaning", "story"]);
       if (!p.ok) throw new Error(p.reason);
@@ -232,8 +235,9 @@ async function oneJob({ spec, lib }, g, arm, run) {
     row.pairs = pairs.length;
     row.bare = bare.length;
     const verdicts = pairs.map((p) => pairCorrect(p.hanzi, p.pinyin, g.word, syl, MMAH));
-    row.pinyinChecked = verdicts.filter((v) => v !== null).length;
+    row.pinyinChecked = verdicts.filter((v) => v !== null && v !== "gloss").length;
     row.pinyinWrong = verdicts.filter((v) => v === false).length;
+    row.pinyinGloss = verdicts.filter((v) => v === "gloss").length;
     const allowed = allowedHanzi(g.word, MMAH);
     const named = new Set(Array.from(story).filter((c) => HAN_RE.test(c)));
     row.unsupported = [...named].filter((c) => !allowed.has(c));
@@ -275,14 +279,14 @@ const goldMissing = [...goldChars].filter((c) => !MMAH.has(c));
 
 // ── report ──
 const fmt = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : "–");
-const lines = [`### Mnemonic harness comparison`, ``, `${GOLD.length} words × ${runs} runs × 3 arms per model. Arms: **old** = current prompt; **tones** = app writes syllables + tone strip; **facts** = tones + Make Me a Hanzi parts.`, ``];
+const lines = [`### Mnemonic harness comparison`, ``, `${GOLD.length} words × ${runs} runs × 4 arms per model. Arms: **old** = current prompt; **tones** = app writes syllables + tone strip; **facts** = tones + all Make Me a Hanzi parts; **gated** = facts only where the structure is meaningful.`, ``];
 lines.push(`#### Reference data coverage (Make Me a Hanzi, ${MMAH.size} characters)`, ``);
 lines.push(`- HSK characters in the plugin's lists: ${hskChars.size}`);
 lines.push(`- found in reference: ${inRef} (${pct(inRef / hskChars.size)})`);
 lines.push(`- with 2+ parts: ${withParts} (${pct(withParts / hskChars.size)}); with sound/meaning roles: ${withRoles} (${pct(withRoles / hskChars.size)}); with an origin hint: ${withHint} (${pct(withHint / hskChars.size)})`);
 lines.push(`- gold-set characters missing from reference: ${goldMissing.length ? goldMissing.join(" ") : "none"}`, ``);
 for (const spec of SPECS) {
-  const tbl = [`#### ${spec.id}`, ``, `| metric | old | tones | facts |`, `| --- | --- | --- | --- |`];
+  const tbl = [`#### ${spec.id}`, ``, `| metric | old | tones | facts | gated |`, `| --- | --- | --- | --- | --- |`];
   const rs = (arm) => rows.filter((r) => r.model === spec.id && r.arm === arm);
   const ok = (arm) => rs(arm).filter((r) => r.ok);
   const metric = (name, f) => tbl.push(`| ${name} | ${ARMS.map((a) => f(a)).join(" | ")} |`);
@@ -292,6 +296,7 @@ for (const spec of SPECS) {
   metric("tone cues exactly right", (a) => `${ok(a).filter((r) => r.toneExact).length}/${ok(a).length}`);
   metric("story: hanzi followed by pinyin (share)", (a) => pct(ok(a).reduce((s, r) => s + r.pairs, 0) / Math.max(1, ok(a).reduce((s, r) => s + r.pairs + r.bare, 0))));
   metric("story: pinyin wrong / checkable", (a) => `${ok(a).reduce((s, r) => s + r.pinyinWrong, 0)}/${ok(a).reduce((s, r) => s + r.pinyinChecked, 0)}`);
+  metric("story: gloss written instead of pinyin / hanzi runs", (a) => `${ok(a).reduce((s, r) => s + r.pinyinGloss, 0)}/${ok(a).reduce((s, r) => s + r.pairs + r.bare, 0)}`);
   metric("stories naming a hanzi outside the reference parts", (a) => `${ok(a).filter((r) => r.unsupported.length).length}/${ok(a).length}`);
   metric("reference parts named in story (mean)", (a) => pct(mean(ok(a).filter((r) => r.refParts).map((r) => r.refPartsNamed / r.refParts))));
   metric("tokens in / out (mean)", (a) => `${fmt(mean(rs(a).map((r) => r.usage.inputTokens + r.usage.cachedInputTokens)), 0)} / ${fmt(mean(rs(a).map((r) => r.usage.outputTokens)), 0)}`);
@@ -299,7 +304,7 @@ for (const spec of SPECS) {
   metric("cost per mnemonic (mean)", (a) => `$${fmt(mean(rs(a).map((r) => r.cost)), 5)}`);
   lines.push(...tbl, ``);
   const cats = [...new Set(GOLD.map((g) => g.cat))];
-  const ct = [`By word type: tone cues right / stories naming a hanzi outside the reference parts (ok runs)`, ``, `| type | old | tones | facts |`, `| --- | --- | --- | --- |`];
+  const ct = [`By word type: tone cues right / stories naming a hanzi outside the reference parts (ok runs)`, ``, `| type | old | tones | facts | gated |`, `| --- | --- | --- | --- | --- |`];
   for (const cat of cats) {
     const cell = (a) => {
       const x = ok(a).filter((r) => r.cat === cat);
@@ -315,18 +320,18 @@ if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMM
 console.log(summary);
 
 // Blind reading copy: arms shuffled per word, reference parts shown so a reader can judge component fidelity.
-const blind = [`# Blind reading copy`, ``, `Per word the three results are labelled P/Q/R in a shuffled order; the key is in mnemonic-key.md. "Reference" is Make Me a Hanzi data, shown only so you can judge whether the named parts are right (it is not always right either).`, ``];
+const blind = [`# Blind reading copy`, ``, `Per word the four results are labelled P/Q/R/S in a shuffled order; the key is in mnemonic-key.md. "Reference" is Make Me a Hanzi data, shown only so you can judge whether the named parts are right (it is not always right either).`, ``];
 const keyLines = [`# Key`, ``];
-const perms = [["old", "tones", "facts"], ["tones", "facts", "old"], ["facts", "old", "tones"], ["old", "facts", "tones"], ["facts", "tones", "old"], ["tones", "old", "facts"]];
+const perms = [["old", "tones", "facts", "gated"], ["tones", "gated", "old", "facts"], ["facts", "old", "gated", "tones"], ["gated", "facts", "tones", "old"], ["old", "gated", "facts", "tones"], ["tones", "old", "facts", "gated"]];
 const shown = SPECS[0];
 GOLD.forEach((g, idx) => {
   const order = perms[(idx * 5 + g.word.length) % perms.length];
   const facts = Array.from(new Set(Array.from(g.word))).map((c) => charFacts(c, MMAH)).filter(Boolean);
   blind.push(`## ${g.word} — ${g.pinyin} — ${g.def} (${g.cat})`, ``, facts.length ? `Reference: ${facts.join(" | ")}` : `Reference: none`, ``);
-  keyLines.push(`- ${g.word}: ${order.map((a, i) => `${"PQR"[i]} = ${a}`).join(", ")}`);
+  keyLines.push(`- ${g.word}: ${order.map((a, i) => `${"PQRS"[i]} = ${a}`).join(", ")}`);
   order.forEach((arm, i) => {
     const r = rows.find((q) => q.model === shown.id && q.word === g.word && q.arm === arm && q.run === 1);
-    blind.push(`**${"PQR"[i]}** ${r?.ok ? `${r.line}\n\n${r.story}` : `(failed: ${r?.error})`}`, ``);
+    blind.push(`**${"PQRS"[i]}** ${r?.ok ? `${r.line}\n\n${r.story}` : `(failed: ${r?.error})`}`, ``);
   });
 });
 writeFileSync(path.join(outDir, "mnemonic-blind.md"), blind.join("\n"));
