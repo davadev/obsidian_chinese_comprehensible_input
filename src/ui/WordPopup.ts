@@ -142,7 +142,8 @@ export class WordPopup {
       this.refresh();
     });
     this.action(actions, "Mnemonic", () => this.openMnemonicEditor(rec));
-    if (this.plugin.settings.ai.enabled) this.action(actions, "Explain", () => this.openExplain(rec));
+    // Always offered: with AI not set up, pressing it explains what to do instead of hiding the feature.
+    this.action(actions, "Explain", () => this.openExplain(rec));
     this.action(actions, "Edit", () => this.openDictionaryEditor(rec));
     this.maybeRenderEnhance(actions, rec);
     this.maybeRenderRevert(actions, rec);

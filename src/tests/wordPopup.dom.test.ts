@@ -423,10 +423,12 @@ describe("actions", () => {
     expect(plugin.openExplainModal).toHaveBeenCalledWith("學習", "");
   });
 
-  it("offers Explain only when AI is on", () => {
+  it("always offers Explain, so a user who has not set AI up is told what to do rather than the feature hiding", () => {
     const off = make({ settings: (s) => (s.ai.enabled = false) });
     off.popup.open("学习", off.anchor, new Event("click"));
-    expect(btn("Explain")).toBeUndefined();
+    expect(btn("Explain")).toBeTruthy();
+    btn("Explain").click();
+    expect(off.plugin.openExplainModal).toHaveBeenCalledWith("学习", "");
   });
 
   describe("Edit", () => {

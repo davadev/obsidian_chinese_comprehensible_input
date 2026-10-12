@@ -47,6 +47,11 @@ import { StatsView } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
 import { BatchMnemonicModal } from "./ui/BatchMnemonicModal";
 import { ExplainModal } from "./ui/ExplainModal";
+import { AiSetupModal } from "./ui/AiSetupModal";
+import { WhatsNewModal } from "./ui/whatsNew/WhatsNewModal";
+import { latestNote, notesToShow } from "./ui/whatsNew/releaseNotes";
+import { aiConfigured } from "./ai/aiConfigured";
+import { loadApiKey } from "./ai/secrets";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
@@ -101,6 +106,8 @@ export default class CciPlugin extends Plugin {
   backups!: BackupService;
   /** `settings` as read from `data.json` at start-up, for the backup context until `this.settings` exists. */
   private startupSettings: Partial<CciSettings> | undefined;
+  /** True when there was no saved settings blob at all at start-up: a new install has nothing to be told has changed. */
+  private freshInstall = false;
   /** Set when this start is a downgrade the user has not yet answered; consumed once the sync bootstrap is done. */
   private pendingDowngrade: StartupResult["downgrade"] | null = null;
   private static CRASH_THRESHOLD = 5;
@@ -312,6 +319,45 @@ export default class CciPlugin extends Plugin {
     }
   }
 
+  /**
+   * The one-time "What's new" popup after an upgrade. A new install is told nothing (nothing has changed for it); anyone
+   * else is shown the notes newer than the last version they were told about. The version is saved BEFORE the popup opens,
+   * so it cannot appear twice, not even if Obsidian is closed while it is open.
+   */
+  async maybeShowWhatsNew(): Promise<void> {
+    const current = this.manifest.version;
+    if (this.freshInstall && this.settings.lastSeenVersion === "") {
+      this.settings.lastSeenVersion = current;
+      await this.saveSettingsSilently();
+      return;
+    }
+    const notes = notesToShow(this.settings.lastSeenVersion, current);
+    if (notes.length === 0) return;
+    this.settings.lastSeenVersion = current;
+    await this.saveSettingsSilently();
+    new WhatsNewModal(this.app, notes).open();
+  }
+
+  /** The "Show what's new" command: the latest note again, on demand. */
+  showWhatsNew(): void {
+    const note = latestNote(this.manifest.version);
+    if (!note) {
+      new Notice("There are no release notes for this version.");
+      return;
+    }
+    new WhatsNewModal(this.app, [note]).open();
+  }
+
+  /** Is an AI provider usable (AI on, and a key or a server address)? */
+  aiConfigured(): boolean {
+    return aiConfigured(this.settings.ai, (p) => loadApiKey(this.app, p));
+  }
+
+  /** Tell a user who has not set AI up to do so, and take them to the settings. */
+  promptAiSetup(what: string): void {
+    new AiSetupModal(this.app, this.manifest.id, what).open();
+  }
+
   /** The "Back up plugin data now" command. */
   async backupNow(): Promise<void> {
     const r = await this.backups.snapshot();
@@ -342,6 +388,7 @@ export default class CciPlugin extends Plugin {
     // taken before the first thing that could change the data (pinned by src/tests/backupWiring.test.ts).
     const blob = await this.startupData();
     const rawSettings = blob.settings ?? {};
+    this.freshInstall = Object.keys(rawSettings).length === 0;
     // Run pre-merge migrations on the raw blob so legacy flat-shaped
     // ai.* fields (v1) get folded into ai.ollama.* before DEFAULT_SETTINGS
     // injects an empty ai.ollama and erases them.
@@ -555,7 +602,10 @@ export default class CciPlugin extends Plugin {
       // conflict dialog (they are both modals) and the data it describes is the data the sync left.
       void Promise.allSettled([vocabBoot, settingsBoot])
         .then(() => this.promptDowngradeRestore())
-        .catch((e) => console.warn("CCI: downgrade prompt failed", e));
+        .catch((e) => console.warn("CCI: downgrade prompt failed", e))
+        // After the downgrade question (both are modals) so the two never stack.
+        .then(() => this.maybeShowWhatsNew())
+        .catch((e) => console.warn("CCI: what's-new popup failed", e));
       // One-shot auto-story check shortly after layout-ready — covers the
       // case where the user opened the app well after their configured
       // target time and we shouldn't make them wait for the first tick.
@@ -1272,6 +1322,11 @@ export default class CciPlugin extends Plugin {
       callback: () => this.openGenerateStoryModal(),
     });
     this.addCommand({
+      id: "show-whats-new",
+      name: "Show what's new",
+      callback: () => this.showWhatsNew(),
+    });
+    this.addCommand({
       id: "open-vocab-stats",
       name: "Data Management",
       callback: () => this.openStatsView(),
@@ -1502,8 +1557,8 @@ export default class CciPlugin extends Plugin {
 
   /** Word card: write (and optionally save) a thorough usage note for the word (see ExplainModal). */
   openExplainModal(surface: string, sentence: string | undefined): void {
-    if (!this.settings.ai.enabled) {
-      new Notice("Enable AI in plugin settings first.");
+    if (!this.aiConfigured()) {
+      this.promptAiSetup("Explain");
       return;
     }
     new ExplainModal(this.app, this, surface, sentence).open();

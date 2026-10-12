@@ -324,16 +324,19 @@ describe("the commands", () => {
       openCurrentInChineseView: vi.fn(async () => {}),
       openGenerateStoryModal: vi.fn(),
       openStatsView: vi.fn(async () => {}),
+      showWhatsNew: vi.fn(),
       setActiveViewMode: vi.fn(),
     });
     o.registerCommands();
-    expect(Object.keys(commands)).toEqual(["backup-now", "open-current-in-chinese-view", "generate-review-story", "open-vocab-stats", "toggle-mark-known", "toggle-mark-unknown", "clear-marking-mode"]);
+    expect(Object.keys(commands)).toEqual(["backup-now", "open-current-in-chinese-view", "generate-review-story", "show-whats-new", "open-vocab-stats", "toggle-mark-known", "toggle-mark-unknown", "clear-marking-mode"]);
     expect(commands["backup-now"].name).toBe("Back up plugin data now");
     commands["backup-now"].callback();
     commands["open-current-in-chinese-view"].callback();
     commands["generate-review-story"].callback();
     commands["open-vocab-stats"].callback();
-    expect([o.backupNow, o.openCurrentInChineseView, o.openGenerateStoryModal, o.openStatsView].map((f) => f.mock.calls.length)).toEqual([1, 1, 1, 1]);
+    commands["show-whats-new"].callback();
+    expect(commands["show-whats-new"].name).toBe("Show what's new");
+    expect([o.backupNow, o.openCurrentInChineseView, o.openGenerateStoryModal, o.openStatsView, o.showWhatsNew].map((f) => f.mock.calls.length)).toEqual([1, 1, 1, 1, 1]);
     commands["toggle-mark-known"].callback();
     expect(o.setActiveViewMode).toHaveBeenLastCalledWith("mark-known");
     o.viewMode = "mark-known";

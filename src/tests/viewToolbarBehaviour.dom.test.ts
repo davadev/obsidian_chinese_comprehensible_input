@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS } from "../settings/defaults";
 
 /**
  * #119, second half: everything ViewToolbar does that viewToolbar.dom.test.ts does not already pin: each marking
- * mode and its banner, the tri-state highlighter button, the colour-mode pills, the note-stats badge, every row of
+ * mode and its banner, the tri-state highlighter button, the colour-mode button, the note-stats badge, every row of
  * the overflow menu (each one writes its own setting, saves, and tells the view), the sliders, and the buttons that
  * leave for other screens. The DOM has no layout, so nothing here is about geometry (that is `npm run check:layout`).
  */
@@ -209,28 +209,38 @@ describe("format banner text", () => {
   });
 });
 
-describe("colour-mode pills", () => {
-  const pill = (c: HTMLElement, v: string) => c.querySelector<HTMLElement>(`[data-color-mode="${v}"]`)!;
+describe("colour-mode button", () => {
+  const button = (c: HTMLElement) => c.querySelector<HTMLElement>(".cci-color-mode-btn")!;
 
-  it("switching to HSK saves, repaints both pills and tells the view", async () => {
-    const { container, plugin, onChange } = mount({ settings: { colorMode: "status" } });
-    expect(pill(container, "status").classList.contains("is-active")).toBe(true);
-    pill(container, "hsk").click();
-    await flush();
-    expect(plugin.settings.colorMode).toBe("hsk");
-    expect(plugin.saveSettings).toHaveBeenCalled();
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(pill(container, "hsk").getAttribute("aria-pressed")).toBe("true");
-    expect(pill(container, "status").getAttribute("aria-pressed")).toBe("false");
-    expect(pill(container, "status").classList.contains("is-active")).toBe(false);
+  it("is one button that names the active mode and says what a tap does", () => {
+    const status = mount({ settings: { colorMode: "status" } }).container;
+    expect(status.querySelectorAll(".cci-color-mode-btn")).toHaveLength(1);
+    expect(button(status).textContent).toBe("Status");
+    expect(button(status).getAttribute("data-color-mode")).toBe("status");
+    expect(button(status).getAttribute("aria-label")).toBe("Colouring by Status. Tap to colour by HSK.");
+    expect(button(status).getAttribute("title")).toBe("Colouring by Status. Tap to colour by HSK.");
+    const hsk = mount({ settings: { colorMode: "hsk" } }).container;
+    expect(button(hsk).textContent).toBe("HSK");
+    expect(button(hsk).getAttribute("aria-label")).toBe("Colouring by HSK. Tap to colour by Status.");
+    // the two side-by-side pills are gone
+    expect(status.querySelector(".cci-color-mode-pill")).toBeNull();
+    expect(status.querySelector(".cci-color-mode-switch")).toBeNull();
   });
 
-  it("tapping the already-active pill does nothing", async () => {
+  it("a tap flips to the other mode, saves, relabels itself and tells the view", async () => {
     const { container, plugin, onChange } = mount({ settings: { colorMode: "status" } });
-    pill(container, "status").click();
+    button(container).click();
     await flush();
-    expect(plugin.saveSettings).not.toHaveBeenCalled();
-    expect(onChange).not.toHaveBeenCalled();
+    expect(plugin.settings.colorMode).toBe("hsk");
+    expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(button(container).textContent).toBe("HSK");
+    expect(button(container).getAttribute("data-color-mode")).toBe("hsk");
+    button(container).click();
+    await flush();
+    expect(plugin.settings.colorMode).toBe("status");
+    expect(button(container).textContent).toBe("Status");
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 });
 

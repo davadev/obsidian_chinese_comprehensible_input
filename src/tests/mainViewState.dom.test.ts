@@ -325,13 +325,23 @@ describe("the story modal, the word popup and marking", () => {
     expect(document.body.querySelector(".cci-modal-front")).toBeTruthy();
   });
 
-  it("the Explain dialog needs AI switched on too, and opens for the word", () => {
-    const off = plugin({ settings: settings((s) => (s.ai.enabled = false)) });
+  it("the Explain dialog asks a user who has not set AI up to do so, and opens for the word once it is set up", () => {
+    const off = plugin({ settings: settings((s) => (s.ai.enabled = false)), manifest: { id: "p" } });
     off.openExplainModal("方便", undefined);
-    expect(Notice.instances.at(-1)!.message).toBe("Enable AI in plugin settings first.");
+    expect(document.body.querySelector(".cci-aisetup-modal")).toBeTruthy();
+    expect(document.body.querySelector(".cci-explain-modal")).toBeNull();
+    document.body.innerHTML = "";
+    const noKey = plugin({
+      settings: settings((s) => ((s.ai.enabled = true), (s.ai.provider = "openai"))),
+      manifest: { id: "p" },
+      app: { workspace: workspace(), loadLocalStorage: () => null },
+    });
+    noKey.openExplainModal("方便", undefined);
+    expect(document.body.querySelector(".cci-aisetup-modal")).toBeTruthy();
+    document.body.innerHTML = "";
     const on = plugin({
       settings: settings((s) => (s.ai.enabled = true)),
-      app: { workspace: workspace(), vault: { getMarkdownFiles: () => [] }, metadataCache: {} },
+      app: { workspace: workspace(), vault: { getMarkdownFiles: () => [] }, metadataCache: {}, loadLocalStorage: () => "sk-test" },
       dictionary: { lookup: () => [], isTraditionalMarker: () => false },
       vocab: { bySurface: () => undefined },
       explain: { generate: () => new Promise(() => {}) },

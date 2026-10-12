@@ -151,6 +151,27 @@ If the workflow fails, delete the tag (`git push origin :0.7.0 && git tag -d 0.7
 - If CI fails on coverage, add tests, or delete the code if nothing can reach it. Never widen `exclude` and never add a `v8 ignore` comment: `coverageGate.test.ts` fails on both. Do not game the threshold with low-value assertions.
 - The coverage artifact uploaded by CI should be enough to inspect regressions without reproducing every failure locally.
 
+## Telling users what changed: the "What's new" popup
+
+A release that changes something a user can see, or has to relearn (a moved button, a new feature, a changed default), gets
+an entry in `RELEASE_NOTES` in `src/ui/whatsNew/releaseNotes.ts`, newest first, with the version as plain `X.Y.Z`. Add it in
+the same PR as the change, so a user is never surprised by a change the popup does not mention.
+
+How it behaves, so nobody has to rediscover it:
+
+- After an upgrade the popup shows each entry **once**. `settings.lastSeenVersion` (per device, never synced; listed in
+  `FILTER_OUT.top`) holds the newest version the user was told about, and `notesToShow` picks the entries newer than that and
+  not newer than the running version. The version is saved **before** the popup opens, so it cannot repeat, not even if
+  Obsidian is closed while it is open.
+- Only `X.Y.Z` is compared. A beta build (`0.9.0-beta.7`) counts as `0.9.0`: BRAT testers see the entry on the first beta that
+  has it and not again on the next beta or on the stable release.
+- A new install (no saved settings at all) is shown nothing: nothing has changed for it. The version is just recorded.
+- It waits until the sync and the downgrade question have finished, so two dialogs never stack.
+- The command **Show what's new** re-opens the newest entry on demand.
+- A user who skips releases is shown every entry they missed, oldest first.
+
+Keep entries short: what moved or what is new, and where to find it. Longer explanations belong in `docs/`.
+
 ## Branch policy
 
 - Do not do routine bugfix / feature / release-prep work directly on `main`.
