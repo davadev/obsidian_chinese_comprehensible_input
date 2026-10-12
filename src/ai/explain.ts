@@ -186,6 +186,9 @@ export function validateExplain(r: ExplainResult, ctx: ExplainContext): string[]
     if (!e.pinyin) issues.push(`Example ${i + 1} needs pinyin.`);
   });
   // An empty list is allowed: an invented mistake is worse than none. A row must be whole, though.
+  if (r.senses.some((s) => s.example && !ctx.forms.some((f) => s.example.includes(f)))) {
+    issues.push(`Each sense example must contain the word ${ctx.forms[0]}; leave the example empty if no short sentence fits.`);
+  }
   if (r.mistakes.some((m) => !m.wrong || !m.right || !m.why)) {
     issues.push('Each entry in "mistakes" needs the wrong sentence, the corrected one and the reason.');
   }
@@ -316,7 +319,7 @@ export function explainBlocks(r: ExplainResult, m: ExplainMeta): Block[] {
       h(3, `${c.character}${c.pinyin ? ` (${c.pinyin})` : ""} — ${c.meaning}`);
       if (c.radical) out.push({ kind: "li", depth: 0, inline: [{ b: "Radical:" }, ` ${c.radical}`] });
       // The doubt covers the breakdown as well as the origin, so it is said on the last of the two lines.
-      const doubt: Inline[] = c.confidence === "uncertain" ? [" ", { i: "(a popular or uncertain account, not settled)" }] : [];
+      const doubt: Inline[] = c.confidence === "uncertain" ? [" ", { i: "(not settled; a popular or uncertain account)" }] : [];
       if (c.components) out.push({ kind: "li", depth: 0, inline: [{ b: "Built from:" }, ` ${c.components}`, ...(c.etymology ? [] : doubt)] });
       if (c.etymology) out.push({ kind: "li", depth: 0, inline: [{ b: "Origin:" }, ` ${c.etymology}`, ...doubt] });
     }

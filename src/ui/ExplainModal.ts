@@ -81,7 +81,7 @@ export class ExplainModal extends Modal {
 
   private async generate(): Promise<void> {
     const run = ++this.runId;
-    this.heading("Writing the explanation… this takes a few seconds.");
+    this.heading("Writing the explanation… this usually takes 20 to 40 seconds.");
     const bar = this.actions();
     bar.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
     try {
