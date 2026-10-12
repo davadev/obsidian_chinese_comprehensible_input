@@ -1004,6 +1004,30 @@
   flex: 1;
 }
 
+/* "Generate mnemonics" for a whole note (reader menu). */
+.cci-batch-mnemonic-modal .cci-batch-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+.cci-batch-mnemonic-modal .cci-batch-spacer {
+  flex: 1;
+}
+.cci-batch-mnemonic-modal .cci-batch-muted {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.cci-batch-mnemonic-modal progress {
+  width: 100%;
+}
+.cci-batch-mnemonic-modal .cci-batch-words div {
+  max-height: 10rem;
+  overflow-y: auto;
+  margin-top: 0.4rem;
+  line-height: 1.8;
+}
+
 /* Mnemonic block on the word card. The emoji line is capped at two lines
    so a long pre-0.5.0 prose mnemonic can never stretch the card; the
    story is collapsed behind the toggle and scrolls when expanded. */

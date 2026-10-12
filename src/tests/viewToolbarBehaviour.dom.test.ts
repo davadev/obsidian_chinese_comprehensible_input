@@ -36,6 +36,7 @@ function makePlugin(settings: Record<string, unknown> = {}, startMode = "read", 
     openStatsForNote: vi.fn(async () => {}),
     openStatsView: vi.fn(async () => {}),
     openGenerateStoryModal: vi.fn(),
+    openBatchMnemonicModal: vi.fn(),
   };
   return plugin;
 }
@@ -411,6 +412,14 @@ describe("overflow menu buttons and closing", () => {
     btn(menu()!, "Generate story").click();
     expect(menu()).toBeNull();
     expect(plugin.openGenerateStoryModal).toHaveBeenCalled();
+  });
+
+  it("Generate mnemonics closes the menu and hands the open note's text to the batch dialog", () => {
+    const { container, plugin } = mount({ docText: "我学习中文。" });
+    openOverflow(container);
+    btn(menu()!, "Generate mnemonics").click();
+    expect(menu()).toBeNull();
+    expect(plugin.openBatchMnemonicModal).toHaveBeenCalledWith("我学习中文。");
   });
 
   it("a resize closes the menu (its position is a snapshot), and the next tap reopens it", () => {

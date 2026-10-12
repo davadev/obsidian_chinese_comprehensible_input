@@ -1,4 +1,5 @@
-import { toneMarksToNumbers } from "../dictionary/normalizeChinese";
+import type { DictionaryEntry } from "../dictionary/DictionaryTypes";
+import { shortenDefinition, toneMarksToNumbers } from "../dictionary/normalizeChinese";
 import {
   MNEMONIC_LINE_MAX_GRAPHEMES,
   clampGraphemes,
@@ -173,4 +174,18 @@ export function repairStoryPinyin(story: string, shape: WordShape): string {
       return `${run} (${readings[0]})`;
     }
   );
+}
+
+/**
+ * For a word of several characters: one short dictionary gloss per Han character, in order, so the model can draw what
+ * each character means. A single character gets none (its picture is its parts, not a gloss), and a character the
+ * dictionary does not know gets an empty gloss.
+ */
+export function charGlossesFor(
+  surface: string,
+  lookup: (s: string) => DictionaryEntry[]
+): string[] | undefined {
+  const han = Array.from(surface).filter(isHanChar);
+  if (han.length < 2) return undefined;
+  return han.map((c) => shortenDefinition(lookup(c)[0]?.definitions[0] ?? "", 40));
 }

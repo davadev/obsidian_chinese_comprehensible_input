@@ -6,6 +6,8 @@ export type DisplayMode = "two-line" | "three-line" | "none";
  * What a configurable annotation row shows (#56). Rows are numbered upward
  * from the characters: line 2 sits directly above them, line 3 above that.
  */
+/** notKnown: new + unknown + partial. marked: unknown + partial (words you have classified). unknown: only unknown. */
+export type BatchMnemonicScope = "notKnown" | "marked" | "unknown";
 export type LineContent = "pinyin" | "english" | "mnemonic";
 
 /**
@@ -368,6 +370,8 @@ export interface CciSettings {
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
   mnemonicsFirst: boolean;
+  /** Which words "Generate mnemonics" in the reader menu covers (known and ignored words are never included). */
+  batchMnemonicScope: BatchMnemonicScope;
   /** Base font size for the Chinese Learning view, in pixels. */
   readerFontPx: number;
   /** Line-height multiplier for the Chinese view. 1.0 = current behavior. */

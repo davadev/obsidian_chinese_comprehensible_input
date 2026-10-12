@@ -89,6 +89,35 @@ pinyin.
 Mnemonics you already have keep the style they were written in; generating
 again replaces them with the new style.
 
+## A mnemonic for every word in a note
+
+Open a note in the reader, tap the **⋯** menu and choose **Generate
+mnemonics**. The plugin finds the words in the note that have no mnemonic
+yet and, once you confirm, writes one for each.
+
+- **Which words** — by default every word that is not known: new words you
+  have not classified yet, unknown words and the partly-known ones. Known
+  words are never included, and neither are ignored ones. Change this under
+  **Settings → Display → Advanced display → Words covered by "Generate
+  mnemonics"**: only words you marked unknown or partial, or only words
+  marked unknown.
+- **Nothing is overwritten.** A word that already has a mnemonic (a line or
+  a story) is left alone, so you can run it again after adding words.
+- **Before it starts** you see how many words it will do, an estimate of the
+  cost on OpenAI (a local Ollama model costs nothing), and what is sent: each
+  word plus the sentence it first appears in. The list of words is one tap
+  away.
+- **While it runs** each mnemonic is saved as soon as it is made, so
+  **Stop** — or closing the dialog — keeps everything already done. OpenAI
+  runs a few words at once; a local model runs one at a time. After five
+  failures in a row it stops and tells you to check your provider rather than
+  burning through the whole note.
+- **At the end** you get a summary, the words that failed with the reason
+  (and a button to retry just those), and any word saved "with a caveat" — a
+  mnemonic where the plugin could not get the model to follow every rule even
+  after asking again, worth a quick look. Open the word and tap **Mnemonic**
+  to edit or reroll it like any other.
+
 ## Personalising the prompt
 
 **Settings → AI provider → Mnemonic prompt ▾** holds the *user* half of

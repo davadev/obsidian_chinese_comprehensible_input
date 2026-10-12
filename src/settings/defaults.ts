@@ -156,6 +156,7 @@ export const DEFAULT_SETTINGS: CciSettings = {
   exactTimestampRetentionLimit: 500,
   storeAllExactTimestamps: false,
   mnemonicsFirst: false,
+  batchMnemonicScope: "notKnown",
   readerFontPx: 22,
   readerLineSpacing: 1.0,
   // 100 = the ratios that shipped before #103, so an upgrade changes nothing.
