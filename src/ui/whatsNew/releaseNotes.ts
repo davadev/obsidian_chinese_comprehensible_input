@@ -8,9 +8,13 @@
  * the stable release, already showed.
  */
 
+import type { FigureId } from "./figures";
+
 export interface ReleaseNoteItem {
   title: string;
   text: string;
+  /** An illustration drawn under the text (see `figures.ts`). Use sparingly: a popup of pictures reads as clutter. */
+  figure?: FigureId;
 }
 
 export interface ReleaseNote {
@@ -31,11 +35,13 @@ export const RELEASE_NOTES: ReleaseNote[] = [
         title: "Status / HSK is now one button",
         text:
           "The two Status and HSK buttons in the toolbar became a single button. It shows how words are coloured right now; tap it to switch to the other colouring. Nothing was removed.",
+        figure: "toolbar",
       },
       {
         title: "Mnemonics, redone",
         text:
           "Every character of a word now gets one picture of what it means, followed by its tone number, so the tone stays with the right character. Open the ⋯ menu and choose “Mnemonics for this note…” to fill in, regenerate or remove the mnemonics of a whole note at once. Needs an AI provider (Settings → AI provider).",
+        figure: "mnemonic",
       },
       {
         title: "Explain a word",

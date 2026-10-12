@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installObsidianDom } from "./__mocks__/obsidianDom";
 import { Notice } from "./__mocks__/obsidian"; // the stub itself: `Notice.instances` is not in the real typings
-import { bind, call, settings, statsView, workspace } from "./__mocks__/mainHarness";
+import { bind, call, proto, settings, statsView, workspace } from "./__mocks__/mainHarness";
 import { VIEW_TYPE_STATS } from "../constants";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import { putCachedTokens, getCachedTokens } from "../tokenizer/tokenCache";
@@ -515,6 +515,49 @@ describe("the one-time What's new popup", () => {
     await self.maybeShowWhatsNew();
     expect(popup()).toBeNull();
     expect(self.saveSettingsSilently).not.toHaveBeenCalled();
+  });
+
+  it("does not show it while the update is still being applied: an update during a running session only gets a hint to restart", async () => {
+    const { self } = make({ loadedAtStartup: () => false, manifest: { version: "0.9.0-beta.9", id: "p" } });
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeNull();
+    // the version is NOT stamped, so the popup is still owed on the next start
+    expect(self.settings.lastSeenVersion).toBe("0.8.2");
+    expect(self.settings.whatsNewHintedFor).toBe("0.9.0");
+    expect(self.saveSettingsSilently).toHaveBeenCalledTimes(1);
+    expect(Notice.instances.at(-1)!.message).toContain("Chinese plugin updated to 0.9.0-beta.9. Restart Obsidian to finish updating");
+    // reloading the plugin again in the same session does not nag
+    Notice.instances.length = 0;
+    self.saveSettingsSilently.mockClear();
+    await self.maybeShowWhatsNew();
+    expect(Notice.instances).toHaveLength(0);
+    expect(self.saveSettingsSilently).not.toHaveBeenCalled();
+    // after a real restart the popup arrives, once
+    self.loadedAtStartup = () => true;
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeTruthy();
+    expect(self.settings.lastSeenVersion).toBe("0.9.0-beta.9");
+    document.body.innerHTML = "";
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeNull();
+  });
+
+  it("a new install is stamped quietly even when the plugin loads late", async () => {
+    const { self } = make({ freshInstall: true, loadedAtStartup: () => false, settings: settings((s) => (s.lastSeenVersion = "")) });
+    await self.maybeShowWhatsNew();
+    expect(self.settings.lastSeenVersion).toBe("0.9.0");
+    expect(Notice.instances).toHaveLength(0);
+  });
+
+  it("knows a start of Obsidian from a reload later in the session by how long the page has been running", () => {
+    const { self } = make();
+    const now = vi.spyOn(performance, "now");
+    now.mockReturnValue(3_000);
+    expect(proto.loadedAtStartup.call(self)).toBe(true);
+    now.mockReturnValue(44_000);
+    expect(proto.loadedAtStartup.call(self)).toBe(true);
+    now.mockReturnValue(120_000);
+    expect(proto.loadedAtStartup.call(self)).toBe(false);
   });
 
   it("shows it to a user who has never been stamped (upgrading from before the popup existed)", async () => {

@@ -167,6 +167,14 @@ How it behaves, so nobody has to rediscover it:
   has it and not again on the next beta or on the stable release.
 - A new install (no saved settings at all) is shown nothing: nothing has changed for it. The version is just recorded.
 - It waits until the sync and the downgrade question have finished, so two dialogs never stack.
+- **It appears only after a real start of Obsidian**, because that is when an update has fully applied (open views rebuilt,
+  new settings groups registered). A plugin load within 45 s of the page starting counts as a start; a later load is an update
+  applied while Obsidian was running (community browser, BRAT). In that case the version is *not* stamped, the user gets one
+  notice per release ("updated, restart Obsidian to finish; a short What's new will appear then"), and the popup follows on
+  the next start. `settings.whatsNewHintedFor` remembers the hint so a plugin reload does not repeat it.
+- An entry can carry a small illustration (`figure`, drawn in `src/ui/whatsNew/figures.ts` from the real interface elements,
+  so it follows the theme and cannot go stale like a screenshot). Keep it to a few per release; a popup of pictures reads as
+  clutter. A new figure id needs a builder there.
 - The command **Show what's new** re-opens the newest entry on demand.
 - A user who skips releases is shown every entry they missed, oldest first.
 

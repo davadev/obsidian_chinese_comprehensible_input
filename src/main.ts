@@ -60,6 +60,9 @@ import { BackupContext, BackupService, RestoreResult, StartupResult, createGzipC
 import { formatBytes } from "./data/backupPolicy";
 import { RestoreBackupModal } from "./ui/RestoreBackupModal";
 
+/** A plugin load within this many ms of the page starting is Obsidian starting up, not a reload after an update. */
+const PLUGIN_STARTUP_WINDOW_MS = 45_000;
+
 export default class CciPlugin extends Plugin {
   settings: CciSettings = DEFAULT_SETTINGS;
   dictionary!: DictionaryService;
@@ -320,9 +323,22 @@ export default class CciPlugin extends Plugin {
   }
 
   /**
+   * Did this load of the plugin happen as part of Obsidian starting up? Obsidian loads plugins within the first seconds of
+   * a start, whereas an update applied while it is running (the community browser, BRAT) reloads the plugin much later in
+   * the same window. The difference matters: only after a real start has the update fully applied (open views rebuilt,
+   * new settings groups registered).
+   */
+  private loadedAtStartup(): boolean {
+    return performance.now() < PLUGIN_STARTUP_WINDOW_MS;
+  }
+
+  /**
    * The one-time "What's new" popup after an upgrade. A new install is told nothing (nothing has changed for it); anyone
-   * else is shown the notes newer than the last version they were told about. The version is saved BEFORE the popup opens,
-   * so it cannot appear twice, not even if Obsidian is closed while it is open.
+   * else is shown the notes newer than the last version they were told about.
+   *
+   * It appears only after a real start of Obsidian, so that what it describes is actually there. An update applied while
+   * Obsidian was running gets a single hint to restart instead, and the popup follows on the next start. The version is
+   * saved BEFORE the popup opens, so it cannot appear twice, not even if Obsidian is closed while it is open.
    */
   async maybeShowWhatsNew(): Promise<void> {
     const current = this.manifest.version;
@@ -333,6 +349,18 @@ export default class CciPlugin extends Plugin {
     }
     const notes = notesToShow(this.settings.lastSeenVersion, current);
     if (notes.length === 0) return;
+    if (!this.loadedAtStartup()) {
+      const newest = notes[notes.length - 1].version;
+      if (this.settings.whatsNewHintedFor !== newest) {
+        this.settings.whatsNewHintedFor = newest;
+        await this.saveSettingsSilently();
+        new Notice(
+          `Chinese plugin updated to ${current}. Restart Obsidian to finish updating; a short “What's new” will appear then.`,
+          12_000
+        );
+      }
+      return;
+    }
     this.settings.lastSeenVersion = current;
     await this.saveSettingsSilently();
     new WhatsNewModal(this.app, notes).open();
