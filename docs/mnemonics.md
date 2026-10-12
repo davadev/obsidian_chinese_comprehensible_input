@@ -71,13 +71,24 @@ right; in testing, models asked to write the tone cues themselves got them
 wrong in up to half of the answers. It also frees arrows and other symbols
 for the pictures themselves.
 
-The line never contains Chinese characters, letters or digits from the model
-— the word is already shown next to it. The plugin checks the model's answer
+The line is **emoji only** (plus the tone digits the plugin adds). It never
+contains Chinese characters, English words, letters or other digits from the
+model — the word is already shown next to it. For a grammar particle or an
+abstract sense the meaning strip uses a symbol emoji (✅ for completed, ❓ for a
+question) instead of a word; anything that is not an emoji is removed and the
+model is asked again. The plugin checks the model's answer
 (right number of groups, emoji only, a short meaning strip, within the
 40-character budget) and, if a rule was broken, asks once more with the
 specific problem. If it is still wrong you are told what is off instead of
 being handed a silently worse result, and Chinese characters are removed from
 the line either way.
+
+**Names.** The mnemonic is built from the sentence you met the word in. When
+the word is used there as a person's name (or part of one) or another proper
+name, there is nothing to picture, so the line is just the name badge 📛
+followed by the tone digits, for example `📛³⁴` for 马克 (mǎ kè), and the story
+says it is a name. If the same character is also an ordinary word, generate its
+mnemonic from a sentence where it is used normally (or edit it by hand).
 
 The story says which emoji stands for which character or part and lands on
 the English meaning. The word's own characters always carry their
@@ -91,18 +102,28 @@ again replaces them with the new style.
 
 ## A mnemonic for every word in a note
 
-Open a note in the reader, tap the **⋯** menu and choose **Generate
-mnemonics**. The plugin finds the words in the note that have no mnemonic
-yet and, once you confirm, writes one for each.
+Open a note in the reader, tap the **⋯** menu and choose **Mnemonics for this
+note…**. The plugin finds the words in the note that are in scope, tells you how
+many have no mnemonic yet, and offers two things:
+
+- **Generate N missing** — writes a mnemonic for each word that has none. A
+  word that already has one (a line or a story) is left alone, so you can run
+  it again after adding words.
+- **Regenerate all N…** — appears when some of the words already have a
+  mnemonic. It writes a fresh mnemonic for every word in scope and **replaces
+  the existing ones, including any you wrote or edited yourself**. Because that
+  cannot be undone, it asks a second time and says how many will be replaced.
+  The old text is not sent to the AI. If a new answer turns out unusable, the
+  word keeps its old mnemonic and is listed as failed.
+
+Details common to both:
 
 - **Which words** — by default every word that is not known: new words you
   have not classified yet, unknown words and the partly-known ones. Known
   words are never included, and neither are ignored ones. Change this under
-  **Settings → Display → Advanced display → Words covered by "Generate
-  mnemonics"**: only words you marked unknown or partial, or only words
-  marked unknown.
-- **Nothing is overwritten.** A word that already has a mnemonic (a line or
-  a story) is left alone, so you can run it again after adding words.
+  **Settings → Display → Advanced display → Words covered by "Mnemonics for
+  this note"**: only words you marked unknown or partial, or only words marked
+  unknown.
 - **What is sent** — for each word: the word, its pinyin, traditional form,
   HSK level and dictionary definitions, a short gloss per character for words
   of several characters, and the sentence of the word's first occurrence in
@@ -110,20 +131,21 @@ yet and, once you confirm, writes one for each.
   (see [OpenAI setup, privacy, and cost](./openai-setup.md#2-privacy--your-text-leaves-obsidian));
   with Ollama they go to your own server. Nothing else from the note or your
   vault is sent.
-- **Before it starts** you see how many words it will do, an estimate of the
-  cost on OpenAI (a local Ollama model costs nothing), and what is sent: each
-  word plus the sentence it first appears in. The list of words is one tap
-  away.
+- **Before it starts** you see how many words each choice covers, an estimate
+  of the cost on OpenAI (a local Ollama model costs nothing), and what is sent.
+  The list of words is one tap away.
 - **While it runs** each mnemonic is saved as soon as it is made, so
   **Stop** — or closing the dialog — keeps everything already done. OpenAI
   runs a few words at once; a local model runs one at a time. After five
   failures in a row it stops and tells you to check your provider rather than
   burning through the whole note.
-- **At the end** you get a summary, the words that failed with the reason
-  (and a button to retry just those), and any word saved "with a caveat" — a
-  mnemonic where the plugin could not get the model to follow every rule even
-  after asking again, worth a quick look. Open the word and tap **Mnemonic**
-  to edit or reroll it like any other.
+- **At the end** you get a summary, **what the run cost on OpenAI** (the real
+  token usage, added up across the requests the run made, including any
+  retry), the words that failed with the reason (and a button to retry just
+  those), and any word saved "with a caveat" — a mnemonic where the plugin
+  could not get the model to follow every rule even after asking again, worth
+  a quick look. Open the word and tap **Mnemonic** to edit or reroll it like
+  any other.
 
 ## Personalising the prompt
 

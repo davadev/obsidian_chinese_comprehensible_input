@@ -370,7 +370,7 @@ export interface CciSettings {
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
   mnemonicsFirst: boolean;
-  /** Which words "Generate mnemonics" in the reader menu covers (known and ignored words are never included). */
+  /** Which words "Mnemonics for this note" in the reader menu covers (known and ignored words are never included). */
   batchMnemonicScope: BatchMnemonicScope;
   /** Base font size for the Chinese Learning view, in pixels. */
   readerFontPx: number;

@@ -747,7 +747,7 @@ export class ViewToolbar {
       close();
       this.plugin.openGenerateStoryModal();
     });
-    const mnemonics = menu.createEl("button", { cls: "cci-overflow-btn", text: "Generate mnemonics" });
+    const mnemonics = menu.createEl("button", { cls: "cci-overflow-btn", text: "Mnemonics for this note…" });
     mnemonics.addEventListener("click", () => {
       close();
       this.plugin.openBatchMnemonicModal(this.getDocText());

@@ -88,13 +88,23 @@ describe("MNEMONIC_SYSTEM_PROMPT", () => {
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/picture group/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/story/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no markdown code fences/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toContain('{"characters":[string],"meaning":string,"story":string}');
+    expect(MNEMONIC_SYSTEM_PROMPT).toContain('{"isName":boolean,"characters":[string],"meaning":string,"story":string}');
   });
 
   it("leaves the tones to the app and forbids Chinese characters and digits in the groups", () => {
     // Tones are a pure function of the pinyin; the app attaches them, so the model must not write them.
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/never write tones/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no Chinese characters, no letters, no digits/);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no Chinese characters, no English words, no letters, no digits/);
+  });
+
+  it("allows only emoji in the meaning strip and says what to use for an abstract sense", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/emoji only\. Never an English word or letters/);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/symbol emoji, for example ✅ completed/);
+  });
+
+  it("tells the model to flag a name and leave the picture to the app", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/"isName" — true only when, in the sentence/);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/the app writes a name badge itself/);
   });
 
   it("asks for the word's own pinyin in the story and none for parts", () => {
@@ -129,7 +139,7 @@ describe("mnemonic facts block and repair prompt", () => {
 
   it("lists the defects in the repair prompt", () => {
     expect(buildMnemonicRepairPrompt(["a", "b"])).toBe(
-      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good. Where a Chinese character crept into a picture group, draw it as an emoji or leave it out."
+      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good. Where a Chinese character, an English word or a letter crept into a picture group or the meaning, replace it with an emoji or leave it out."
     );
   });
 
@@ -179,7 +189,7 @@ describe("MnemonicService.generate", () => {
 
   const single = { surface: "猫", pinyin: "māo", definitions: ["cat"] };
   const multi = { surface: "图书馆", pinyin: "tú shū guǎn", definitions: ["library"], charGlosses: ["diagram", "book", "building"] };
-  const reply = (o: object) => JSON.stringify(o);
+  const reply = (o: object) => JSON.stringify({ isName: false, ...o });
 
   it("sends the fixed system prompt, the user's template plus the facts, and the schema", async () => {
     const { chatJson, service } = serviceWith(
@@ -229,7 +239,7 @@ describe("MnemonicService.generate", () => {
     );
     const out = await service.generate(multi);
     expect(chatJson).toHaveBeenCalledTimes(2);
-    expect(chatJson.mock.calls[1][1]).toContain("Picture group 1 contains Chinese characters");
+    expect(chatJson.mock.calls[1][1]).toContain("Picture group 1 contains something other than emoji");
     expect(out).toEqual({ mnemonic: "🗺️²📖¹🏛️³", story: "y" });
   });
 
@@ -245,7 +255,7 @@ describe("MnemonicService.generate", () => {
     expect(out.story).toBe("x");
     // the Chinese character never reaches the line even though the model sent it
     expect(out.mnemonic).toBe("🗺️²📖¹🏛️³");
-    expect(out.notes).toEqual(["Picture group 1 contains Chinese characters; use emoji only."]);
+    expect(out.notes).toEqual([expect.stringContaining("Picture group 1 contains something other than emoji")]);
   });
 
   it("keeps the first answer when the repair call fails or is unreadable", async () => {
@@ -258,6 +268,43 @@ describe("MnemonicService.generate", () => {
       expect(out.mnemonic).toBe("🗺️²📖¹³");
       expect(out.notes).toEqual([expect.stringContaining("exactly 3 picture group(s)")]);
     }
+  });
+
+  it("writes the name badge and the tones itself when the model says the word is a name", async () => {
+    const { chatJson, service } = serviceWith(
+      [reply({ isName: true, characters: [], meaning: "", story: "Here 马 (mǎ) is part of a name." })],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    const out = await service.generate({ surface: "马克", pinyin: "mǎ kè", sentence: "马克来了。" });
+    expect(out).toEqual({ mnemonic: "📛³⁴", story: "Here 马 (mǎ) is part of a name." });
+    expect(chatJson).toHaveBeenCalledTimes(1);
+  });
+
+  it("says plainly that it is a name when the model gave no sentence", async () => {
+    const { service } = serviceWith([reply({ isName: true, characters: [], meaning: "", story: "" })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    expect((await service.generate({ surface: "马克", pinyin: "mǎ kè" })).story).toBe("马克 (mǎ kè) is a name here.");
+    const odd = serviceWith([reply({ isName: true, characters: [], meaning: "", story: "" })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    expect((await odd.service.generate({ surface: "马克", pinyin: "mǎ" })).story).toBe("马克 is a name here.");
+  });
+
+  it("asks again when the meaning is a word, and never lets the word reach the line", async () => {
+    const { chatJson, service } = serviceWith(
+      [
+        reply({ characters: ["🏁"], meaning: "done", story: "x" }),
+        reply({ characters: ["🏁"], meaning: "done", story: "x" }),
+      ],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    const out = await service.generate({ surface: "了", pinyin: "le" });
+    expect(chatJson).toHaveBeenCalledTimes(2);
+    expect(chatJson.mock.calls[1][1]).toContain('"meaning" contains something other than emoji');
+    expect(out.mnemonic).toBe("🏁⁰");
+    expect(out.notes).toEqual([expect.stringContaining("use a symbol emoji")]);
+    const fixed = serviceWith(
+      [reply({ characters: ["🏁"], meaning: "done", story: "x" }), reply({ characters: ["🏁"], meaning: "✅", story: "x" })],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    expect((await fixed.service.generate({ surface: "了", pinyin: "le" })).mnemonic).toBe("🏁⁰✅");
   });
 
   it("writes one group plus every tone for a word whose pinyin does not split", async () => {
@@ -284,7 +331,8 @@ describe("MnemonicService.generate", () => {
 
 describe("parseMnemonicAnswer", () => {
   it("parses a clean JSON object", () => {
-    expect(parseMnemonicAnswer('{"characters":["a"],"meaning":"m","story":"s"}')).toEqual({
+    expect(parseMnemonicAnswer('{"isName":false,"characters":["a"],"meaning":"m","story":"s"}')).toEqual({
+      isName: false,
       characters: ["a"],
       meaning: "m",
       story: "s",
@@ -293,11 +341,17 @@ describe("parseMnemonicAnswer", () => {
 
   it("salvages JSON wrapped in prose and code fences", () => {
     const raw = 'Sure! Here you go:\n```json\n{"characters":["a"]}\n```\nHope that helps.';
-    expect(parseMnemonicAnswer(raw)).toEqual({ characters: ["a"], meaning: "", story: "" });
+    expect(parseMnemonicAnswer(raw)).toEqual({ isName: false, characters: ["a"], meaning: "", story: "" });
   });
 
   it("treats a missing or non-string meaning and story as empty", () => {
-    expect(parseMnemonicAnswer('{"characters":[],"meaning":3,"story":null}')).toEqual({ characters: [], meaning: "", story: "" });
+    expect(parseMnemonicAnswer('{"characters":[],"meaning":3,"story":null}')).toEqual({ isName: false, characters: [], meaning: "", story: "" });
+  });
+
+  it("reads the name flag only when it is exactly true", () => {
+    expect(parseMnemonicAnswer('{"isName":true,"characters":[]}').isName).toBe(true);
+    expect(parseMnemonicAnswer('{"isName":"true","characters":[]}').isName).toBe(false);
+    expect(parseMnemonicAnswer('{"characters":[]}').isName).toBe(false);
   });
 
   it("throws when the characters list is missing or not a list of strings", () => {
@@ -315,7 +369,7 @@ describe("parseMnemonicAnswer", () => {
   });
 
   it("advertises a schema matching what the parser accepts", () => {
-    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["characters", "meaning", "story"]);
+    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["isName", "characters", "meaning", "story"]);
     expect(MNEMONIC_SCHEMA.additionalProperties).toBe(false);
   });
 

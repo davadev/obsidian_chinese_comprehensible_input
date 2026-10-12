@@ -95,10 +95,16 @@ export class MnemonicService {
 
 function finish(answer: ParsedAnswer, shape: WordShape, issues: string[]): MnemonicResult {
   const result: MnemonicResult = { mnemonic: assembleLine(answer, shape) };
-  const story = repairStoryPinyin(answer.story, shape).trim();
+  // A name has no picture story, so if the model left the sentence out the app says it plainly.
+  const raw = answer.isName && !answer.story.trim() ? nameStory(shape) : answer.story;
+  const story = repairStoryPinyin(raw, shape).trim();
   if (story) result.story = clamp(story, STORY_MAX_CHARS);
   if (issues.length > 0) result.notes = issues;
   return result;
+}
+
+function nameStory(shape: WordShape): string {
+  return `${shape.chars.join("")}${shape.syllables ? ` (${shape.syllables.join(" ")})` : ""} is a name here.`;
 }
 
 /** Pull the first balanced `{ … }` block out of `raw` and JSON.parse it.
@@ -126,6 +132,7 @@ function parseMnemonicAnswer(raw: string): ParsedAnswer {
     throw new Error("AI response is missing the required \"characters\" list.");
   }
   return {
+    isName: obj.isName === true,
     characters: groups,
     meaning: typeof obj.meaning === "string" ? obj.meaning : "",
     story: typeof obj.story === "string" ? obj.story : "",

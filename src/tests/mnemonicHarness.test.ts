@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assembleLine,
-  cleanGroup,
+  NAME_EMOJI,
+  emojiOnly,
   expectedGroups,
   isHanChar,
   pictureBudget,
@@ -80,11 +81,19 @@ describe("wordShape", () => {
   });
 });
 
-describe("cleanGroup", () => {
-  it("removes Chinese characters, letters and the app's own tone digits, but keeps emoji and keycaps", () => {
-    expect(cleanGroup(" 🌳目 ab ¹ ")).toBe("🌳");
-    expect(cleanGroup("1️⃣🌳 ⁰")).toBe("1️⃣🌳");
-    expect(cleanGroup("↗️🚶‍➡️")).toBe("↗️🚶‍➡️");
+describe("emojiOnly", () => {
+  it("keeps emoji, keycaps, flags, arrows and joined sequences, and drops everything else", () => {
+    expect(emojiOnly(" 🌳目 ab ¹ ")).toBe("🌳");
+    expect(emojiOnly("1️⃣🌳 ⁰")).toBe("1️⃣🌳");
+    expect(emojiOnly("↗️🚶‍➡️")).toBe("↗️🚶‍➡️");
+    expect(emojiOnly("👩‍👧 👍🏽 🇨🇳 ✅ 〰️ ➡️")).toBe("👩‍👧👍🏽🇨🇳✅〰️➡️");
+    expect(emojiOnly("🏴󠁧󠁢󠁥󠁮󠁧󠁿")).toBe("🏴󠁧󠁢󠁥󠁮󠁧󠁿");
+  });
+
+  it("drops words, digits, punctuation and Chinese characters", () => {
+    expect(emojiOnly("done")).toBe("");
+    expect(emojiOnly("🏁 done!")).toBe("🏁");
+    expect(emojiOnly("3 + 2 = 🤔，。")).toBe("🤔");
   });
 });
 
@@ -108,6 +117,18 @@ describe("assembleLine", () => {
     expect(assembleLine({ characters: [], meaning: "" }, wordShape("玩儿", "wánr"))).toBe("²");
   });
 
+  it("writes a name as the badge followed by every tone, whatever else the model sent", () => {
+    expect(NAME_EMOJI).toBe("📛");
+    expect(assembleLine({ isName: true, characters: ["🐴"], meaning: "🐎" }, wordShape("马克", "mǎ kè"))).toBe("📛³⁴");
+    expect(assembleLine({ isName: true, characters: [], meaning: "" }, wordShape("马", "mǎ"))).toBe("📛³");
+    expect(assembleLine({ isName: true, characters: [], meaning: "" }, wordShape("马", undefined))).toBe("📛");
+  });
+
+  it("keeps words out of the meaning strip", () => {
+    expect(assembleLine({ characters: ["🏁"], meaning: "done" }, wordShape("了", "le"))).toBe("🏁⁰");
+    expect(assembleLine({ characters: ["🏁 x"], meaning: "✅ done" }, wordShape("了", "le"))).toBe("🏁⁰✅");
+  });
+
   it("never exceeds the line limit", () => {
     const line = assembleLine({ characters: ["😀".repeat(60)], meaning: "x" }, wordShape("想", "xiǎng"));
     expect(graphemeLength(line)).toBe(MNEMONIC_LINE_MAX_GRAPHEMES);
@@ -120,8 +141,8 @@ describe("validateParts", () => {
 
   it("accepts a good answer", () => {
     expect(validateParts({ characters: ["🗺️", "📖", "🏛️"], meaning: "" }, multi)).toEqual([]);
-    expect(validateParts({ characters: ["❤️"], meaning: "🤔 think" }, single)).toEqual([]);
-    expect(validateParts({ characters: ["1️⃣🌳"], meaning: "🤔" }, single)).toEqual([]);
+    expect(validateParts({ characters: ["❤️"], meaning: "🤔💭" }, single)).toEqual([]);
+    expect(validateParts({ characters: ["1️⃣🌳"], meaning: "✅" }, single)).toEqual([]);
   });
 
   it("reports the wrong number of groups", () => {
@@ -130,28 +151,38 @@ describe("validateParts", () => {
     ]);
   });
 
-  it("reports empty groups, Chinese characters and stray letters or digits", () => {
+  it("reports empty groups and anything that is not emoji", () => {
+    const other =
+      "contains something other than emoji (no Chinese characters, words, letters, digits or punctuation; the app adds the tone numbers).";
     expect(validateParts({ characters: ["  ", "📖书", "🏛️a"], meaning: "" }, multi)).toEqual([
       "Picture group 1 is empty.",
-      "Picture group 2 contains Chinese characters; use emoji only.",
-      "Picture group 3 contains letters or digits; use emoji only (the app adds the tone numbers).",
+      `Picture group 2 ${other}`,
+      `Picture group 3 ${other}`,
     ]);
+    expect(validateParts({ characters: ["🗺️", "📖", "🏛️ library"], meaning: "" }, multi)).toHaveLength(1);
   });
 
-  it("checks the meaning strip only where one is wanted", () => {
+  it("checks the meaning strip only where one is wanted, and allows emoji only in it", () => {
     expect(validateParts({ characters: ["🗺️", "📖", "🏛️"], meaning: "a long sentence 书" }, multi)).toEqual([]);
     expect(validateParts({ characters: ["❤️"], meaning: "" }, single)).toEqual(['"meaning" is empty.']);
-    expect(validateParts({ characters: ["❤️"], meaning: "想" }, single)).toEqual(['"meaning" contains Chinese characters.']);
-    expect(validateParts({ characters: ["❤️"], meaning: "a very long meaning here" }, single)).toEqual([
+    expect(validateParts({ characters: ["❤️"], meaning: "想" }, single)[0]).toContain('"meaning" contains something other than emoji');
+    expect(validateParts({ characters: ["❤️"], meaning: "done" }, single)[0]).toContain("use a symbol emoji");
+    expect(validateParts({ characters: ["❤️"], meaning: "🤔 think" }, single)).toHaveLength(1);
+    expect(validateParts({ characters: ["❤️"], meaning: "🤔/💭" }, single)).toHaveLength(1);
+    expect(validateParts({ characters: ["❤️"], meaning: "😀".repeat(15) }, single)).toEqual([
       '"meaning" must be one short emoji strip (at most 14 characters), not a sentence or a list.',
     ]);
-    expect(validateParts({ characters: ["❤️"], meaning: "🤔/💭" }, single)).toHaveLength(1);
   });
 
   it("flags a line that would be over the limit", () => {
     expect(validateParts({ characters: ["😀".repeat(40)], meaning: "🤔" }, single)).toEqual([
       "The finished line is over the 40-character limit; use fewer emoji.",
     ]);
+  });
+
+  it("asks for nothing more when the word is a name", () => {
+    expect(validateParts({ isName: true, characters: [], meaning: "" }, multi)).toEqual([]);
+    expect(validateParts({ isName: true, characters: ["x"], meaning: "word" }, single)).toEqual([]);
   });
 });
 

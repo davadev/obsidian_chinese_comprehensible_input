@@ -10,7 +10,7 @@ import { extractSentenceAround } from "../ui/StatsView";
 import type { WordRecord, WordStatus } from "./VocabularyTypes";
 
 /**
- * "Generate mnemonics for this note": which words, what to send for each, how many at a time, and what it costs.
+ * "Mnemonics for this note": which words, what to send for each, how many at a time, and what it costs.
  * Kept free of UI so the rules (never touch a known word, never overwrite a mnemonic, stop when the provider is
  * clearly broken) are testable on their own.
  */
@@ -34,12 +34,13 @@ export interface BatchItem {
 }
 
 export interface BatchSelection {
+  /** In-scope words with no mnemonic yet. */
   items: BatchItem[];
-  /** In-scope words that already have a mnemonic and are left alone. */
-  haveMnemonic: number;
+  /** In-scope words that already have one; only "regenerate" touches them. */
+  withMnemonic: BatchItem[];
 }
 
-/** Each distinct word once (by dictionary entry, so 学习 and 學習 count together), in reading order. */
+/** Each distinct word once (by dictionary entry, so 学习 and 學習 count together), in reading order, split by whether it already has a mnemonic. */
 export function selectBatchWords(
   text: string,
   tokens: Token[],
@@ -48,7 +49,7 @@ export function selectBatchWords(
 ): BatchSelection {
   const seen = new Set<string>();
   const items: BatchItem[] = [];
-  let haveMnemonic = 0;
+  const withMnemonic: BatchItem[] = [];
   for (const tok of tokens) {
     if (!tok.isWord || tok.candidates.length === 0) continue;
     const entry = tok.selected ?? tok.candidates[0];
@@ -58,18 +59,15 @@ export function selectBatchWords(
     const status = rec?.status ?? "new";
     if (!statusInScope(status, scope)) continue;
     seen.add(id);
-    if (rec?.mnemonic?.text || rec?.mnemonic?.story) {
-      haveMnemonic++;
-      continue;
-    }
-    items.push({
+    const item: BatchItem = {
       surface: tok.surface,
       storage: rec?.surfaces[0] ?? tok.surface,
       sentence: extractSentenceAround(text, tok.start).text,
       status,
-    });
+    };
+    (rec?.mnemonic?.text || rec?.mnemonic?.story ? withMnemonic : items).push(item);
   }
-  return { items, haveMnemonic };
+  return { items, withMnemonic };
 }
 
 /** What the single-word editor would send, minus the fields the learner has not typed yet. */
@@ -98,9 +96,8 @@ export function batchInput(
 const EST_INPUT_TOKENS = 800;
 const EST_OUTPUT_TOKENS = 110;
 
-/** USD for `count` words on OpenAI, or null when the provider is a local model (nothing is billed). */
-export function estimateBatchUsd(count: number, provider: string, modelId: string): number | null {
-  if (provider !== "openai") return null;
+/** USD for `count` words on OpenAI. A local model is not billed, so the caller only asks when the provider is OpenAI. */
+export function estimateOpenAiUsd(count: number, modelId: string): number {
   return computeOpenAiCostUsd(
     { inputTokens: count * EST_INPUT_TOKENS, cachedInputTokens: 0, outputTokens: count * EST_OUTPUT_TOKENS },
     modelId
@@ -109,6 +106,11 @@ export function estimateBatchUsd(count: number, provider: string, modelId: strin
 
 export function formatUsd(usd: number): string {
   return usd < 0.01 ? "under $0.01" : `about $${usd.toFixed(2)}`;
+}
+
+/** What a finished run actually cost: a few thousandths of a dollar are worth showing, so no rounding up to a cent. */
+export function formatSpentUsd(usd: number): string {
+  return `$${usd.toFixed(usd >= 0.1 ? 2 : 4)}`;
 }
 
 export interface BatchOutcome {
