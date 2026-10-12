@@ -1,3 +1,11 @@
+import {
+  WordShape,
+  expectedGroups,
+  pictureBudget,
+  toneMark,
+  wantsMeaning,
+} from "./mnemonicFacts";
+
 export const STORY_SYSTEM_PROMPT =
   "You are an expert writer of graded Chinese comprehensible input for adult Chinese learners. " +
   "Write natural, engaging Chinese using simple grammar and vocabulary appropriate to the requested HSK level. " +
@@ -189,52 +197,64 @@ export function buildEnhanceUserPrompt(args: {
 }
 
 /**
- * System prompt for the AI mnemonic generator (#49).
+ * System prompt for the AI mnemonic generator (#49, reshaped for #185).
  *
- * Two outputs, with very different jobs:
- *  - `mnemonic` is a compact EMOJI line. It is shown on the word card and
- *    is the candidate for replacing the English gloss on a third line in a
- *    future release, so it has to survive in a narrow column — hence the
- *    hard length limit and the emoji-first rule. Emoji also happen to be
- *    stickier than prose, which is the point of a mnemonic.
- *  - `story` is the prose that unpacks the emoji line.
+ * The model draws; the app counts. It returns one picture group per character, an optional meaning strip, and the
+ * story. The app attaches each character's tone number, writes the line, and writes the word's own pinyin into the
+ * story (`mnemonicFacts.ts`), because tones and pinyin are facts the app already has and the model gets them wrong:
+ * measured on a 53-word gold set, the previous prompt, which asked the model to write the tone cues, got them wrong
+ * for up to half of the words on `gpt-5.4-mini` and put Chinese characters into the emoji line.
  *
- * The three things a mnemonic must carry for this plugin's learners are
- * the character components, the tone, and the meaning — named explicitly
- * because models otherwise default to meaning-only. These rules live in
- * the SYSTEM prompt so users who customised their user template still get
- * the emoji behaviour.
+ * These rules live in the SYSTEM prompt so users who customised their user template still get them.
  */
 export const MNEMONIC_SYSTEM_PROMPT =
   "You are an expert coach for Chinese character mnemonics for adult learners. " +
-  "You return TWO things for one word: a compact emoji line, and a short story that explains it.\n" +
+  "You return THREE things for one word: a picture group for each character, an emoji strip for the meaning, and a short story that explains them.\n" +
   "\n" +
-  "\"mnemonic\" — the emoji line. Rules:\n" +
-  "- Mostly emoji. Use an ENGLISH word ONLY where no emoji can carry the idea (grammar particles, abstract senses); one or two words at most.\n" +
-  "- NEVER put Chinese characters in this line. The word itself is already displayed right next to it, so repeating the hanzi wastes the tiny budget and weakens the cue.\n" +
-  "- Hard limit: 40 characters. Shorter is better — it has to fit on a narrow line under the word.\n" +
-  "- No sentences, no explanation, no trailing punctuation. It is a picture strip, not a caption.\n" +
-  "- Encode all three of: the character components/radicals as images, the tone of each syllable, and the meaning.\n" +
-  "- Encode tone with a consistent cue: 1st = ➡️ or a flat/steady image, 2nd = ↗️ rising, 3rd = ↘️↗️ dipping then rising, 4th = ↘️ sharp drop, neutral = 〰️ light and quick.\n" +
-  "- Order the emoji so reading them left to right replays the story: components → tone → meaning.\n" +
+  "\"characters\" — an array with exactly one string per picture group, in order. The request says how many. Each string is 1 to 3 emoji (up to 4 for a single character) and nothing else: no Chinese characters, no letters, no digits. The app writes a tone number after each group by itself, so never write tones.\n" +
+  "- A word of several characters gets one group per character: a picture of what that character means or looks like, chosen so that the pictures in order hint at the meaning of the whole word.\n" +
+  "- A single character (or whatever the request lists as one group) gets the picture of the parts it is built from, as concrete images.\n" +
   "\n" +
-  "\"story\" — the prose that unpacks the line. Rules:\n" +
+  "\"meaning\" — only when the request asks for exactly one group: an emoji strip for the meaning, at most 14 characters, no Chinese characters. Use an ENGLISH word (one or two at most) only where no emoji can carry the idea (grammar particles, abstract senses). Arrows are fine when the meaning needs them. For a word with several groups return an empty string.\n" +
+  "\n" +
+  "All groups and the meaning TOGETHER must fit the character budget given in the request. Shorter is better. No sentences, no trailing punctuation.\n" +
+  "\n" +
+  "\"story\" — the prose that unpacks the pictures:\n" +
   "- One short paragraph, plain English, second person (\"you\").\n" +
-  "- Say which emoji stands for which component, what the tone cue is, and finish on the English meaning as the punchline.\n" +
-  "- Every time you name a Chinese character or word, put its tone-marked pinyin in parentheses right after it — 学 (xué), 习 (xí). Never leave a bare hanzi: the learner may not be able to read it yet.\n" +
+  "- Say which emoji stands for which character or part, and finish on the English meaning as the punchline.\n" +
+  "- Put the tone-marked pinyin in parentheses right after each of the word's own characters, the way the request lists them — 学 (xué). Do not give pinyin for parts: name a part by its English picture (the water radical, the heart), or write the character bare.\n" +
   "- Concrete, sensory, slightly absurd imagery — absurd is memorable.\n" +
-  "- Never invent components a character does not have; if a split is not helpful, describe what the character actually looks like.\n" +
+  "- Never mention the app and never talk about sound hints; the tone numbers are added for you.\n" +
+  "- Never invent parts a character does not have; if a split is not helpful, describe what the character actually looks like.\n" +
   "\n" +
   "Output strict JSON only matching this shape: " +
-  "{\"mnemonic\":string,\"story\":string}. " +
-  "mnemonic is required. No prose before or after the JSON. No markdown code fences.";
+  "{\"characters\":[string],\"meaning\":string,\"story\":string}. " +
+  "No prose before or after the JSON. No markdown code fences.";
 
 /**
  * Default user-prompt template for mnemonic generation. Users can rewrite
  * this in Settings → AI provider → Mnemonic prompt to personalise the
- * result (their own imagery, humour, language, memory palace, …).
+ * result (their own imagery, humour, language, memory palace, …). The facts
+ * block (characters, tones, budget) is appended by the app whatever the
+ * template says, so a rewritten template cannot lose it.
  */
 export const DEFAULT_MNEMONIC_USER_TEMPLATE =
+  "Word: {word}\n" +
+  "Pinyin: {pinyin}\n" +
+  "Traditional: {traditional}\n" +
+  "HSK level: {hsk}\n" +
+  "Meaning(s): {definitions}\n" +
+  "Sentence I met it in: {sentence}\n" +
+  "My current emoji line (replace it with something better): {existing}\n" +
+  "My current story: {existingStory}\n\n" +
+  "Give me the picture groups and the story for this word. Reply with JSON only.";
+
+/**
+ * The default template through 0.8.2, which told the model to encode the tone itself. Anyone who never edited the
+ * template has it stored in their settings, so it is swapped for the current one on load (`migrateMnemonicPrompt`).
+ * A template the user did edit is left alone.
+ */
+export const LEGACY_MNEMONIC_USER_TEMPLATE =
   "Word: {word}\n" +
   "Pinyin: {pinyin}\n" +
   "Traditional: {traditional}\n" +
@@ -257,6 +277,8 @@ export interface MnemonicPromptArgs {
   existing?: string;
   /** The user's current story, if any. */
   existingStory?: string;
+  /** For a word of several characters: one short dictionary gloss per Han character, in order. */
+  charGlosses?: string[];
 }
 
 /**
@@ -289,7 +311,42 @@ export function buildMnemonicUserPrompt(
 }
 
 /**
- * Both properties are listed in `required` on purpose. When the user picks
+ * What the app appends to the user prompt whatever the template says: the characters in order with the tone number
+ * the app will attach to each, a short gloss per character for a multi-character word, how many picture groups to
+ * return, and the character budget. This is the "fact sheet" of #185.
+ */
+export function buildMnemonicFactsBlock(shape: WordShape, glosses?: string[]): string {
+  const want = expectedGroups(shape);
+  const lines: string[] = [
+    `Characters (give one picture group for each, in this order; the app attaches the tone number after it):`,
+  ];
+  if (shape.syllables) {
+    shape.chars.forEach((c, i) => {
+      const gloss = shape.chars.length > 1 ? glosses?.[i]?.trim() : "";
+      lines.push(
+        `${i + 1}. ${c} ${shape.syllables?.[i]} — tone number ${toneMark(shape.tones[i])}${gloss ? ` — means: ${gloss}` : ""}`
+      );
+    });
+  } else {
+    lines.push(`(the pinyin does not split one syllable per character, so treat the whole word as one group)`);
+  }
+  lines.push(
+    `Budget for all groups + meaning together: ${pictureBudget(shape)} characters. Return exactly ${want} string(s) in "characters".` +
+      (wantsMeaning(shape) ? ` Also fill "meaning".` : ` Return "" for "meaning".`)
+  );
+  return lines.join("\n");
+}
+
+/** The single follow-up when the answer broke a rule the app can check. */
+export function buildMnemonicRepairPrompt(issues: string[]): string {
+  return (
+    `Your last answer broke these rules:\n${issues.map((i) => `- ${i}`).join("\n")}\n` +
+    `Reply again with corrected JSON only, keeping what was already good.`
+  );
+}
+
+/**
+ * All three properties are listed in `required` on purpose. When the user picks
  * Response format = `json_schema`, `buildResponseFormat` sends this with
  * `strict: true`, and strict mode rejects a schema whose
  * `additionalProperties: false` object has a property missing from
@@ -300,10 +357,11 @@ export function buildMnemonicUserPrompt(
  */
 export const MNEMONIC_SCHEMA = {
   type: "object",
-  required: ["mnemonic", "story"],
+  required: ["characters", "meaning", "story"],
   additionalProperties: false,
   properties: {
-    mnemonic: { type: "string" },
+    characters: { type: "array", items: { type: "string" } },
+    meaning: { type: "string" },
     story: { type: "string" },
   },
 };

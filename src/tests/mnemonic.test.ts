@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_MNEMONIC_USER_TEMPLATE,
+  LEGACY_MNEMONIC_USER_TEMPLATE,
   MNEMONIC_SCHEMA,
   MNEMONIC_SYSTEM_PROMPT,
+  buildMnemonicFactsBlock,
+  buildMnemonicRepairPrompt,
   buildMnemonicUserPrompt,
 } from "../ai/prompts";
+import { wordShape } from "../ai/mnemonicFacts";
 import type { AiProviderService } from "../ai/AiProviderService";
 import { MnemonicService, __testing } from "../ai/MnemonicService";
 import {
@@ -16,7 +20,7 @@ import {
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import type { CciSettings } from "../settings/types";
 
-const { parseMnemonicResult } = __testing;
+const { parseMnemonicAnswer } = __testing;
 
 describe("buildMnemonicUserPrompt", () => {
   const full = {
@@ -80,23 +84,59 @@ describe("buildMnemonicUserPrompt", () => {
 });
 
 describe("MNEMONIC_SYSTEM_PROMPT", () => {
-  it("asks for an emoji-first line, a story, and JSON only", () => {
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/emoji/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toContain(String(MNEMONIC_LINE_MAX_GRAPHEMES));
+  it("asks for picture groups, a story, and JSON only", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/picture group/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/story/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone/i);
     expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no markdown code fences/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toContain('{"characters":[string],"meaning":string,"story":string}');
   });
 
-  it("forbids Chinese characters in the emoji line", () => {
-    // The word is already displayed next to the line, so repeating the
-    // hanzi wastes the 40-grapheme budget.
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/NEVER put Chinese characters in this line/);
+  it("leaves the tones to the app and forbids Chinese characters and digits in the groups", () => {
+    // Tones are a pure function of the pinyin; the app attaches them, so the model must not write them.
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/never write tones/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/no Chinese characters, no letters, no digits/);
   });
 
-  it("requires pinyin whenever the story names a character", () => {
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone-marked pinyin in parentheses/i);
-    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/never leave a bare hanzi/i);
+  it("asks for the word's own pinyin in the story and none for parts", () => {
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/tone-marked pinyin in parentheses right after each of the word's own characters/i);
+    expect(MNEMONIC_SYSTEM_PROMPT).toMatch(/Do not give pinyin for parts/);
+  });
+});
+
+describe("mnemonic facts block and repair prompt", () => {
+  it("lists each character with its tone number and gloss, and the budget", () => {
+    const shape = wordShape("图书馆", "tú shū guǎn");
+    const block = buildMnemonicFactsBlock(shape, ["diagram", "book", ""]);
+    expect(block).toContain("1. 图 tú — tone number ² — means: diagram");
+    expect(block).toContain("2. 书 shū — tone number ¹ — means: book");
+    expect(block).toContain("3. 馆 guǎn — tone number ³\n");
+    expect(block).toContain("Budget for all groups + meaning together: 37 characters. Return exactly 3 string(s)");
+    expect(block).toContain('Return "" for "meaning".');
+  });
+
+  it("asks for the meaning strip on a single character and ignores glosses there", () => {
+    const block = buildMnemonicFactsBlock(wordShape("想", "xiǎng"), ["think"]);
+    expect(block).toContain("1. 想 xiǎng — tone number ³");
+    expect(block).not.toContain("means:");
+    expect(block).toContain('Return exactly 1 string(s) in "characters". Also fill "meaning".');
+  });
+
+  it("treats a word whose pinyin does not split as one group", () => {
+    const block = buildMnemonicFactsBlock(wordShape("玩儿", "wán"), undefined);
+    expect(block).toContain("does not split one syllable per character");
+    expect(block).toContain('Return exactly 1 string(s)');
+  });
+
+  it("lists the defects in the repair prompt", () => {
+    expect(buildMnemonicRepairPrompt(["a", "b"])).toBe(
+      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good."
+    );
+  });
+
+  it("keeps the previous default recognisable so it can be migrated", () => {
+    expect(LEGACY_MNEMONIC_USER_TEMPLATE).toContain("encode the tone of each syllable");
+    expect(DEFAULT_MNEMONIC_USER_TEMPLATE).not.toContain("encode the tone");
+    expect(LEGACY_MNEMONIC_USER_TEMPLATE).not.toBe(DEFAULT_MNEMONIC_USER_TEMPLATE);
   });
 });
 
@@ -123,8 +163,12 @@ describe("mnemonic line length helpers", () => {
 });
 
 describe("MnemonicService.generate", () => {
-  function serviceWith(reply: string, mnemonicPrompt: string) {
-    const chatJson = vi.fn().mockResolvedValue(reply);
+  function serviceWith(replies: Array<string | Error>, mnemonicPrompt: string) {
+    const chatJson = vi.fn();
+    for (const r of replies) {
+      if (r instanceof Error) chatJson.mockRejectedValueOnce(r);
+      else chatJson.mockResolvedValueOnce(r);
+    }
     const ai = { chatJson } as unknown as AiProviderService;
     const settings = {
       ...DEFAULT_SETTINGS,
@@ -133,98 +177,145 @@ describe("MnemonicService.generate", () => {
     return { chatJson, service: new MnemonicService(ai, () => settings) };
   }
 
-  const input = { surface: "猫", pinyin: "māo", definitions: ["cat"] };
+  const single = { surface: "猫", pinyin: "māo", definitions: ["cat"] };
+  const multi = { surface: "图书馆", pinyin: "tú shū guǎn", definitions: ["library"], charGlosses: ["diagram", "book", "building"] };
+  const reply = (o: object) => JSON.stringify(o);
 
-  it("sends the fixed system prompt, the user's template, and the schema", async () => {
+  it("sends the fixed system prompt, the user's template plus the facts, and the schema", async () => {
     const { chatJson, service } = serviceWith(
-      '{"mnemonic":"a flat high cat"}',
+      [reply({ characters: ["🐱"], meaning: "🐾", story: "You see 猫 (māo) purr." })],
       "Make a mnemonic for {word} ({pinyin})."
     );
-    const out = await service.generate(input);
+    const out = await service.generate(single);
 
-    expect(out).toEqual({ mnemonic: "a flat high cat" });
+    expect(out).toEqual({ mnemonic: "🐱¹🐾", story: "You see 猫 (māo) purr." });
+    expect(chatJson).toHaveBeenCalledTimes(1);
     expect(chatJson).toHaveBeenCalledWith(
       MNEMONIC_SYSTEM_PROMPT,
-      "Make a mnemonic for 猫 (māo).",
+      `Make a mnemonic for 猫 (māo).\n\n${buildMnemonicFactsBlock(wordShape("猫", "māo"))}`,
       "Mnemonic",
       MNEMONIC_SCHEMA
     );
   });
 
   it("falls back to the default template when the setting was cleared", async () => {
-    const { chatJson, service } = serviceWith('{"mnemonic":"hook"}', "");
-    await service.generate(input);
+    const { chatJson, service } = serviceWith([reply({ characters: ["🐱"], meaning: "🐾", story: "" })], "");
+    await service.generate(single);
     expect(chatJson.mock.calls[0][1]).toBe(
-      buildMnemonicUserPrompt(DEFAULT_MNEMONIC_USER_TEMPLATE, input)
+      `${buildMnemonicUserPrompt(DEFAULT_MNEMONIC_USER_TEMPLATE, single)}\n\n${buildMnemonicFactsBlock(wordShape("猫", "māo"))}`
     );
   });
 
-  it("propagates a parse failure as an Error the UI can show", async () => {
-    const { service } = serviceWith("sorry, no", DEFAULT_MNEMONIC_USER_TEMPLATE);
-    await expect(service.generate(input)).rejects.toThrow(/did not return/);
+  it("puts each tone number right after its own character's group and drops the meaning strip", async () => {
+    const { chatJson, service } = serviceWith(
+      [reply({ characters: ["🗺️", "📖", "🏛️"], meaning: "📚🏛️", story: "A 图书馆 and 馆 (guān)." })],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    const out = await service.generate(multi);
+    expect(out.mnemonic).toBe("🗺️²📖¹🏛️³");
+    // the app writes the word's own pinyin itself: missing on the word, wrong on 馆
+    expect(out.story).toBe("A 图书馆 (tú shū guǎn) and 馆 (guǎn).");
+    expect(out.notes).toBeUndefined();
+    expect(chatJson.mock.calls[0][1]).toContain("1. 图 tú — tone number ² — means: diagram");
+  });
+
+  it("asks once more when a rule is broken and uses the corrected answer", async () => {
+    const { chatJson, service } = serviceWith(
+      [
+        reply({ characters: ["🗺️图", "📖", "🏛️"], meaning: "", story: "x" }),
+        reply({ characters: ["🗺️", "📖", "🏛️"], meaning: "", story: "y" }),
+      ],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    const out = await service.generate(multi);
+    expect(chatJson).toHaveBeenCalledTimes(2);
+    expect(chatJson.mock.calls[1][1]).toContain("Picture group 1 contains Chinese characters");
+    expect(out).toEqual({ mnemonic: "🗺️²📖¹🏛️³", story: "y" });
+  });
+
+  it("keeps the first answer when the repair is worse, and reports what is still wrong", async () => {
+    const { service } = serviceWith(
+      [
+        reply({ characters: ["🗺️图", "📖", "🏛️"], meaning: "", story: "x" }),
+        reply({ characters: ["🗺️图", "📖书", "🏛️"], meaning: "", story: "y" }),
+      ],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    const out = await service.generate(multi);
+    expect(out.story).toBe("x");
+    // the Chinese character never reaches the line even though the model sent it
+    expect(out.mnemonic).toBe("🗺️²📖¹🏛️³");
+    expect(out.notes).toEqual(["Picture group 1 contains Chinese characters; use emoji only."]);
+  });
+
+  it("keeps the first answer when the repair call fails or is unreadable", async () => {
+    for (const second of [new Error("rate limited"), "not json at all"]) {
+      const { service } = serviceWith(
+        [reply({ characters: ["🗺️", "📖"], meaning: "", story: "x" }), second],
+        DEFAULT_MNEMONIC_USER_TEMPLATE
+      );
+      const out = await service.generate(multi);
+      expect(out.mnemonic).toBe("🗺️²📖¹³");
+      expect(out.notes).toEqual([expect.stringContaining("exactly 3 picture group(s)")]);
+    }
+  });
+
+  it("writes one group plus every tone for a word whose pinyin does not split", async () => {
+    const { service } = serviceWith(
+      [reply({ characters: ["🎮👶"], meaning: "🎉", story: "x" })],
+      DEFAULT_MNEMONIC_USER_TEMPLATE
+    );
+    const out = await service.generate({ surface: "玩儿", pinyin: "wánr" });
+    expect(out.mnemonic).toBe("🎮👶²🎉");
+  });
+
+  it("omits an empty story and clamps a runaway one", async () => {
+    const empty = serviceWith([reply({ characters: ["🐱"], meaning: "🐾", story: "   " })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    expect((await empty.service.generate(single)).story).toBeUndefined();
+    const long = serviceWith([reply({ characters: ["🐱"], meaning: "🐾", story: "s".repeat(2500) })], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    expect((await long.service.generate(single)).story).toHaveLength(2000);
+  });
+
+  it("propagates a parse failure of the first answer as an Error the UI can show", async () => {
+    const { service } = serviceWith(["sorry, no"], DEFAULT_MNEMONIC_USER_TEMPLATE);
+    await expect(service.generate(single)).rejects.toThrow(/did not return/);
   });
 });
 
-describe("parseMnemonicResult", () => {
+describe("parseMnemonicAnswer", () => {
   it("parses a clean JSON object", () => {
-    const out = parseMnemonicResult('{"mnemonic":"hook","story":"a scene"}');
-    expect(out).toEqual({ mnemonic: "hook", story: "a scene" });
+    expect(parseMnemonicAnswer('{"characters":["a"],"meaning":"m","story":"s"}')).toEqual({
+      characters: ["a"],
+      meaning: "m",
+      story: "s",
+    });
   });
 
   it("salvages JSON wrapped in prose and code fences", () => {
-    const raw = 'Sure! Here you go:\n```json\n{"mnemonic":"hook"}\n```\nHope that helps.';
-    expect(parseMnemonicResult(raw)).toEqual({ mnemonic: "hook" });
+    const raw = 'Sure! Here you go:\n```json\n{"characters":["a"]}\n```\nHope that helps.';
+    expect(parseMnemonicAnswer(raw)).toEqual({ characters: ["a"], meaning: "", story: "" });
   });
 
-  it("omits an empty or absent story", () => {
-    expect(parseMnemonicResult('{"mnemonic":"hook","story":"   "}')).toEqual({
-      mnemonic: "hook",
-    });
-    expect(parseMnemonicResult('{"mnemonic":"hook"}').story).toBeUndefined();
+  it("treats a missing or non-string meaning and story as empty", () => {
+    expect(parseMnemonicAnswer('{"characters":[],"meaning":3,"story":null}')).toEqual({ characters: [], meaning: "", story: "" });
   });
 
-  it("clamps runaway output to the emoji-line budget", () => {
-    const out = parseMnemonicResult(
-      JSON.stringify({ mnemonic: "m".repeat(900), story: "s".repeat(2500) })
-    );
-    expect(graphemeLength(out.mnemonic)).toBe(MNEMONIC_LINE_MAX_GRAPHEMES);
-    expect(out.story).toHaveLength(2000);
-  });
-
-  it("never cuts an emoji in half when clamping", () => {
-    // 45 astral-plane emoji: a naive slice(0, 40) would land mid-surrogate.
-    const out = parseMnemonicResult(JSON.stringify({ mnemonic: "\u{1F600}".repeat(45) }));
-    expect(graphemeLength(out.mnemonic)).toBe(MNEMONIC_LINE_MAX_GRAPHEMES);
-    expect(out.mnemonic).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
-    expect(Array.from(out.mnemonic).every((c) => c === "\u{1F600}")).toBe(true);
-  });
-
-  it("does not leave a dangling zero-width joiner after a cut", () => {
-    // Family emoji are ZWJ sequences; cutting between them must not leave
-    // the joiner trailing (it renders as a stray box).
-    const family = "\u{1F468}\u200D\u{1F469}\u200D\u{1F467}";
-    const out = parseMnemonicResult(JSON.stringify({ mnemonic: family.repeat(50) }));
-    expect(out.mnemonic.endsWith("\u200D")).toBe(false);
-  });
-
-  it("throws when the mnemonic field is missing, empty, or not a string", () => {
-    expect(() => parseMnemonicResult('{"story":"only a story"}')).toThrow(/mnemonic/);
-    expect(() => parseMnemonicResult('{"mnemonic":"   "}')).toThrow(/mnemonic/);
-    expect(() => parseMnemonicResult('{"mnemonic":42}')).toThrow(/mnemonic/);
+  it("throws when the characters list is missing or not a list of strings", () => {
+    expect(() => parseMnemonicAnswer('{"story":"only a story"}')).toThrow(/"characters"/);
+    expect(() => parseMnemonicAnswer('{"characters":"a"}')).toThrow(/"characters"/);
+    expect(() => parseMnemonicAnswer('{"characters":["a",2]}')).toThrow(/"characters"/);
   });
 
   it("throws on responses with no JSON object at all", () => {
-    expect(() => parseMnemonicResult("I cannot do that.")).toThrow(/did not return/);
+    expect(() => parseMnemonicAnswer("I cannot do that.")).toThrow(/did not return/);
   });
 
   it("throws a readable error on malformed JSON", () => {
-    expect(() => parseMnemonicResult('{"mnemonic": "unterminated}')).toThrow(
-      /Could not parse AI JSON/
-    );
+    expect(() => parseMnemonicAnswer('{"characters": ["unterminated}')).toThrow(/Could not parse AI JSON/);
   });
 
   it("advertises a schema matching what the parser accepts", () => {
-    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["mnemonic", "story"]);
+    expect(Object.keys(MNEMONIC_SCHEMA.properties)).toEqual(["characters", "meaning", "story"]);
     expect(MNEMONIC_SCHEMA.additionalProperties).toBe(false);
   });
 
@@ -233,13 +324,7 @@ describe("parseMnemonicResult", () => {
     // additionalProperties:false object with a property missing from
     // `required` — OpenAI and the LiteLLM/vLLM proxies enforce it even
     // though Ollama does not. Every property must be required.
-    expect([...MNEMONIC_SCHEMA.required].sort()).toEqual(
-      Object.keys(MNEMONIC_SCHEMA.properties).sort()
-    );
-  });
-
-  it("still accepts a response that omits story, as lenient providers send", () => {
-    expect(parseMnemonicResult('{"mnemonic":"📖✏️→🧠"}')).toEqual({ mnemonic: "📖✏️→🧠" });
+    expect([...MNEMONIC_SCHEMA.required].sort()).toEqual(Object.keys(MNEMONIC_SCHEMA.properties).sort());
   });
 });
 

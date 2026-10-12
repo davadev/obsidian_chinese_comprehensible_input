@@ -1,3 +1,4 @@
+import { DEFAULT_MNEMONIC_USER_TEMPLATE, LEGACY_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
 import type { AiProviderKind, CciSettings } from "./types";
 
 /**
@@ -122,4 +123,13 @@ export function migrateOverrideKeys<T>(
     if (!(next in out)) out[next] = value;
   }
   return moved === 0 ? { overrides, moved: 0 } : { overrides: out, moved };
+}
+
+/**
+ * 0.9.0 moved tone numbers and pinyin from the model to the app, so the default mnemonic template no longer tells
+ * the model to encode tones. Anyone who never edited the template has the old default stored; give them the new one.
+ * A template the user changed is theirs and stays.
+ */
+export function migrateMnemonicPrompt(prompt: string): string {
+  return prompt === LEGACY_MNEMONIC_USER_TEMPLATE ? DEFAULT_MNEMONIC_USER_TEMPLATE : prompt;
 }

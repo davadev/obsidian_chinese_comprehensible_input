@@ -217,3 +217,14 @@ describe("migrateVocab: legacy shapes", () => {
     expect(out.words.a).toEqual({ key: "a" });
   });
 });
+
+describe("migrateMnemonicPrompt (0.9.0)", () => {
+  it("swaps the untouched old default for the new one and leaves an edited template alone", async () => {
+    const { migrateMnemonicPrompt } = await import("../settings/migrations");
+    const { DEFAULT_MNEMONIC_USER_TEMPLATE, LEGACY_MNEMONIC_USER_TEMPLATE } = await import("../ai/prompts");
+    expect(migrateMnemonicPrompt(LEGACY_MNEMONIC_USER_TEMPLATE)).toBe(DEFAULT_MNEMONIC_USER_TEMPLATE);
+    expect(migrateMnemonicPrompt(DEFAULT_MNEMONIC_USER_TEMPLATE)).toBe(DEFAULT_MNEMONIC_USER_TEMPLATE);
+    expect(migrateMnemonicPrompt("my own {word} prompt")).toBe("my own {word} prompt");
+    expect(migrateMnemonicPrompt("")).toBe("");
+  });
+});
