@@ -10,8 +10,12 @@ name: Explain try
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "word (explain words), phrase (explain texts) or proof (proof read texts)"
+        type: string
+        default: "word"
       words:
-        description: "Comma-separated words to explain"
+        description: "Words separated by commas (mode word), or texts separated by | (modes phrase and proof)"
         type: string
         default: "方便,行,了"
       model:
@@ -61,10 +65,11 @@ jobs:
         # The only step that can see the key. It is sent only to api.openai.com and never printed.
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODE: ${{ inputs.mode }}
           WORDS: ${{ inputs.words }}
           MODEL: ${{ inputs.model }}
           SENTENCES: ${{ inputs.sentences }}
-        run: node scripts/explain-try.mjs --cedict cedict.txt --words "$WORDS" --model "$MODEL" --sentences "$SENTENCES"
+        run: node scripts/explain-try.mjs --cedict cedict.txt --mode "$MODE" --words "$WORDS" --model "$MODEL" --sentences "$SENTENCES"
 
       - name: Upload the notes
         if: ${{ always() }}
