@@ -158,7 +158,7 @@ describe("the AI usage log", () => {
   it("keeps the last 35 days, adds the new entry, and saves once after a burst", () => {
     vi.useFakeTimers();
     const now = Date.now();
-    const o: any = bind({ settings: settings((s) => (s.ai.usageLog = [entry(now - 40 * 86400000), entry(now - 86400000)])), saveSettingsSilently: vi.fn(async () => {}), aiUsageSaveTimer: null });
+    const o: any = bind({ settings: settings((s) => (s.ai.usageLog = [entry(now - 40 * 86400000), entry(now - 86400000)])), saveSettingsSilently: vi.fn(async () => {}), aiUsageSaveTimer: null, aiUsageListeners: new Set() });
     o.recordAiUsage(entry(now));
     o.recordAiUsage(entry(now + 1));
     expect(o.settings.ai.usageLog.map((e: any) => e.ts)).toEqual([now - 86400000, now, now + 1]);
@@ -170,9 +170,20 @@ describe("the AI usage log", () => {
 
   it("starts a log when there is none", () => {
     vi.useFakeTimers();
-    const o: any = bind({ settings: settings((s) => (s.ai.usageLog = undefined)), saveSettingsSilently: vi.fn(), aiUsageSaveTimer: null });
+    const o: any = bind({ settings: settings((s) => (s.ai.usageLog = undefined)), saveSettingsSilently: vi.fn(), aiUsageSaveTimer: null, aiUsageListeners: new Set() });
     o.recordAiUsage(entry(Date.now()));
     expect(o.settings.ai.usageLog).toHaveLength(1);
+  });
+
+  it("tells a listener about each call until it unsubscribes, so a long job can add up its cost", () => {
+    vi.useFakeTimers();
+    const o: any = bind({ settings: settings(() => {}), saveSettingsSilently: vi.fn(), aiUsageSaveTimer: null, aiUsageListeners: new Set() });
+    const seen: number[] = [];
+    const off = o.onAiUsage((e: any) => seen.push(e.ts));
+    o.recordAiUsage(entry(1));
+    off();
+    o.recordAiUsage(entry(2));
+    expect(seen).toEqual([1]);
   });
 });
 

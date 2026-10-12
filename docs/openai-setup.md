@@ -62,12 +62,13 @@ sentence you tapped it in:
   the answer breaks a rule, one follow-up request repeats this and lists the
   problem. Only sent when you press "Generate with AI". See
   [Mnemonics](./mnemonics.md).
-- **Generate mnemonics** (the reader's ⋯ menu) — the same as a single
+- **Mnemonics for this note…** (the reader's ⋯ menu) — the same as a single
   Mnemonic request, once per word, for each word in the **open note** that
-  has no mnemonic yet and is not known or ignored: the word, its pinyin,
+  has no mnemonic yet (or, if you choose Regenerate all, every word in scope)
+  and is not known or ignored: the word, its pinyin,
   traditional form, HSK level, definitions, the **first sentence of that note
   in which the word appears**, and the character list above. The fields for an
-  existing mnemonic are never sent (the words that have one are skipped). It
+  existing mnemonic are never sent, not even when you regenerate it. It
   shows you the number of words and an estimate of the cost, and asks you to
   confirm, before anything is sent. A note with many unknown words means many
   requests, one per word, plus the occasional follow-up.
@@ -79,7 +80,7 @@ If your notes contain anything you don't want passing through OpenAI's
 infrastructure, don't use this mode.
 
 The plugin never sends your full vault, your vocabulary database, or any
-note content you didn't explicitly target. "Generate mnemonics" targets the
+note content you didn't explicitly target. "Mnemonics for this note…" targets the
 note you have open: it sends single sentences from that note, one with each
 word, never the whole note in one piece and never any other note.
 

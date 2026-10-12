@@ -14,10 +14,18 @@ import {
  * line. Tones are a pure function of the pinyin, so the app attaches them. The model draws; the app counts.
  */
 
-const HAN = /[㐀-䶿一-鿿豈-﫿]/u;
-/** Emoji keycaps (1️⃣) carry a digit; strip them before looking for stray digits. */
-const KEYCAP = /[0-9#*]️?⃣/gu;
-const LETTERS_OR_DIGITS = /[A-Za-z0-9¹²³⁰⁴]/u;
+const HAN = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u;
+/**
+ * One emoji as the line may contain it: a keycap (1️⃣), a flag (two regional indicators), or a pictograph with its
+ * optional variation selector / skin tone / tag sequence, joined by zero-width joiners (👩‍👧). Everything else, such as
+ * letters, digits, punctuation and Chinese characters, is not emoji and never reaches the line. Arrows, ✅ and 〰️ are
+ * pictographs, so they pass.
+ */
+const EMOJI_TOKEN =
+  /[0-9#*]\uFE0F?\u20E3|[\u{1F1E6}-\u{1F1FF}]{2}|\p{Extended_Pictographic}(?:\uFE0F|[\u{1F3FB}-\u{1F3FF}]|[\u{E0020}-\u{E007F}]+)?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|[\u{1F3FB}-\u{1F3FF}])?)*/gu;
+
+/** The emoji a model writes to say that a word is a name in the sentence it came from. */
+export const NAME_EMOJI = "\u{1F4DB}";
 
 export const MNEMONIC_MEANING_MAX_GRAPHEMES = 14;
 
@@ -81,14 +89,17 @@ export function pictureBudget(shape: WordShape): number {
 export interface MnemonicParts {
   characters: string[];
   meaning: string;
+  /** The model says the word is used as a name in the sentence; the app then writes the name badge itself. */
+  isName?: boolean;
 }
 
-/** Remove what must never reach the line: Chinese characters, Latin letters and digits, the app's own tone digits. */
-export function cleanGroup(group: string): string {
-  return Array.from(group.matchAll(/[0-9#*]\uFE0F?\u20E3|[\s\S]/gu), (m) => m[0])
-    .filter((t) => t.length > 1 && t.endsWith("\u20E3") ? true : !HAN.test(t) && !LETTERS_OR_DIGITS.test(t))
-    .join("")
-    .trim();
+/** Keep only the emoji of `text` (see EMOJI_TOKEN), without spaces. Nothing else may reach the line. */
+export function emojiOnly(text: string): string {
+  return Array.from(text.matchAll(EMOJI_TOKEN), (m) => m[0]).join("");
+}
+
+function hasNonEmoji(text: string): boolean {
+  return emojiOnly(text) !== text.replace(/\s+/g, "");
 }
 
 /**
@@ -105,24 +116,24 @@ export function assembleLine(parts: MnemonicParts, shape: WordShape): string {
  * attempt, and for the note shown when the repair did not clear them.
  */
 export function validateParts(parts: MnemonicParts, shape: WordShape): string[] {
+  if (parts.isName) return [];
   const issues: string[] = [];
   const want = expectedGroups(shape);
   if (parts.characters.length !== want) {
     issues.push(`"characters" must hold exactly ${want} picture group(s), one per character; you sent ${parts.characters.length}.`);
   }
   parts.characters.slice(0, want).forEach((raw, i) => {
-    const g = raw.replace(KEYCAP, "");
     if (!raw.trim()) issues.push(`Picture group ${i + 1} is empty.`);
-    else if (HAN.test(g)) issues.push(`Picture group ${i + 1} contains Chinese characters; use emoji only.`);
-    else if (Array.from(g).some((c) => LETTERS_OR_DIGITS.test(c))) {
-      issues.push(`Picture group ${i + 1} contains letters or digits; use emoji only (the app adds the tone numbers).`);
+    else if (hasNonEmoji(raw)) {
+      issues.push(`Picture group ${i + 1} contains something other than emoji (no Chinese characters, words, letters, digits or punctuation; the app adds the tone numbers).`);
     }
   });
   if (wantsMeaning(shape)) {
     const m = parts.meaning.trim();
     if (!m) issues.push(`"meaning" is empty.`);
-    else if (HAN.test(m)) issues.push(`"meaning" contains Chinese characters.`);
-    else if (graphemeLength(m) > MNEMONIC_MEANING_MAX_GRAPHEMES || /[\n/]/.test(m)) {
+    else if (hasNonEmoji(m)) {
+      issues.push(`"meaning" contains something other than emoji; no words or letters, so use a symbol emoji (for example ✅ for completed).`);
+    } else if (graphemeLength(emojiOnly(m)) > MNEMONIC_MEANING_MAX_GRAPHEMES) {
       issues.push(`"meaning" must be one short emoji strip (at most ${MNEMONIC_MEANING_MAX_GRAPHEMES} characters), not a sentence or a list.`);
     }
   }
@@ -133,11 +144,14 @@ export function validateParts(parts: MnemonicParts, shape: WordShape): string[] 
 }
 
 function assembleLineUnclamped(parts: MnemonicParts, shape: WordShape): string {
-  const groups = parts.characters.map(cleanGroup);
+  const marks = shape.tones.map(toneMark).join("");
+  // A name is one badge, then every tone in order: which sound a name has is worth keeping, what it "means" is not.
+  if (parts.isName) return `${NAME_EMOJI}${marks}`;
+  const groups = parts.characters.map(emojiOnly);
   if (shape.syllables && shape.chars.length > 1) {
     return shape.chars.map((_, i) => `${groups[i] ?? ""}${toneMark(shape.tones[i])}`).join("");
   }
-  return `${groups[0] ?? ""}${shape.tones.map(toneMark).join("")}${parts.meaning.trim()}`;
+  return `${groups[0] ?? ""}${marks}${emojiOnly(parts.meaning)}`;
 }
 
 function normPinyin(p: string): string {

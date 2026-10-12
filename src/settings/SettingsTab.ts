@@ -531,11 +531,12 @@ export class CciSettingsTab extends PluginSettingTab {
               control: { type: "toggle", key: "mnemonicsFirst" },
             },
             {
-              name: "Words covered by \"Generate mnemonics\"",
+              name: "Words covered by \"Mnemonics for this note\"",
               desc:
-                "The reader's ⋯ menu can generate a mnemonic for every word in the open note that " +
-                "has none yet. Known and ignored words are never included, and words that already " +
-                "have a mnemonic are skipped.",
+                "The reader's ⋯ menu (Mnemonics for this note…) can generate a mnemonic for every word in " +
+                "the open note that has none yet, or regenerate them all. Known and ignored words are " +
+                "never included, and generating the missing ones never touches a word that already " +
+                "has a mnemonic.",
               control: {
                 type: "dropdown",
                 key: "batchMnemonicScope",

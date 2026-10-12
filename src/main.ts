@@ -907,7 +907,15 @@ export default class CciPlugin extends Plugin {
    *  the data blob never grows unbounded (one entry per AI call ≈ 60 B).
    *  Debounced save keeps a story-repair-loop burst from thrashing disk. */
   private aiUsageSaveTimer: number | null = null;
+  /** Listeners told about every recorded AI call, so a long job can add up what it cost. */
+  private aiUsageListeners = new Set<(entry: AiUsageEntry) => void>();
+  onAiUsage(listener: (entry: AiUsageEntry) => void): () => void {
+    this.aiUsageListeners.add(listener);
+    return () => void this.aiUsageListeners.delete(listener);
+  }
+
   recordAiUsage(entry: AiUsageEntry): void {
+    for (const l of this.aiUsageListeners) l(entry);
     const cutoff = Date.now() - 35 * 24 * 60 * 60 * 1000;
     const log = (this.settings.ai.usageLog ?? []).filter((e) => e.ts >= cutoff);
     log.push(entry);

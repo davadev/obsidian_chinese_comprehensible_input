@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   BatchItem,
   batchInput,
-  estimateBatchUsd,
+  estimateOpenAiUsd,
+  formatSpentUsd,
   formatUsd,
   runBatch,
   selectBatchWords,
@@ -62,12 +63,13 @@ describe("selectBatchWords", () => {
   const vocab = { bySurface: (s: string) => records[s] };
 
   it("lists each distinct word once, in order, with the sentence of its first occurrence", () => {
-    const { items, haveMnemonic } = selectBatchWords(text, tokens, vocab, "notKnown");
+    const { items, withMnemonic } = selectBatchWords(text, tokens, vocab, "notKnown");
     expect(items.map((i) => i.surface)).toEqual(["学习", "囧"]);
     expect(items[0]).toMatchObject({ storage: "学习", sentence: "我学习。", status: "pinyinKnownMeaningUnknown" });
     expect(items[1].status).toBe("new");
-    // 你好 is in scope but already has a mnemonic: counted, never listed
-    expect(haveMnemonic).toBe(1);
+    // 你好 is in scope but already has a mnemonic: kept apart, so only "regenerate" can reach it
+    expect(withMnemonic.map((i) => i.surface)).toEqual(["你好"]);
+    expect(withMnemonic[0]).toMatchObject({ storage: "你好", sentence: "你好吗？", status: "unknown" });
   });
 
   it("uses the first dictionary candidate when the tokenizer chose none", () => {
@@ -83,7 +85,8 @@ describe("selectBatchWords", () => {
   it("treats a story-only mnemonic as an existing one and skips tokens that are not words", () => {
     const v = { bySurface: (s: string) => (s === "学习" ? rec("学习", "unknown", { story: "s" }) : undefined) };
     const r = selectBatchWords("学习。", [tok("学习", 0), tok("x", 2, "x", false)], v, "notKnown");
-    expect(r).toEqual({ items: [], haveMnemonic: 1 });
+    expect(r.items).toEqual([]);
+    expect(r.withMnemonic.map((i) => i.surface)).toEqual(["学习"]);
   });
 
   it("stores under the record's first-seen surface", () => {
@@ -127,12 +130,18 @@ describe("charGlossesFor", () => {
 });
 
 describe("cost estimate", () => {
-  it("prices OpenAI per model and bills nothing for a local model", () => {
-    expect(estimateBatchUsd(100, "ollama", "x")).toBeNull();
-    const luna = estimateBatchUsd(100, "openai", "gpt-6-luna")!;
-    const mini = estimateBatchUsd(100, "openai", "gpt-5.4-mini")!;
+  it("prices OpenAI per model", () => {
+    const luna = estimateOpenAiUsd(100, "gpt-6-luna");
+    const mini = estimateOpenAiUsd(100, "gpt-5.4-mini");
     expect(luna).toBeCloseTo(0.0135, 4);
     expect(mini).toBeGreaterThan(luna * 5);
+  });
+
+  it("shows what a finished run cost with enough digits to be useful", () => {
+    expect(formatSpentUsd(0.0123456)).toBe("$0.0123");
+    expect(formatSpentUsd(0.00004)).toBe("$0.0000");
+    expect(formatSpentUsd(0.1)).toBe("$0.10");
+    expect(formatSpentUsd(2.349)).toBe("$2.35");
   });
 
   it("words the amount without false precision", () => {

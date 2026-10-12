@@ -83,7 +83,7 @@ const outDir = arg("out", path.join(root, "mnemonic-out"));
 mkdirSync(outDir, { recursive: true });
 
 // word, pinyin (one syllable per character, space separated), meaning, category, optional traditional form
-const G = (word, pinyin, def, cat, hsk = "") => ({ word, pinyin, def, cat, hsk });
+const G = (word, pinyin, def, cat, hsk = "", sentence = "") => ({ word, pinyin, def, cat, hsk, sentence });
 const GOLD = [
   G("妈", "mā", "mom; mother", "pictophonetic char", "1"),
   G("河", "hé", "river", "pictophonetic char", "3"),
@@ -135,6 +135,12 @@ const GOLD = [
   G("书", "shū", "book", "graphical-split char", "1"),
   G("馆", "guǎn", "public building", "graphical-split char", "3"),
   G("国", "guó", "country", "graphical-split char", "1"),
+  // used as (part of) a name in the sentence, and the same character in an ordinary sentence
+  G("马克", "mǎ kè", "Mark (name)", "name in sentence", "", "我的朋友马克明天来。"),
+  G("李明", "lǐ míng", "Li Ming (name)", "name in sentence", "", "李明是我的老师。"),
+  G("白", "bái", "white; Bai (surname)", "name in sentence", "2", "白老师在教室里。"),
+  G("白", "bái", "white; Bai (surname)", "same word, ordinary use", "2", "这只猫是白的。"),
+  G("马", "mǎ", "horse; Ma (surname)", "same word, ordinary use", "3", "他骑着一匹马。"),
   G("學習", "xué xí", "to learn; to study", "Traditional word", "1"),
   G("圖書館", "tú shū guǎn", "library", "Traditional word", "3"),
   G("電腦", "diàn nǎo", "computer", "Traditional word", "1"),
@@ -331,6 +337,7 @@ async function oneJob({ spec, lib }, g, arm, run) {
         pinyin: g.pinyin,
         definitions: [g.def],
         hskLevels: g.hsk ? [g.hsk] : [],
+        sentence: g.sentence || undefined,
         charGlosses: han.length > 1 ? han.map((c) => shortDef(c, MMAH)) : undefined,
       });
       line = res.mnemonic;

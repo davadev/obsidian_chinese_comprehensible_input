@@ -414,10 +414,10 @@ describe("overflow menu buttons and closing", () => {
     expect(plugin.openGenerateStoryModal).toHaveBeenCalled();
   });
 
-  it("Generate mnemonics closes the menu and hands the open note's text to the batch dialog", () => {
+  it("Mnemonics for this note closes the menu and hands the open note's text to the batch dialog", () => {
     const { container, plugin } = mount({ docText: "我学习中文。" });
     openOverflow(container);
-    btn(menu()!, "Generate mnemonics").click();
+    btn(menu()!, "Mnemonics for this note…").click();
     expect(menu()).toBeNull();
     expect(plugin.openBatchMnemonicModal).toHaveBeenCalledWith("我学习中文。");
   });

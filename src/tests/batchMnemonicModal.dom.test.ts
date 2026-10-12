@@ -28,6 +28,8 @@ function make(
     generate?: (input: any) => Promise<any>;
     tokenize?: () => Promise<any>;
     text?: string;
+    /** An OpenAI usage record reported for every generate call, as the real service does. */
+    usage?: Record<string, unknown>;
   } = {}
 ) {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
@@ -35,12 +37,24 @@ function make(
   settings.ai.provider = opts.provider ?? "openai";
   settings.batchMnemonicScope = opts.scope ?? "notKnown";
   const records = opts.records ?? {};
+  const listeners = new Set<(e: any) => void>();
+  const inner = opts.generate ?? (async () => ({ mnemonic: "📖¹", story: "A scene." }));
   const plugin: any = {
     settings,
     tokenizer: { tokenize: vi.fn(opts.tokenize ?? (async () => tokensFor(opts.words ?? WORDS))) },
     vocab: { bySurface: (s: string) => records[s], updateMnemonic: vi.fn() },
     dictionary: { lookup: (s: string) => [entry(s)] },
-    mnemonic: { generate: vi.fn(opts.generate ?? (async () => ({ mnemonic: "📖¹", story: "A scene." }))) },
+    mnemonic: {
+      generate: vi.fn(async (input: any) => {
+        const out = await inner(input);
+        if (opts.usage) for (const l of listeners) l(opts.usage);
+        return out;
+      }),
+    },
+    onAiUsage: vi.fn((cb: (e: any) => void) => {
+      listeners.add(cb);
+      return () => void listeners.delete(cb);
+    }),
     refreshChineseViews: vi.fn(),
   };
   const modal = new BatchMnemonicModal(new App() as any, plugin, opts.text ?? TEXT);
@@ -51,6 +65,7 @@ function make(
 const btn = (r: HTMLElement, text: string | RegExp) =>
   Array.from(r.querySelectorAll("button")).find((b) => (typeof text === "string" ? b.textContent === text : text.test(b.textContent ?? "")))!;
 const text = (r: HTMLElement) => r.textContent ?? "";
+const USAGE = { ts: 1, provider: "openai", model: "gpt-6-luna", inputTokens: 800, cachedInputTokens: 0, outputTokens: 110 };
 const settle = () => vi.waitFor(() => expect(true).toBe(true));
 const deferred = <T,>() => {
   let resolve!: (v: T) => void, reject!: (e: unknown) => void;
@@ -65,28 +80,41 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("before it starts", () => {
-  it("says how many words, what the estimate is, what leaves the device, and lists the words", async () => {
+  it("says how many words, what each choice would cost, what leaves the device, and lists the words", async () => {
     const { root } = make({ records: { 朋友: { surfaces: ["朋友"], status: "unknown", mnemonic: { text: "🤝" } } } });
-    await vi.waitFor(() => expect(btn(root, /^Generate 2 mnemonics$/)).toBeTruthy());
+    await vi.waitFor(() => expect(btn(root, "Generate 2 missing")).toBeTruthy());
+    expect(text(root)).toContain("Mnemonics for this note");
     expect(text(root)).toContain("2 words in this note have no mnemonic yet (words that are not known yet).");
-    expect(text(root)).toContain("1 that already has one is left alone.");
-    expect(text(root)).toMatch(/Estimated cost (under \$0\.01|about \$\d\.\d\d) on OpenAI\./);
+    expect(text(root)).toContain("1 has one already.");
+    expect(text(root)).toMatch(/Filling in the missing ones: (under \$0\.01|about \$\d\.\d\d) on OpenAI\./);
+    expect(text(root)).toMatch(/Regenerating all 3: (under \$0\.01|about \$\d\.\d\d) on OpenAI\./);
     expect(text(root)).toContain("sent to OpenAI");
-    expect(root.querySelector(".cci-batch-words div")!.textContent).toBe("学习、图书馆");
+    expect(btn(root, "Regenerate all 3…")).toBeTruthy();
+    const lines = Array.from(root.querySelectorAll(".cci-batch-words div div")).map((d) => d.textContent);
+    expect(lines).toEqual(["No mnemonic yet: 学习、图书馆", "Already have one: 朋友"]);
   });
 
-  it("counts several mnemonics that are left alone in the plural", async () => {
+  it("does not offer to regenerate when no word has a mnemonic yet", async () => {
+    const { root } = make();
+    await vi.waitFor(() => expect(btn(root, "Generate 3 missing")).toBeTruthy());
+    expect(btn(root, /^Regenerate/)).toBeUndefined();
+    expect(text(root)).not.toContain("has one already");
+    expect(text(root)).not.toContain("Regenerating all");
+  });
+
+  it("counts several existing mnemonics in the plural", async () => {
     const have = (w: string) => ({ surfaces: [w], status: "unknown", mnemonic: { text: "x" } });
     const { root } = make({ records: { 朋友: have("朋友"), 图书馆: have("图书馆") } });
-    await vi.waitFor(() => expect(text(root)).toContain("2 that already have one are left alone."));
+    await vi.waitFor(() => expect(text(root)).toContain("2 have one already."));
   });
 
   it("is free and local on Ollama, and speaks in the singular for one word", async () => {
     const { root } = make({ provider: "ollama", words: ["学习"] });
-    await vi.waitFor(() => expect(btn(root, "Generate 1 mnemonic")).toBeTruthy());
+    await vi.waitFor(() => expect(btn(root, "Generate 1 missing")).toBeTruthy());
     expect(text(root)).toContain("1 word in this note has no mnemonic yet");
     expect(text(root)).toContain("Runs on your own model; nothing is billed.");
     expect(text(root)).toContain("your Ollama server");
+    expect(text(root)).not.toContain("on OpenAI");
   });
 
   it("says plainly when there is nothing to do", async () => {
@@ -98,6 +126,8 @@ describe("before it starts", () => {
     document.body.innerHTML = "";
     const all = make({ scope: "unknown", records: Object.fromEntries(WORDS.map((w) => [w, { surfaces: [w], status: "unknown", mnemonic: { text: "x" } }])) });
     await vi.waitFor(() => expect(text(all.root)).toContain("All the words you marked unknown in this note already have a mnemonic."));
+    expect(btn(all.root, "Regenerate all 3…")).toBeTruthy();
+    expect(btn(all.root, /^Generate/)).toBeUndefined();
   });
 
   it("Cancel closes without generating anything", async () => {
@@ -135,7 +165,7 @@ describe("generating", () => {
   it("saves each mnemonic under its stored surface as it is made, then summarises", async () => {
     const { root, plugin, modal } = make();
     await vi.waitFor(() => expect(btn(root, /^Generate/)).toBeTruthy());
-    btn(root, /^Generate 3/).click();
+    btn(root, /^Generate 3 missing/).click();
     await vi.waitFor(() => expect(text(root)).toContain("Saved 3 mnemonics."));
     expect(plugin.mnemonic.generate).toHaveBeenCalledTimes(3);
     const close = vi.spyOn(modal, "close");
@@ -259,5 +289,104 @@ describe("generating", () => {
     await vi.waitFor(() => expect(plugin.refreshChineseViews).toHaveBeenCalled());
     expect(text(root)).toBe("");
     expect(plugin.mnemonic.generate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("regenerating", () => {
+  const have = (w: string, extra: object = {}) => ({ surfaces: [w], status: "unknown", mnemonic: { text: "old", story: "old story" }, ...extra });
+
+  it("asks a second time, naming what will be lost, and Back returns to the first choice", async () => {
+    const { root, plugin } = make({ records: { 朋友: have("朋友") } });
+    await vi.waitFor(() => expect(btn(root, "Regenerate all 3…")).toBeTruthy());
+    btn(root, "Regenerate all 3…").click();
+    expect(text(root)).toContain("This replaces the mnemonic of the 1 word that already has one, including any you wrote or edited yourself, and cannot be undone. The 2 without one will get one too.");
+    expect(plugin.mnemonic.generate).not.toHaveBeenCalled();
+    btn(root, "Back").click();
+    expect(btn(root, "Generate 2 missing")).toBeTruthy();
+  });
+
+  it("names several existing mnemonics in the plural and leaves out the sentence about missing ones when there are none", async () => {
+    const { root } = make({ records: Object.fromEntries(WORDS.map((w) => [w, have(w)])) });
+    await vi.waitFor(() => expect(btn(root, "Regenerate all 3…")).toBeTruthy());
+    btn(root, "Regenerate all 3…").click();
+    expect(text(root)).toContain("This replaces the mnemonics of the 3 words that already have one, including any you wrote or edited yourself, and cannot be undone.");
+    expect(text(root)).not.toContain("without one");
+  });
+
+  it("regenerates every word in scope, existing ones included, without sending the old text", async () => {
+    const { root, plugin } = make({ records: { 朋友: have("朋友") } });
+    await vi.waitFor(() => expect(btn(root, "Regenerate all 3…")).toBeTruthy());
+    btn(root, "Regenerate all 3…").click();
+    btn(root, "Replace and regenerate 3").click();
+    await vi.waitFor(() => expect(text(root)).toContain("Saved 3 mnemonics."));
+    expect(plugin.mnemonic.generate).toHaveBeenCalledTimes(3);
+    const sent = plugin.mnemonic.generate.mock.calls.map((c: any[]) => c[0]);
+    expect(sent.map((i: any) => i.surface).sort()).toEqual([...WORDS].sort());
+    for (const input of sent) expect(input.existing).toBeUndefined();
+    // the story is replaced too, not left over from the old mnemonic
+    expect(plugin.vocab.updateMnemonic).toHaveBeenCalledWith("朋友", { text: "📖¹", story: "A scene." });
+  });
+
+  it("keeps the old mnemonic when the new answer is unusable", async () => {
+    const { root, plugin } = make({ records: { 朋友: have("朋友") }, generate: async () => ({ mnemonic: "" }) });
+    await vi.waitFor(() => expect(btn(root, "Regenerate all 3…")).toBeTruthy());
+    btn(root, "Regenerate all 3…").click();
+    btn(root, "Replace and regenerate 3").click();
+    await vi.waitFor(() => expect(text(root)).toContain("3 failed:"));
+    expect(plugin.vocab.updateMnemonic).not.toHaveBeenCalled();
+  });
+});
+
+describe("what it cost", () => {
+  it("adds up the OpenAI requests the run made and shows the total at the end", async () => {
+    const { root } = make({ usage: USAGE });
+    await vi.waitFor(() => expect(btn(root, /^Generate/)).toBeTruthy());
+    btn(root, /^Generate/).click();
+    await vi.waitFor(() => expect(text(root)).toContain("Saved 3 mnemonics."));
+    // 3 × (800 × $0.10 + 110 × $0.50) per million tokens
+    expect(text(root)).toContain("Cost on OpenAI: $0.0004 (3 requests).");
+  });
+
+  it("keeps adding across a retry, says 'request' for one, and does not count a call that failed", async () => {
+    let attempt = 0;
+    const { root } = make({
+      usage: USAGE,
+      words: ["学习", "朋友"],
+      generate: async (input) => {
+        if (input.surface === "朋友" && attempt++ === 0) throw new Error("boom");
+        return { mnemonic: "🍎" };
+      },
+    });
+    await vi.waitFor(() => expect(btn(root, /^Generate/)).toBeTruthy());
+    btn(root, /^Generate/).click();
+    await vi.waitFor(() => expect(text(root)).toContain("1 failed:"));
+    expect(text(root)).toContain("Cost on OpenAI: $0.0001 (1 request).");
+    btn(root, "Retry the failed ones").click();
+    await vi.waitFor(() => expect(text(root)).toContain("Saved 1 mnemonic."));
+    expect(text(root)).toContain("Cost on OpenAI: $0.0003 (2 requests).");
+  });
+
+  it("shows no cost on a local model, for non-OpenAI usage, or when nothing was billed", async () => {
+    const local = make({ provider: "ollama", usage: { ...USAGE, provider: "ollama" } });
+    await vi.waitFor(() => expect(btn(local.root, /^Generate/)).toBeTruthy());
+    btn(local.root, /^Generate/).click();
+    await vi.waitFor(() => expect(text(local.root)).toContain("Saved 3 mnemonics."));
+    expect(text(local.root)).not.toContain("Cost on OpenAI");
+    document.body.innerHTML = "";
+    const free = make({ words: ["学习"] });
+    await vi.waitFor(() => expect(btn(free.root, /^Generate/)).toBeTruthy());
+    btn(free.root, /^Generate/).click();
+    await vi.waitFor(() => expect(text(free.root)).toContain("Saved 1 mnemonic."));
+    expect(text(free.root)).not.toContain("Cost on OpenAI");
+  });
+
+  it("stops counting when the run ends", async () => {
+    const { root, plugin } = make({ usage: USAGE, words: ["学习"] });
+    await vi.waitFor(() => expect(btn(root, /^Generate/)).toBeTruthy());
+    btn(root, /^Generate/).click();
+    await vi.waitFor(() => expect(text(root)).toContain("Saved 1 mnemonic."));
+    const unsubscribed = plugin.onAiUsage.mock.results[0].value;
+    expect(typeof unsubscribed).toBe("function");
+    expect(plugin.onAiUsage).toHaveBeenCalledTimes(1);
   });
 });

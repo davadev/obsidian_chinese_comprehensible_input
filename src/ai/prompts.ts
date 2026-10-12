@@ -209,13 +209,15 @@ export function buildEnhanceUserPrompt(args: {
  */
 export const MNEMONIC_SYSTEM_PROMPT =
   "You are an expert coach for Chinese character mnemonics for adult learners. " +
-  "You return THREE things for one word: a picture group for each character, an emoji strip for the meaning, and a short story that explains them.\n" +
+  "You return a picture group for each character, an emoji strip for the meaning, and a short story that explains them.\n" +
   "\n" +
-  "\"characters\" — an array with exactly one string per picture group, in order. The request says how many. Each string is 1 to 3 emoji (up to 4 for a single character) and nothing else: no Chinese characters, no letters, no digits. The app writes a tone number after each group by itself, so never write tones.\n" +
+  "\"isName\" — true only when, in the sentence the learner met the word in, the word is used as a person's name or part of one, or as another proper name (a place, a brand). Then leave \"characters\" as an empty array and \"meaning\" as an empty string: the app writes a name badge itself. In \"story\" write one plain sentence saying that the word is a name here, with the word's pinyin. Otherwise false.\n" +
+  "\n" +
+  "\"characters\" — an array with exactly one string per picture group, in order. The request says how many. Each string is 1 to 3 emoji (up to 4 for a single character) and nothing else: no Chinese characters, no English words, no letters, no digits. The app writes a tone number after each group by itself, so never write tones.\n" +
   "- A word of several characters gets one group per character: a picture of what that character means or looks like, chosen so that the pictures in order hint at the meaning of the whole word.\n" +
   "- A single character (or whatever the request lists as one group) gets the picture of the parts it is built from, as concrete images.\n" +
   "\n" +
-  "\"meaning\" — only when the request asks for exactly one group: an emoji strip for the meaning, at most 14 characters, no Chinese characters. Use an ENGLISH word (one or two at most) only where no emoji can carry the idea (grammar particles, abstract senses). Arrows are fine when the meaning needs them. For a word with several groups return an empty string.\n" +
+  "\"meaning\" — only when the request asks for exactly one group: an emoji strip for the meaning, at most 14 characters, emoji only. Never an English word or letters. Where no picture carries the idea (a grammar particle, an abstract sense) use a symbol emoji, for example ✅ completed, ❓ question, ➕ addition, ⏳ ongoing, 🔁 repeat. Arrows are fine when the meaning needs them. For a word with several groups return an empty string.\n" +
   "\n" +
   "All groups and the meaning TOGETHER must fit the character budget given in the request. Shorter is better. No sentences, no trailing punctuation.\n" +
   "\n" +
@@ -228,7 +230,7 @@ export const MNEMONIC_SYSTEM_PROMPT =
   "- Never invent parts a character does not have; if a split is not helpful, describe what the character actually looks like.\n" +
   "\n" +
   "Output strict JSON only matching this shape: " +
-  "{\"characters\":[string],\"meaning\":string,\"story\":string}. " +
+  "{\"isName\":boolean,\"characters\":[string],\"meaning\":string,\"story\":string}. " +
   "No prose before or after the JSON. No markdown code fences.";
 
 /**
@@ -341,12 +343,12 @@ export function buildMnemonicFactsBlock(shape: WordShape, glosses?: string[]): s
 export function buildMnemonicRepairPrompt(issues: string[]): string {
   return (
     `Your last answer broke these rules:\n${issues.map((i) => `- ${i}`).join("\n")}\n` +
-    `Reply again with corrected JSON only, keeping what was already good. Where a Chinese character crept into a picture group, draw it as an emoji or leave it out.`
+    `Reply again with corrected JSON only, keeping what was already good. Where a Chinese character, an English word or a letter crept into a picture group or the meaning, replace it with an emoji or leave it out.`
   );
 }
 
 /**
- * All three properties are listed in `required` on purpose. When the user picks
+ * All four properties are listed in `required` on purpose. When the user picks
  * Response format = `json_schema`, `buildResponseFormat` sends this with
  * `strict: true`, and strict mode rejects a schema whose
  * `additionalProperties: false` object has a property missing from
@@ -357,9 +359,10 @@ export function buildMnemonicRepairPrompt(issues: string[]): string {
  */
 export const MNEMONIC_SCHEMA = {
   type: "object",
-  required: ["characters", "meaning", "story"],
+  required: ["isName", "characters", "meaning", "story"],
   additionalProperties: false,
   properties: {
+    isName: { type: "boolean" },
     characters: { type: "array", items: { type: "string" } },
     meaning: { type: "string" },
     story: { type: "string" },
