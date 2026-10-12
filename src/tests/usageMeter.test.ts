@@ -26,7 +26,9 @@ const luna = (inputTokens: number, outputTokens: number, provider = "openai") =>
 describe("formatSpent", () => {
   it("shows thousandths of a dollar, and cents once it is worth it", () => {
     expect(formatSpent(0.0123456)).toBe("$0.0123");
-    expect(formatSpent(0.00004)).toBe("$0.0000");
+    expect(formatSpent(0.00004)).toBe("under $0.0001");
+    expect(formatSpent(0)).toBe("under $0.0001");
+    expect(formatSpent(0.0001)).toBe("$0.0001");
     expect(formatSpent(0.1)).toBe("$0.10");
     expect(formatSpent(2.349)).toBe("$2.35");
   });
