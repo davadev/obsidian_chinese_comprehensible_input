@@ -31,7 +31,7 @@ empty.
 
 1. **Maintenance.** Bugs, security issues, dependency and toolchain updates, supply-chain
    and CI problems, data-safety risks, and anything else that is not a new feature. These
-   ship as the next **fix release** of the current line (for example `0.8.x`), as soon as
+   ship as the next **fix release** of the current line (for example `0.9.x`), as soon as
    they are ready, without waiting for a feature release.
 2. **User feature requests.** If there is no open maintenance work, a reasonable request
    from an actual user of the plugin that fits its scope is next. Requests are triaged
@@ -47,8 +47,8 @@ Every release, whatever its tier, goes through the normal prerelease loop descri
 
 | Release | Contents | Issues |
 |---|---|---|
-| **0.8.x** | Maintenance as it arises (fix releases). | whatever is tagged *maintenance* on the board |
-| **0.9.0** | A better AI harness: mnemonics where the plugin supplies the tone numbers and pinyin and the model only draws (plus "Mnemonics for this note…"); **Explain** for a word, and a lightbulb tool that explains a phrase or proof reads your Chinese; one Status/HSK toolbar button; a one-time What's new popup; tidier AI settings with tunable prompts. | #185, #186, #210, #230 |
+| **0.9.x** | Maintenance as it arises (fix releases). | whatever is tagged *maintenance* on the board |
+| **0.9.1** | **Simplify** in the lightbulb dropdown: the AI proposes several ways to say a sentence, the plugin ranks them by HSK level and the learner's own vocabulary and proposes the simplest, which can be applied or saved. Idea stage, see the issue. | #238 |
 | **0.10.0** | Import a web article by URL (or via the official Web Clipper) and read it in the reader, with a coverage preview. | #187 |
 
 Issues assigned to a release can move; the board is the source of truth.
