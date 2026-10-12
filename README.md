@@ -36,7 +36,7 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 - **4 · Known-word popups** — allow tapping words you already know.
 - **5 · Font size**, **Line spacing**, **Annotation size** — reader sizing, adjustable
   while you read.
-- **6 · Stats**, **Generate story**, **Mnemonics for this note…** — open vocabulary stats / AI story generation / fill in or regenerate the mnemonics of the note's words.
+- **6 · Stats**, **Generate story**, **Mnemonics for this note…** — open vocabulary stats / AI story generation / fill in, regenerate or remove the mnemonics of the note's words.
 
 ### Colors & the 1–3 line stack (3-line mode)
 

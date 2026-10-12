@@ -21,9 +21,9 @@ const SCOPE_TEXT = {
 
 /**
  * "Mnemonics for this note" from the reader's ⋯ menu: fill in a mnemonic for every word of the open note that has none,
- * or regenerate all of them. The single-word editor stays the place to read, edit and reroll one. Filling gaps never
- * touches a word that already has a mnemonic; regenerating does, so it asks a second time and says that hand-written ones
- * go too. Either way it says what it is about to do (how many words, what it costs, what leaves the device) before it
+ * regenerate all of them, or remove them. The single-word editor stays the place to read, edit and reroll one. Filling gaps
+ * never touches a word that already has a mnemonic; regenerating and removing do, so they ask a second time and say that
+ * hand-written ones go too. Either way it says what it is about to do (how many words, what it costs, what leaves the device) before it
  * starts, and what it cost when it is done.
  */
 export class BatchMnemonicModal extends Modal {
@@ -32,6 +32,8 @@ export class BatchMnemonicModal extends Modal {
   private stopRequested = false;
   private missing: BatchItem[] = [];
   private existing: BatchItem[] = [];
+  /** Every word of the note with a mnemonic, in scope or not: what "remove" covers. */
+  private removable: BatchItem[] = [];
   /** What this dialog's requests cost on OpenAI, summed over every run in it (a retry adds to it). */
   private spentUsd = 0;
   private requests = 0;
@@ -79,6 +81,7 @@ export class BatchMnemonicModal extends Modal {
     if (run !== this.runId) return;
     this.missing = selection.items;
     this.existing = selection.withMnemonic;
+    this.removable = selection.removable;
     this.renderConfirm();
   }
 
@@ -104,7 +107,7 @@ export class BatchMnemonicModal extends Modal {
     const scope = SCOPE_TEXT[this.plugin.settings.batchMnemonicScope];
     if (n + k === 0) {
       contentEl.createEl("p", { text: `There are no ${scope} in this note.` });
-      this.closeButton();
+      this.renderConfirmActions(false);
       return;
     }
     contentEl.createEl("p", {
@@ -134,9 +137,26 @@ export class BatchMnemonicModal extends Modal {
     if (n > 0) body.createDiv({ text: `No mnemonic yet: ${this.missing.map((i) => i.surface).join("、")}` });
     if (k > 0) body.createDiv({ text: `Already have one: ${this.existing.map((i) => i.surface).join("、")}` });
 
+    this.renderConfirmActions(true);
+  }
+
+  /** Buttons of the first screen. With nothing to generate, only Remove (when something can be removed) and Close. */
+  private renderConfirmActions(canGenerate: boolean): void {
+    const { contentEl } = this;
+    const n = this.missing.length;
+    const k = this.existing.length;
+    const r = this.removable.length;
+    if (!canGenerate && r === 0) {
+      this.closeButton();
+      return;
+    }
     const actions = contentEl.createDiv({ cls: "cci-batch-actions" });
     actions.createDiv({ cls: "cci-batch-spacer" });
-    actions.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
+    actions.createEl("button", { text: canGenerate ? "Cancel" : "Close" }).addEventListener("click", () => this.close());
+    if (r > 0) {
+      const remove = actions.createEl("button", { text: `Remove ${r === 1 ? "the mnemonic" : `all ${r} mnemonics`}…`, cls: "mod-warning" });
+      remove.addEventListener("click", () => this.renderRemoveConfirm());
+    }
     if (k > 0) {
       const regen = actions.createEl("button", { text: `Regenerate all ${n + k}…`, cls: "mod-warning" });
       regen.addEventListener("click", () => this.renderReplaceConfirm());
@@ -145,6 +165,35 @@ export class BatchMnemonicModal extends Modal {
       const go = actions.createEl("button", { text: `Generate ${n} missing`, cls: "mod-cta" });
       go.addEventListener("click", () => void this.start(this.missing));
     }
+  }
+
+  /** Removing is as final as regenerating, and it covers known words too, so it is never one tap away either. */
+  private renderRemoveConfirm(): void {
+    this.heading();
+    const r = this.removable.length;
+    this.contentEl.createEl("p", {
+      text: `This removes the ${r === 1 ? "mnemonic of the 1 word in this note that has one" : `mnemonics of all ${r} words in this note that have one`} (known words included), including any you wrote or edited yourself, and cannot be undone.`,
+    });
+    const list = this.contentEl.createEl("details", { cls: "cci-batch-words" });
+    list.createEl("summary", { text: "Show the words" });
+    list.createDiv({ text: this.removable.map((i) => i.surface).join("、") });
+    const actions = this.contentEl.createDiv({ cls: "cci-batch-actions" });
+    actions.createDiv({ cls: "cci-batch-spacer" });
+    actions.createEl("button", { text: "Back" }).addEventListener("click", () => this.renderConfirm());
+    const go = actions.createEl("button", { text: `Remove ${r === 1 ? "it" : `all ${r}`}`, cls: "mod-warning" });
+    go.addEventListener("click", () => this.removeAll());
+  }
+
+  private removeAll(): void {
+    const { plugin, removable } = this;
+    // Same as clearing both fields in the single editor, so the removal syncs like any other edit.
+    for (const item of removable) plugin.vocab.updateMnemonic(item.storage, { text: undefined, story: undefined });
+    plugin.refreshChineseViews();
+    this.heading();
+    const r = removable.length;
+    this.contentEl.createEl("p", { text: `Removed ${r === 1 ? "1 mnemonic" : `${r} mnemonics`}.` });
+    this.closeButton();
+    new Notice(`Removed ${r === 1 ? "1 mnemonic" : `${r} mnemonics`}.`);
   }
 
   /** Regenerating overwrites, hand-written mnemonics included, so it is never one tap away. */

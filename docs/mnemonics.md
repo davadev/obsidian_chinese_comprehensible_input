@@ -104,7 +104,7 @@ again replaces them with the new style.
 
 Open a note in the reader, tap the **⋯** menu and choose **Mnemonics for this
 note…**. The plugin finds the words in the note that are in scope, tells you how
-many have no mnemonic yet, and offers two things:
+many have no mnemonic yet, and offers these:
 
 - **Generate N missing** — writes a mnemonic for each word that has none. A
   word that already has one (a line or a story) is left alone, so you can run
@@ -116,7 +116,14 @@ many have no mnemonic yet, and offers two things:
   The old text is not sent to the AI. If a new answer turns out unusable, the
   word keeps its old mnemonic and is listed as failed.
 
-Details common to both:
+- **Remove all N mnemonics…** — appears when any word of the note has a
+  mnemonic. It clears the mnemonics of **every word in the note that has one,
+  known words included** (the scope setting below only decides which words get
+  generated, not which can be removed), including ones you wrote yourself. It
+  asks a second time, shows the words, and cannot be undone. It makes no AI
+  requests and costs nothing. Clearing syncs like any other edit.
+
+Details of generating and regenerating:
 
 - **Which words** — by default every word that is not known: new words you
   have not classified yet, unknown words and the partly-known ones. Known
