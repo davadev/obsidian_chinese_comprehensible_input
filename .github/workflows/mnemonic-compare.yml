@@ -1,0 +1,74 @@
+name: Mnemonic compare
+
+# Experiment for #185: does supplying pronunciation and character-composition facts make AI mnemonics better than the
+# current prompt? Runs a gold set through three prompt variants on the OpenAI model(s) given, and measures coverage of the
+# Make Me a Hanzi reference data. Start it by hand from the Actions tab; a run costs well under a dollar.
+#
+# Same trust model as model-compare.yml: the key is an environment secret of `model-lifecycle`, which only deploys from
+# `main`; workflow_dispatch only; the key is visible to one step; inputs reach the script through env. Pinned to full
+# commit SHAs, as in ci.yml. The reference data is downloaded only for this experiment and is not shipped.
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Comma-separated id:input:output:cached:choice (USD per 1M tokens; choice default|legacy)"
+        type: string
+        default: "gpt-6-luna:0.10:0.50:0.01:default,gpt-5.4-mini:0.75:4.50:0.075:legacy"
+      runs:
+        description: "Runs per word and arm (1-5)"
+        type: string
+        default: "2"
+
+concurrency:
+  group: mnemonic-compare
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: model-lifecycle
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download the reference data (Make Me a Hanzi dictionary.txt)
+        run: |
+          curl -fsSL -o dictionary.txt https://raw.githubusercontent.com/skishore/makemeahanzi/master/dictionary.txt
+          curl -fsSL -o mmah-licence.txt https://raw.githubusercontent.com/skishore/makemeahanzi/master/COPYING
+          sha256sum dictionary.txt
+          wc -l dictionary.txt
+          curl -fsSL https://api.github.com/repos/skishore/makemeahanzi/commits/master | grep -m1 '"sha"'
+
+      - name: Run the comparison
+        # The only step that can see the key. It is sent only to api.openai.com and never printed.
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODELS: ${{ inputs.models }}
+          RUNS: ${{ inputs.runs }}
+        run: node scripts/mnemonic-compare.mjs --mmah dictionary.txt --models "$MODELS" --runs "$RUNS"
+
+      - name: Upload the results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: mnemonic-compare-out
+          path: mnemonic-out/
+          retention-days: 7
+          if-no-files-found: ignore
