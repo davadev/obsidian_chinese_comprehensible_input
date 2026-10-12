@@ -33,7 +33,11 @@ export class UsageMeter {
   }
 }
 
-/** What a finished job actually cost: a few thousandths of a dollar are worth showing, so no rounding up to a cent. */
+/**
+ * What a finished job actually cost: a few thousandths of a dollar are worth showing, so no rounding up to a cent, and a
+ * proof read that costs a twentieth of a thousandth must not read as "$0.0000", which looks like free.
+ */
 export function formatSpent(usd: number): string {
+  if (usd < 0.0001) return "under $0.0001";
   return `$${usd.toFixed(usd >= 0.1 ? 2 : 4)}`;
 }
