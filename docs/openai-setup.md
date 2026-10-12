@@ -49,15 +49,28 @@ Every story generation sends the following to OpenAI's servers:
   `Send known words` is on in Story settings — off by default).
 - On repair passes, the previous Chinese draft so the model can improve it.
 
-The two per-word AI actions on the word popup send much less — one word
-each, plus at most the sentence you tapped it in:
+The per-word AI actions send much less — one word each, plus at most the
+sentence you tapped it in:
 
 - **Enhance** — the word, its pinyin, its current dictionary definitions,
   and the sentence it appeared in.
-- **Mnemonic** — the word, pinyin, traditional form, HSK level,
-  definitions, the sentence (when available), whatever is currently in the
-  two mnemonic fields, and your own prompt template. Only sent when you
-  press "Generate with AI". See [Mnemonics](./mnemonics.md).
+- **Mnemonic** — the word, its pinyin, traditional form, HSK level and
+  dictionary definitions; the sentence (when available); whatever is
+  currently in the two mnemonic fields; and your own prompt template. The
+  plugin adds a list of the word's characters with the tone of each and, for
+  a word of several characters, a short dictionary gloss per character. If
+  the answer breaks a rule, one follow-up request repeats this and lists the
+  problem. Only sent when you press "Generate with AI". See
+  [Mnemonics](./mnemonics.md).
+- **Generate mnemonics** (the reader's ⋯ menu) — the same as a single
+  Mnemonic request, once per word, for each word in the **open note** that
+  has no mnemonic yet and is not known or ignored: the word, its pinyin,
+  traditional form, HSK level, definitions, the **first sentence of that note
+  in which the word appears**, and the character list above. The fields for an
+  existing mnemonic are never sent (the words that have one are skipped). It
+  shows you the number of words and an estimate of the cost, and asks you to
+  confirm, before anything is sent. A note with many unknown words means many
+  requests, one per word, plus the occasional follow-up.
 
 OpenAI's API terms (as of writing) state that API requests are **not used
 to train OpenAI's models**, and data is retained briefly for abuse
@@ -66,7 +79,9 @@ If your notes contain anything you don't want passing through OpenAI's
 infrastructure, don't use this mode.
 
 The plugin never sends your full vault, your vocabulary database, or any
-note content you didn't explicitly target.
+note content you didn't explicitly target. "Generate mnemonics" targets the
+note you have open: it sends single sentences from that note, one with each
+word, never the whole note in one piece and never any other note.
 
 ---
 
