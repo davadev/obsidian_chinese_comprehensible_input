@@ -84,7 +84,11 @@ export function contextFor(input: ExplainInput): ExplainContext {
  * wrote. A model answering from memory gets radicals and decompositions wrong; the lookup does not.
  */
 function withRadicals(result: ExplainResult, input: ExplainInput): ExplainResult {
-  return { ...result, characters: result.characters.map((c, i) => ({ ...c, radical: input.chars[i]?.radical ?? "" })) };
+  return {
+    ...result,
+    // The character itself is a fact too: a model that leaves it out (it did, once the radical fields were gone) is filled in.
+    characters: result.characters.map((c, i) => ({ ...c, character: c.character || (input.chars[i]?.char ?? ""), radical: input.chars[i]?.radical ?? "" })),
+  };
 }
 
 function parse(raw: string): ExplainResult {

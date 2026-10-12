@@ -448,6 +448,7 @@ describe("Explain prompts", () => {
       expect(EXPLAIN_SYSTEM_PROMPT).toContain(`"${field}"`);
     }
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/DIFFERENT contexts and registers/);
+    expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/\"character\" \(the character itself\)/);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Do not write the radical, how the character is built or where it comes from/);
     expect(EXPLAIN_SYSTEM_PROMPT).not.toMatch(/etymology|decomposition|confidence/i);
     expect(EXPLAIN_SYSTEM_PROMPT).toMatch(/Build each one only from something you have already put in this note/);
