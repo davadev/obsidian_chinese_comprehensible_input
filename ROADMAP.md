@@ -48,7 +48,7 @@ Every release, whatever its tier, goes through the normal prerelease loop descri
 | Release | Contents | Issues |
 |---|---|---|
 | **0.8.x** | Maintenance as it arises (fix releases). | whatever is tagged *maintenance* on the board |
-| **0.9.0** | A better AI harness: the mnemonic prompt gets pronunciation and character composition supplied by the plugin, with output validation; an **Explain** button on the word card that writes a usage note. | #185, #186 |
+| **0.9.0** | A better AI harness: mnemonics where the plugin supplies the tone numbers and pinyin and the model only draws (plus "Mnemonics for this note…"); **Explain** for a word, and a lightbulb tool that explains a phrase or proof reads your Chinese; one Status/HSK toolbar button; a one-time What's new popup; tidier AI settings with tunable prompts. | #185, #186 |
 | **0.10.0** | Import a web article by URL (or via the official Web Clipper) and read it in the reader, with a coverage preview. | #187 |
 
 Issues assigned to a release can move; the board is the source of truth.

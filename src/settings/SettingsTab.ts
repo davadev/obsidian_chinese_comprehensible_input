@@ -1158,7 +1158,7 @@ export class CciSettingsTab extends PluginSettingTab {
     const extra = (name: string, key: TunablePrompt, desc: string): SettingDefinitionItem => ({
       name,
       desc,
-      control: { type: "textarea", key: `ai.promptExtras.${key}`, rows: 3, placeholder: "e.g. Explain in Czech. I am at HSK 3, keep it simple." },
+      control: { type: "textarea", key: `ai.promptExtras.${key}`, rows: 3, placeholder: "e.g. Explain in German. I am at HSK 3, keep it simple." },
     });
     return {
       type: "page",
