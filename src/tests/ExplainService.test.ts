@@ -67,6 +67,12 @@ describe("ExplainService.generate", () => {
     expect(out.result.characters[0]).not.toHaveProperty("components");
     const repaired = serviceWith([bad(), wrong(good())]);
     expect((await repaired.service.generate(INPUT)).result.characters.map((c) => c.radical)).toEqual(["方 (square)", "人 / 亻 (person)"]);
+    // a model that leaves the character out of an entry gets it from the facts
+    const blank = JSON.parse(good());
+    blank.characters = blank.characters.map((c: any) => ({ ...c, character: "" }));
+    const filled = await serviceWith([JSON.stringify(blank)]).service.generate(INPUT);
+    expect(filled.result.characters.map((c) => c.character)).toEqual(["方", "便"]);
+    expect(filled.issues).toEqual([]);
     // a character the facts did not list gets no radical rather than a stale one
     const short = serviceWith([good()]);
     expect((await short.service.generate({ ...INPUT, chars: [INPUT.chars[0]] })).result.characters[1].radical).toBe("");
