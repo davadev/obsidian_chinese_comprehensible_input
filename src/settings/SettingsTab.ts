@@ -530,6 +530,22 @@ export class CciSettingsTab extends PluginSettingTab {
               name: "Show mnemonic before full definition",
               control: { type: "toggle", key: "mnemonicsFirst" },
             },
+            {
+              name: "Words covered by \"Generate mnemonics\"",
+              desc:
+                "The reader's ⋯ menu can generate a mnemonic for every word in the open note that " +
+                "has none yet. Known and ignored words are never included, and words that already " +
+                "have a mnemonic are skipped.",
+              control: {
+                type: "dropdown",
+                key: "batchMnemonicScope",
+                options: {
+                  notKnown: "All words that are not known",
+                  marked: "Words I marked unknown or partial (not new ones)",
+                  unknown: "Only words marked unknown",
+                },
+              },
+            },
             { type: "group", heading: "Annotation lines", items: [] },
             this.prose(
               "Rows are numbered upward from the Chinese: line 2 sits directly above the " +

@@ -747,6 +747,11 @@ export class ViewToolbar {
       close();
       this.plugin.openGenerateStoryModal();
     });
+    const mnemonics = menu.createEl("button", { cls: "cci-overflow-btn", text: "Generate mnemonics" });
+    mnemonics.addEventListener("click", () => {
+      close();
+      this.plugin.openBatchMnemonicModal(this.getDocText());
+    });
 
     // Defer so the opening click doesn't immediately close it.
     window.setTimeout(() => {

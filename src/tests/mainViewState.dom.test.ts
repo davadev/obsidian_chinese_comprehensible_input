@@ -325,6 +325,15 @@ describe("the story modal, the word popup and marking", () => {
     expect(document.body.querySelector(".cci-modal-front")).toBeTruthy();
   });
 
+  it("the batch mnemonic dialog needs AI switched on too", () => {
+    const off = plugin({ settings: settings((s) => (s.ai.enabled = false)) });
+    off.openBatchMnemonicModal("你好");
+    expect(Notice.instances.at(-1)!.message).toBe("Enable AI in plugin settings first.");
+    const on = plugin({ settings: settings((s) => (s.ai.enabled = true)), tokenizer: { tokenize: async () => [] } });
+    on.openBatchMnemonicModal("你好");
+    expect(document.body.querySelector(".cci-batch-mnemonic-modal")).toBeTruthy();
+  });
+
   it("the popup is opened with the tapped word, its element, the event and the sentence", () => {
     const open = vi.fn();
     const p = plugin({ popup: { open } });

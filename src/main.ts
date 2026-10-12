@@ -44,6 +44,7 @@ import {
 import { effectiveFormats } from "./editor/formatOptions";
 import { StatsView } from "./ui/StatsView";
 import { WordPopup } from "./ui/WordPopup";
+import { BatchMnemonicModal } from "./ui/BatchMnemonicModal";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
@@ -1483,6 +1484,15 @@ export default class CciPlugin extends Plugin {
         try { v.render(); } catch (e) { console.warn("CCI stats render failed", e); }
       }
     }
+  }
+
+  /** Reader menu: a mnemonic for every word of the open note that has none (see BatchMnemonicModal). */
+  openBatchMnemonicModal(noteText: string): void {
+    if (!this.settings.ai.enabled) {
+      new Notice("Enable AI in plugin settings first.");
+      return;
+    }
+    new BatchMnemonicModal(this.app, this, noteText).open();
   }
 
   openGenerateStoryModal(): void {
