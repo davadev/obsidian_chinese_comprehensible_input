@@ -109,6 +109,14 @@ describe("validateExplain", () => {
     expect(validateExplain(r, CTX)).toEqual(['"examples" needs 4 to 10 sentences; you sent 11.']);
   });
 
+  it("needs a sense example, when there is one, to use the word", () => {
+    const r = clone(FULL);
+    r.senses[0].example = "这是一个权宜之计。";
+    expect(validateExplain(r, CTX)).toEqual(['Each sense example must contain the word 方便; leave the example empty if no short sentence fits.']);
+    r.senses[0].example = "";
+    expect(validateExplain(r, CTX)).toEqual([]);
+  });
+
   it("allows no mistakes at all, since an invented one is worse than none, but needs a pinyin for every character", () => {
     const r = clone(FULL);
     r.mistakes = [];
@@ -207,13 +215,13 @@ describe("renderExplainMarkdown", () => {
       { ...FULL, characters: [{ ...FULL.characters[0], etymology: "A folk story.", confidence: "uncertain" }] },
       META
     );
-    expect(uncertain).toContain("- **Origin:** A folk story. *(a popular or uncertain account, not settled)*");
+    expect(uncertain).toContain("- **Origin:** A folk story. *(not settled; a popular or uncertain account)*");
     // the doubt covers the breakdown too: with no origin it goes on the "Built from" line
     const split = renderExplainMarkdown(
       { ...FULL, characters: [{ ...FULL.characters[0], components: "A and B", etymology: "", confidence: "uncertain" }] },
       META
     );
-    expect(split).toContain("- **Built from:** A and B *(a popular or uncertain account, not settled)*");
+    expect(split).toContain("- **Built from:** A and B *(not settled; a popular or uncertain account)*");
     expect(split).not.toContain("**Origin:**");
   });
 
