@@ -1007,6 +1007,7 @@
 /* "Generate mnemonics" for a whole note (reader menu). */
 .cci-batch-mnemonic-modal .cci-batch-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
   margin-top: 1rem;

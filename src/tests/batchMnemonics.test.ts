@@ -77,6 +77,18 @@ describe("selectBatchWords", () => {
     expect(selectBatchWords("囧", [t], { bySurface: () => undefined }, "notKnown").items.map((i) => i.surface)).toEqual(["囧"]);
   });
 
+  it("lists every word of the note that has a mnemonic as removable, whatever its status or the scope", () => {
+    const withText: Record<string, any> = { ...records, 我: rec("我", "known", { text: "🙋" }), 学习: rec("学习", "pinyinKnownMeaningUnknown", { story: "s" }) };
+    const v = { bySurface: (s: string) => withText[s] };
+    const r = selectBatchWords(text, tokens, v, "unknown");
+    // 我 is known and 学习 is only partial: out of the "unknown" scope, but their mnemonics are still in the note
+    expect(r.removable.map((i) => i.surface)).toEqual(["我", "学习", "你好"]);
+    expect(r.items).toEqual([]);
+    expect(r.withMnemonic.map((i) => i.surface)).toEqual(["你好"]);
+    // a word with no mnemonic that is out of scope is nowhere
+    expect(selectBatchWords(text, tokens, { bySurface: () => undefined }, "unknown").removable).toEqual([]);
+  });
+
   it("honours the scope", () => {
     expect(selectBatchWords(text, tokens, vocab, "marked").items.map((i) => i.surface)).toEqual(["学习"]);
     expect(selectBatchWords(text, tokens, vocab, "unknown").items).toEqual([]);

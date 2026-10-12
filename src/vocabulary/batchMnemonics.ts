@@ -38,6 +38,11 @@ export interface BatchSelection {
   items: BatchItem[];
   /** In-scope words that already have one; only "regenerate" touches them. */
   withMnemonic: BatchItem[];
+  /**
+   * Every word of the note that has a mnemonic, whatever its status or the scope setting: the scope says which words to
+   * generate for, but "remove" is about what is in the note.
+   */
+  removable: BatchItem[];
 }
 
 /** Each distinct word once (by dictionary entry, so 学习 and 學習 count together), in reading order, split by whether it already has a mnemonic. */
@@ -50,6 +55,7 @@ export function selectBatchWords(
   const seen = new Set<string>();
   const items: BatchItem[] = [];
   const withMnemonic: BatchItem[] = [];
+  const removable: BatchItem[] = [];
   for (const tok of tokens) {
     if (!tok.isWord || tok.candidates.length === 0) continue;
     const entry = tok.selected ?? tok.candidates[0];
@@ -57,7 +63,9 @@ export function selectBatchWords(
     if (seen.has(id)) continue;
     const rec = vocab.bySurface(tok.surface);
     const status = rec?.status ?? "new";
-    if (!statusInScope(status, scope)) continue;
+    const has = !!(rec?.mnemonic?.text || rec?.mnemonic?.story);
+    const inScope = statusInScope(status, scope);
+    if (!has && !inScope) continue;
     seen.add(id);
     const item: BatchItem = {
       surface: tok.surface,
@@ -65,9 +73,10 @@ export function selectBatchWords(
       sentence: extractSentenceAround(text, tok.start).text,
       status,
     };
-    (rec?.mnemonic?.text || rec?.mnemonic?.story ? withMnemonic : items).push(item);
+    if (has) removable.push(item);
+    if (inScope) (has ? withMnemonic : items).push(item);
   }
-  return { items, withMnemonic };
+  return { items, withMnemonic, removable };
 }
 
 /** What the single-word editor would send, minus the fields the learner has not typed yet. */

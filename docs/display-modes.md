@@ -21,7 +21,7 @@ The **More** menu holds the display controls:
 - **1 · Script** (Automatic / Traditional / Simplified) · **2 · Show / hide colors**.
 - **3 · Display mode** (2-line / 3-line / None) · **4 · Known-word popups**.
 - **5 · Font size**, **line spacing**, **annotation size** · **6 · Stats** /
-  **Generate story** / **Mnemonics for this note…** (fill in or regenerate the
+  **Generate story** / **Mnemonics for this note…** (fill in, regenerate or remove the
   mnemonics of the note's words — see [Mnemonics](./mnemonics.md#a-mnemonic-for-every-word-in-a-note)).
 
 ## Display modes

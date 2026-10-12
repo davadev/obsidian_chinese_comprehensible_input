@@ -390,3 +390,62 @@ describe("what it cost", () => {
     expect(plugin.onAiUsage).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("removing", () => {
+  const have = (w: string, status = "unknown") => ({ surfaces: [w], status, mnemonic: { text: "old" } });
+
+  it("offers it only when some word of the note has a mnemonic, counting known words too", async () => {
+    const none = make();
+    await vi.waitFor(() => expect(btn(none.root, "Generate 3 missing")).toBeTruthy());
+    expect(btn(none.root, /^Remove/)).toBeUndefined();
+    document.body.innerHTML = "";
+    const some = make({ records: { 朋友: have("朋友", "known"), 图书馆: have("图书馆") } });
+    await vi.waitFor(() => expect(btn(some.root, "Remove all 2 mnemonics…")).toBeTruthy());
+    // 朋友 is known so it is not offered for regeneration, but its mnemonic is in the note
+    expect(btn(some.root, "Regenerate all 2…")).toBeTruthy();
+    document.body.innerHTML = "";
+    const one = make({ records: { 朋友: have("朋友") } });
+    await vi.waitFor(() => expect(btn(one.root, "Remove the mnemonic…")).toBeTruthy());
+  });
+
+  it("asks a second time, can go back, then clears both fields of every word and refreshes the views", async () => {
+    const { root, plugin } = make({ records: { 朋友: have("朋友", "known"), 图书馆: have("图书馆") } });
+    await vi.waitFor(() => expect(btn(root, "Remove all 2 mnemonics…")).toBeTruthy());
+    btn(root, "Remove all 2 mnemonics…").click();
+    expect(text(root)).toContain("This removes the mnemonics of all 2 words in this note that have one (known words included), including any you wrote or edited yourself, and cannot be undone.");
+    expect(root.querySelector(".cci-batch-words div")!.textContent).toBe("朋友、图书馆");
+    expect(plugin.vocab.updateMnemonic).not.toHaveBeenCalled();
+    btn(root, "Back").click();
+    expect(btn(root, "Remove all 2 mnemonics…")).toBeTruthy();
+    btn(root, "Remove all 2 mnemonics…").click();
+    btn(root, "Remove all 2").click();
+    expect(plugin.vocab.updateMnemonic).toHaveBeenCalledTimes(2);
+    expect(plugin.vocab.updateMnemonic).toHaveBeenCalledWith("朋友", { text: undefined, story: undefined });
+    expect(plugin.vocab.updateMnemonic).toHaveBeenCalledWith("图书馆", { text: undefined, story: undefined });
+    expect(plugin.refreshChineseViews).toHaveBeenCalledTimes(1);
+    expect(text(root)).toContain("Removed 2 mnemonics.");
+    expect(Notice.instances.at(-1)!.message).toBe("Removed 2 mnemonics.");
+    expect(plugin.mnemonic.generate).not.toHaveBeenCalled();
+    btn(root, "Close").click();
+  });
+
+  it("speaks in the singular for one word", async () => {
+    const { root } = make({ records: { 朋友: have("朋友") } });
+    await vi.waitFor(() => expect(btn(root, "Remove the mnemonic…")).toBeTruthy());
+    btn(root, "Remove the mnemonic…").click();
+    expect(text(root)).toContain("This removes the mnemonic of the 1 word in this note that has one (known words included)");
+    btn(root, "Remove it").click();
+    expect(text(root)).toContain("Removed 1 mnemonic.");
+  });
+
+  it("is still there when nothing is in scope to generate, and Close leaves the note alone", async () => {
+    const { root, plugin, modal } = make({ scope: "unknown", words: ["朋友"], records: { 朋友: have("朋友", "known") } });
+    await vi.waitFor(() => expect(text(root)).toContain("There are no words you marked unknown in this note."));
+    expect(btn(root, /^Generate/)).toBeUndefined();
+    expect(btn(root, "Remove the mnemonic…")).toBeTruthy();
+    const close = vi.spyOn(modal, "close");
+    btn(root, "Close").click();
+    expect(close).toHaveBeenCalled();
+    expect(plugin.vocab.updateMnemonic).not.toHaveBeenCalled();
+  });
+});
