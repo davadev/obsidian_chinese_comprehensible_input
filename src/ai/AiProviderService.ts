@@ -191,8 +191,26 @@ export class AiProviderService {
     return resp.status >= 200 && resp.status < 500;
   }
 
-  /** Send a chat completion with optional JSON schema. Returns parsed text content. */
-  async chatJson(systemPrompt: string, userPrompt: string, schemaName: string, schema: object): Promise<string> {
+  /**
+   * Send a chat completion with optional JSON schema. Returns parsed text content.
+   *
+   * `strictSchema` is for answers whose exact shape the plugin relies on (Explain, Proof read, mnemonics): a local model
+   * is then held to the schema itself (Ollama's structured outputs) instead of just "some JSON", because with only
+   * `json_object` a model such as gemma invents its own field names and the note comes back empty. If the server refuses
+   * the schema (an older Ollama answers HTTP 400/422), the request is repeated once with the format chosen in settings.
+   */
+  async chatJson(systemPrompt: string, userPrompt: string, schemaName: string, schema: object, strictSchema = false): Promise<string> {
+    try {
+      return await this.chatJsonOnce(systemPrompt, userPrompt, schemaName, schema, strictSchema);
+    } catch (err) {
+      if (strictSchema && /\b(400|422)\b/.test((err as Error).message)) {
+        return this.chatJsonOnce(systemPrompt, userPrompt, schemaName, schema, false);
+      }
+      throw err;
+    }
+  }
+
+  private async chatJsonOnce(systemPrompt: string, userPrompt: string, schemaName: string, schema: object, strictSchema: boolean): Promise<string> {
     const settings = this.getSettings();
     if (!settings.enabled) throw new Error("AI is disabled in settings.");
     const { active: s, provider } = this.resolveActive();
@@ -216,7 +234,10 @@ export class AiProviderService {
     // No-op on models that don't recognise the directive.
     const sys = s.suppressThinking ? `${systemPrompt}\n/no_think` : systemPrompt;
 
-    const responseFormat = buildResponseFormat(s.responseFormat, schemaName, schema);
+    // OpenAI is always sent what the settings say (its own profile handles it); a local server is held to the schema
+    // when the caller needs the exact shape, unless the learner turned structured output off.
+    const format = strictSchema && provider === "ollama" && s.responseFormat !== "none" ? "json_schema" : s.responseFormat;
+    const responseFormat = buildResponseFormat(format, schemaName, schema);
 
     const baseBody =
       s.endpointMode === "ollama"
@@ -241,7 +262,9 @@ export class AiProviderService {
             // prompt asking for JSON (qwen3 did this for 6457 chars
             // in a real session). Sent only when the user actually
             // wants JSON (responseFormat ≠ "none").
-            ...(s.responseFormat !== "none" ? { format: "json" } : {}),
+            // With a schema (the learner chose json_schema, or the caller needs the exact shape) Ollama's structured
+            // outputs take the schema itself as `format`.
+            ...(format !== "none" ? { format: format === "json_schema" ? schema : "json" } : {}),
           }
         : s.endpointMode === "responses"
         ? {

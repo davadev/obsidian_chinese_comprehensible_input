@@ -4,7 +4,7 @@ import { ExplainMeta, ExplainResult, explainBlocks, explainFileName, renderExpla
 import { explainInputFor, explainKey, findExplainNote } from "../ai/explainNotes";
 import { OPENAI_MODELS, resolveOpenAiChoice } from "../ai/openaiProfile";
 import { countTraditionalMarkers } from "../dictionary/scriptDetect";
-import { renderExplainBlocks } from "./explainPreview";
+import { describeIssues, renderExplainBlocks } from "./explainPreview";
 import { copyMarkdown, openInReader, saveExplanation } from "./explainFiles";
 import { startProgressClock } from "./progressClock";
 import { UsageMeter } from "./usageMeter";
@@ -139,7 +139,7 @@ export class ExplainModal extends Modal {
     if (this.issues.length > 0) {
       contentEl.createEl("p", {
         cls: "cci-explain-caveat",
-        text: `The plugin could not get every rule right even after asking again: ${this.issues.join(" ")}`,
+        text: describeIssues(this.issues),
       });
     }
     const body = contentEl.createDiv({ cls: "cci-explain-body" });

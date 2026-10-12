@@ -49,7 +49,7 @@ describe("PhraseExplainService.check", () => {
   it("sends the small check prompt and returns the verdict", async () => {
     const { chatJson, service } = serviceWith((ai) => new PhraseExplainService(ai), [JSON.stringify({ verdict: "typo", note: "n", original: "午", suggestion: "年" })]);
     expect(await service.check(TEXT)).toEqual({ verdict: "typo", note: "n", original: "午", suggestion: "年" });
-    expect(chatJson).toHaveBeenCalledWith(PHRASE_CHECK_SYSTEM_PROMPT, buildPhraseCheckUserPrompt(TEXT), "PhraseCheck", PHRASE_CHECK_SCHEMA);
+    expect(chatJson).toHaveBeenCalledWith(PHRASE_CHECK_SYSTEM_PROMPT, buildPhraseCheckUserPrompt(TEXT), "PhraseCheck", PHRASE_CHECK_SCHEMA, true);
   });
 
   it("lets a reply that cannot be read surface as an error the dialog can show", async () => {
@@ -64,7 +64,7 @@ describe("PhraseExplainService.explain", () => {
     expect(out.issues).toEqual([]);
     expect(out.result.translation).toBe(GOOD.translation);
     expect(chatJson).toHaveBeenCalledTimes(1);
-    expect(chatJson).toHaveBeenCalledWith(PHRASE_SYSTEM_PROMPT, buildPhraseUserPrompt({ text: TEXT, typo: "午 should be 年" }), "PhraseExplain", PHRASE_SCHEMA);
+    expect(chatJson).toHaveBeenCalledWith(PHRASE_SYSTEM_PROMPT, buildPhraseUserPrompt({ text: TEXT, typo: "午 should be 年" }), "PhraseExplain", PHRASE_SCHEMA, true);
   });
 
   it("asks once more with the specific defect when a word was left out, and keeps the corrected answer", async () => {
@@ -112,7 +112,7 @@ describe("ProofreadService", () => {
   it("returns valid corrections untouched, and an empty list for correct text", async () => {
     const { chatJson, service } = serviceWith((ai) => new ProofreadService(ai), [JSON.stringify(one)]);
     expect((await service.proofread(TEXT)).result.corrections).toHaveLength(1);
-    expect(chatJson).toHaveBeenCalledWith(PROOFREAD_SYSTEM_PROMPT, buildProofreadUserPrompt(TEXT), "Proofread", PROOFREAD_SCHEMA);
+    expect(chatJson).toHaveBeenCalledWith(PROOFREAD_SYSTEM_PROMPT, buildProofreadUserPrompt(TEXT), "Proofread", PROOFREAD_SCHEMA, true);
     const none = serviceWith((ai) => new ProofreadService(ai), [JSON.stringify({ corrections: [] })]);
     expect(await none.service.proofread(TEXT)).toEqual({ result: { corrections: [] }, issues: [] });
   });
