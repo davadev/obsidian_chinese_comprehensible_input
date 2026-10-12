@@ -60,7 +60,9 @@ export type ViewMode =
   /** Tap-to-collect chars/words into a single new custom-word surface. */
   | "select-word"
   /** Tap a start word then an end word to wrap the span in markdown formatting. */
-  | "format";
+  | "format"
+  /** Tap a start word then an end word to explain or proof read the phrase between them (the lightbulb tool). */
+  | "explain";
 
 /**
  * Markdown formats applied by the in-view formatting mode (#21 phase 1).
@@ -283,6 +285,8 @@ export interface ExplainSettings {
   openAfterSave: boolean;
   /** Show the pinyin line under each example sentence and collocation. */
   pinyinInExamples: boolean;
+  /** The longest selection (in characters) the lightbulb tool will send: more costs more and is explained worse. */
+  maxPhraseChars: number;
 }
 
 export interface DictionarySourceMeta {
@@ -382,6 +386,8 @@ export interface CciSettings {
   mnemonicsFirst: boolean;
   /** The newest release the "What's new" popup has already shown (see ui/whatsNew). Per device: never synced. */
   lastSeenVersion: string;
+  /** What the lightbulb tool does with a selection. Chosen from the dropdown in its banner. */
+  phraseAction: "explain" | "proofread";
   /** The newest release note this device has already been *hinted* about (an update applied while Obsidian was running). Per device. */
   whatsNewHintedFor: string;
   explain: ExplainSettings;

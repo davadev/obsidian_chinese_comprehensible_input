@@ -556,6 +556,11 @@ export class ChineseTextFileView extends TextFileView {
     this.editor.dispatch({ effects: cciReTokenizeEffect.of(null) });
   }
 
+  /** The whole document as the editor holds it (frontmatter is not in it), or null when the editor is not open. */
+  docText(): string | null {
+    return this.editor ? this.editor.state.doc.toString() : null;
+  }
+
   /** The document text between two offsets, or null when the editor is not open. */
   docSlice(from: number, to: number): string | null {
     if (!this.editor) return null;

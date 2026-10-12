@@ -29,6 +29,7 @@ export class ViewToolbar {
   private bannerEl!: HTMLElement;
   private statsEl: HTMLElement | null = null;
   private formatLabelEl!: HTMLElement;
+  private explainLabelEl!: HTMLElement;
   private getDocText: () => string;
 
   constructor(
@@ -69,6 +70,7 @@ export class ViewToolbar {
     }
 
     this.formatModeBtn(row);
+    this.explainModeBtn(row);
 
     this.colorModeBtn(row);
 
@@ -111,6 +113,34 @@ export class ViewToolbar {
     b.addEventListener("click", () => {
       const cur = this.plugin.activeViewMode();
       this.plugin.setActiveViewMode(cur === mode ? "read" : mode);
+      this.refresh();
+    });
+  }
+
+  /**
+   * The lightbulb tool: tap a first word and a last word, then explain or proof read the text between them (the choice is
+   * the dropdown in its banner). It needs an AI provider, so a user who has set none up is told how to, instead of being
+   * dropped into a mode that cannot work.
+   */
+  private explainModeBtn(parent: HTMLElement): void {
+    const label = "Explain or proof read (tap first + last word)";
+    const b = parent.createEl("button", {
+      cls: "clickable-icon cci-icon-btn cci-explain-btn",
+      attr: { "aria-label": label, title: label, "data-mode": "explain" },
+    });
+    setIcon(b, "lightbulb");
+    if (this.plugin.activeViewMode() === "explain") b.addClass("is-active");
+    b.addEventListener("click", () => {
+      if (this.plugin.activeViewMode() === "explain") {
+        this.plugin.setActiveViewMode("read");
+        this.refresh();
+        return;
+      }
+      if (!this.plugin.aiConfigured()) {
+        this.plugin.promptAiSetup("Explain and proof read");
+        return;
+      }
+      this.plugin.setActiveViewMode("explain");
       this.refresh();
     });
   }
@@ -278,6 +308,10 @@ export class ViewToolbar {
       this.renderFormatBanner();
       return;
     }
+    if (mode === "explain") {
+      this.renderExplainBanner();
+      return;
+    }
     const cls =
       mode === "mark-known" ? "is-known" : mode === "mark-unknown" ? "is-unknown" : "is-partial";
     const label =
@@ -353,7 +387,91 @@ export class ViewToolbar {
     });
   }
 
+  private explainBannerText(): string {
+    const verb = this.plugin.settings.phraseAction === "proofread" ? "proof read" : "explain";
+    if (this.plugin.pendingPhraseStart != null) {
+      const s = (this.plugin.pendingPhraseStartSurface ?? "").trim();
+      return `${s ? `Start “${s}” selected` : "Start selected"} — tap the last word to ${verb}`;
+    }
+    return `Tap the first word, then the last word, to ${verb}`;
+  }
+
+  private renderExplainBanner(): void {
+    const banner = this.bannerEl.createDiv({ cls: "cci-banner is-explain" });
+    this.explainLabelEl = banner.createSpan({ text: this.explainBannerText() });
+    const label = () => (this.plugin.settings.phraseAction === "proofread" ? "Proof read ▾" : "Explain ▾");
+    const pick = banner.createEl("button", { text: label() });
+    let menu: HTMLElement | null = null;
+    pick.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (menu) {
+        menu.remove();
+        menu = null;
+        return;
+      }
+      menu = this.buildChoiceMenu(
+        pick,
+        [
+          { id: "explain", label: "Explain" },
+          { id: "proofread", label: "Proof read" },
+        ],
+        this.plugin.settings.phraseAction,
+        (id) => {
+          void (async () => {
+            this.plugin.settings.phraseAction = id === "proofread" ? "proofread" : "explain";
+            await this.plugin.saveSettings();
+            pick.setText(label());
+            this.explainLabelEl.setText(this.explainBannerText());
+          })();
+        },
+        () => {
+          menu = null;
+        }
+      );
+    });
+    banner.createEl("button", { text: "Exit" }).addEventListener("click", () => {
+      this.plugin.setActiveViewMode("read");
+      this.refresh();
+    });
+  }
+
+  /** A small pick-one menu under a banner button: the same floating menu as Formats, with a radio row per option. */
+  private buildChoiceMenu(
+    anchor: HTMLElement,
+    options: Array<{ id: string; label: string }>,
+    current: string,
+    onPick: (id: string) => void,
+    onClose: () => void
+  ): HTMLElement {
+    const menu = this.floatingMenu(anchor, onClose);
+    for (const opt of options) {
+      const item = menu.createDiv({ cls: "cci-overflow-item" });
+      const radio = item.createEl("input", { type: "radio" });
+      radio.name = "cci-choice";
+      radio.checked = opt.id === current;
+      item.createSpan({ text: opt.label });
+      const choose = () => {
+        radio.checked = true;
+        onPick(opt.id);
+        menu.remove();
+        onClose();
+      };
+      radio.addEventListener("change", choose);
+      item.addEventListener("click", (ev) => {
+        if (ev.target !== radio) choose();
+      });
+    }
+    return menu;
+  }
+
   private buildFormatMenu(anchor: HTMLElement, onClose: () => void): HTMLElement {
+    const menu = this.floatingMenu(anchor, onClose);
+    this.populateFormatMenu(menu);
+    return menu;
+  }
+
+  /** The menu element positioned under `anchor`, with its outside-click, resize and rotation handling. */
+  private floatingMenu(anchor: HTMLElement, onClose: () => void): HTMLElement {
     const menu = createDiv();
     menu.className = "cci-overflow-menu";
     activeDocument.body.appendChild(menu);
@@ -392,7 +510,10 @@ export class ViewToolbar {
     // more correct than recomputing half of it.
     window.addEventListener("resize", close);
     window.addEventListener("orientationchange", close);
+    return menu;
+  }
 
+  private populateFormatMenu(menu: HTMLElement): void {
     // Rebuild the rows in place after each toggle so conflict states refresh
     // without destroying the menu (which would detach the anchor and reposition
     // the popup at the top-left corner).
@@ -443,7 +564,6 @@ export class ViewToolbar {
       }
     };
     populate();
-    return menu;
   }
 
   private buildOverflowMenu(anchor: HTMLElement, onClose: () => void): HTMLElement {

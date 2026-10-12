@@ -345,6 +345,7 @@ describe("the story modal, the word popup and marking", () => {
       dictionary: { lookup: () => [], isTraditionalMarker: () => false },
       vocab: { bySurface: () => undefined },
       explain: { generate: () => new Promise(() => {}) },
+      aiUsageListeners: new Set(),
     });
     on.openExplainModal("方便", "住在这里很方便。");
     expect(document.body.querySelector(".cci-explain-modal")).toBeTruthy();
@@ -426,5 +427,160 @@ describe("computeNoteStats", () => {
     const known = Object.fromEntries(tokens.slice(0, 5).map((t) => [t.surface, "known"]));
     const out = await stats(tokens, known, (s) => (s.topHskComfortThreshold = undefined));
     expect(out.topHsk).toBe("1");
+  });
+});
+
+describe("the lightbulb tool: selecting a phrase", () => {
+  const DOC = "今天天气很好。我打算明年去北京。我们走吧。";
+  const word = (surface: string) => ({ isWord: true, surface, candidates: [{}] });
+  const make = (over: Record<string, unknown> = {}, tokens: unknown[] = [word("打算"), word("明年")]) => {
+    const view = chineseView({ docSlice: (a: number, b: number) => DOC.slice(a, b), docText: () => DOC });
+    const self: any = plugin({
+      settings: settings((s) => ((s.ai.enabled = true), (s.phraseAction = "explain"))),
+      app: { workspace: workspace({ [VIEW_TYPE_CHINESE]: [{ view }] }), loadLocalStorage: () => "sk-test", vault: { getMarkdownFiles: () => [] }, metadataCache: {} },
+      manifest: { id: "p" },
+      tokenizer: { tokenize: vi.fn(async () => tokens) },
+      pendingPhraseStart: 8,
+      openExplainModal: vi.fn(),
+      refreshChineseViewToolbars: vi.fn(),
+      ...over,
+    });
+    return { self, view };
+  };
+  const dialog = () => document.body.querySelector(".cci-explain-modal");
+  const start = DOC.indexOf("我打算");
+  const end = DOC.indexOf("北京") + 2;
+
+  it("remembers the first tap and refreshes the toolbars so the banner can confirm it", () => {
+    const { self } = make({ pendingPhraseStart: null });
+    self.beginPhraseRange(5, "打算");
+    expect([self.pendingPhraseStart, self.pendingPhraseStartSurface]).toEqual([5, "打算"]);
+    self.beginPhraseRange(7);
+    expect(self.pendingPhraseStartSurface).toBeNull();
+    expect(self.refreshChineseViewToolbars).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens the dialog for the text between the two taps, whichever was tapped first, and clears the half-finished selection", async () => {
+    const a = make({ pendingPhraseStart: start });
+    await a.self.finishPhraseRange(end);
+    expect(dialog()).toBeTruthy();
+    expect(document.body.textContent).toContain("我打算明年去北京。".slice(0, 8));
+    expect(a.self.pendingPhraseStart).toBeNull();
+    expect(a.self.refreshChineseViewToolbars).toHaveBeenCalled();
+    document.body.innerHTML = "";
+    const b = make({ pendingPhraseStart: end });
+    await b.self.finishPhraseRange(start);
+    expect(dialog()).toBeTruthy();
+    expect(document.body.textContent).toContain("我打算明年去北京");
+  });
+
+  it("does nothing without a first tap", async () => {
+    const { self } = make({ pendingPhraseStart: null });
+    await self.finishPhraseRange(10);
+    expect(dialog()).toBeNull();
+    expect(self.openExplainModal).not.toHaveBeenCalled();
+  });
+
+  it("gives up cleanly when the reader or its text is gone", async () => {
+    const { self } = make({ pendingPhraseStart: 3, app: { workspace: workspace() } });
+    await self.finishPhraseRange(9);
+    expect(self.pendingPhraseStart).toBeNull();
+    expect(dialog()).toBeNull();
+    const gone = make({ pendingPhraseStart: 3 });
+    gone.view.docSlice = () => null;
+    await gone.self.finishPhraseRange(9);
+    expect(gone.self.pendingPhraseStart).toBeNull();
+    expect(gone.self.refreshChineseViewToolbars).toHaveBeenCalled();
+  });
+
+  it("refuses a selection with no Chinese in it, and keeps the start so the end can be tapped again", async () => {
+    const { self } = make({ pendingPhraseStart: 0, settings: settings((s) => (s.ai.enabled = true)) });
+    self.app.workspace.getLeavesOfType = () => [{ view: chineseView({ docSlice: () => "hello, world", docText: () => "hello, world" }) }];
+    await self.finishPhraseRange(5);
+    expect(Notice.instances.at(-1)!.message).toBe("Select some Chinese text: tap the first word, then the last word.");
+    expect(self.pendingPhraseStart).toBe(0);
+    expect(dialog()).toBeNull();
+  });
+
+  it("refuses a selection over the limit with the count and the limit, and keeps the start", async () => {
+    const { self } = make({ pendingPhraseStart: 0, settings: settings((s) => ((s.ai.enabled = true), (s.explain.maxPhraseChars = 5))) });
+    await self.finishPhraseRange(DOC.length);
+    expect(Notice.instances.at(-1)!.message).toBe(`${DOC.length} characters selected; the limit is 5. Tap an earlier last word.`);
+    expect(self.pendingPhraseStart).toBe(0);
+    expect(dialog()).toBeNull();
+  });
+
+  it("counts the characters of the text the model will see, not the note's markup", async () => {
+    const markup = "**我打算**==明年==";
+    const view = chineseView({ docSlice: () => markup, docText: () => markup });
+    const { self } = make({ pendingPhraseStart: 0, settings: settings((s) => ((s.ai.enabled = true), (s.explain.maxPhraseChars = 6))), app: { workspace: workspace({ [VIEW_TYPE_CHINESE]: [{ view }] }), loadLocalStorage: () => "sk-test" } });
+    await self.finishPhraseRange(markup.length);
+    expect(Notice.instances).toHaveLength(0);
+    expect(dialog()).toBeTruthy();
+  });
+
+  it("asks a user who has set AI up since entering the mode to finish setting it up, and drops the selection", async () => {
+    const { self } = make({ pendingPhraseStart: start, app: { workspace: workspace({ [VIEW_TYPE_CHINESE]: [{ view: chineseView({ docSlice: (a: number, b: number) => DOC.slice(a, b), docText: () => DOC }) }] }), loadLocalStorage: () => null } });
+    self.settings.ai.provider = "openai";
+    await self.finishPhraseRange(end);
+    expect(document.body.querySelector(".cci-aisetup-modal")).toBeTruthy();
+    expect(dialog()).toBeNull();
+    expect(self.pendingPhraseStart).toBeNull();
+  });
+
+  it("explain on a single word goes to the word note, with the sentence it stands in", async () => {
+    const at = DOC.indexOf("打算");
+    const { self } = make({ pendingPhraseStart: at }, [word("打算")]);
+    await self.finishPhraseRange(at + 2);
+    expect(self.openExplainModal).toHaveBeenCalledWith("打算", "我打算明年去北京。");
+    expect(dialog()).toBeNull();
+  });
+
+  it("a selection of one word is not a phrase even when there is other Chinese around it in the tokens", async () => {
+    const at = DOC.indexOf("打算");
+    const { self } = make({ pendingPhraseStart: at }, [word("打"), word("算")]);
+    await self.finishPhraseRange(at + 2);
+    expect(self.openExplainModal).not.toHaveBeenCalled();
+    expect(dialog()).toBeTruthy();
+  });
+
+  it("proof read on a single word still proof reads it, and explain on text with a word the dictionary does not know is a phrase", async () => {
+    const at = DOC.indexOf("打算");
+    const proof = make({ pendingPhraseStart: at, settings: settings((s) => ((s.ai.enabled = true), (s.phraseAction = "proofread"))) }, [word("打算")]);
+    await proof.self.finishPhraseRange(at + 2);
+    expect(proof.self.openExplainModal).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Proof read this text");
+    document.body.innerHTML = "";
+    const unknown = make({ pendingPhraseStart: at }, [{ isWord: true, surface: "打算", candidates: [] }]);
+    await unknown.self.finishPhraseRange(at + 2);
+    expect(unknown.self.openExplainModal).not.toHaveBeenCalled();
+    expect(dialog()).toBeTruthy();
+  });
+
+  it("falls back to the selection itself when the reader's text cannot be had for the sentence", async () => {
+    const at = DOC.indexOf("打算");
+    const { self, view } = make({ pendingPhraseStart: at }, [word("打算")]);
+    view.docText = () => null;
+    await self.finishPhraseRange(at + 2);
+    expect(self.openExplainModal).toHaveBeenCalledWith("打算", "打算");
+  });
+});
+
+describe("the lightbulb mode state", () => {
+  it("is an interactive mode, so taps are claimed for it", () => {
+    expect(call("isInteractiveMode", { viewMode: "explain" })).toBe(true);
+  });
+
+  it("drops a half-finished selection when the mode is entered or left", () => {
+    const self: any = plugin({ viewMode: "read", pendingPhraseStart: 4, pendingPhraseStartSurface: "打算", refreshChineseViewToolbars: vi.fn() });
+    self.setActiveViewMode("explain");
+    expect([self.pendingPhraseStart, self.pendingPhraseStartSurface]).toEqual([null, null]);
+    self.pendingPhraseStart = 9;
+    self.pendingPhraseStartSurface = "明年";
+    self.setActiveViewMode("read");
+    expect([self.pendingPhraseStart, self.pendingPhraseStartSurface]).toEqual([null, null]);
+    self.pendingPhraseStart = 2;
+    self.setActiveViewMode("format");
+    expect(self.pendingPhraseStart).toBe(2);
   });
 });

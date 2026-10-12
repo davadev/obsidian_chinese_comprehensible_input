@@ -82,7 +82,8 @@ describe("the shipped release notes", () => {
     const titles = RELEASE_NOTES.find((n) => n.version === "0.9.0")?.items.map((i) => i.title.toLowerCase()).join(" | ") ?? "";
     expect(titles).toContain("status / hsk");
     expect(titles).toContain("mnemonics");
-    expect(titles).toContain("explain");
+    expect(titles).toContain("explain a word");
+    expect(titles).toContain("proof read");
   });
 });
 

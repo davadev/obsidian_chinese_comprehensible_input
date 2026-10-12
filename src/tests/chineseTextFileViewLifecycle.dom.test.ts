@@ -315,6 +315,13 @@ describe("unsaved smart-story preview bar", () => {
 describe("proof read: replacing a range in the note", () => {
   const doc = "我昨天去了商店。\n";
 
+  it("reads the whole document, or nothing when the editor is not open", async () => {
+    const { view } = makeView(doc);
+    expect(view.docText()).toBeNull();
+    await view.onOpen();
+    expect(view.docText()).toBe(doc);
+  });
+
   it("reads a slice of the document, and refuses ranges outside it or a closed editor", async () => {
     const { view } = makeView(doc);
     expect(view.docSlice(0, 2)).toBeNull();
