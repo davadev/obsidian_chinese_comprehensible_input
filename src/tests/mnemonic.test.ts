@@ -129,7 +129,7 @@ describe("mnemonic facts block and repair prompt", () => {
 
   it("lists the defects in the repair prompt", () => {
     expect(buildMnemonicRepairPrompt(["a", "b"])).toBe(
-      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good."
+      "Your last answer broke these rules:\n- a\n- b\nReply again with corrected JSON only, keeping what was already good. Where a Chinese character crept into a picture group, draw it as an emoji or leave it out."
     );
   });
 

@@ -341,7 +341,7 @@ export function buildMnemonicFactsBlock(shape: WordShape, glosses?: string[]): s
 export function buildMnemonicRepairPrompt(issues: string[]): string {
   return (
     `Your last answer broke these rules:\n${issues.map((i) => `- ${i}`).join("\n")}\n` +
-    `Reply again with corrected JSON only, keeping what was already good.`
+    `Reply again with corrected JSON only, keeping what was already good. Where a Chinese character crept into a picture group, draw it as an emoji or leave it out.`
   );
 }
 
