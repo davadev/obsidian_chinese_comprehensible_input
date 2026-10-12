@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { radicalOf } from "../dictionary/radicals";
 
 /**
@@ -41,6 +42,16 @@ describe("radicalOf", () => {
 
   it("says nothing for anything that is not one character of the common block", () => {
     for (const s of ["", "a", "真的", "🙂", "𠀀", "〇"]) expect(radicalOf(s)).toBe("");
+  });
+});
+
+describe("the Unihan data's licence", () => {
+  it("travels with the data as a legal comment, which esbuild keeps in the shipped main.js, and is in NOTICE.md", () => {
+    const generated = readFileSync("src/dictionary/radicalMap.generated.ts", "utf8");
+    expect(generated.startsWith("/*! Radical data derived from the Unicode Unihan database")).toBe(true);
+    expect(generated).toContain("UNICODE LICENSE V3");
+    expect(generated).toContain("this copyright and permission notice appear with all copies");
+    expect(readFileSync("NOTICE.md", "utf8")).toContain("UNICODE LICENSE V3");
   });
 });
 
