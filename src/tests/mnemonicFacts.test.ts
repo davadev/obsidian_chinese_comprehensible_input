@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   allowedHanzi,
+  assembleLine,
   ccdFacts,
   ccdLeaves,
   charFacts,
@@ -12,6 +13,8 @@ import {
   parseMmah,
   parsePlecoFlat,
   plecoFacts,
+  shortDef,
+  singleCharFacts,
   storyPairs,
   toneOf,
   toneStrip,
@@ -138,5 +141,44 @@ describe("Pleco-forum files", () => {
     expect(ccdFacts("想", m)).toBe("想: parts: 心 (heart) + 相 (each other) [= 木 (tree) + 目 (eye)]");
     expect(ccdFacts("心", m)).toBeNull();
     expect(ccdLeaves("无", m)).toEqual([]);
+  });
+});
+
+describe("round 4: per-character line and single-character facts", () => {
+  const M3 = parseMmah(
+    [
+      '{"character":"想","definition":"think; want","decomposition":"⿱相心","etymology":{"type":"pictophonetic","phonetic":"相","semantic":"心","hint":"mind"}}',
+      '{"character":"相","definition":"mutual","decomposition":"？"}',
+      '{"character":"心","definition":"heart","decomposition":"？"}',
+      '{"character":"山","definition":"mountain","etymology":{"type":"pictographic","hint":"Three peaks"}}',
+      '{"character":"田","definition":"field","etymology":{"type":"pictographic"}}',
+      '{"character":"一","definition":"one","etymology":{"type":"ideographic","hint":"one stroke"},"decomposition":"一"}',
+      '{"character":"无","definition":"","decomposition":"？"}',
+    ].join("\n")
+  );
+
+  it("labels sound and meaning parts only when asked", () => {
+    expect(singleCharFacts("想", M3, true)).toBe("想: pictophonetic; parts: 相 (mutual) [sound only] + 心 (heart) [meaning]; origin: mind");
+    expect(singleCharFacts("想", M3, false)).toBe("想: pictophonetic; parts: 相 (mutual) + 心 (heart); origin: mind");
+  });
+
+  it("uses the hint for pictographs and says nothing when there is nothing to say", () => {
+    expect(singleCharFacts("山", M3, true)).toBe("山: pictographic; origin: Three peaks");
+    expect(singleCharFacts("田", M3, true)).toBeNull();
+    expect(singleCharFacts("一", M3, true)).toBe("一: ideographic; origin: one stroke");
+    expect(singleCharFacts("无", M3, true)).toBeNull();
+    expect(singleCharFacts("水", M3, true)).toBeNull();
+  });
+
+  it("shortens definitions", () => {
+    expect(shortDef("想", M3)).toBe("think");
+    expect(shortDef("无", M3)).toBe("");
+    expect(shortDef("水", M3)).toBe("");
+    expect(shortDef("想", parseMmah(`{"character":"想","definition":"${"a".repeat(60)}"}`))).toHaveLength(40);
+  });
+
+  it("puts each tone cue straight after its own group and the meaning last", () => {
+    expect(assembleLine(["🖼️", "📖", "🏛️"], ["tú", "shū", "guǎn"], "📚")).toBe("🖼️↗️📖➡️🏛️↘️↗️📚");
+    expect(assembleLine(["🌳"], ["xiǎng", "x"], "🤔")).toBe("🌳↘️↗️〰️🤔");
   });
 });

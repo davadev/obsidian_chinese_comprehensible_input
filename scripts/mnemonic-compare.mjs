@@ -28,10 +28,13 @@ import {
   extractCues,
   idsLeaves,
   pairCorrect,
+  assembleLine,
   parseCcd,
   parseMmah,
   parsePlecoFlat,
   plecoFacts,
+  shortDef,
+  singleCharFacts,
   storyPairs,
   toneOf,
   toneStrip,
@@ -124,6 +127,50 @@ const SYSTEM_NEW =
   "- Never invent parts a character does not have. When 'Character facts' are given, use ONLY the parts listed there; otherwise describe what the character actually looks like.\n\n" +
   "Output strict JSON only: {\"components\":string,\"meaning\":string,\"story\":string}. No prose before or after. No markdown code fences.";
 
+// Round 4: one picture group per character, each followed by its own tone cue; parts only for single-character words.
+const SYSTEM_PC =
+  "You are an expert coach for Chinese character mnemonics for adult learners. You return THREE things for one word: a picture group for EACH character, an emoji strip for the whole word's meaning, and a short story that explains them.\n\n" +
+  "\"characters\" — an array with exactly one string per character, in order. Each string is 1 to 3 emoji (single-character words: up to 4) that make the character memorable: for a multi-character word, a picture of what that character means or looks like; for a single-character word, the parts it is built from. Emoji only: no Chinese characters, no words, no tone cue (the app attaches each character's tone cue right after its group).\n" +
+  "\"meaning\" — emoji for the meaning of the whole word. An ENGLISH word (one or two at most) only where no emoji can carry it (particles, abstract senses). No Chinese characters.\n" +
+  "All groups and the meaning TOGETHER must fit the grapheme budget given in the request. Shorter is better.\n\n" +
+  "\"story\" — one short paragraph, plain English, second person (\"you\"). Say which emoji stands for which character or part, and finish on the English meaning as the punchline.\n" +
+  "- Every time you name a Chinese character or word, put its tone-marked pinyin in parentheses right after it — 学 (xué), 习 (xí). Never leave a bare hanzi.\n" +
+  "- Concrete, sensory, slightly absurd imagery.\n" +
+  "- The tone cues are added by the app: never mention the app. You may refer to the arrows as the tone cue.\n" +
+  "- Pinyin is required for the word's own characters and for parts that are ordinary words (木, 女, 日). For a radical or stroke that is not a word, name it by its English picture instead of giving pinyin.\n" +
+  "- Never invent parts a character does not have. When 'Character facts' are given, use ONLY the parts listed there; parts marked [sound only] hint at the pronunciation and do not carry the meaning.\n\n" +
+  "Output strict JSON only: {\"characters\":[string],\"meaning\":string,\"story\":string}. No prose before or after. No markdown code fences.";
+
+const SCHEMA_PC = {
+  type: "object",
+  required: ["characters", "meaning", "story"],
+  additionalProperties: false,
+  properties: { characters: { type: "array", items: { type: "string" } }, meaning: { type: "string" }, story: { type: "string" } },
+};
+
+function pcUserPrompt(g, arm, graphemeLength) {
+  const syl = wordSyllables(g.pinyin);
+  const chars = Array.from(g.word);
+  const cues = syl.map((s) => toneStrip([s]));
+  const budget = Math.max(6, 40 - cues.reduce((n, c) => n + graphemeLength(c), 0));
+  const single = chars.length === 1;
+  const lines = [`Word: ${g.word}`, `Pinyin: ${g.pinyin}`, `HSK level: ${g.hsk || "(not in HSK lists)"}`, `Meaning(s): ${g.def}`, ``];
+  lines.push(`Characters (give one picture group for each, in this order; the app attaches the tone cue after it):`);
+  const aligned = chars.length === syl.length;
+  chars.forEach((c, i) => {
+    const gloss = single ? "" : shortDef(c, MMAH);
+    lines.push(`${i + 1}. ${c} ${aligned ? syl[i] : ""} — tone cue ${aligned ? cues[i] : "?"}${gloss ? ` — means: ${gloss}` : ""}`);
+  });
+  lines.push(`Budget for all groups + meaning together: ${budget} graphemes. Return exactly ${syl.length} string(s) in "characters".`);
+  if (single && arm !== "pc") {
+    const f = singleCharFacts(g.word, MMAH, arm === "pcparts");
+    lines.push(``, `Character facts (from a reference dictionary; use ONLY these parts, do not add others):`);
+    lines.push(f ? `- ${f}` : `- (no reliable structure data for this character: describe what it actually looks like)`);
+  }
+  lines.push(``, `Give me the picture groups, the emoji meaning and the story. Reply with JSON only.`);
+  return { text: lines.join("\n"), syl };
+}
+
 const SCHEMA_NEW = {
   type: "object",
   required: ["components", "meaning", "story"],
@@ -195,7 +242,7 @@ async function load(spec) {
   return import(`${pathToFileURL(bundleFile).href}?m=${++loadN}`);
 }
 
-const ARMS = String(arg("arms", "old,tones,gated,pleco,ccd")).split(",").filter(Boolean);
+const ARMS = String(arg("arms", "old,tones,pc,pcparts,pcplain")).split(",").filter(Boolean);
 const rows = [];
 const jobs = [];
 
@@ -230,6 +277,21 @@ async function oneJob({ spec, lib }, g, arm, run) {
       line = p.obj.mnemonic.trim();
       story = p.obj.story.trim();
       row.toneExact = JSON.stringify(extractCues(line)) === JSON.stringify(syl.map(toneOf));
+    } else if (arm.startsWith("pc")) {
+      const built = pcUserPrompt(g, arm, graphemeLength);
+      row.prompt = built.text;
+      const raw = await ai.chatJson(SYSTEM_PC, built.text, "Mnemonic", SCHEMA_PC);
+      let obj;
+      try {
+        obj = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+      } catch {
+        throw new Error("not valid JSON");
+      }
+      if (!Array.isArray(obj.characters) || typeof obj.meaning !== "string" || typeof obj.story !== "string") throw new Error("missing field");
+      row.groupsOk = obj.characters.length === built.syl.length;
+      line = assembleLine(obj.characters, built.syl, obj.meaning);
+      story = obj.story.trim();
+      row.toneExact = JSON.stringify(extractCues(line)) === JSON.stringify(built.syl.map(toneOf));
     } else {
       const built = newUserPrompt(g, !["old", "tones"].includes(arm), graphemeLength, arm);
       const raw = await ai.chatJson(SYSTEM_NEW, built.text, "Mnemonic", SCHEMA_NEW);
@@ -315,6 +377,7 @@ for (const spec of SPECS) {
   const metric = (name, f) => tbl.push(`| ${name} | ${ARMS.map((a) => f(a)).join(" | ")} |`);
   metric("ok / tried", (a) => `${ok(a).length}/${rs(a).length}`);
   metric("line ≤ 40 graphemes", (a) => `${ok(a).filter((r) => r.lineOk).length}/${ok(a).length}`);
+  metric("one picture group per character", (a) => (a.startsWith("pc") ? `${ok(a).filter((r) => r.groupsOk).length}/${ok(a).length}` : "n/a"));
   metric("line has no hanzi", (a) => `${ok(a).filter((r) => r.hanFree).length}/${ok(a).length}`);
   metric("tone cues exactly right", (a) => `${ok(a).filter((r) => r.toneExact).length}/${ok(a).length}`);
   metric("story: hanzi followed by pinyin (share)", (a) => pct(ok(a).reduce((s, r) => s + r.pairs, 0) / Math.max(1, ok(a).reduce((s, r) => s + r.pairs + r.bare, 0))));
