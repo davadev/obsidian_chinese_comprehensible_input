@@ -10,6 +10,8 @@ you met (it still covers the other senses).
 
 ## What is in a note
 
+<img src="../resources/screenshots/explain-word-annotated.png" alt="A word note: sections, watch-out list, cost and Save" width="420">
+
 Every note has the same layout, so it is easy to scan on a phone:
 
 | Section | What it gives you |
@@ -59,6 +61,13 @@ The selection is limited (default 150 characters, about two or three sentences; 
 text**): more costs more and is explained worse. A longer selection is refused with the count, and you can simply tap an
 earlier last word.
 
+<img src="../resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown" width="560">
+
+<img src="../resources/screenshots/explain-phrase-confirm-annotated.png" alt="The confirm dialog: text, length, cost, Explain" width="420">
+
+The confirm dialog: **1** the text that will be sent, **2** its length against the limit, **3** the estimated cost, **4** the button
+that actually sends it.
+
 ### Explain
 
 - **One word** selected: you get the normal word note described above.
@@ -71,6 +80,8 @@ earlier last word.
 - A **typo** is mentioned briefly in the note, and the words are explained as written.
 - If the check says the text is **wrong** (so broken that an explanation would teach something false), the dialog says why and
   offers **Proof read this instead**; it does not explain wrong grammar.
+<img src="../resources/screenshots/explain-phrase-annotated.png" alt="A phrase explained word by word" width="420">
+
 - Like the word note: preview first, then **Save as note** (same folder; `cci-explain-phrase` in its header), **Copy**
   or **Regenerate**.
 
@@ -84,6 +95,8 @@ and a fix is written into the note only if the text there is still exactly what 
 dialog was open, nothing is replaced and you are told to select again). Text that has formatting in the note (bold,
 highlights, links) can still be applied when the wrong part itself is plain text; if the formatting runs through it, copy
 the corrected text instead.
+
+<img src="../resources/screenshots/explain-proofread-annotated.png" alt="Proof reading with Apply and Apply all" width="420">
 
 ### Cost
 
