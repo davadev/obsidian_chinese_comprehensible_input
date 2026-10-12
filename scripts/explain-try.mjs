@@ -13,6 +13,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildEvalBundle } from "./lib/evalBundle.mjs";
 import { costUsd, safeError } from "./lib/modelEval.mjs";
 
+// safeError keeps only the first line, which for an HTTP error is just "{"; a trial wants the whole message (key masked).
+const whole = (err) => safeError(err).length > 3 ? safeError(err) : String((err && err.message) || err).replace(/sk-[A-Za-z0-9_-]{8,}/g, "sk-…").replace(/\s+/g, " ").slice(0, 400);
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -73,8 +76,8 @@ for (const word of words) {
     summary.push(`| ${word} | ${((Date.now() - t0) / 1000).toFixed(1)} | ${issues.length ? issues.join(" ") : "none"} | $${cost.toFixed(4)} |`);
     console.log(`${word}: ok, ${issues.length} issue(s)`);
   } catch (err) {
-    summary.push(`| ${word} | – | FAILED: ${safeError(err)} | – |`);
-    console.log(`${word}: FAILED ${safeError(err)}`);
+    summary.push(`| ${word} | – | FAILED: ${whole(err)} | – |`);
+    console.log(`${word}: FAILED ${whole(err)}`);
   }
 }
 const text = summary.join("\n");
