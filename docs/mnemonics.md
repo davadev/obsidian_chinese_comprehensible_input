@@ -5,7 +5,7 @@ A mnemonic is a memory hook attached to one word. In this plugin it has
 
 | Half | What it is | Where you see it |
 |---|---|---|
-| **Emoji line** | A compact, mostly-emoji cue — max 40 characters | On the word card, always |
+| **Emoji line** | A compact, mostly-emoji cue with the tone numbers — max 40 characters | On the word card, always |
 | **Story** | The prose that unpacks the emoji line | Behind the `▾` on the card |
 
 Both are optional; fill in either, both, or neither.
@@ -51,24 +51,43 @@ half-write a line and let the model finish it.
 
 ### What the AI aims for
 
-The built-in system prompt asks for three things in the emoji line,
-because those are what learners actually forget:
+Since 0.9.0 the plugin works out everything it can itself and asks the model
+only to draw. The model returns one **picture group per character** (1–3
+emoji) and a story. The plugin then writes the line:
 
-1. **Components / radicals** — each character part as a concrete image.
-2. **Tone** — a consistent cue per syllable: ➡️ 1st (flat), ↗️ 2nd
-   (rising), ↘️↗️ 3rd (dip then rise), ↘️ 4th (sharp drop), 〰️ neutral.
-3. **Meaning** — last, so recall runs image → meaning.
+- **Words of several characters** — one picture per character, each followed
+  by that character's **tone number** as a small raised digit:
+  `🗺️²📖¹🏛️³` for 图书馆 (tú ² · shū ¹ · guǎn ³). The tone sits right
+  after the character it belongs to. `⁰` is the neutral tone. The model is
+  told what each character means (from the dictionary) and picks pictures
+  that, in order, hint at the meaning of the whole word, so there is no
+  separate meaning strip to repeat them.
+- **A single character** — the parts it is built from, then the tone number,
+  then a short emoji strip for the meaning: `❤️³🤔` for 想 (xiǎng).
 
-Emoji come first; an English word is allowed only where no emoji can
-carry the idea (grammar particles, abstract senses). The line never
-contains Chinese characters — the word itself is already shown right next
-to it, so repeating the hanzi would just eat the 40-character budget.
+Tone numbers are standard pinyin tone numbers, so ¹ is the flat first tone
+and ⁴ is the falling fourth. Because the plugin writes them, they are always
+right; in testing, models asked to write the tone cues themselves got them
+wrong in up to half of the answers. It also frees arrows and other symbols
+for the pictures themselves.
 
-The story then says which emoji stands for which component, names the
-tone cue, and lands on the English meaning. Whenever it mentions a
-Chinese character it gives the tone-marked pinyin alongside — 学 (xué),
-not a bare 学 — so it stays readable while you are still learning the
-characters.
+The line never contains Chinese characters, letters or digits from the model
+— the word is already shown next to it. The plugin checks the model's answer
+(right number of groups, emoji only, a short meaning strip, within the
+40-character budget) and, if a rule was broken, asks once more with the
+specific problem. If it is still wrong you are told what is off instead of
+being handed a silently worse result, and Chinese characters are removed from
+the line either way.
+
+The story says which emoji stands for which character or part and lands on
+the English meaning. The word's own characters always carry their
+tone-marked pinyin — 学 (xué), not a bare 学 — and that pinyin is written by
+the plugin from the dictionary, so a model slip cannot teach you a wrong
+reading. Parts are described by their picture ("the water radical"), not by
+pinyin.
+
+Mnemonics you already have keep the style they were written in; generating
+again replaces them with the new style.
 
 ## Personalising the prompt
 
@@ -90,8 +109,12 @@ different language, or point it at a memory palace you already use.
 Anything else in `{braces}` is passed through untouched. Clearing the box
 falls back to the built-in prompt; **Reset to default prompt** restores it.
 
-The emoji rules live in the fixed *system* prompt, so a customised user
-template still gets them — and the JSON-only output contract stays intact.
+The emoji rules live in the fixed *system* prompt, and the plugin appends the
+character list (with each character's tone number and meaning) and the
+character budget to your template, so a customised template still gets them —
+and the JSON-only output contract stays intact. If you never edited the
+template, 0.9.0 replaces the old default (which told the model to encode the
+tones) with the new one; a template you changed is left exactly as it is.
 
 ## What happened to mnemonics written before 0.5.0
 

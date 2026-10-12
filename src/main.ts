@@ -9,7 +9,7 @@ import {
 } from "./dictionary/DictionaryTypes";
 import { clearTokenCache } from "./tokenizer/tokenCache";
 import { AiUsageEntry, CciSettings, ViewMode } from "./settings/types";
-import { migrateAiSettingsToV2, migrateOverrideKeys } from "./settings/migrations";
+import { migrateAiSettingsToV2, migrateMnemonicPrompt, migrateOverrideKeys } from "./settings/migrations";
 import {
   DEFAULT_CRASH_STATE,
   crashStatePath,
@@ -357,6 +357,7 @@ export default class CciPlugin extends Plugin {
       // never be persisted to data.json. Force it back to "" in case a
       // hand-edited or older blob slipped one in.
       this.settings.ai.ollama.apiKey = "";
+      this.settings.ai.mnemonicPrompt = migrateMnemonicPrompt(this.settings.ai.mnemonicPrompt);
     }
     // Rescue any legacy v1 ai.apiKey (or stray v2 ai.ollama.apiKey) into
     // device-local secret storage so the user doesn't have to re-paste.

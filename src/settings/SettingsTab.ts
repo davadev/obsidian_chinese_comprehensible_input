@@ -1140,14 +1140,14 @@ export class CciSettingsTab extends PluginSettingTab {
       items: [
         this.docLink(
           "Mnemonics",
-          "How the generated mnemonic is built (emoji line, components, tone, meaning) and how to make it yours.",
+          "How the generated mnemonic is built (a picture per character, tone numbers, story) and how to make it yours.",
           "mnemonics.md"
         ),
         this.prose(
           "Sent to the model when you press \"Generate with AI\" in a word's Mnemonic editor. " +
             "Personalise it — name the imagery you remember best, the language you want it in, how rude or silly it may be. " +
             "Placeholders: {word}, {pinyin}, {traditional}, {definitions}, {sentence}, {hsk}, {existing}, {existingStory}. " +
-            "The emoji-line rules live in the fixed system prompt, so your edits here keep them. " +
+            "The emoji-line rules live in the fixed system prompt and the plugin adds the character list and tone numbers itself, so your edits here keep them. " +
             "Leave it empty to fall back to the built-in prompt."
         ),
         {

@@ -18,6 +18,7 @@ import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildEvalBundle } from "./lib/evalBundle.mjs";
+import * as OLD from "./mnemonic-compare/oldPrompt.mjs";
 import { costUsd, safeError } from "./lib/modelEval.mjs";
 import { mean, pct } from "./lib/storyMetrics.mjs";
 import {
@@ -306,19 +307,37 @@ async function oneJob({ spec, lib }, g, arm, run) {
     let line = "";
     let story = "";
     if (arm === "old") {
-      const user = lib.buildMnemonicUserPrompt(lib.DEFAULT_MNEMONIC_USER_TEMPLATE, {
+      const user = lib.buildMnemonicUserPrompt(OLD.DEFAULT_MNEMONIC_USER_TEMPLATE, {
         surface: g.word,
         pinyin: g.pinyin,
         traditional: g.word,
         definitions: [g.def],
         hskLevels: g.hsk ? [g.hsk] : [],
       });
-      const raw = await ai.chatJson(lib.MNEMONIC_SYSTEM_PROMPT, user, "Mnemonic", lib.MNEMONIC_SCHEMA);
+      const raw = await ai.chatJson(OLD.MNEMONIC_SYSTEM_PROMPT, user, "Mnemonic", OLD.MNEMONIC_SCHEMA);
       const p = parseJson(raw, ["mnemonic", "story"]);
       if (!p.ok) throw new Error(p.reason);
       line = p.obj.mnemonic.trim();
       story = p.obj.story.trim();
       row.toneExact = JSON.stringify(extractCues(line)) === JSON.stringify(syl.map(toneOf));
+    } else if (arm === "plugin") {
+      // The shipped service itself (src/ai/MnemonicService.ts): facts, validation, one repair, line assembly.
+      const svc = lib.makeMnemonic(key, spec.choice, (u) => {
+        for (const k of Object.keys(usage)) usage[k] += u[k];
+      });
+      const han = Array.from(g.word).filter((c) => HAN_RE.test(c));
+      const res = await svc.generate({
+        surface: g.word,
+        pinyin: g.pinyin,
+        definitions: [g.def],
+        hskLevels: g.hsk ? [g.hsk] : [],
+        charGlosses: han.length > 1 ? han.map((c) => shortDef(c, MMAH)) : undefined,
+      });
+      line = res.mnemonic;
+      story = res.story ?? "";
+      row.notes = res.notes ?? [];
+      row.groupsOk = row.notes.length === 0;
+      row.toneExact = JSON.stringify(extractSup(line)) === JSON.stringify(syl.map(toneOf));
     } else if (arm.startsWith("pc")) {
       const built = pcUserPrompt(g, arm, graphemeLength);
       const style = built.style;

@@ -1,5 +1,7 @@
 import { App, Modal, Notice } from "obsidian";
+import { isHanChar } from "../ai/mnemonicFacts";
 import { displayPinyin, displaySurface } from "../dictionary/displayForms";
+import { shortenDefinition } from "../dictionary/normalizeChinese";
 import type CciPlugin from "../main";
 import type { MnemonicInput } from "../ai/MnemonicService";
 import type { WordRecord } from "../vocabulary/VocabularyTypes";
@@ -133,6 +135,12 @@ export class MnemonicModal extends Modal {
 
   private aiInput(): MnemonicInput {
     const dict = this.plugin.dictionary.lookup(this.shown)[0];
+    // A word of several characters gets one picture per character, so the model is told what each one means.
+    const han = Array.from(this.shown).filter(isHanChar);
+    const charGlosses =
+      han.length > 1
+        ? han.map((c) => shortenDefinition(this.plugin.dictionary.lookup(c)[0]?.definitions[0] ?? "", 40))
+        : undefined;
     return {
       surface: this.shown,
       pinyin: displayPinyin(dict, this.rec, this.plugin.settings.pronunciationRegion),
@@ -144,6 +152,7 @@ export class MnemonicModal extends Modal {
       // reroll can build on an edit the user just made.
       existing: this.lineInput.value,
       existingStory: this.storyInput.value,
+      charGlosses,
     };
   }
 
@@ -157,6 +166,8 @@ export class MnemonicModal extends Modal {
       this.lineInput.value = result.mnemonic;
       this.storyInput.value = result.story ?? "";
       this.updateCounter();
+      // Never hide a rule the app could not get the model to follow, even after the repair attempt.
+      if (result.notes?.length) new Notice(`Mnemonic generated, with a caveat: ${result.notes.join(" ")}`);
     } catch (err) {
       if (run !== this.runId) return;
       // Leave both fields untouched — a failed generation must never cost

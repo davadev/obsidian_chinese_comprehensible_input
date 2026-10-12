@@ -172,6 +172,33 @@ describe("Generate with AI", () => {
     expect(plugin.vocab.updateMnemonic).not.toHaveBeenCalled();
   });
 
+  it("gives a word of several characters a short gloss per character, and a single character none", async () => {
+    const long = "x".repeat(60);
+    const { root, plugin } = make({ dict: [{ pinyin: "xué xí", definitions: [long] }] });
+    btn(root, "Generate with AI").click();
+    await vi.waitFor(() => expect(plugin.mnemonic.generate).toHaveBeenCalled());
+    expect(plugin.mnemonic.generate.mock.calls[0][0].charGlosses).toEqual(["x".repeat(39) + "…", "x".repeat(39) + "…"]);
+
+    document.body.innerHTML = "";
+    const one = make({ rec: REC({ surfaces: ["学"], simplified: "学", traditional: "学" }) });
+    btn(one.root, "Generate with AI").click();
+    await vi.waitFor(() => expect(one.plugin.mnemonic.generate).toHaveBeenCalled());
+    expect(one.plugin.mnemonic.generate.mock.calls[0][0].charGlosses).toBeUndefined();
+
+    document.body.innerHTML = "";
+    const bare = make({ dict: [{ pinyin: "xué xí", definitions: [] }] });
+    btn(bare.root, "Generate with AI").click();
+    await vi.waitFor(() => expect(bare.plugin.mnemonic.generate).toHaveBeenCalled());
+    expect(bare.plugin.mnemonic.generate.mock.calls[0][0].charGlosses).toEqual(["", ""]);
+  });
+
+  it("tells the learner when the app could not get the model to follow a rule", async () => {
+    const { root } = make({ generate: async () => ({ mnemonic: "🍎", notes: ["Picture group 1 is empty.", "Another."] }) });
+    btn(root, "Generate with AI").click();
+    await vi.waitFor(() => expect(line(root).value).toBe("🍎"));
+    expect(lastNotice()).toBe("Mnemonic generated, with a caveat: Picture group 1 is empty. Another.");
+  });
+
   it("falls back to the record when the dictionary has no entry", async () => {
     const { root, plugin } = make({ rec: REC({ definitions: undefined, hsk: undefined }) });
     btn(root, "Generate with AI").click();

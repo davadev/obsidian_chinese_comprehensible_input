@@ -1,20 +1,31 @@
 import { AiProviderService } from "./AiProviderService";
 import { CciSettings } from "../settings/types";
-import { clampGraphemes } from "../vocabulary/mnemonicText";
+import {
+  MnemonicParts,
+  WordShape,
+  assembleLine,
+  repairStoryPinyin,
+  validateParts,
+  wordShape,
+} from "./mnemonicFacts";
 import {
   MNEMONIC_SCHEMA,
   MNEMONIC_SYSTEM_PROMPT,
   MnemonicPromptArgs,
+  buildMnemonicFactsBlock,
+  buildMnemonicRepairPrompt,
   buildMnemonicUserPrompt,
 } from "./prompts";
 
 export type MnemonicInput = MnemonicPromptArgs;
 
 export interface MnemonicResult {
-  /** The short emoji line. Always present. */
+  /** The short emoji line, assembled by the app. Always present. */
   mnemonic: string;
-  /** The prose that unpacks the emoji line. */
+  /** The prose that unpacks the emoji line, with the word's own pinyin written by the app. */
   story?: string;
+  /** What the app could not get right even after one repair; shown to the user, never hidden. */
+  notes?: string[];
 }
 
 /** Runaway guard for the story. The system prompt asks for one short
@@ -24,12 +35,18 @@ export interface MnemonicResult {
  *  it is counted in graphemes rather than chars. */
 const STORY_MAX_CHARS = 2000;
 
+interface ParsedAnswer extends MnemonicParts {
+  story: string;
+}
+
 /**
- * Generates a mnemonic for a single word (#49). Same one-prompt /
- * one-parse call pattern as `EnhanceDictionaryService` — the response is
- * two short strings, so the multi-tier salvage of `parseStory` is not
- * needed. The user-facing prompt template comes from settings so the
- * result can be personalised.
+ * Generates a mnemonic for a single word (#49, harness #185).
+ *
+ * The model returns one picture group per character, an optional meaning strip and a story. The app works out
+ * everything it can itself: it lists the characters with their tones in the request, checks the answer against the
+ * same facts, asks once more if a rule was broken, then writes the emoji line (each group followed by its tone
+ * number) and the word's own pinyin in the story. The user-facing prompt template still comes from settings so the
+ * result can be personalised; the facts are appended whatever the template says.
  */
 export class MnemonicService {
   constructor(
@@ -38,23 +55,57 @@ export class MnemonicService {
   ) {}
 
   async generate(input: MnemonicInput): Promise<MnemonicResult> {
+    const shape = wordShape(input.surface, input.pinyin);
     const template = this.settings().ai.mnemonicPrompt;
-    const user = buildMnemonicUserPrompt(template, input);
-    const raw = await this.ai.chatJson(
-      MNEMONIC_SYSTEM_PROMPT,
-      user,
-      "Mnemonic",
-      MNEMONIC_SCHEMA
+    const user = `${buildMnemonicUserPrompt(template, input)}\n\n${buildMnemonicFactsBlock(shape, input.charGlosses)}`;
+    let answer = parseMnemonicAnswer(
+      await this.ai.chatJson(MNEMONIC_SYSTEM_PROMPT, user, "Mnemonic", MNEMONIC_SCHEMA)
     );
-    return parseMnemonicResult(raw);
+    let issues = validateParts(answer, shape);
+    if (issues.length > 0) {
+      const again = await this.repair(user, issues);
+      if (again) {
+        const remaining = validateParts(again, shape);
+        // Keep the repair only if it is no worse than the first answer.
+        if (remaining.length <= issues.length) {
+          answer = again;
+          issues = remaining;
+        }
+      }
+    }
+    return finish(answer, shape, issues);
   }
+
+  /** One extra try with the specific defects. A failure here must not cost the user the first answer. */
+  private async repair(user: string, issues: string[]): Promise<ParsedAnswer | null> {
+    try {
+      return parseMnemonicAnswer(
+        await this.ai.chatJson(
+          MNEMONIC_SYSTEM_PROMPT,
+          `${user}\n\n${buildMnemonicRepairPrompt(issues)}`,
+          "Mnemonic",
+          MNEMONIC_SCHEMA
+        )
+      );
+    } catch {
+      return null;
+    }
+  }
+}
+
+function finish(answer: ParsedAnswer, shape: WordShape, issues: string[]): MnemonicResult {
+  const result: MnemonicResult = { mnemonic: assembleLine(answer, shape) };
+  const story = repairStoryPinyin(answer.story, shape).trim();
+  if (story) result.story = clamp(story, STORY_MAX_CHARS);
+  if (issues.length > 0) result.notes = issues;
+  return result;
 }
 
 /** Pull the first balanced `{ … }` block out of `raw` and JSON.parse it.
  *  Tolerant of leading prose or markdown fences (the system prompt asks
  *  for neither, but local LLMs sometimes ignore that). Throws a
  *  human-readable Error on failure. */
-function parseMnemonicResult(raw: string): MnemonicResult {
+function parseMnemonicAnswer(raw: string): ParsedAnswer {
   const trimmed = raw.trim();
   const firstBrace = trimmed.indexOf("{");
   const lastBrace = trimmed.lastIndexOf("}");
@@ -70,16 +121,15 @@ function parseMnemonicResult(raw: string): MnemonicResult {
   }
   // The slice starts at "{", so it parses to an object or throws above.
   const obj = parsed as Record<string, unknown>;
-  const mnemonic = typeof obj.mnemonic === "string" ? obj.mnemonic.trim() : "";
-  if (!mnemonic) {
-    throw new Error("AI response is missing the required \"mnemonic\" text.");
+  const groups = Array.isArray(obj.characters) ? obj.characters : null;
+  if (!groups || !groups.every((g) => typeof g === "string")) {
+    throw new Error("AI response is missing the required \"characters\" list.");
   }
-  const result: MnemonicResult = { mnemonic: clampGraphemes(mnemonic) };
-  if (typeof obj.story === "string") {
-    const story = obj.story.trim();
-    if (story) result.story = clamp(story, STORY_MAX_CHARS);
-  }
-  return result;
+  return {
+    characters: groups,
+    meaning: typeof obj.meaning === "string" ? obj.meaning : "",
+    story: typeof obj.story === "string" ? obj.story : "",
+  };
 }
 
 function clamp(s: string, max: number): string {
@@ -87,4 +137,4 @@ function clamp(s: string, max: number): string {
 }
 
 /** Exported only for the unit tests in src/tests. */
-export const __testing = { parseMnemonicResult };
+export const __testing = { parseMnemonicAnswer };
