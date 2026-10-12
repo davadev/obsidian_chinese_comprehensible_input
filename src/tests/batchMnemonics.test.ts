@@ -78,7 +78,7 @@ describe("selectBatchWords", () => {
   });
 
   it("lists every word of the note that has a mnemonic as removable, whatever its status or the scope", () => {
-    const withText = { ...records, 我: rec("我", "known", { text: "🙋" }), 学习: rec("学习", "pinyinKnownMeaningUnknown", { story: "s" }) };
+    const withText: Record<string, any> = { ...records, 我: rec("我", "known", { text: "🙋" }), 学习: rec("学习", "pinyinKnownMeaningUnknown", { story: "s" }) };
     const v = { bySurface: (s: string) => withText[s] };
     const r = selectBatchWords(text, tokens, v, "unknown");
     // 我 is known and 学习 is only partial: out of the "unknown" scope, but their mnemonics are still in the note
