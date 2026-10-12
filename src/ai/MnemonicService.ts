@@ -42,7 +42,7 @@ interface ParsedAnswer extends MnemonicParts {
 /**
  * Generates a mnemonic for a single word (#49, harness #185).
  *
- * The model returns one picture group per character, an optional meaning strip and a story. The app works out
+ * The model returns one picture group per character and a story. The app works out
  * everything it can itself: it lists the characters with their tones in the request, checks the answer against the
  * same facts, asks once more if a rule was broken, then writes the emoji line (each group followed by its tone
  * number) and the word's own pinyin in the story. The user-facing prompt template still comes from settings so the
@@ -134,7 +134,6 @@ function parseMnemonicAnswer(raw: string): ParsedAnswer {
   return {
     isName: obj.isName === true,
     characters: groups,
-    meaning: typeof obj.meaning === "string" ? obj.meaning : "",
     story: typeof obj.story === "string" ? obj.story : "",
   };
 }

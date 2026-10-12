@@ -3,7 +3,6 @@ import {
   expectedGroups,
   pictureBudget,
   toneMark,
-  wantsMeaning,
 } from "./mnemonicFacts";
 
 export const STORY_SYSTEM_PROMPT =
@@ -199,7 +198,7 @@ export function buildEnhanceUserPrompt(args: {
 /**
  * System prompt for the AI mnemonic generator (#49, reshaped for #185).
  *
- * The model draws; the app counts. It returns one picture group per character, an optional meaning strip, and the
+ * The model draws; the app counts. It returns one picture group per character and the
  * story. The app attaches each character's tone number, writes the line, and writes the word's own pinyin into the
  * story (`mnemonicFacts.ts`), because tones and pinyin are facts the app already has and the model gets them wrong:
  * measured on a 53-word gold set, the previous prompt, which asked the model to write the tone cues, got them wrong
@@ -209,28 +208,26 @@ export function buildEnhanceUserPrompt(args: {
  */
 export const MNEMONIC_SYSTEM_PROMPT =
   "You are an expert coach for Chinese character mnemonics for adult learners. " +
-  "You return a picture group for each character, an emoji strip for the meaning, and a short story that explains them.\n" +
+  "You return a picture group for each character and a short story that explains them.\n" +
   "\n" +
-  "\"isName\" — true only when, in the sentence the learner met the word in, the word is used as a person's name or part of one, or as another proper name (a place, a brand). Then leave \"characters\" as an empty array and \"meaning\" as an empty string: the app writes a name badge itself. In \"story\" write one plain sentence saying that the word is a name here, with the word's pinyin. Otherwise false.\n" +
+  "\"isName\" — true only when, in the sentence the learner met the word in, the word is used as a person's name or part of one, or as another proper name (a place, a brand). Then leave \"characters\" as an empty array: the app writes a name badge itself. In \"story\" write one plain sentence saying that the word is a name here, with the word's pinyin. Otherwise false.\n" +
   "\n" +
-  "\"characters\" — an array with exactly one string per picture group, in order. The request says how many. Each string is 1 to 3 emoji (up to 4 for a single character) and nothing else: no Chinese characters, no English words, no letters, no digits. The app writes a tone number after each group by itself, so never write tones.\n" +
-  "- A word of several characters gets one group per character: a picture of what that character means or looks like, chosen so that the pictures in order hint at the meaning of the whole word.\n" +
-  "- A single character (or whatever the request lists as one group) gets the picture of the parts it is built from, as concrete images.\n" +
+  "\"characters\" — an array with exactly one string per character, in order. The request says how many. Each string is 1 to 3 emoji and nothing else: no Chinese characters, no English words, no letters, no digits. The app writes a tone number after each group by itself, so never write tones.\n" +
+  "- Each group is a picture of what that character MEANS in this word: a concrete image a learner can see. For a word of several characters, choose the pictures so that, in order, they hint at the meaning of the whole word. For a single character, picture its meaning; do not draw its strokes or parts.\n" +
+  "- Where no picture carries the idea (a grammar particle, an abstract sense) use a symbol emoji, for example ✅ completed, ❓ question, ➕ addition, ⏳ ongoing, 🔁 repeat. Arrows are fine when the meaning needs them.\n" +
   "\n" +
-  "\"meaning\" — only when the request asks for exactly one group: an emoji strip for the meaning, at most 14 characters, emoji only. Never an English word or letters. Where no picture carries the idea (a grammar particle, an abstract sense) use a symbol emoji, for example ✅ completed, ❓ question, ➕ addition, ⏳ ongoing, 🔁 repeat. Arrows are fine when the meaning needs them. For a word with several groups return an empty string.\n" +
-  "\n" +
-  "All groups and the meaning TOGETHER must fit the character budget given in the request. Shorter is better. No sentences, no trailing punctuation.\n" +
+  "All groups TOGETHER must fit the character budget given in the request. Shorter is better. No sentences, no trailing punctuation.\n" +
   "\n" +
   "\"story\" — the prose that unpacks the pictures:\n" +
   "- One short paragraph, plain English, second person (\"you\").\n" +
-  "- Say which emoji stands for which character or part, and finish on the English meaning as the punchline.\n" +
-  "- Put the tone-marked pinyin in parentheses right after each of the word's own characters, the way the request lists them — 学 (xué). Do not give pinyin for parts: name a part by its English picture (the water radical, the heart), or write the character bare.\n" +
+  "- Say which emoji stands for which character, and finish on the English meaning as the punchline.\n" +
+  "- Put the tone-marked pinyin in parentheses right after each of the word's own characters, the way the request lists them — 学 (xué). Do not give pinyin for anything else.\n" +
   "- Concrete, sensory, slightly absurd imagery — absurd is memorable.\n" +
   "- Never mention the app and never talk about sound hints; the tone numbers are added for you.\n" +
-  "- Never invent parts a character does not have; if a split is not helpful, describe what the character actually looks like.\n" +
+  "- You may mention what a character looks like if it helps the picture stick, but never invent parts a character does not have.\n" +
   "\n" +
   "Output strict JSON only matching this shape: " +
-  "{\"isName\":boolean,\"characters\":[string],\"meaning\":string,\"story\":string}. " +
+  "{\"isName\":boolean,\"characters\":[string],\"story\":string}. " +
   "No prose before or after the JSON. No markdown code fences.";
 
 /**
@@ -333,8 +330,7 @@ export function buildMnemonicFactsBlock(shape: WordShape, glosses?: string[]): s
     lines.push(`(the pinyin does not split one syllable per character, so treat the whole word as one group)`);
   }
   lines.push(
-    `Budget for all groups + meaning together: ${pictureBudget(shape)} characters. Return exactly ${want} string(s) in "characters".` +
-      (wantsMeaning(shape) ? ` Also fill "meaning".` : ` Return "" for "meaning".`)
+    `Budget for all groups together: ${pictureBudget(shape)} characters. Return exactly ${want} string(s) in "characters".`
   );
   return lines.join("\n");
 }
@@ -343,12 +339,12 @@ export function buildMnemonicFactsBlock(shape: WordShape, glosses?: string[]): s
 export function buildMnemonicRepairPrompt(issues: string[]): string {
   return (
     `Your last answer broke these rules:\n${issues.map((i) => `- ${i}`).join("\n")}\n` +
-    `Reply again with corrected JSON only, keeping what was already good. Where a Chinese character, an English word or a letter crept into a picture group or the meaning, replace it with an emoji or leave it out.`
+    `Reply again with corrected JSON only, keeping what was already good. Where a Chinese character, an English word or a letter crept into a picture group, replace it with an emoji or leave it out.`
   );
 }
 
 /**
- * All four properties are listed in `required` on purpose. When the user picks
+ * All three properties are listed in `required` on purpose. When the user picks
  * Response format = `json_schema`, `buildResponseFormat` sends this with
  * `strict: true`, and strict mode rejects a schema whose
  * `additionalProperties: false` object has a property missing from
@@ -359,12 +355,11 @@ export function buildMnemonicRepairPrompt(issues: string[]): string {
  */
 export const MNEMONIC_SCHEMA = {
   type: "object",
-  required: ["isName", "characters", "meaning", "story"],
+  required: ["isName", "characters", "story"],
   additionalProperties: false,
   properties: {
     isName: { type: "boolean" },
     characters: { type: "array", items: { type: "string" } },
-    meaning: { type: "string" },
     story: { type: "string" },
   },
 };

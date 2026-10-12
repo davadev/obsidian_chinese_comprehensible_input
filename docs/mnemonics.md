@@ -53,17 +53,18 @@ half-write a line and let the model finish it.
 
 Since 0.9.0 the plugin works out everything it can itself and asks the model
 only to draw. The model returns one **picture group per character** (1–3
-emoji) and a story. The plugin then writes the line:
+emoji) showing what that character **means**, and a story. The plugin then
+writes the line, putting each character's **tone number** right after its
+picture as a small raised digit:
 
-- **Words of several characters** — one picture per character, each followed
-  by that character's **tone number** as a small raised digit:
-  `🗺️²📖¹🏛️³` for 图书馆 (tú ² · shū ¹ · guǎn ³). The tone sits right
-  after the character it belongs to. `⁰` is the neutral tone. The model is
-  told what each character means (from the dictionary) and picks pictures
-  that, in order, hint at the meaning of the whole word, so there is no
-  separate meaning strip to repeat them.
-- **A single character** — the parts it is built from, then the tone number,
-  then a short emoji strip for the meaning: `❤️³🤔` for 想 (xiǎng).
+- **Words of several characters** — `🗺️²📖¹🏛️³` for 图书馆 (tú ² · shū ¹ ·
+  guǎn ³). The tone sits right after the character it belongs to; `⁰` is the
+  neutral tone. The model is told what each character means (from the
+  dictionary) and picks pictures that, in order, hint at the meaning of the
+  whole word.
+- **A single character** — the same, with one picture of its meaning:
+  `🤔💭³` for 想 (xiǎng, "to think"). The picture is the meaning, not the
+  character's strokes or parts, which turned out to be confusing.
 
 Tone numbers are standard pinyin tone numbers, so ¹ is the flat first tone
 and ⁴ is the falling fourth. Because the plugin writes them, they are always
@@ -74,10 +75,10 @@ for the pictures themselves.
 The line is **emoji only** (plus the tone digits the plugin adds). It never
 contains Chinese characters, English words, letters or other digits from the
 model — the word is already shown next to it. For a grammar particle or an
-abstract sense the meaning strip uses a symbol emoji (✅ for completed, ❓ for a
+abstract sense the picture is a symbol emoji (✅ for completed, ❓ for a
 question) instead of a word; anything that is not an emoji is removed and the
 model is asked again. The plugin checks the model's answer
-(right number of groups, emoji only, a short meaning strip, within the
+(right number of groups, emoji only, within the
 40-character budget) and, if a rule was broken, asks once more with the
 specific problem. If it is still wrong you are told what is off instead of
 being handed a silently worse result, and Chinese characters are removed from
@@ -90,12 +91,11 @@ followed by the tone digits, for example `📛³⁴` for 马克 (mǎ kè), and t
 says it is a name. If the same character is also an ordinary word, generate its
 mnemonic from a sentence where it is used normally (or edit it by hand).
 
-The story says which emoji stands for which character or part and lands on
-the English meaning. The word's own characters always carry their
+The story says which emoji stands for which character and lands on the
+English meaning. The word's own characters always carry their
 tone-marked pinyin — 学 (xué), not a bare 学 — and that pinyin is written by
 the plugin from the dictionary, so a model slip cannot teach you a wrong
-reading. Parts are described by their picture ("the water radical"), not by
-pinyin.
+reading. Nothing else in the story gets pinyin.
 
 Mnemonics you already have keep the style they were written in; generating
 again replaces them with the new style.
