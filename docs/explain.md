@@ -2,7 +2,7 @@
 
 **Explain** writes a thorough usage note for one word: not just the translation (the dictionary card and **Enhance**
 already do that), but *when you need it, how to use it, how learners get it wrong, and how it is built*. It shows the
-note in a dialog first; nothing is saved to your vault until you press **Save**.
+note in a dialog first (with a progress bar while it is written, usually 20 to 40 seconds); nothing is saved to your vault until you press **Save**.
 
 It appears on the word card as **Explain**, next to Mnemonic and Edit, whenever AI is switched on. It works with or
 without a sentence; if you opened the card from a sentence, that sentence is sent too so the model can pick the sense
@@ -20,7 +20,7 @@ Every note has the same layout, so it is easy to scan on a phone:
 | **How it behaves in a sentence** | The sentence pattern, the measure word for a noun, and notes on position, negation, objects and complements. For particles and other function words this is written as a grammar point. |
 | **Common combinations** | Frequent collocations and set phrases, with pinyin. |
 | **Examples** | Five to eight natural sentences in different contexts and registers (daily life, work, spoken, formal), each with pinyin and English. |
-| **Watch out** | Mistakes learners really make: the wrong sentence, the corrected one, and why. |
+| **Watch out** | Pitfalls that really trip learners up: a rule in one line, the wrong form when the model is sure of one, and the right form. Each is built from something the note already says (a confusion with a similar word, the sentence pattern, a habit carried over from English, or a register slip), and there may be none. |
 | **Similar words** | Near-synonyms and easily confused words, and when to choose which. |
 | **The characters** | For each character: its meaning, radical, how it is built from parts (which part gives the sound and which the meaning), and where it comes from. |
 | **Notes** | Mainland vs Taiwan differences, politeness, frequency, related idioms. |
@@ -41,6 +41,9 @@ model free rein:
   instead of hiding it.
 - **It cannot check that a rule is true.** A note says so on its face: *AI-generated; check anything important against
   a dictionary or a teacher.*
+- **Pitfalls are the weakest part.** Writing a realistic wrong sentence needs knowledge of real learner errors, which a
+  model does not reliably have, so the section asks for short rules tied to the rest of the note, shows a wrong form
+  only when the model is sure of it, and is left out rather than padded.
 - **Etymology is marked when it is shaky.** Each character's origin is labelled *established* or *a popular or uncertain
   account*; the model is told to leave it out rather than invent one.
 

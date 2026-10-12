@@ -117,9 +117,9 @@ describe("validateExplain", () => {
     expect(validateExplain(r, CTX)).toEqual([]);
   });
 
-  it("allows no mistakes at all, since an invented one is worse than none, but needs a pinyin for every character", () => {
+  it("allows no pitfalls at all, since an invented one is worse than none, but needs a pinyin for every character", () => {
     const r = clone(FULL);
-    r.mistakes = [];
+    r.pitfalls = [];
     expect(validateExplain(r, CTX)).toEqual([]);
     r.characters[1].pinyin = "";
     expect(validateExplain(r, CTX)).toEqual([
@@ -129,13 +129,13 @@ describe("validateExplain", () => {
 
   it("rejects half-filled rows", () => {
     const r = clone(FULL);
-    r.mistakes[0].why = "";
+    r.pitfalls[0].rule = "";
     r.similar[0].difference = "";
     r.collocations[0].english = "";
     r.senses[0].meaning = "";
     expect(validateExplain(r, CTX)).toEqual([
       '"senses" needs at least one sense, each with a label and a meaning.',
-      'Each entry in "mistakes" needs the wrong sentence, the corrected one and the reason.',
+      'Each entry in "pitfalls" needs a rule and the correct form.',
       'Each entry in "similar" needs the word and how it differs.',
       "Each collocation needs the Chinese and its English.",
     ]);
@@ -203,8 +203,20 @@ describe("renderExplainMarkdown", () => {
     expect(md).toContain("### Daily life\n\n这里买东西很方便。\n\n*Zhèlǐ mǎi dōngxi hěn fāngbiàn.*\n\nShopping here is convenient.");
   });
 
-  it("shows mistakes as a wrong line, a corrected line and a reason", () => {
-    expect(md).toContain("- ❌ 我很方便。\n   - ✅ 我很方便。(only as 'I am free')\n   - Say 我方便 only for availability.");
+  it("shows a pitfall as a rule, then the wrong form (when the model was sure of one) and the right form", () => {
+    expect(md).toContain("- **Put the time before 方便, then the activity.**\n   - ❌ 你方便明天见面吗？\n   - ✅ 你明天方便见面吗？");
+    // no wrong form given: only the rule and the correct form
+    expect(md).toContain("- **Use 便利 for facilities, 方便 for people and times.**\n   - ✅ 交通便利 / 你方便吗？\n");
+    expect(md).not.toContain("❌ \n");
+  });
+
+  it("accepts a pitfall without a wrong form and reads an unknown kind as a pattern", () => {
+    const r = normaliseExplain({ pitfalls: [{ kind: "nonsense", rule: "R", right: "Y" }, { kind: "register", rule: "R2", wrong: "X", right: "Y2" }] });
+    expect(r.pitfalls).toEqual([
+      { kind: "pattern", rule: "R", wrong: "", right: "Y" },
+      { kind: "register", rule: "R2", wrong: "X", right: "Y2" },
+    ]);
+    expect(validateExplain({ ...clone(FULL), pitfalls: r.pitfalls }, CTX)).toEqual([]);
   });
 
   it("describes each character, and marks an uncertain origin", () => {

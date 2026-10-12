@@ -33,10 +33,18 @@ export interface ExplainExample {
   english: string;
 }
 
-export interface ExplainMistake {
+/** What the pitfall is built from: a rule the note already gave, never a free-floating invented error. */
+export type PitfallKind = "similar-word" | "pattern" | "english-habit" | "register";
+const PITFALL_KINDS: PitfallKind[] = ["similar-word", "pattern", "english-habit", "register"];
+
+export interface ExplainPitfall {
+  kind: PitfallKind;
+  /** The pitfall as one short instruction: "Put the time before the place." */
+  rule: string;
+  /** A short fragment or sentence showing the error, only when the model is sure it is wrong; otherwise "". */
   wrong: string;
+  /** The correct fragment or sentence. */
   right: string;
-  why: string;
 }
 
 export interface ExplainSimilar {
@@ -69,7 +77,7 @@ export interface ExplainResult {
   grammar: { pattern: string; measureWord: string; notes: string[] };
   collocations: ExplainCollocation[];
   examples: ExplainExample[];
-  mistakes: ExplainMistake[];
+  pitfalls: ExplainPitfall[];
   similar: ExplainSimilar[];
   characters: ExplainCharacter[];
   notes: string[];
@@ -98,7 +106,10 @@ export const EXPLAIN_SCHEMA = obj({
   grammar: obj({ pattern: str, measureWord: str, notes: strList }),
   collocations: { type: "array", items: obj({ chinese: str, pinyin: str, english: str }) },
   examples: { type: "array", items: obj({ context: str, chinese: str, pinyin: str, english: str }) },
-  mistakes: { type: "array", items: obj({ wrong: str, right: str, why: str }) },
+  pitfalls: {
+    type: "array",
+    items: obj({ kind: { type: "string", enum: PITFALL_KINDS }, rule: str, wrong: str, right: str }),
+  },
   similar: { type: "array", items: obj({ word: str, pinyin: str, difference: str }) },
   characters: {
     type: "array",
@@ -137,7 +148,12 @@ export function normaliseExplain(raw: unknown): ExplainResult {
     grammar: { pattern: text(g.pattern), measureWord: text(g.measureWord), notes: strings(g.notes) },
     collocations: list(o.collocations, (x) => ({ chinese: text(x.chinese), pinyin: text(x.pinyin), english: text(x.english) })),
     examples: list(o.examples, (x) => ({ context: text(x.context), chinese: text(x.chinese), pinyin: text(x.pinyin), english: text(x.english) })),
-    mistakes: list(o.mistakes, (x) => ({ wrong: text(x.wrong), right: text(x.right), why: text(x.why) })),
+    pitfalls: list(o.pitfalls, (x) => ({
+      kind: PITFALL_KINDS.find((k) => k === x.kind) ?? "pattern",
+      rule: text(x.rule),
+      wrong: text(x.wrong),
+      right: text(x.right),
+    })),
     similar: list(o.similar, (x) => ({ word: text(x.word), pinyin: text(x.pinyin), difference: text(x.difference) })),
     characters: list(o.characters, (x) => ({
       character: text(x.character),
@@ -185,12 +201,13 @@ export function validateExplain(r: ExplainResult, ctx: ExplainContext): string[]
     if (!e.english || HAS_HAN(e.english)) issues.push(`Example ${i + 1} needs an English translation without Chinese characters.`);
     if (!e.pinyin) issues.push(`Example ${i + 1} needs pinyin.`);
   });
-  // An empty list is allowed: an invented mistake is worse than none. A row must be whole, though.
   if (r.senses.some((s) => s.example && !ctx.forms.some((f) => s.example.includes(f)))) {
     issues.push(`Each sense example must contain the word ${ctx.forms[0]}; leave the example empty if no short sentence fits.`);
   }
-  if (r.mistakes.some((m) => !m.wrong || !m.right || !m.why)) {
-    issues.push('Each entry in "mistakes" needs the wrong sentence, the corrected one and the reason.');
+  // An empty list is allowed: an invented pitfall is worse than none. A row needs its rule and the correct form, though;
+  // the wrong form is optional because the model is told to leave it out when it is not sure.
+  if (r.pitfalls.some((p) => !p.rule || !p.right)) {
+    issues.push('Each entry in "pitfalls" needs a rule and the correct form.');
   }
   if (r.similar.some((s) => !s.word || !s.difference)) {
     issues.push('Each entry in "similar" needs the word and how it differs.');
@@ -299,12 +316,12 @@ export function explainBlocks(r: ExplainResult, m: ExplainMeta): Block[] {
     }
   }
 
-  if (r.mistakes.length) {
+  if (r.pitfalls.length) {
     h(2, "Watch out");
-    for (const x of r.mistakes) {
-      li(0, `❌ ${x.wrong}`);
+    for (const x of r.pitfalls) {
+      out.push({ kind: "li", depth: 0, inline: [{ b: x.rule }] });
+      if (x.wrong) li(1, `❌ ${x.wrong}`);
       li(1, `✅ ${x.right}`);
-      li(1, x.why);
     }
   }
 

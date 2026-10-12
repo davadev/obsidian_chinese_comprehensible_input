@@ -91,6 +91,47 @@ describe("writing the explanation", () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("shows a progress bar that fills while the answer is awaited, shows the seconds, and stops when it arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const d = deferred<any>();
+      const { root } = make({ explain: () => d.promise });
+      const bar = () => root.querySelector("progress") as HTMLProgressElement;
+      expect(bar().value).toBe(0);
+      vi.advanceTimersByTime(10_000);
+      const at10 = bar().value;
+      expect(at10).toBeGreaterThan(30);
+      expect(root.querySelector(".cci-explain-progress")!.textContent).toContain("10 s");
+      vi.advanceTimersByTime(110_000);
+      // it slows down and never reaches the end before the answer does
+      expect(bar().value).toBeGreaterThan(at10);
+      expect(bar().value).toBeLessThan(95.01);
+      d.resolve({ result: clone(FULL), issues: [] });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(root.querySelector("progress")).toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("stops the clock when the dialog is closed or the request fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const d = deferred<any>();
+      const { modal } = make({ explain: () => d.promise });
+      expect(vi.getTimerCount()).toBe(1);
+      modal.close();
+      expect(vi.getTimerCount()).toBe(0);
+      const failing = make({ explain: async () => { throw new Error("nope"); } });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(failing.root.textContent).toContain("The explanation failed: nope");
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("says what the plugin could not get right, rather than presenting a silently worse note", async () => {
     const { root } = make({ explain: async () => ({ result: clone(FULL), issues: ["Example 2 needs pinyin.", "Another."] }) });
     await vi.waitFor(() => expect(root.querySelector(".cci-explain-caveat")).toBeTruthy());

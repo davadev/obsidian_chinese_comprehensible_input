@@ -19,7 +19,10 @@ export const FULL: ExplainResult = {
     { context: "Spoken", chinese: "现在不方便说话。", pinyin: "Xiànzài bù fāngbiàn shuōhuà.", english: "I can't talk right now." },
     { context: "Travel", chinese: "坐地铁最方便。", pinyin: "Zuò dìtiě zuì fāngbiàn.", english: "The subway is the most convenient." },
   ],
-  mistakes: [{ wrong: "我很方便。", right: "我很方便。(only as 'I am free')", why: "Say 我方便 only for availability." }],
+  pitfalls: [
+    { kind: "pattern", rule: "Put the time before 方便, then the activity.", wrong: "你方便明天见面吗？", right: "你明天方便见面吗？" },
+    { kind: "similar-word", rule: "Use 便利 for facilities, 方便 for people and times.", wrong: "", right: "交通便利 / 你方便吗？" },
+  ],
   similar: [{ word: "便利", pinyin: "biànlì", difference: "More formal, used for facilities and services." }],
   characters: [
     { character: "方", pinyin: "fāng", meaning: "square; direction", radical: "方 (square)", components: "a single form", etymology: "", confidence: "uncertain" },
