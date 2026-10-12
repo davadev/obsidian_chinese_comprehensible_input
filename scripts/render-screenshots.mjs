@@ -71,7 +71,8 @@ const THEME = `
 font-family:-apple-system,"Segoe UI",Roboto,"PingFang SC","Noto Sans CJK SC",sans-serif;font-size:15px;color:#222}
 html,body{margin:0;background:#fff}
 body{position:relative;padding:14px 50px 14px 50px}
-body.scene-toolbar,body.scene-lightbulb{padding:50px 44px 14px 14px}
+body.scene-toolbar{padding:50px 44px 14px 14px}
+body.scene-lightbulb{padding:50px 14px 50px 14px}
 /* Obsidian's own button, icon-button and modal chrome (app.css), approximated */
 button{font:inherit;font-size:13px;background:var(--interactive-normal);border:0;border-radius:6px;padding:6px 12px;color:var(--text-normal);cursor:pointer;box-shadow:0 1px 1px rgba(0,0,0,.08)}
 button.mod-cta{background:var(--interactive-accent);color:var(--text-on-accent)}

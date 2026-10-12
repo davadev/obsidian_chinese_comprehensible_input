@@ -43,7 +43,7 @@
 <script>
 // Mirrors ViewToolbar.buildOverflowMenu()'s DOM: hints, checkbox rows for script
 // and colors, RADIO rows for display mode (ViewToolbar.ts:601), separators, the
-// three sliders, then the two buttons.
+// three sliders, then the three buttons (Stats, Generate story, Mnemonics for this note…).
 const m = document.getElementById('m');
 const hint = t => { const e=document.createElement('div'); e.className='cci-overflow-hint'; e.textContent=t; m.appendChild(e); return e; };
 const sep  = () => { const e=document.createElement('div'); e.className='cci-overflow-sep'; m.appendChild(e); return e; };
@@ -76,7 +76,7 @@ g.font = slider('Font size',14,40,1,22,'22px');
 g.line = slider('Line spacing',0.15,1.2,0.05,1,'1.00×');
 g.ann  = slider('Annotation size',50,200,5,100,'100%');
 sep();
-g.stats = btn('Stats'); g.story = btn('Generate story');
+g.stats = btn('Stats'); g.story = btn('Generate story'); g.mnem = btn('Mnemonics for this note…');
 
 // Callouts drawn after layout settles. position:fixed so the layer shares the
 // viewport coordinate system getBoundingClientRect() reports in.
@@ -87,7 +87,7 @@ function drawCallouts() {
     {n:3, from:g.dHint,      to:g.d3},
     {n:4, from:g.pop,        to:g.pop},
     {n:5, from:g.font,       to:g.ann},
-    {n:6, from:g.stats,      to:g.story},
+    {n:6, from:g.stats,      to:g.mnem},
   ];
   const layer = document.createElement('div');
   layer.style.cssText='position:fixed;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:9;';

@@ -450,6 +450,9 @@
   flex: 0 0 auto;
 }
 .cci-toolbar .cci-banner button {
+  /* Never wrap or shrink: on a narrow screen the banner text gives way, not the buttons ("Explain ▾" lost its arrow). */
+  flex: 0 0 auto;
+  white-space: nowrap;
   height: 28px;
   padding: 0 0.6rem;
   border-radius: 6px;

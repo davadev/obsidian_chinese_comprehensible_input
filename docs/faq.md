@@ -160,6 +160,8 @@ notes appear at the next start, and **Show what's new now** (also a command) ope
 
 <img width="560" src="../resources/screenshots/whats-new-annotated.png" alt="The What's new popup">
 
+**1** the toolbar change, before and after · **2** **Don't show again** (next to **Got it**).
+
 ## Where are the Explain and prompt settings?
 
 **Settings → Explain & proof read** has the folder for saved notes and the length limit. What the AI is asked (your own
