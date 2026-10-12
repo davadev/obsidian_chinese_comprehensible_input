@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { AiProviderService } from "../ai/AiProviderService";
 import { EXPLAIN_SCHEMA } from "../ai/explain";
 import { ExplainService, __testing, contextFor } from "../ai/ExplainService";
-import { EXPLAIN_SYSTEM_PROMPT, buildExplainRepairPrompt, buildExplainUserPrompt } from "../ai/prompts";
+import { EXPLAIN_SYSTEM_PROMPT, buildExplainRepairPrompt, buildExplainUserPrompt, systemPromptWith } from "../ai/prompts";
 import { FULL, clone } from "./explainFixture";
 
 /** The Explain service (#186): one request, a check against what the plugin knows, one repair, never a lost answer. */
@@ -44,6 +44,15 @@ describe("ExplainService.generate", () => {
     expect(out).toEqual({ result: FULL, issues: [] });
     expect(chatJson).toHaveBeenCalledTimes(1);
     expect(chatJson).toHaveBeenCalledWith(EXPLAIN_SYSTEM_PROMPT, buildExplainUserPrompt(INPUT), "Explain", EXPLAIN_SCHEMA);
+  });
+
+  it("sends the learner's own instructions with the request and with the repair request", async () => {
+    const chatJson = vi.fn().mockResolvedValueOnce(bad()).mockResolvedValueOnce(good());
+    const service = new ExplainService({ chatJson } as unknown as AiProviderService, () => ({ extra: "Explain in Czech.", override: "" }));
+    await service.generate(INPUT);
+    const expected = systemPromptWith(EXPLAIN_SYSTEM_PROMPT, { extra: "Explain in Czech.", override: "" });
+    expect(chatJson.mock.calls.map((c) => c[0])).toEqual([expected, expected]);
+    expect(expected).toContain("Explain in Czech.");
   });
 
   it("asks once more with the specific defects and keeps the corrected answer", async () => {

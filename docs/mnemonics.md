@@ -156,7 +156,7 @@ Details of generating and regenerating:
 
 ## Personalising the prompt
 
-**Settings → AI provider → Mnemonic prompt ▾** holds the *user* half of
+**Settings → AI provider → AI prompts ▾ → Mnemonic prompt ▾** holds the *user* half of
 the prompt. Rewrite it to use imagery you personally remember, ask for a
 different language, or point it at a memory palace you already use.
 

@@ -203,6 +203,18 @@ Words you already know remain visible as Chinese characters only, encouraging ch
 
 The result is a reading experience that provides help when necessary without constantly encouraging dependence on pinyin or translations.
 
+### Help While You Read
+
+Reading real Chinese raises questions a dictionary cannot answer. The plugin can help when you get stuck, without taking you out of the text. This part uses AI, is optional, and the rest of the plugin works fully without it.
+
+- **Why does this word work here?** Tap a word and choose *Explain*: when to use it, how learners get it wrong, similar words and how its characters are built. Save it as a note if it is worth keeping.
+- **What is this sentence doing?** Tap the lightbulb, then the first and last word. You get the meaning, the structure, the job of every word and the grammar points.
+- **Is my Chinese right?** *Proof read* finds real mistakes in what you wrote, suggests the simplest fix, and puts it into your note with one tap.
+- **I keep forgetting the tones.** Mnemonics give each character a picture of its meaning followed by its tone number, written by the plugin so the tone is always right. Fill in a whole note at once from the ⋯ menu.
+- **You stay in control.** Every answer shows what it cost, you can tell the AI how you like things explained (language, level, focus), and nothing is saved to your vault until you say so.
+
+See [Explain & proof read](docs/explain.md) and [Mnemonics](docs/mnemonics.md).
+
 ### Measure Real Progress
 
 Another important aspect of language learning is feedback.
@@ -299,7 +311,7 @@ A tiny seed dictionary is bundled for development. For real use, drop a CC-CEDIC
 
 ## Privacy
 
-- **No vault content leaves your device unless you enable an AI provider.** Story generation is the only feature that transmits your text, and it is off until you configure it.
+- **No vault content leaves your device unless you enable an AI provider.** Story generation, Enhance, mnemonics, Explain and Proof read are the features that transmit text (the words, sentence or selection involved, never the whole vault), and they stay off until you configure a provider.
 - In OpenAI-compatible mode, story generation sends prompt text and target words to the provider you configured.
 - The optional CC-CEDICT download contacts mdbg.net to fetch the dictionary. It is triggered only when you press the download button, and it **uploads nothing** — it is a plain download.
 - API keys are stored locally in Obsidian local storage and are not written to synced vault files.

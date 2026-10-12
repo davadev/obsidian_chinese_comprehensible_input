@@ -29,29 +29,38 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "0.9.0",
     title: "What's new in 0.9.0",
-    intro: "Two AI helpers for learning words, and a tidier toolbar.",
+    intro: "Help while you read: understand a word, understand a sentence, check your own Chinese.",
     items: [
       {
-        title: "Status / HSK is now one button",
-        text:
-          "The two Status and HSK buttons in the toolbar became a single button. It shows how words are coloured right now; tap it to switch to the other colouring. Nothing was removed.",
+        title: "One button for colouring",
+        text: "Less clutter on a phone: Status / HSK is now a single button that shows how words are coloured. Tap it to flip.",
         figure: "toolbar",
       },
       {
-        title: "Mnemonics, redone",
+        title: "Mnemonics you can trust",
         text:
-          "Every character of a word now gets one picture of what it means, followed by its tone number, so the tone stays with the right character. Open the ⋯ menu and choose “Mnemonics for this note…” to fill in, regenerate or remove the mnemonics of a whole note at once. Needs an AI provider (Settings → AI provider).",
+          "Tones are the hard part of Chinese. Each character now gets a picture of its meaning with its tone number right after it, written by the app so the tone is never wrong. Fill a whole note at once from the ⋯ menu → “Mnemonics for this note…”. Needs an AI provider.",
         figure: "mnemonic",
       },
       {
-        title: "Explain a word",
+        title: "Understand any word",
         text:
-          "Tap a word and choose Explain for a full usage note: meanings, grammar, examples in different contexts, common pitfalls, similar words and how each character is built. Read it in a preview, then save it as a note or copy it. Needs an AI provider.",
+          "A dictionary says what a word means, not when to use it. Tap a word → Explain: meanings, grammar, examples, the mistakes learners make and similar words, ready to save as a note.",
       },
       {
-        title: "Explain a phrase, or proof read it",
+        title: "Understand a whole sentence",
         text:
-          "The new lightbulb button in the toolbar: tap the first word and the last word of a phrase or a few sentences, then choose Explain (what it says and what every word is doing in it) or Proof read (real mistakes with the simplest fix, which you can apply to your note with one tap) from the dropdown. Needs an AI provider.",
+          "Stuck on a sentence? Tap the lightbulb, then the first and the last word. You get what it says, its structure, the job of every word and the grammar points.",
+      },
+      {
+        title: "Check your own Chinese",
+        text:
+          "Writing practice with feedback: Proof read points out real mistakes only, with the simplest fix, and one tap puts it into your note.",
+      },
+      {
+        title: "You are in control",
+        text:
+          "Every AI answer shows what it cost. The AI settings are tidier now: essentials up front, prompts and technical options on their own pages (Settings → AI provider). You can tell the AI how you like things explained, and switch these release notes off in Settings → About.",
       },
     ],
   },

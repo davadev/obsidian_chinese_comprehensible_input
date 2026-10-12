@@ -55,7 +55,7 @@ Tap it, tap the **first word** of the text, then the **last word**. A dropdown i
 nothing is sent until you press the button there. **Exit** in the banner leaves the mode. With no AI set up, the button
 tells you how to set it up instead of starting the mode.
 
-The selection is limited (default 150 characters, about two or three sentences; **Settings → Explanations → Longest
+The selection is limited (default 150 characters, about two or three sentences; **Settings → Explain & proof read → Longest
 text**): more costs more and is explained worse. A longer selection is refused with the count, and you can simply tap an
 earlier last word.
 
@@ -93,7 +93,7 @@ real cost too.
 
 ## Saving, finding and regenerating
 
-- **Save as note** writes `<word> <pinyin>.md` (so 行 xíng and 行 háng never collide) into **Settings → Explanations →
+- **Save as note** writes `<word> <pinyin>.md` (so 行 xíng and 行 háng never collide) into **Settings → Explain & proof read →
   Folder** (default `Chinese Learning/Generated/Explanations`), and opens it in the reader if that setting is on.
 - The note carries a small header (`cci-explain`, `cci-word`, the model, the prompt version, the date). The plugin finds
   a word's note through that header, so renaming or moving the note does not break it.
@@ -115,9 +115,23 @@ rule was broken. Nothing else from the note is sent, and the confirm dialog show
 
 ## Settings
 
-**Settings → Explanations** (a new group appears after a full restart of Obsidian):
+**Settings → Explain & proof read** (a new group appears after a full restart of Obsidian):
 
 - **Folder** — where saved notes go.
 - **Open the note after saving** — in the reader.
 - **Longest text to explain or proof read** — the limit for the lightbulb tool.
-- **Pinyin under example sentences** — the pinyin line under each example and combination.
+- **Advanced explain ▾ → Pinyin under example sentences** — the pinyin line under each example and combination.
+
+## Telling the AI how you like things explained
+
+**Settings → AI provider → AI prompts ▾** has one box per feature (Explain a word, Explain a phrase or sentence,
+Proof read). Whatever you write there is added to the end of the built-in prompt with every request, so it is the place
+for "explain in Czech", "I am at HSK 3, keep it simple" or "I care about grammar more than vocabulary". The answer format
+is still checked by the plugin, so an instruction cannot break the saved note. These words are sent to the AI provider
+along with the text.
+
+For full control, **Replace a whole prompt ▾** (inside the same page) replaces a built-in prompt with your own; **start
+from the built-in prompt** copies ours into the box so you can edit it, and **go back to the built-in prompt** empties
+it again. A replacement prompt must still ask for the JSON the plugin expects: if it does not, the plugin tries one
+repair and then shows what is wrong instead of saving a broken note. The built-in prompts were tested against real
+answers; yours will not be.

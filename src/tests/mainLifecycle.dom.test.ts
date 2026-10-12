@@ -166,6 +166,18 @@ describe("what a good load sets up", () => {
     expect(env.plugin.intervals.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("hands each Explain-family service the learner's own prompt text from the live settings", async () => {
+    const env = load();
+    await env.plugin.onload();
+    const s = env.plugin.settings.ai;
+    s.promptExtras = { explain: "e1", phrase: "p1", proofread: "r1" };
+    s.promptOverrides = { explain: "e2", phrase: "p2", proofread: "r2" };
+    const custom = (svc: any) => svc.custom();
+    expect(custom(env.plugin.explain)).toEqual({ extra: "e1", override: "e2" });
+    expect(custom(env.plugin.phraseExplain)).toEqual({ extra: "p1", override: "p2" });
+    expect(custom(env.plugin.proofread)).toEqual({ extra: "r1", override: "r2" });
+  });
+
   it("the view factories build the real views for a leaf", async () => {
     const env = load();
     await env.plugin.onload();

@@ -21,7 +21,13 @@ import {
   DEFAULT_STATUS_PRIORITY,
   DEFAULT_TEXT_COLORS,
 } from "./defaults";
-import { DEFAULT_MNEMONIC_USER_TEMPLATE } from "../ai/prompts";
+import {
+  DEFAULT_MNEMONIC_USER_TEMPLATE,
+  EXPLAIN_SYSTEM_PROMPT,
+  PHRASE_SYSTEM_PROMPT,
+  PROOFREAD_SYSTEM_PROMPT,
+  type TunablePrompt,
+} from "../ai/prompts";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
 import {
   EINK_NUMBER_SCALE_MAX,
@@ -959,6 +965,8 @@ export class CciSettingsTab extends PluginSettingTab {
   private aiGroup(): SettingDefinitionItem {
     const isOpenAi = () => this.plugin.settings.ai.provider === "openai";
     const isOllama = () => !isOpenAi();
+    /** Show these only while Ollama is the provider (the page they sit on is shared with provider-neutral settings). */
+    const ollamaOnly = (items: SettingDefinitionItem[]): SettingDefinitionItem[] => items.map((i) => ({ ...i, visible: isOllama }));
 
     return {
       type: "group",
@@ -1042,9 +1050,9 @@ export class CciSettingsTab extends PluginSettingTab {
         {
           type: "page",
           name: "Advanced AI",
-          desc: "Endpoint mode, sampling, timeouts, structured-output format, streaming.",
-          visible: isOllama,
+          desc: "Self-hosted model options, how pinyin is handled when enhancing, and request tracing. Most people never need this page.",
           items: [
+            ...ollamaOnly([
             {
               name: "Endpoint mode",
               desc:
@@ -1108,19 +1116,25 @@ export class CciSettingsTab extends PluginSettingTab {
                 "that otherwise eats the completion-token budget. Harmless to non-thinking models.",
               control: { type: "toggle", key: "ai.ollama.suppressThinking" },
             },
+            ]),
+            {
+              name: "Allow AI to rewrite pinyin when enhancing entries",
+              desc:
+                "Off (default): the 'Enhance' button on the word popup only rewrites English definitions and the optional grammar note. " +
+                "On: the model may also propose a new pinyin reading when the sentence disambiguates a polyphone (e.g. 行 xíng vs háng). " +
+                "Pinyin in this plugin is canonical from CC-CEDICT, so leave this off unless you know what you're trading.",
+              control: { type: "toggle", key: "ai.enhanceCanRewritePinyin" },
+            },
+            {
+              name: "Verbose AI debug notifications",
+              desc:
+                "When on, a persistent Notice tracks each AI request: fetch issued → HTTP status → first byte → streaming chunks → finish_reason. " +
+                "Console logs the same milestones with elapsed seconds. Use while diagnosing a stuck request; turn off in normal use.",
+              control: { type: "toggle", key: "ai.debug" },
+            },
           ],
         },
-
-        // ── shared ──
-        {
-          name: "Allow AI to rewrite pinyin when enhancing entries",
-          desc:
-            "Off (default): the 'Enhance' button on the word popup only rewrites English definitions and the optional grammar note. " +
-            "On: the model may also propose a new pinyin reading when the sentence disambiguates a polyphone (e.g. 行 xíng vs háng). " +
-            "Pinyin in this plugin is canonical from CC-CEDICT, so leave this off unless you know what you're trading.",
-          control: { type: "toggle", key: "ai.enhanceCanRewritePinyin" },
-        },
-        this.mnemonicPromptPage(),
+        this.aiPromptsPage(),
         {
           name: "Test connection",
           desc: "Check that the active provider answers.",
@@ -1135,22 +1149,85 @@ export class CciSettingsTab extends PluginSettingTab {
             })();
           },
         },
-        {
-          type: "page",
-          name: "Diagnostics",
-          desc: "Verbose request tracing while debugging a stuck AI request.",
-          items: [
-            {
-              name: "Verbose AI debug notifications",
-              desc:
-                "When on, a persistent Notice tracks each AI request: fetch issued → HTTP status → first byte → streaming chunks → finish_reason. " +
-                "Console logs the same milestones with elapsed seconds. Use while diagnosing a stuck request; turn off in normal use.",
-              control: { type: "toggle", key: "ai.debug" },
-            },
-          ],
-        },
       ],
     };
+  }
+
+  /** Everything the learner can say to the AI in one place: extra instructions, the mnemonic template, whole-prompt replacement. */
+  private aiPromptsPage(): SettingDefinitionPage {
+    const extra = (name: string, key: TunablePrompt, desc: string): SettingDefinitionItem => ({
+      name,
+      desc,
+      control: { type: "textarea", key: `ai.promptExtras.${key}`, rows: 3, placeholder: "e.g. Explain in Czech. I am at HSK 3, keep it simple." },
+    });
+    return {
+      type: "page",
+      name: "AI prompts",
+      desc: "Tell the AI how you like things explained. Our tested prompts stay in place underneath.",
+      items: [
+        this.docLink(
+          "Prompts guide",
+          "What each prompt does, what your own instructions can and cannot change, and examples worth copying.",
+          "explain.md"
+        ),
+        this.prose(
+          "Your own instructions are added to the end of the built-in prompt. Use them for the language of the answer, your level, " +
+            "or what you care about. The answer format is checked by the plugin whatever you write, so a vague instruction cannot break a note. " +
+            "Leave a box empty to use the built-in prompt as it is. OpenAI sees these words with every request."
+        ),
+        extra("Explain a word", "explain", "Added to the prompt that writes a word's usage note."),
+        extra("Explain a phrase or sentence", "phrase", "Added to the prompt behind the lightbulb tool's Explain."),
+        extra("Proof read", "proofread", "Added to the prompt behind the lightbulb tool's Proof read."),
+        this.mnemonicPromptPage(),
+        this.replacePromptsPage(),
+      ],
+    };
+  }
+
+  /** Whole-prompt replacement for the three Explain-family prompts; empty means the built-in one. */
+  private replacePromptsPage(): SettingDefinitionPage {
+    const builtins: Record<TunablePrompt, [string, string]> = {
+      explain: ["Explain a word", EXPLAIN_SYSTEM_PROMPT],
+      phrase: ["Explain a phrase or sentence", PHRASE_SYSTEM_PROMPT],
+      proofread: ["Proof read", PROOFREAD_SYSTEM_PROMPT],
+    };
+    const rows: SettingDefinitionItem[] = [];
+    for (const key of Object.keys(builtins) as TunablePrompt[]) {
+      const [label, builtin] = builtins[key];
+      rows.push(
+        {
+          name: `${label}: replacement prompt`,
+          desc: "Empty = use the built-in prompt. Anything here replaces it completely (your extra instructions are still added after it).",
+          control: { type: "textarea", key: `ai.promptOverrides.${key}`, rows: 10 },
+        },
+        {
+          name: `${label}: start from the built-in prompt`,
+          desc: "Copies the built-in prompt into the box above so you can edit it.",
+          action: () => void this.setPromptOverride(key, builtin),
+        },
+        {
+          name: `${label}: go back to the built-in prompt`,
+          action: () => void this.setPromptOverride(key, ""),
+        }
+      );
+    }
+    return {
+      type: "page",
+      name: "Replace a whole prompt",
+      desc: "For experts. The built-in prompts were tested against real answers; yours will not be.",
+      items: [
+        this.warnProse(
+          "The answer must still be the JSON the plugin asks for. If a replacement prompt ignores that, the plugin tries once to repair the answer and then tells you what is wrong instead of saving a broken note."
+        ),
+        ...rows,
+      ],
+    };
+  }
+
+  private async setPromptOverride(key: TunablePrompt, text: string): Promise<void> {
+    this.plugin.settings.ai.promptOverrides[key] = text;
+    await this.persist(`ai.promptOverrides.${key}`);
+    this.update();
   }
 
   /** User half of the mnemonic prompt (#49); the system prompt is fixed. */
@@ -1343,11 +1420,11 @@ export class CciSettingsTab extends PluginSettingTab {
   private explainGroup(): SettingDefinitionItem {
     return {
       type: "group",
-      heading: "Explanations",
+      heading: "Explain & proof read",
       items: [
         this.docLink(
           "Explain guide",
-          "What the Explain button writes, what is sent to the AI, and how saved notes are found again.",
+          "What Explain and Proof read write, what is sent to the AI, and how saved notes are found again. To change what the AI is asked, see AI provider → AI prompts.",
           "explain.md"
         ),
         {
@@ -1365,9 +1442,16 @@ export class CciSettingsTab extends PluginSettingTab {
           control: { type: "number", key: "explain.maxPhraseChars", min: 20, max: 400 },
         },
         {
-          name: "Pinyin under example sentences",
-          desc: "Show a pinyin line under each example and combination. The reader can also show pinyin over the Chinese itself.",
-          control: { type: "toggle", key: "explain.pinyinInExamples" },
+          type: "page",
+          name: "Advanced explain",
+          desc: "Pinyin under examples.",
+          items: [
+            {
+              name: "Pinyin under example sentences",
+              desc: "Show a pinyin line under each example and combination. The reader can also show pinyin over the Chinese itself.",
+              control: { type: "toggle", key: "explain.pinyinInExamples" },
+            },
+          ],
         },
       ],
     };

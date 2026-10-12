@@ -129,6 +129,8 @@ export const DEFAULT_SETTINGS: CciSettings = {
     openaiModel: "default",
     enhanceCanRewritePinyin: false,
     mnemonicPrompt: DEFAULT_MNEMONIC_USER_TEMPLATE,
+    promptExtras: { explain: "", phrase: "", proofread: "" },
+    promptOverrides: { explain: "", phrase: "", proofread: "" },
     usageLog: [],
     debug: false,
   },

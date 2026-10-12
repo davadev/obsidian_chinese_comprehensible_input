@@ -49,6 +49,28 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("replacing a whole prompt", () => {
+  const rows = (tab: any) => {
+    const page = (tab.getSettingDefinitions() as any[]).flatMap((g) => g.items ?? []).find((i) => i.name === "AI prompts");
+    return page.items.find((i: any) => i.name === "Replace a whole prompt").items as any[];
+  };
+
+  it("can start from the built-in prompt and go back to it, for each of the three prompts", async () => {
+    const { tab, plugin } = makeSettingsTab();
+    const ai = (plugin as any).settings.ai;
+    for (const [label, key] of [["Explain a word", "explain"], ["Explain a phrase or sentence", "phrase"], ["Proof read", "proofread"]] as const) {
+      const row = (name: string) => rows(tab).find((r) => r.name === `${label}: ${name}`);
+      row("start from the built-in prompt").action(document.createElement("div"), 0);
+      await flush();
+      expect(ai.promptOverrides[key].length).toBeGreaterThan(100);
+      expect(tab.getControlValue(`ai.promptOverrides.${key}`)).toBe(ai.promptOverrides[key]);
+      row("go back to the built-in prompt").action(document.createElement("div"), 0);
+      await flush();
+      expect(ai.promptOverrides[key]).toBe("");
+    }
+  });
+});
+
 describe("the release notes row", () => {
   it("Show what's new now opens the note through the plugin", async () => {
     const { tab, plugin } = makeSettingsTab();

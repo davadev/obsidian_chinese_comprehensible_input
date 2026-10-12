@@ -6,6 +6,7 @@ import {
   buildRepairPrompt,
   buildUserPrompt,
   resolveAiScript,
+  systemPromptWith,
 } from "../ai/prompts";
 
 describe("STORY_SYSTEM_PROMPT", () => {
@@ -298,5 +299,26 @@ describe("buildEnhanceUserPrompt", () => {
     expect(out).toContain("Pinyin: (unknown)");
     expect(out).toContain("Traditional: (same)");
     expect(buildEnhanceUserPrompt(base)).toContain("Traditional: (same)");
+  });
+});
+
+describe("systemPromptWith", () => {
+  it("is the built-in prompt when the learner changed nothing, blanks included", () => {
+    expect(systemPromptWith("BASE", { extra: "", override: "" })).toBe("BASE");
+    expect(systemPromptWith("BASE", { extra: "  \n", override: "   " })).toBe("BASE");
+  });
+
+  it("adds the learner's instructions after the built-in prompt, reminding the model the format rules stay", () => {
+    const out = systemPromptWith("BASE", { extra: " Explain in Czech. ", override: "" });
+    expect(out.startsWith("BASE\n\n")).toBe(true);
+    expect(out).toContain("keep the required JSON structure");
+    expect(out.endsWith("Explain in Czech.")).toBe(true);
+  });
+
+  it("uses the learner's replacement instead of the built-in prompt, and still appends their extras", () => {
+    expect(systemPromptWith("BASE", { extra: "", override: " MINE " })).toBe("MINE");
+    const both = systemPromptWith("BASE", { extra: "short", override: "MINE" });
+    expect(both.startsWith("MINE\n\n")).toBe(true);
+    expect(both).not.toContain("BASE");
   });
 });

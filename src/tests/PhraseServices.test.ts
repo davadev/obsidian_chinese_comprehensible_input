@@ -6,6 +6,7 @@ import { PHRASE_CHECK_SCHEMA, PHRASE_SCHEMA } from "../ai/phrase";
 import { PROOFREAD_SCHEMA } from "../ai/proofread";
 import {
   PHRASE_CHECK_SYSTEM_PROMPT,
+  systemPromptWith,
   PHRASE_SYSTEM_PROMPT,
   PROOFREAD_SYSTEM_PROMPT,
   buildExplainRepairPrompt,
@@ -88,6 +89,20 @@ describe("PhraseExplainService.explain", () => {
 
   it("propagates a first answer that cannot be read", async () => {
     await expect(serviceWith((ai) => new PhraseExplainService(ai), ["sorry"]).service.explain(TEXT)).rejects.toThrow(/for the explanation/);
+  });
+});
+
+describe("the learner's own prompt instructions", () => {
+  it("reach the phrase explanation and the proof read, but not the quick check", async () => {
+    const custom = () => ({ extra: "I am HSK 3.", override: "" });
+    const phrase = serviceWith((ai) => new PhraseExplainService(ai, custom), [JSON.stringify({ verdict: "ok", note: "", original: "", suggestion: "" }), JSON.stringify(GOOD)]);
+    await phrase.service.check(TEXT);
+    await phrase.service.explain(TEXT);
+    expect(phrase.chatJson.mock.calls[0][0]).toBe(PHRASE_CHECK_SYSTEM_PROMPT);
+    expect(phrase.chatJson.mock.calls[1][0]).toBe(systemPromptWith(PHRASE_SYSTEM_PROMPT, { extra: "I am HSK 3.", override: "" }));
+    const proof = serviceWith((ai) => new ProofreadService(ai, custom), [JSON.stringify({ corrections: [] })]);
+    await proof.service.proofread(TEXT);
+    expect(proof.chatJson.mock.calls[0][0]).toBe(systemPromptWith(PROOFREAD_SYSTEM_PROMPT, { extra: "I am HSK 3.", override: "" }));
   });
 });
 

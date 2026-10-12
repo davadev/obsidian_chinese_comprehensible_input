@@ -235,6 +235,10 @@ export interface AiSettings {
    * default template so a cleared textarea can never break generation.
    */
   mnemonicPrompt: string;
+  /** Instructions of the learner's own, appended to the built-in prompt of each Explain-family feature. Empty = none. */
+  promptExtras: PromptTexts;
+  /** A learner's replacement for a whole built-in system prompt. Empty = use the built-in one. */
+  promptOverrides: PromptTexts;
   /** Append-only log of token-usage entries. Pruned to last 35 days. */
   usageLog: AiUsageEntry[];
   /**
@@ -278,6 +282,13 @@ export interface StorySettings {
 }
 
 /** The Explain note (#186): where saved explanations go and how they are laid out. */
+/** One text per feature of the Explain family (word note, phrase explanation, proof read). */
+export interface PromptTexts {
+  explain: string;
+  phrase: string;
+  proofread: string;
+}
+
 export interface ExplainSettings {
   /** Vault folder for saved explanation notes. */
   folder: string;
