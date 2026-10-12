@@ -112,45 +112,30 @@
   border-color: var(--interactive-accent);
 }
 
-/* Compact segmented color-mode switch. Sits flush next to the icon
-   buttons (same 32px height) and keeps tight padding so it does not
-   eat toolbar width on mobile. */
-.cci-toolbar .cci-color-mode-switch {
-  display: inline-flex;
-  border: 1px solid var(--background-modifier-border);
+/* One colour-mode button: it names the mode that is on and flips to the other on a tap. Same 32px height as the icon
+   buttons and tight padding so it does not eat toolbar width on mobile. */
+.cci-toolbar .cci-color-mode-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--interactive-accent);
   border-radius: 4px;
-  overflow: hidden;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  padding: 0 0.6rem;
   height: 32px;
   align-self: center;
   margin: 0 0.15rem;
   flex: 0 0 auto;
-}
-.cci-toolbar .cci-color-mode-pill {
-  -webkit-appearance: none;
-  appearance: none;
-  border: none;
-  border-radius: 0;
-  background: var(--interactive-normal);
-  color: var(--text-normal);
-  padding: 0 0.45rem;
-  height: 100%;
   font-size: 0.72rem;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.01em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   line-height: 1;
 }
-.cci-toolbar .cci-color-mode-pill + .cci-color-mode-pill {
-  border-left: 1px solid var(--background-modifier-border);
-}
-.cci-toolbar .cci-color-mode-pill:hover {
-  background: var(--background-modifier-hover);
-}
-.cci-toolbar .cci-color-mode-pill.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent);
+.cci-toolbar .cci-color-mode-btn:hover {
+  background: var(--interactive-accent-hover);
 }
 
 .cci-overflow-hint {
@@ -2235,4 +2220,23 @@
 }
 .cci-explain-modal .cci-explain-spacer {
   flex: 1;
+}
+
+/* One-time "What's new" popup and the "Set up AI" prompt. */
+.cci-whatsnew-modal .cci-whatsnew-intro {
+  color: var(--text-muted);
+}
+.cci-whatsnew-modal .cci-whatsnew-list {
+  padding-left: 1.2rem;
+  line-height: 1.5;
+}
+.cci-whatsnew-modal .cci-whatsnew-list li {
+  margin-bottom: 0.6rem;
+}
+.cci-whatsnew-modal .cci-whatsnew-actions,
+.cci-aisetup-modal .cci-aisetup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }

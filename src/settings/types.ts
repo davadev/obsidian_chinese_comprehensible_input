@@ -380,6 +380,8 @@ export interface CciSettings {
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
   mnemonicsFirst: boolean;
+  /** The newest release the "What's new" popup has already shown (see ui/whatsNew). Per device: never synced. */
+  lastSeenVersion: string;
   explain: ExplainSettings;
   /** Which words "Mnemonics for this note" in the reader menu covers (known and ignored words are never included). */
   batchMnemonicScope: BatchMnemonicScope;

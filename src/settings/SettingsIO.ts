@@ -31,6 +31,9 @@ const FILTER_OUT = {
     // meant "Don't ask again" on one device silenced the Traditional prompt on
     // every other one, where the user may well still want it.
     "traditionalPromptDismissed",
+    // The newest "What's new" popup THIS device has shown. Sharing it would let an upgrade on one device silence the popup
+    // on every other device, where the user has not seen the change yet.
+    "lastSeenVersion",
     // Bookkeeping about work THIS device has done, like `vaultIndexed` above
     // it. Sharing it would let one device's completed baseline pass suppress
     // another's, which has its own records to adopt.

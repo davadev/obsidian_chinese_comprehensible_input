@@ -483,3 +483,93 @@ describe("the dictionary's user data", () => {
     expect(o.refreshStatsViews).toHaveBeenCalled();
   });
 });
+
+describe("the one-time What's new popup", () => {
+  const make = (over: Record<string, unknown> = {}) => {
+    const opened: unknown[] = [];
+    const self: any = bind({
+      app: {},
+      manifest: { version: "0.9.0", id: "p" },
+      freshInstall: false,
+      settings: settings((s) => (s.lastSeenVersion = "0.8.2")),
+      saveSettingsSilently: vi.fn(async () => {}),
+      ...over,
+    });
+    return { self, opened };
+  };
+  const popup = () => document.body.querySelector(".cci-whatsnew-modal");
+
+  it("tells an upgrading user what changed, and saves that BEFORE the popup opens so it can never show twice", async () => {
+    const { self } = make();
+    let savedBeforeOpen = false;
+    self.saveSettingsSilently = vi.fn(async () => void (savedBeforeOpen = popup() === null));
+    await self.maybeShowWhatsNew();
+    expect(self.settings.lastSeenVersion).toBe("0.9.0");
+    expect(self.saveSettingsSilently).toHaveBeenCalledTimes(1);
+    expect(savedBeforeOpen).toBe(true);
+    expect(popup()).toBeTruthy();
+    expect(document.body.textContent).toContain("What's new in 0.9.0");
+    // the next start: nothing
+    document.body.innerHTML = "";
+    self.saveSettingsSilently.mockClear();
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeNull();
+    expect(self.saveSettingsSilently).not.toHaveBeenCalled();
+  });
+
+  it("shows it to a user who has never been stamped (upgrading from before the popup existed)", async () => {
+    const { self } = make({ settings: settings((s) => (s.lastSeenVersion = "")) });
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeTruthy();
+    expect(self.settings.lastSeenVersion).toBe("0.9.0");
+  });
+
+  it("does not repeat on a later beta of the same version", async () => {
+    const { self } = make({ manifest: { version: "0.9.0-beta.9", id: "p" }, settings: settings((s) => (s.lastSeenVersion = "0.9.0-beta.8")) });
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeNull();
+    expect(self.saveSettingsSilently).not.toHaveBeenCalled();
+  });
+
+  it("says nothing to a brand-new install, but remembers the version", async () => {
+    const { self } = make({ freshInstall: true, settings: settings((s) => (s.lastSeenVersion = "")) });
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeNull();
+    expect(self.settings.lastSeenVersion).toBe("0.9.0");
+    expect(self.saveSettingsSilently).toHaveBeenCalledTimes(1);
+  });
+
+  it("a fresh-install flag does not hide the popup once the version has been stamped and a newer note exists", async () => {
+    const { self } = make({ freshInstall: true, settings: settings((s) => (s.lastSeenVersion = "0.8.0")) });
+    await self.maybeShowWhatsNew();
+    expect(popup()).toBeTruthy();
+  });
+
+  it("the command shows the latest note again on demand, or says there is none", () => {
+    const { self } = make();
+    self.showWhatsNew();
+    expect(popup()).toBeTruthy();
+    document.body.innerHTML = "";
+    const old = make({ manifest: { version: "0.1.0", id: "p" } }).self;
+    old.showWhatsNew();
+    expect(popup()).toBeNull();
+    expect(Notice.instances.at(-1)!.message).toBe("There are no release notes for this version.");
+  });
+});
+
+describe("is AI set up?", () => {
+  it("asks the saved key for OpenAI and the server address for Ollama", () => {
+    const keyed = bind({ settings: settings((s) => ((s.ai.enabled = true), (s.ai.provider = "openai"))), app: { loadLocalStorage: () => "sk-1" } }) as any;
+    expect(keyed.aiConfigured()).toBe(true);
+    const keyless = bind({ settings: settings((s) => ((s.ai.enabled = true), (s.ai.provider = "openai"))), app: { loadLocalStorage: () => null } }) as any;
+    expect(keyless.aiConfigured()).toBe(false);
+    const off = bind({ settings: settings((s) => (s.ai.enabled = false)), app: { loadLocalStorage: () => "sk-1" } }) as any;
+    expect(off.aiConfigured()).toBe(false);
+  });
+
+  it("promptAiSetup opens the setup dialog for the named feature", () => {
+    const self = bind({ app: {}, manifest: { id: "p" } }) as any;
+    self.promptAiSetup("Explain");
+    expect(document.body.querySelector(".cci-aisetup-modal")!.textContent).toContain("Explain needs an AI provider.");
+  });
+});

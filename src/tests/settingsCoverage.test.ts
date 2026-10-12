@@ -23,6 +23,7 @@ const NOT_IN_SETTINGS_TAB: Record<string, string> = {
   "ai.ollama.embeddingModel": "reserved, not used by any feature yet",
   traditionalPromptDismissed:
     "set by the one-time 'this note looks Traditional' prompt's Don't ask again",
+  lastSeenVersion: "per-device record of the last \"What's new\" popup shown; not a preference",
   trackedBaselineRepaired:
     "one-shot bookkeeping for the vault-index baseline pass; not a preference",
   // Edited from the reading view's toolbar / display menu.

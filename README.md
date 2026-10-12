@@ -21,7 +21,7 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 - **2 · Known**, **3 · Unknown**, **4 · Partial** — tap a word to set its status.
 - **5 · Add custom word** — tap characters to build a dictionary entry.
 - **6 · Highlighter** — arm tap-to-format mode (see [Formatting](./docs/formatting.md)).
-- **7 · Status / HSK** — color words by learning status or by HSK level.
+- **7 · Status / HSK** — one button that shows how words are coloured (by learning status or by HSK level); tap it to switch to the other.
 - **8 · More** — the display menu (below).
 - **9 · Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
 

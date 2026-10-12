@@ -197,6 +197,16 @@ describe("what a good load sets up", () => {
     expect(["甲", "乙", "丙", "戊"].map((s) => ctx.knownBoost(s))).toEqual([0.3, 0.2, 0.1, 0]);
   });
 
+  it("knows a new install from an upgrade by whether any settings were saved, so only an upgrade is shown What's new", async () => {
+    const fresh = load({ data: {} });
+    await fresh.plugin.onload();
+    expect((fresh.plugin as any).freshInstall).toBe(true);
+    expect(fresh.plugin.settings.lastSeenVersion).toBe("");
+    const upgrade = load({ data: { settings: { hskColorsDerivedFromAccent: true } } });
+    await upgrade.plugin.onload();
+    expect((upgrade.plugin as any).freshInstall).toBe(false);
+  });
+
   it("the services read the live settings: the AI section, the story folder, the dictionary overlay and the mirror bridge", async () => {
     const env = load({ data: { settings: { hskColorsDerivedFromAccent: true, story: { folder: "My Stories" } }, dictionaryOverrides: { "学|xue2": { updatedAt: "2026-01-01T00:00:00.000Z" } }, dictionaryCustomWords: { 火锅: { simplified: "火锅", updatedAt: "2026-01-01T00:00:00.000Z" } } } });
     await env.plugin.onload();
@@ -396,6 +406,7 @@ describe("after the layout is ready", () => {
     await env.plugin.onload();
     env.plugin.bootstrapVocabMirror = vi.fn(async () => {});
     env.plugin.promptDowngradeRestore = vi.fn(async () => {});
+    env.plugin.maybeShowWhatsNew = vi.fn(async () => {});
     env.plugin.tickAutoStory = vi.fn(async () => {});
     env.plugin.settingsMirror.bootstrap = vi.fn(async () => {});
     return env;
@@ -425,6 +436,22 @@ describe("after the layout is ready", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(err).toHaveBeenCalledWith("CCI settings mirror bootstrap failed", expect.any(Error));
     expect(env.plugin.promptDowngradeRestore).toHaveBeenCalled();
+  });
+
+  it("the What's new popup comes after the downgrade question, so two dialogs never stack, and a failure is only logged", async () => {
+    const env = await ready();
+    const order: string[] = [];
+    env.plugin.promptDowngradeRestore = vi.fn(async () => void order.push("downgrade"));
+    env.plugin.maybeShowWhatsNew = vi.fn(async () => void order.push("whatsnew"));
+    env.layoutReady[1]();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(order).toEqual(["downgrade", "whatsnew"]);
+    env.plugin.maybeShowWhatsNew = vi.fn(async () => {
+      throw new Error("modal failed");
+    });
+    env.layoutReady[1]();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(console.warn).toHaveBeenCalledWith("CCI: what's-new popup failed", expect.any(Error));
   });
 
   it("a downgrade prompt that fails is only logged", async () => {

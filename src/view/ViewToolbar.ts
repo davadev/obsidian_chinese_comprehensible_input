@@ -70,7 +70,7 @@ export class ViewToolbar {
 
     this.formatModeBtn(row);
 
-    this.colorModeSwitch(row);
+    this.colorModeBtn(row);
 
     const overflow = row.createEl("button", {
       cls: "clickable-icon cci-icon-btn cci-overflow-btn-trigger",
@@ -163,46 +163,30 @@ export class ViewToolbar {
   }
 
   /**
-   * Two-pill segmented switch. Both labels visible so the user always
-   * sees the alternative. Active pill highlighted with the Obsidian
-   * accent treatment used by marking buttons.
+   * One button for the colouring mode. It shows the mode that is ON and flips to the other on a tap, so it takes the room
+   * of one short label instead of two pills, and the learner can still see what is active and what a tap will do.
    */
-  private colorModeSwitch(parent: HTMLElement): void {
-    const wrap = parent.createDiv({
-      cls: "cci-color-mode-switch",
-      attr: { role: "tablist", "aria-label": "Color mode" },
-    });
-
-    const pills: Array<{ value: ColorMode; label: string; el: HTMLButtonElement }> = [];
-    const make = (value: ColorMode, label: string) => {
-      const el = wrap.createEl("button", {
-        cls: "cci-color-mode-pill",
-        text: label,
-        attr: {
-          role: "tab",
-          "aria-pressed": String(this.plugin.settings.colorMode === value),
-          "data-color-mode": value,
-          title: `Color by ${label}`,
-        },
-      });
-      if (this.plugin.settings.colorMode === value) el.addClass("is-active");
-      el.addEventListener("click", () => {
-        void (async () => {
-        if (this.plugin.settings.colorMode === value) return;
-        this.plugin.settings.colorMode = value;
-        await this.plugin.saveSettings();
-        for (const p of pills) {
-          const active = p.value === value;
-          p.el.toggleClass("is-active", active);
-          p.el.setAttribute("aria-pressed", String(active));
-        }
-        this.onChange();
-        })();
-      });
-      pills.push({ value, label, el });
+  private colorModeBtn(parent: HTMLElement): void {
+    const LABEL: Record<ColorMode, string> = { status: "Status", hsk: "HSK" };
+    const OTHER: Record<ColorMode, ColorMode> = { status: "hsk", hsk: "status" };
+    const el = parent.createEl("button", { cls: "cci-color-mode-btn" });
+    const paint = () => {
+      const cur = this.plugin.settings.colorMode;
+      el.setText(LABEL[cur]);
+      el.setAttribute("data-color-mode", cur);
+      const hint = `Colouring by ${LABEL[cur]}. Tap to colour by ${LABEL[OTHER[cur]]}.`;
+      el.setAttribute("aria-label", hint);
+      el.setAttribute("title", hint);
     };
-    make("status", "Status");
-    make("hsk", "HSK");
+    paint();
+    el.addEventListener("click", () => {
+      void (async () => {
+        this.plugin.settings.colorMode = OTHER[this.plugin.settings.colorMode];
+        await this.plugin.saveSettings();
+        paint();
+        this.onChange();
+      })();
+    });
   }
 
   private updateActiveStates() {
