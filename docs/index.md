@@ -27,6 +27,8 @@ the whole tree from here.
   when to bump repair iterations, when to enable "Send known words."
 - [Mnemonics](./mnemonics.md) — hand-written and AI-generated memory
   hooks, and how to personalise the mnemonic prompt.
+- [Explain](./explain.md) — an AI usage note for one word (senses, grammar, examples, common
+  mistakes, similar words, character origins), previewed before you save it
 - [Story generation, end to end](./story-generation.md) — what Smart
   Story actually does, how the repair loop validates, the YAML
   frontmatter on generated notes.

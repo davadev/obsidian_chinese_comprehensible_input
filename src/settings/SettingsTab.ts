@@ -338,6 +338,7 @@ export class CciSettingsTab extends PluginSettingTab {
       this.srsGroup(),
       this.aiGroup(),
       this.storyGroup(),
+      this.explainGroup(),
       this.dictionaryGroup(),
       this.dataGroup(),
       this.syncGroup(),
@@ -1330,6 +1331,34 @@ export class CciSettingsTab extends PluginSettingTab {
               },
             },
           ],
+        },
+      ],
+    };
+  }
+
+  private explainGroup(): SettingDefinitionItem {
+    return {
+      type: "group",
+      heading: "Explanations",
+      items: [
+        this.docLink(
+          "Explain guide",
+          "What the Explain button writes, what is sent to the AI, and how saved notes are found again.",
+          "explain.md"
+        ),
+        {
+          name: "Folder",
+          desc: "Where explanation notes are saved when you press Save in the Explain dialog.",
+          control: { type: "folder", key: "explain.folder" },
+        },
+        {
+          name: "Open the note after saving",
+          control: { type: "toggle", key: "explain.openAfterSave" },
+        },
+        {
+          name: "Pinyin under example sentences",
+          desc: "Show a pinyin line under each example and combination. The reader can also show pinyin over the Chinese itself.",
+          control: { type: "toggle", key: "explain.pinyinInExamples" },
         },
       ],
     };

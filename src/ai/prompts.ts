@@ -377,3 +377,82 @@ export function buildEnhanceSchema(includePinyin: boolean): object {
     properties,
   };
 }
+
+/**
+ * System prompt for the Explain note (#186): a thorough usage note for ONE word, as JSON. The plugin lays the fields
+ * out (`explain.ts`), so the model never writes Markdown, and checks what it can (examples contain the word, rows are
+ * complete) before asking once more.
+ */
+export const EXPLAIN_SYSTEM_PROMPT =
+  "You are an expert teacher of Mandarin Chinese for adult English-speaking learners. " +
+  "Write a thorough, accurate and well organised usage note for ONE word, as the JSON described below. " +
+  "The note is read on a phone as well as on a desktop, so every item is short and concrete: no long paragraphs.\n" +
+  "\n" +
+  "How to treat the facts: the request gives the pinyin, the HSK level and the dictionary entries. They are ground truth for pronunciation and for the meanings they list; you may add senses and usage that real speakers have, but never contradict the dictionary on pronunciation. " +
+  "Be honest. If you are not sure of a usage rule, an etymology or a decomposition, say so in that field or leave it out; an empty list is better than a padded or invented one. Every Chinese sentence must be natural Mandarin that a native speaker would say.\n" +
+  "\n" +
+  "Fields:\n" +
+  "- \"summary\": one or two sentences saying what the word is and why a learner needs it.\n" +
+  "- \"meaning\": the core meaning in at most 12 words.\n" +
+  "- \"partOfSpeech\": for example \"verb\", \"adjective\", \"noun (measure word: 个)\", \"separable verb (verb-object)\", \"particle\", \"measure word\".\n" +
+  "- \"register\": for example \"neutral\", \"spoken\", \"formal / written\", \"more common in Taiwan\". Keep it short.\n" +
+  "- \"whenYouNeedIt\": 2 to 4 concrete situations in which a learner would reach for this word, each starting with the intent (\"To say that…\").\n" +
+  "- \"senses\": every sense a learner will meet, most common first, each with a short label, the English meaning, and one short Chinese example sentence with its English (empty strings if none is needed).\n" +
+  "- \"grammar\": \"pattern\" is how the word is used in a sentence (for example \"Subject + 打算 + Verb\"); \"measureWord\" is the classifier(s) for a noun, else \"\"; \"notes\" are short points about position, objects and complements, negation, separable verbs, and common patterns. For a particle or other function word, explain it as a grammar point instead of a vocabulary item.\n" +
+  "- \"collocations\": 3 to 8 common combinations and set phrases, each with pinyin and English.\n" +
+  "- \"examples\": 5 to 8 natural sentences that each contain the word itself, across DIFFERENT contexts and registers (daily life, work or study, social, formal or written, spoken). Give each a short \"context\" label, tone-marked pinyin and an English translation. Use common vocabulary at or just above the word's HSK level so the learner can read them.\n" +
+  "- \"mistakes\": 2 to 4 mistakes learners really make with this word. \"wrong\" is the Chinese sentence a learner would produce, \"right\" is the corrected sentence, \"why\" is a one-sentence reason in English.\n" +
+  "- \"similar\": near-synonyms or easily confused words (0 to 4), each with pinyin and how it differs and when to choose which. Leave empty if there are none worth contrasting.\n" +
+  "- \"characters\": exactly one entry per character of the word, in order. \"meaning\" is what the character means on its own. \"radical\" is the radical with its meaning. \"components\" says how the character is built from parts, for example \"木 (tree) on top of 目 (eye)\", and for a character built from a part that gives the sound and a part that gives the meaning, say which is which. \"etymology\" is where the character comes from, in one or two sentences, only if you know a well-established account, else \"\". Set \"confidence\" to \"established\" only when scholars agree; use \"uncertain\" for a popular story, a folk etymology or when you are not sure. Do not invent an etymology to fill the field.\n" +
+  "- \"notes\": 0 to 4 useful extras: differences between mainland and Taiwan usage, politeness or tone, frequency, related idioms, or other tips. Empty if nothing is worth adding.\n" +
+  "\n" +
+  "Rules: Chinese and English only, no Markdown, no emoji. Give tone-marked pinyin for every Chinese sentence, collocation and character. Explain in English. " +
+  "Output strict JSON only matching the schema, with every field present (an empty string or empty list when there is nothing to say). No prose before or after the JSON. No markdown code fences.";
+
+export interface ExplainPromptArgs {
+  surface: string;
+  pinyin: string;
+  traditional?: string;
+  hskLevels: string[];
+  /** Every dictionary entry for the surface (several readings are possible). */
+  entries: { pinyin: string; definitions: string[] }[];
+  /** One line of facts per character of the word. */
+  chars: { char: string; pinyin: string; gloss: string }[];
+  /** The sentence the learner met the word in, when known. */
+  sentence?: string;
+  script: AiScript;
+}
+
+/** The facts the plugin already has, so the model works from them instead of from memory. */
+export function buildExplainUserPrompt(a: ExplainPromptArgs): string {
+  const trad = a.traditional && a.traditional !== a.surface ? a.traditional : "(same)";
+  const level = a.hskLevels.length ? `HSK ${a.hskLevels.join("/")}` : "not in the HSK lists";
+  const lines = [
+    `Word: ${a.surface}`,
+    `Pinyin: ${a.pinyin || "(unknown)"}`,
+    `Traditional: ${trad}`,
+    `Level: ${level}`,
+    scriptClause(a.script),
+    "",
+    "Dictionary entries (ground truth for pronunciation and the meanings listed):",
+    ...(a.entries.length
+      ? a.entries.map((e, i) => `${i + 1}. ${e.pinyin} — ${e.definitions.filter((d) => d.trim()).join("; ") || "(no definition)"}`)
+      : ["(none: the word is not in the dictionary)"]),
+    "",
+    "Characters:",
+    ...a.chars.map((c, i) => `${i + 1}. ${c.char} ${c.pinyin}${c.gloss ? ` — ${c.gloss}` : ""}`),
+  ];
+  if (a.sentence?.trim()) {
+    lines.push("", `The learner met the word in this sentence (use it to pick the sense they need, but cover the other senses too): ${a.sentence.trim()}`);
+  }
+  lines.push("", "Write the note now. Reply with JSON only.");
+  return lines.join("\n");
+}
+
+/** The single follow-up when the answer broke a rule the plugin can check. */
+export function buildExplainRepairPrompt(issues: string[]): string {
+  return (
+    `Your last answer broke these rules:\n${issues.map((i) => `- ${i}`).join("\n")}\n` +
+    `Reply again with the complete corrected JSON only, keeping what was already good.`
+  );
+}

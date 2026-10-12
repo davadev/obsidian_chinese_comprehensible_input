@@ -2175,3 +2175,55 @@
 .cci-progress-legend-swatch.is-outline {
   opacity: 0.55;
 }
+
+/* Explain dialog (#186): a long, scrollable note with a fixed action bar. */
+.cci-explain-modal .cci-explain-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 0.4rem;
+  line-height: 1.5;
+}
+.cci-explain-modal .cci-explain-callout {
+  background: var(--background-secondary);
+  border-left: 3px solid var(--text-faint);
+  padding: 0.4rem 0.6rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+.cci-explain-modal .cci-explain-h1 {
+  margin-top: 0.6rem;
+}
+.cci-explain-modal .cci-explain-h2 {
+  margin: 1rem 0 0.3rem;
+  border-bottom: 1px solid var(--background-modifier-border);
+  padding-bottom: 0.15rem;
+}
+.cci-explain-modal .cci-explain-h3 {
+  margin: 0.7rem 0 0.2rem;
+  color: var(--text-muted);
+}
+.cci-explain-modal .cci-explain-list {
+  margin: 0.2rem 0;
+  padding-left: 1.2rem;
+}
+.cci-explain-modal .cci-explain-d1 {
+  margin-left: 1.2rem;
+  list-style-type: circle;
+}
+.cci-explain-modal .cci-explain-muted {
+  color: var(--text-muted);
+}
+.cci-explain-modal .cci-explain-caveat {
+  color: var(--text-warning, var(--text-muted));
+  font-size: var(--font-ui-small);
+}
+.cci-explain-modal .cci-explain-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+.cci-explain-modal .cci-explain-spacer {
+  flex: 1;
+}

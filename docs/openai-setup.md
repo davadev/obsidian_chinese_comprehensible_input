@@ -62,6 +62,12 @@ sentence you tapped it in:
   the answer breaks a rule, one follow-up request repeats this and lists the
   problem. Only sent when you press "Generate with AI". See
   [Mnemonics](./mnemonics.md).
+- **Explain** — the word, its pinyin, traditional form, HSK level, its dictionary
+  readings and definitions, one line per character (its pinyin and a short
+  dictionary meaning), and the sentence you opened the card from, if any. One
+  request, plus at most one follow-up when a rule was broken. Only sent when you
+  press "Explain"; nothing is saved until you press Save. See
+  [Explain](./explain.md).
 - **Mnemonics for this note…** (the reader's ⋯ menu) — the same as a single
   Mnemonic request, once per word, for each word in the **open note** that
   has no mnemonic yet (or, if you choose Regenerate all, every word in scope)

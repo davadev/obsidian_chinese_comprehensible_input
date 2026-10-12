@@ -275,6 +275,16 @@ export interface StorySettings {
   autoGenerateTime: string;
 }
 
+/** The Explain note (#186): where saved explanations go and how they are laid out. */
+export interface ExplainSettings {
+  /** Vault folder for saved explanation notes. */
+  folder: string;
+  /** Open the note in the reader after saving it. */
+  openAfterSave: boolean;
+  /** Show the pinyin line under each example sentence and collocation. */
+  pinyinInExamples: boolean;
+}
+
 export interface DictionarySourceMeta {
   source: string;
   versionLine: string;
@@ -370,6 +380,7 @@ export interface CciSettings {
   exactTimestampRetentionLimit: number;
   storeAllExactTimestamps: boolean;
   mnemonicsFirst: boolean;
+  explain: ExplainSettings;
   /** Which words "Mnemonics for this note" in the reader menu covers (known and ignored words are never included). */
   batchMnemonicScope: BatchMnemonicScope;
   /** Base font size for the Chinese Learning view, in pixels. */
