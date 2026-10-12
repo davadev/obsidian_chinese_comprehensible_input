@@ -73,6 +73,9 @@ describe("ExplainService.generate", () => {
     const filled = await serviceWith([JSON.stringify(blank)]).service.generate(INPUT);
     expect(filled.result.characters.map((c) => c.character)).toEqual(["方", "便"]);
     expect(filled.issues).toEqual([]);
+    // and with no fact for that position either, it stays empty (and validation says so)
+    const noFact = await serviceWith([JSON.stringify(blank), JSON.stringify(blank)]).service.generate({ ...INPUT, chars: [INPUT.chars[0]] });
+    expect(noFact.result.characters.map((c) => c.character)).toEqual(["方", ""]);
     // a character the facts did not list gets no radical rather than a stale one
     const short = serviceWith([good()]);
     expect((await short.service.generate({ ...INPUT, chars: [INPUT.chars[0]] })).result.characters[1].radical).toBe("");
