@@ -208,7 +208,7 @@ The Obsidian community-plugin auto-review runs `eslint-plugin-obsidianmd` plus a
 - `@typescript-eslint/no-explicit-any` — **Error**. Bare `any` blocks the cloud review and must block locally too.
 - `@typescript-eslint/no-unsafe-*` cluster, `no-floating-promises`, `no-misused-promises` — **Warning**. These are the long-standing notes about `loadData()` / LLM-response handling; they're tracked but don't block.
 - `@typescript-eslint/no-deprecated` — **Warning**. Matches the cloud's Recommendation tier (`setWarning` deprecation, `display` deprecation).
-- The obsidianmd `ui/sentence-case*` rules and a handful of `@typescript-eslint` Errors that the cloud lint doesn't emit are turned off so the local report doesn't add noise the auto-review wouldn't.
+- `obsidianmd/ui/sentence-case` — **Warning, enforced** (0 allowed). Obsidian's guideline is sentence case for all UI text. Proper nouns and acronyms the rule would lowercase are listed as `brands` / `acronyms` in `eslint.config.mjs`; add a name there instead of rewording. A handful of `@typescript-eslint` rules that the cloud lint doesn't emit are turned off so the local report doesn't add noise the auto-review wouldn't.
 
 **Running it locally is mandatory before tagging a release.** `npm run check-release -- --with-build` invokes lint as the last gate; a release with even one Error there will fail the cloud auto-review and risk delisting the plugin. The `release.yml` workflow re-runs the same gate on the runner after you push the tag, so a broken release is caught even if the local pass was skipped.
 
