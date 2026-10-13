@@ -53,7 +53,7 @@ function make(o: Setup = {}) {
     loadLocalStorage: vi.fn(() => o.key ?? ""),
     vault: { adapter, createFolder: vi.fn(async () => {}) },
   };
-  const settings: any = { enabled: o.enabled ?? true, debug: o.debug ?? false, provider: o.provider ?? "ollama", openaiModel: o.openaiModel, ollama: baseCfg(o.ollama) };
+  const settings: any = { keySecrets: { openai: "", ollama: "" }, enabled: o.enabled ?? true, debug: o.debug ?? false, provider: o.provider ?? "ollama", openaiModel: o.openaiModel, ollama: baseCfg(o.ollama) };
   const usage: any[] = [];
   const svc = new AiProviderService(() => settings, app, () => o.folder ?? "", (e) => void usage.push(e));
   return { svc, app, adapter, files, settings, usage };

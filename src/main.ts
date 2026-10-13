@@ -30,7 +30,6 @@ import { ExposureTracker } from "./vocabulary/ExposureTracker";
 import { indexVaultWithNotice } from "./vocabulary/VaultIndexer";
 import { SrsScheduler } from "./srs/SrsScheduler";
 import { AiProviderService } from "./ai/AiProviderService";
-import { saveApiKey } from "./ai/secrets";
 import { StoryGenerator } from "./ai/StoryGenerator";
 import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
 import { ExplainService } from "./ai/ExplainService";
@@ -59,7 +58,7 @@ import { AiSetupModal } from "./ui/AiSetupModal";
 import { WhatsNewModal } from "./ui/whatsNew/WhatsNewModal";
 import { notesOfLine, notesToShow } from "./ui/whatsNew/releaseNotes";
 import { aiConfigured } from "./ai/aiConfigured";
-import { loadApiKey } from "./ai/secrets";
+import { loadApiKey, migrateLegacyKeys } from "./ai/secrets";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
 import { VIEW_TYPE_CHINESE, VIEW_TYPE_STATS } from "./constants";
 import { WordStatus } from "./vocabulary/VocabularyTypes";
@@ -400,7 +399,7 @@ export default class CciPlugin extends Plugin {
 
   /** Is an AI provider usable (AI on, and a key or a server address)? */
   aiConfigured(): boolean {
-    return aiConfigured(this.settings.ai, (p) => loadApiKey(this.app, p));
+    return aiConfigured(this.settings.ai, (p) => loadApiKey(this.app, this.settings.ai, p));
   }
 
   /** Tell a user who has not set AI up to do so, and take them to the settings. */
@@ -464,11 +463,12 @@ export default class CciPlugin extends Plugin {
       this.settings.ai.ollama.apiKey = "";
       this.settings.ai.mnemonicPrompt = migrateMnemonicPrompt(this.settings.ai.mnemonicPrompt);
     }
-    // Rescue any legacy v1 ai.apiKey (or stray v2 ai.ollama.apiKey) into
-    // device-local secret storage so the user doesn't have to re-paste.
-    if (rescuedOllamaApiKey) {
-      saveApiKey(this.app, "ollama", rescuedOllamaApiKey);
-    }
+    // Always a copy, key by key: a blob from before 0.9.2 has none, and the defaults object must never be the one
+    // a key rescue writes into.
+    this.settings.ai = {
+      ...this.settings.ai,
+      keySecrets: { ...DEFAULT_SETTINGS.ai.keySecrets, ...this.settings.ai.keySecrets },
+    };
     // One-time display-mode migration: popup-only and color-only used to be
     // separate options but rendered identically (no inline annotation, with
     // a color tint). Collapse both into "none". Run before applyCustomColors
@@ -504,6 +504,11 @@ export default class CciPlugin extends Plugin {
     // fire view refreshes here, before tokenizer/vocab even exist.
     this.lastAppliedScriptVariant = this.settings.scriptVariant;
     this.lastAppliedRegion = this.settings.pronunciationRegion;
+    // Move an API key kept by an older version (v1 ai.apiKey, or the pre-0.9.2 localStorage copy) into Obsidian's
+    // secret storage, so the learner does not have to paste it again.
+    if (migrateLegacyKeys(this.app, this.settings.ai, { ollama: rescuedOllamaApiKey ?? "" })) {
+      void this.saveSettingsSilently();
+    }
     // First install: derive the HSK palette from the active Obsidian
     // accent color so the default looks intentional rather than rainbow.
     // Subsequent loads honor whatever the user has saved.

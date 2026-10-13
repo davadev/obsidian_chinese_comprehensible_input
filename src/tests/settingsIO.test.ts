@@ -26,12 +26,14 @@ describe("filterSettingsForSharing", () => {
     s.ai.ollama.chatModel = "qwen2.5:14b";
     s.ai.ollama.endpointMode = "ollama";
     s.ai.ollama.temperature = 0.42;
+    s.ai.keySecrets.openai = "my-openai-key";
     s.ai.usageLog = [
       { ts: Date.now(), provider: "openai", inputTokens: 100, cachedInputTokens: 0, outputTokens: 50 },
     ];
     const out = filterSettingsForSharing(s) as any;
     expect(out.ai.ollama.apiKey).toBeUndefined();
     expect(out.ai.usageLog).toBeUndefined();
+    expect(out.ai.keySecrets).toBeUndefined();
     expect(out.ai.ollama.baseUrl).toBe("http://192.168.1.10:11434/v1");
     expect(out.ai.ollama.chatModel).toBe("qwen2.5:14b");
     expect(out.ai.ollama.endpointMode).toBe("ollama");

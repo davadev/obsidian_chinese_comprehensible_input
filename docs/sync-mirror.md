@@ -69,9 +69,9 @@ Default `Chinese Learning/cci-settings.json`.
 
 The mirror is **not** a full settings dump. The plugin strips:
 
-- **API keys** (OpenAI, Ollama bearer) — these live in your device's
-  per-vault localStorage, never in any vault file. Pasted on each
-  device separately.
+- **API keys** (OpenAI, Ollama bearer) — these live in Obsidian's
+  secret storage, never in any vault file. Created on each device
+  separately.
 - **Sync configuration itself** — mirror enabled / path. Otherwise one
   device would clobber another's "I don't want sync" choice.
 - **Per-device install flags** — dictionary download manifest, vault

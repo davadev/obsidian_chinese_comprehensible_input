@@ -19,7 +19,9 @@ const NOT_IN_SETTINGS_TAB: Record<string, string> = {
   hskColorsDerivedFromAccent: "internal first-install marker",
   dictionarySource: "written by the dictionary downloader",
   "ai.usageLog": "append-only token log",
-  "ai.ollama.apiKey": "always empty at rest; the key lives in localStorage",
+  "ai.ollama.apiKey": "always empty at rest; the key lives in the secret storage",
+  "ai.keySecrets.openai": "edited by the API key row (a SecretComponent), which is not a declarative control",
+  "ai.keySecrets.ollama": "edited by the API key row (a SecretComponent), which is not a declarative control",
   "ai.ollama.embeddingModel": "reserved, not used by any feature yet",
   traditionalPromptDismissed:
     "set by the one-time 'this note looks Traditional' prompt's Don't ask again",
@@ -76,7 +78,7 @@ function collectKeys(items: AnyItem[]): string[] {
 function makeTab(): CciSettingsTab {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as typeof DEFAULT_SETTINGS;
   const plugin = {
-    app: { vault: { configDir: ".obsidian" }, loadLocalStorage: () => "", saveLocalStorage: () => undefined },
+    app: { vault: { configDir: ".obsidian" }, loadLocalStorage: () => "", saveLocalStorage: () => undefined, secretStorage: {} },
     settings,
     saveSettings: vi.fn().mockResolvedValue(undefined),
     refreshChineseViews: vi.fn(),
@@ -94,7 +96,7 @@ function makeTab(): CciSettingsTab {
 function makeTabWithPlugin() {
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as typeof DEFAULT_SETTINGS;
   const plugin = {
-    app: { vault: { configDir: ".obsidian" }, loadLocalStorage: () => "", saveLocalStorage: () => undefined },
+    app: { vault: { configDir: ".obsidian" }, loadLocalStorage: () => "", saveLocalStorage: () => undefined, secretStorage: {} },
     settings,
     saveSettings: vi.fn().mockResolvedValue(undefined),
     refreshChineseViews: vi.fn(),
@@ -197,10 +199,9 @@ describe("settings tab definitions", () => {
     const haystack = sources.join("\n");
 
     const unread = collectKeys(makeTab().getSettingDefinitions() as AnyItem[])
-      // `secret:` and `ui:` are pseudo-keys for transient UI state, not paths
-      // into the settings object — the no-typos test below skips them for the
-      // same reason.
-      .filter((k) => !k.startsWith("secret:") && !k.startsWith("ui:"))
+      // `ui:` is a pseudo-key for transient UI state, not a path into the
+      // settings object — the no-typos test below skips it for the same reason.
+      .filter((k) => !k.startsWith("ui:"))
       .filter((k) => {
         const leaf = k.slice(k.lastIndexOf(".") + 1);
         return !new RegExp(`\\.${leaf}\\b`).test(haystack);
@@ -213,7 +214,6 @@ describe("settings tab definitions", () => {
     const keys = collectKeys(makeTab().getSettingDefinitions() as AnyItem[]);
     const bogus = keys.filter(
       (k) =>
-        !k.startsWith("secret:") &&
         !k.startsWith("ui:") &&
         getByPath(DEFAULT_SETTINGS, k) === undefined
     );

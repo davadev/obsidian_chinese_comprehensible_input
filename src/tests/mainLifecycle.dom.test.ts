@@ -314,12 +314,13 @@ describe("the stored settings are merged with the defaults", () => {
     }
   });
 
-  it("an old flat AI shape is folded into the current one, and a key found in it is moved to the device-local store, never kept in the settings", async () => {
+  it("an old flat AI shape is folded into the current one, and a key found in it is moved to the secret storage, never kept in the settings", async () => {
     const env = load({ data: { settings: { hskColorsDerivedFromAccent: true, ai: { enabled: true, apiKey: "sk-legacy", baseUrl: "http://old:11434/v1", chatModel: "old-model" } } } });
     await env.plugin.onload();
     expect(env.plugin.settings.ai.ollama.chatModel).toBe("old-model");
     expect(env.plugin.settings.ai.ollama.apiKey).toBe("");
-    expect(env.storage.get("cci-ai-apikey-ollama")).toBe("sk-legacy");
+    expect(env.secrets.get("cci-ollama-api-key")).toBe("sk-legacy");
+    expect(env.plugin.settings.ai.keySecrets.ollama).toBe("cci-ollama-api-key");
   });
 
   it("the AI section merges key by key and keeps the usage log; a key that slipped into data.json is dropped from the settings and rescued", async () => {
@@ -330,7 +331,24 @@ describe("the stored settings are merged with the defaults", () => {
     expect(env.plugin.settings.ai.ollama.apiKey).toBe("");
     expect(env.plugin.settings.ai.ollama.chatModel).toBe("m");
     expect(env.plugin.settings.ai.ollama.baseUrl).toBeTruthy();
-    expect(env.storage.get("cci-ai-apikey-ollama")).toBe("sk-in-blob");
+    expect(env.secrets.get("cci-ollama-api-key")).toBe("sk-in-blob");
+  });
+
+  it("a key an older version kept in localStorage moves into the secret storage once, and the old copy stays for a downgrade", async () => {
+    const env = load({ data: { settings: { hskColorsDerivedFromAccent: true, ai: { enabled: true, provider: "openai" } } } });
+    env.storage.set("cci-ai-apikey-openai", "sk-0.9.1");
+    await env.plugin.onload();
+    expect(env.plugin.settings.ai.keySecrets.openai).toBe("cci-openai-api-key");
+    expect(env.secrets.get("cci-openai-api-key")).toBe("sk-0.9.1");
+    expect(env.storage.get("cci-ai-apikey-openai")).toBe("sk-0.9.1");
+    expect(env.plugin.aiConfigured()).toBe(true);
+  });
+
+  it("the defaults object is never the one a key migration writes into", async () => {
+    const env = load({ data: { settings: { hskColorsDerivedFromAccent: true } } });
+    env.storage.set("cci-ai-apikey-openai", "sk-x");
+    await env.plugin.onload();
+    expect(DEFAULT_SETTINGS.ai.keySecrets).toEqual({ openai: "", ollama: "" });
   });
 
   it("an AI section without a usage log gets an empty one", async () => {

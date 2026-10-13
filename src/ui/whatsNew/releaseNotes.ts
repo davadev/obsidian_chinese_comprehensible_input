@@ -27,6 +27,18 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "0.9.2",
+    title: "What's new in 0.9.2",
+    intro: "Your AI key now lives where Obsidian keeps secrets.",
+    items: [
+      {
+        title: "API keys in Obsidian's secret storage",
+        text:
+          "The OpenAI and Ollama keys are no longer kept in the plugin's own storage. In Settings, AI, choose a secret (or create one) in the API key row; Obsidian keeps the key, and the plugin only remembers its name. A key you saved before is moved over automatically the first time you start this version, so there is nothing to paste again. Restart Obsidian fully once so the settings page shows the new row.",
+      },
+    ],
+  },
+  {
     version: "0.9.1",
     title: "What's new in 0.9.1",
     intro: "A sentence too hard to read? The lightbulb can now find an easier way to say it.",
