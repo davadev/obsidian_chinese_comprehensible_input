@@ -238,7 +238,7 @@ describe("the lightbulb button", () => {
     const { container, plugin } = mount();
     plugin.aiConfigured.mockReturnValue(false);
     bulb(container).click();
-    expect(plugin.promptAiSetup).toHaveBeenCalledWith("Explain and proof read");
+    expect(plugin.promptAiSetup).toHaveBeenCalledWith("Explain, proof read and simplify");
     expect(plugin.setActiveViewMode).not.toHaveBeenCalled();
   });
 
@@ -272,12 +272,12 @@ describe("the lightbulb banner", () => {
     expect(text(m.container)).toBe("Start selected — tap the last word to explain");
   });
 
-  it("the dropdown offers Explain and Proof read, marks the current one, saves a choice and relabels the banner", async () => {
+  it("the dropdown offers Explain, Proof read and Simplify, marks the current one, saves a choice and relabels the banner", async () => {
     const m = mount({ mode: "explain" });
     dropdown(m.container).click();
     const rows = Array.from(choiceMenu()!.querySelectorAll<HTMLElement>(".cci-overflow-item"));
-    expect(rows.map((r) => r.textContent)).toEqual(["Explain", "Proof read"]);
-    expect(rows.map((r) => r.querySelector<HTMLInputElement>("input")!.checked)).toEqual([true, false]);
+    expect(rows.map((r) => r.textContent)).toEqual(["Explain", "Proof read", "Simplify"]);
+    expect(rows.map((r) => r.querySelector<HTMLInputElement>("input")!.checked)).toEqual([true, false, false]);
     rows[1].click();
     await flush();
     expect(m.plugin.settings.phraseAction).toBe("proofread");
@@ -285,6 +285,18 @@ describe("the lightbulb banner", () => {
     expect(dropdown(m.container).textContent).toBe("Proof read ▾");
     expect(text(m.container)).toContain("to proof read");
     expect(choiceMenu()).toBeNull();
+  });
+
+  it("choosing Simplify saves it, relabels the dropdown and the banner, and a stored value nobody knows reads as Explain", async () => {
+    const m = mount({ mode: "explain" });
+    dropdown(m.container).click();
+    Array.from(choiceMenu()!.querySelectorAll<HTMLElement>(".cci-overflow-item"))[2].click();
+    await flush();
+    expect(m.plugin.settings.phraseAction).toBe("simplify");
+    expect(dropdown(m.container).textContent).toBe("Simplify ▾");
+    expect(text(m.container)).toContain("to simplify");
+    const odd = mount({ mode: "explain", settings: { phraseAction: "toString" } });
+    expect(dropdown(odd.container).textContent).toBe("Explain ▾");
   });
 
   it("choosing through the radio itself works too, and choosing Explain again keeps it", async () => {

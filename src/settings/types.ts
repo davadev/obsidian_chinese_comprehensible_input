@@ -287,6 +287,7 @@ export interface PromptTexts {
   explain: string;
   phrase: string;
   proofread: string;
+  simplify: string;
 }
 
 export interface ExplainSettings {
@@ -400,7 +401,7 @@ export interface CciSettings {
   /** The newest release the "What's new" popup has already shown (see ui/whatsNew). Per device: never synced. */
   lastSeenVersion: string;
   /** What the lightbulb tool does with a selection. Chosen from the dropdown in its banner. */
-  phraseAction: "explain" | "proofread";
+  phraseAction: "explain" | "proofread" | "simplify";
   /** The newest release note this device has already been *hinted* about (an update applied while Obsidian was running). Per device. */
   whatsNewHintedFor: string;
   explain: ExplainSettings;

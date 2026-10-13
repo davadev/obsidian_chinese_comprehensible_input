@@ -8,7 +8,7 @@ It appears on the word card as **Explain**, next to Mnemonic and Edit. If AI is 
 is missing and takes you to the settings. It works with or without a sentence; if you opened the card from a sentence, that sentence is sent too so the model can pick the sense
 you met (it still covers the other senses).
 
-Beyond single words, the lightbulb tool [explains a phrase or sentence](#explaining-or-proof-reading-a-phrase-the-lightbulb) or proof reads it. Explain and Proof read both need an AI provider and cost a fraction of a cent per answer on OpenAI.
+Beyond single words, the lightbulb tool [explains a phrase or sentence](#explaining-or-proof-reading-a-phrase-the-lightbulb), proof reads it, or [simplifies it](#simplify). Explain, Proof read and Simplify all need an AI provider and cost a fraction of a cent per answer on OpenAI.
 
 ## What is in a note
 
@@ -59,7 +59,7 @@ model free rein:
 
 The lightbulb button in the reader's toolbar (next to the highlighter) works on a stretch of text instead of one word.
 Tap it, tap the **first word** of the text, then the **last word**. A dropdown in the banner chooses what happens:
-**Explain** or **Proof read**. The second tap opens a dialog that shows the text, its length and the likely cost, and
+**Explain**, **Proof read** or **Simplify**. The second tap opens a dialog that shows the text, its length and the likely cost, and
 nothing is sent until you press the button there. **Exit** in the banner leaves the mode. With no AI set up, the button
 tells you how to set it up instead of starting the mode.
 
@@ -67,9 +67,9 @@ The selection is limited (default 150 characters, about two or three sentences; 
 text**): more costs more and is explained worse. A longer selection is refused with the count, and you can simply tap an
 earlier last word.
 
-<img width="560" src="../resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown">
+<img width="560" src="../resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read / Simplify dropdown">
 
-**1** the lightbulb, armed · **2** the hint (it names the word you tapped first) · **3** the dropdown: **Explain** or **Proof read** ·
+**1** the lightbulb, armed · **2** the hint (it names the word you tapped first) · **3** the dropdown: **Explain**, **Proof read** or **Simplify** ·
 **4** **Exit**.
 
 <img width="560" src="../resources/screenshots/explain-phrase-confirm-annotated.png" alt="The confirm dialog: text, length, cost, Explain">
@@ -111,9 +111,25 @@ the corrected text instead.
 
 **1** **Apply** puts this one fix into your note · **2** **Copy corrected text** (beside it, **Apply all** applies every fix).
 
+### Simplify
+
+For a sentence that is too hard. The AI is asked for four to six different ways to say the **same thing** with easier
+words and simpler grammar, in the same script as your text. **The AI does not decide which is simplest.** The plugin looks
+every word of the original and of each rewrite up in the HSK lists and in your own vocabulary, and adds up how hard the
+words are that you do not know yet (a word you marked known or ignored costs nothing). The rewrite with the lowest total
+wins; ties go to the one whose hardest unknown word is easier, then to the one with fewer unknown words, then to the
+shorter. It is proposed only if it is strictly simpler than your original; otherwise the dialog says the text is already
+about as simple as it gets.
+
+The result shows the original, the winner with the numbers behind it (*Words you don't know yet: 4 → 1 · Hardest of them:
+HSK 5 → HSK 2*) and a one-line note from the AI on what the rewrite changes in meaning or tone, because a simpler sentence
+can say something slightly different. The other rewrites are folded under **Other ways to say it**. **Apply** replaces your
+selection in the note (only if the text there is still exactly what was selected; a selection that has formatting in the
+note cannot be replaced, copy the text instead) and **Copy** copies one. Nothing is changed without a tap.
+
 ### Cost
 
-Explaining a phrase makes two requests and proof reading one. The dialog shows an estimate before you start (OpenAI only;
+Explaining a phrase makes two requests; proof reading and simplifying one each. The dialog shows an estimate before you start (OpenAI only;
 a local model costs nothing) and the real cost afterwards, from the token usage the API reports. The word note shows its
 real cost too.
 
@@ -136,7 +152,7 @@ servers, with Ollama to your own; see [OpenAI setup, privacy, and cost](./openai
 A note costs a fraction of a cent to a few cents on OpenAI, depending on the model.
 
 **A phrase or proof read** (the lightbulb): only the **selected text** is sent (with the note's formatting taken off), in two
-requests for Explain (the quick check, then the explanation) and one for Proof read, plus at most one follow-up each when a
+requests for Explain (the quick check, then the explanation) and one each for Proof read and Simplify, plus at most one follow-up each when a
 rule was broken. Nothing else from the note is sent, and the confirm dialog shows exactly what will go.
 
 ## Settings
@@ -151,7 +167,7 @@ rule was broken. Nothing else from the note is sent, and the confirm dialog show
 ## Telling the AI how you like things explained
 
 **Settings → AI provider → AI prompts ▾** has one box per feature (Explain a word, Explain a phrase or sentence,
-Proof read). Whatever you write there is added to the end of the built-in prompt with every request, so it is the place
+Proof read, Simplify). Whatever you write there is added to the end of the built-in prompt with every request, so it is the place
 for "explain in German", "I am at HSK 3, keep it simple" or "I care about grammar more than vocabulary". The answer format
 is still checked by the plugin, so an instruction cannot break the saved note. These words are sent to the AI provider
 along with the text.

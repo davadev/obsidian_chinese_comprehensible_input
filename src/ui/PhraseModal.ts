@@ -1,9 +1,11 @@
 import { App, Modal, Notice } from "obsidian";
 import type CciPlugin from "../main";
 import type { ChineseTextFileView } from "../view/ChineseTextFileView";
-import { PhraseAction, estimatePhraseUsd } from "../ai/phraseCost";
+import { PHRASE_ACTIONS, PhraseAction, estimatePhraseUsd } from "../ai/phraseCost";
 import { PhraseCheck, PhraseMeta, PhraseResult, phraseBlocks, phraseFileName, renderPhraseMarkdown } from "../ai/phrase";
 import { LocatedCorrection, ProofreadResult, applyCorrections, locateCorrections } from "../ai/proofread";
+import { ScoredCandidate, SimplifyOutcome } from "../ai/SimplifyService";
+import { Measured, describeGain } from "../ai/simplify";
 import { OPENAI_MODELS, resolveOpenAiChoice } from "../ai/openaiProfile";
 import { formatUsd } from "../vocabulary/batchMnemonics";
 import { copyMarkdown, saveExplanation } from "./explainFiles";
@@ -26,13 +28,20 @@ export interface PhraseSelection {
   hasMarkup: boolean;
 }
 
+const RUNNING_TITLE: Record<PhraseAction, string> = {
+  explain: "Writing the explanation…",
+  proofread: "Proof reading…",
+  simplify: "Finding simpler ways to say it…",
+};
+
 /**
- * The dialog behind the lightbulb tool (#186): explain a selected phrase, or proof read it.
+ * The dialog behind the lightbulb tool (#186): explain a selected phrase, proof read it, or simplify it (#238).
  *
  * It is also the confirm step: the second tap lands here and nothing is sent until the learner presses the action button,
  * with the text, its length and the likely cost in front of them. Explain checks first that the text is generally
  * correct; if it is not, it says so and offers to proof read instead of explaining wrong grammar. Proof read lists each
  * correction with Apply; applying replaces the text in the note, guarded so a note that changed meanwhile is never damaged.
+ * Simplify shows the simplest rewrite the plugin measured, with the numbers that make it simpler, and the other candidates.
  */
 export class PhraseModal extends Modal {
   private runId = 0;
@@ -42,6 +51,9 @@ export class PhraseModal extends Modal {
   private issues: string[] = [];
   private meta!: PhraseMeta;
   private proofread: ProofreadResult | null = null;
+  private simplified: SimplifyOutcome | null = null;
+  /** The candidate written into the note, once one has been: the others can no longer be applied. */
+  private appliedText: string | null = null;
   /** The selection as it is in the note now: it changes as corrections are applied. */
   private rawNow: string;
   private to: number;
@@ -74,7 +86,7 @@ export class PhraseModal extends Modal {
   }
 
   private get verb(): string {
-    return this.action === "explain" ? "Explain" : "Proof read";
+    return PHRASE_ACTIONS[this.action].label;
   }
 
   private heading(title: string, sub?: string): void {
@@ -127,16 +139,23 @@ export class PhraseModal extends Modal {
 
   private async run(): Promise<void> {
     const run = ++this.runId;
-    this.heading(
-      this.action === "explain" ? "Writing the explanation…" : "Proof reading…",
-      "This usually takes 10 to 40 seconds."
-    );
+    this.heading(RUNNING_TITLE[this.action], "This usually takes 10 to 40 seconds.");
     this.stopProgress = startProgressClock(this.contentEl);
     this.button(this.actions(), "Cancel", () => this.close());
     this.meter.usd = 0;
     this.meter.requests = 0;
     this.meter.start();
     try {
+      if (this.action === "simplify") {
+        const out = await this.plugin.simplify.simplify(this.sel.text);
+        this.meter.stop();
+        if (run !== this.runId) return;
+        this.simplified = out;
+        this.issues = out.issues;
+        this.appliedText = null;
+        this.renderSimplify();
+        return;
+      }
       if (this.action === "proofread") {
         const out = await this.plugin.proofread.proofread(this.sel.text);
         this.meter.stop();
@@ -310,6 +329,67 @@ export class PhraseModal extends Modal {
       }, true);
       all.disabled = !placed.some((c) => this.canApply(c, placed));
     }
+  }
+
+  // ── simplify ───────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  /** Can the whole selection be replaced right now? Not when markup was taken off it (the replacement would lose that markup). */
+  private canReplaceWhole(text: string): boolean {
+    return !!this.sel.view && !this.sel.hasMarkup && this.appliedText === null && text !== this.rawNow;
+  }
+
+  private applyWhole(text: string): void {
+    const view = this.sel.view;
+    if (!view || !view.replaceRange(this.sel.from, this.sel.from + this.rawNow.length, this.rawNow, text)) return;
+    this.rawNow = text;
+    this.to = this.sel.from + text.length;
+    this.appliedText = text;
+  }
+
+  private candidateRow(parent: HTMLElement, c: ScoredCandidate, original: Measured, best: boolean): void {
+    const item = parent.createDiv({ cls: "cci-proof-item" });
+    item.createEl("blockquote", { cls: "cci-explain-quote", text: c.text });
+    item.createDiv({ cls: "cci-explain-muted", text: describeGain(original, c) });
+    if (c.change) item.createDiv({ cls: "cci-explain-muted", text: `What changes: ${c.change}` });
+    const done = this.appliedText === c.text;
+    const apply = item.createEl("button", { text: done ? "Applied ✓" : "Apply", cls: best && !done ? "mod-cta" : undefined });
+    apply.disabled = done || !this.canReplaceWhole(c.text);
+    if (!done && apply.disabled && this.sel.hasMarkup) apply.title = "This selection has formatting that a replacement would lose; copy the text instead.";
+    apply.addEventListener("click", () => {
+      this.applyWhole(c.text);
+      this.renderSimplify();
+    });
+    const copy = item.createEl("button", { text: "Copy" });
+    copy.addEventListener("click", () => void copyMarkdown(c.text, "Simpler text"));
+  }
+
+  private renderSimplify(): void {
+    const out = this.simplified as SimplifyOutcome;
+    this.heading(out.best ? "A simpler way to say it" : "Already about as simple as it gets");
+    const { contentEl } = this;
+    contentEl.createEl("p", { cls: "cci-explain-muted", text: "Original" });
+    contentEl.createEl("blockquote", { cls: "cci-explain-quote", text: this.sel.text });
+    this.caveat();
+    if (out.best) {
+      contentEl.createEl("p", { cls: "cci-explain-muted", text: "Simplest, measured against HSK levels and the words you know" });
+      this.candidateRow(contentEl.createDiv({ cls: "cci-proof-list" }), out.best, out.original, true);
+    } else {
+      contentEl.createEl("p", {
+        text: out.ranked.length === 0 ? "No simpler way to say this was found." : "None of the rewrites uses easier words than the original.",
+      });
+      contentEl.createEl("p", { cls: "cci-explain-muted", text: "Simpler means fewer words you don't know yet, and easier ones." });
+    }
+    const others = out.ranked.filter((c) => c !== out.best);
+    if (others.length > 0) {
+      const more = contentEl.createEl("details", { cls: "cci-simplify-others" });
+      more.createEl("summary", { text: out.best ? `Other ways to say it (${others.length})` : `The rewrites that were tried (${others.length})` });
+      const rest = more.createDiv({ cls: "cci-proof-list" });
+      for (const c of others) this.candidateRow(rest, c, out.original, false);
+    }
+    this.costLine();
+    const bar = this.actions();
+    this.button(bar, "Close", () => this.close());
+    this.button(bar, "Regenerate", () => void this.run());
   }
 
   private async copyCorrected(placed: LocatedCorrection[]): Promise<void> {
