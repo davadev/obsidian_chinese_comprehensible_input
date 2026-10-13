@@ -16,6 +16,7 @@
 		"lint:css": "stylelint styles.css",
 		"lint:cloud-parity": "node scripts/lint-cloud-parity.mjs",
 		"check:layout": "node scripts/check-eink-layout.mjs",
+		"check:screenshots": "node scripts/render-screenshots.mjs --check",
 		"check:webkit": "node scripts/check-webkit-layout.mjs",
 		"test": "vitest run",
 		"test:watch": "vitest",

@@ -125,6 +125,12 @@ jobs:
       - name: Check layout in Chromium
         run: npm run check:layout
 
+      # Re-renders the annotated docs screenshots to a temp folder and checks every callout's geometry (numbers in
+      # order, boxes and circles inside the image, no overlapping circles). Nothing is compared pixel-for-pixel: fonts
+      # differ between a Mac and this runner. A selector that no longer matches also fails here.
+      - name: Check annotated screenshots
+        run: npm run check:screenshots
+
   # Text must wrap in WebKit too (#119). The iPhone runs WebKit, and 0.7.8-beta.4 shipped a stylesheet Blink tolerated
   # and WebKit did not (no legal line break between adjacent numbered words -> sideways scroll). Runs the layout
   # harness's overflow measurement in Playwright's WebKit against the real styles.css, and against the beta.4

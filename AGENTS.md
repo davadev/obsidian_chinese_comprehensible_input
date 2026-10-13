@@ -14,6 +14,7 @@ npm run lint:fix            # apply autofixable rules
 npm run lint:css            # stylelint on styles.css (chrome 138 target)
 npm run lint:cloud-parity   # reproduce the auto-review's type-aware warnings
 npm run check:layout        # real Chromium layout check (E-ink); check:webkit = WebKit
+npm run check:screenshots   # re-render annotated docs images to a temp dir, verify callout geometry
 npm run check-release       # pre-release validator — REQUIRED before tagging
                             #   -- --tag 0.X.Y | --with-build | --with-lint | --strict
 ```

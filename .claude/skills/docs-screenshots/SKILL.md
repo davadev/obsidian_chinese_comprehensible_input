@@ -17,7 +17,8 @@ Images in `resources/screenshots/` are **rendered from the real plugin UI, not h
 ## Steps
 1. Make UI change, update fixtures in `scripts/screenshots/` if the scene data must change.
 2. Re-render the affected scenes.
-3. **Open every output PNG with the Read tool and inspect it**: each numbered circle sits on its target, boxes fully enclose the element, no clipped text, numbers read 1..n in the legend order, no stale element.
-4. Cross-check each legend in `README.md` and `docs/*.md` (`grep -rn "<scene-name>" README.md docs`): same count, same order, same wording as the UI.
-5. Commit script/fixture changes and images together in the feature PR (not a later sweep).
-6. Before any tag: show the user the images and wait for approval.
+3. `npm run check:screenshots` (also a CI step) re-renders to a temp folder and fails on bad callout geometry or a selector that no longer matches. It cannot see wrong *content*, so still:
+4. **Open every output PNG with the Read tool and inspect it**: each numbered circle sits on its target, boxes fully enclose the element, no clipped text, numbers read 1..n in the legend order, no stale element.
+5. Cross-check each legend in `README.md` and `docs/*.md` (`grep -rn "<scene-name>" README.md docs`): same count, same order, same wording as the UI.
+6. Commit script/fixture changes and images together in the feature PR (not a later sweep).
+7. Before any tag: show the user the images and wait for approval.
