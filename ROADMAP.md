@@ -48,7 +48,7 @@ Every release, whatever its tier, goes through the normal prerelease loop descri
 | Release | Contents | Issues |
 |---|---|---|
 | **0.9.x** | Maintenance as it arises (fix releases). | whatever is tagged *maintenance* on the board |
-| **0.9.1** | **Simplify** in the lightbulb dropdown: the AI proposes several ways to say a sentence, the plugin ranks them by HSK level and the learner's own vocabulary and proposes the simplest, which can be applied or saved. Idea stage, see the issue. | #238 |
+| **0.9.1** (released) | **Simplify** in the lightbulb dropdown: the AI proposes several ways to say a sentence, the plugin ranks them by HSK level and the learner's own vocabulary and proposes the simplest, which can be applied. Also: What's new stacks per minor line and "Show what's new" opens the whole line. Follow-up not shipped: Save as note. | #238 |
 | **0.10.0** | Import a web article by URL (or via the official Web Clipper) and read it in the reader, with a coverage preview. | #187 |
 
 Issues assigned to a release can move; the board is the source of truth.
