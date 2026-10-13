@@ -106,7 +106,7 @@ export class StatsView extends ItemView {
     return VIEW_TYPE_STATS;
   }
   getDisplayText(): string {
-    return "Chinese Vocabulary Stats";
+    return "Chinese vocabulary stats";
   }
   getIcon(): string {
     return "bar-chart-3";
@@ -156,7 +156,7 @@ export class StatsView extends ItemView {
 
   private renderHeader(root: HTMLElement) {
     const header = root.createDiv({ cls: "cci-stats-header" });
-    const back = header.createEl("button", { cls: "cci-stats-back", text: "← Back" });
+    const back = header.createEl("button", { cls: "cci-stats-back", text: "← back" });
     back.addEventListener("click", () => this.leaf.detach());
     header.createEl("h2", { text: "Vocabulary stats", cls: "cci-stats-title" });
 

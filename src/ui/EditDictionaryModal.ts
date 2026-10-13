@@ -95,7 +95,7 @@ export class EditDictionaryModal extends Modal {
     const hskRow = contentEl.createDiv({ cls: "cci-edit-dict-row" });
     hskRow.createEl("label", { text: "HSK level" });
     const hskSel = hskRow.createEl("select");
-    hskSel.createEl("option", { text: "(none)", value: "" });
+    hskSel.createEl("option", { text: "(None)", value: "" });
     for (const lvl of ["1", "2", "3", "4", "5", "6", "7"]) {
       hskSel.createEl("option", { text: `HSK ${lvl}`, value: lvl });
     }

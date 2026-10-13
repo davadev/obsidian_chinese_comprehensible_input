@@ -60,8 +60,20 @@ export default tseslint.config(
       // `npm run lint:cloud-parity` relies on it to mirror the scanner's view.
       "@typescript-eslint/no-redundant-type-constituents": "warn",
 
-      // Off deliberately. `obsidianmd/ui/sentence-case*` is noisy on
-      // human-language UI labels (HSK / OpenAI / pinyin). The rest are off
+      // Sentence case for UI text is Obsidian's guideline, so it is enforced (#249). The rule lowercases proper
+      // nouns it does not know ("Chinese", "HSK"), so they are listed as `brands` / `acronyms`; add a new name
+      // there rather than rewording the text. The JSON and locale variants have nothing to check here.
+      "obsidianmd/ui/sentence-case": [
+        "warn",
+        {
+          brands: ["Chinese", "OpenAI", "Ollama", "CC-CEDICT", "Obsidian", "Pinyin"],
+          acronyms: ["HSK", "AI", "CSV", "JSON", "URL", "SRS", "CC", "BY-SA", "MIT"],
+        },
+      ],
+      "obsidianmd/ui/sentence-case-json": "off",
+      "obsidianmd/ui/sentence-case-locale-module": "off",
+
+      // The rules below are off
       // because they flag patterns this codebase uses intentionally; measured
       // cost if re-enabled today is no-base-to-string 1 and require-await 8,
       // while restrict-template-expressions, unbound-method and
@@ -71,9 +83,6 @@ export default tseslint.config(
       // NOTE: do not assume the cloud auto-review skips a rule just because it
       // is listed here — that assumption was wrong for
       // no-redundant-type-constituents above. Verify before claiming it.
-      "obsidianmd/ui/sentence-case": "off",
-      "obsidianmd/ui/sentence-case-json": "off",
-      "obsidianmd/ui/sentence-case-locale-module": "off",
       "@typescript-eslint/no-base-to-string": "off",
       "@typescript-eslint/restrict-template-expressions": "off",
       "@typescript-eslint/unbound-method": "off",

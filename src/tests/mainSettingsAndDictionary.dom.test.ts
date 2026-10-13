@@ -313,12 +313,12 @@ describe("suggesting Traditional", () => {
     expect(Notice.instances).toHaveLength(0);
   });
 
-  it("'Switch to Traditional' changes the script, saves, then offers the re-index", async () => {
+  it("'Switch to traditional' changes the script, saves, then offers the re-index", async () => {
     const o = self();
     o.maybeSuggestTraditional("學習");
     const n = lastNotice();
     const hide = vi.spyOn(n, "hide");
-    Array.from(n.messageEl.querySelectorAll("button")).find((b) => b.textContent === "Switch to Traditional")!.click();
+    Array.from(n.messageEl.querySelectorAll("button")).find((b) => b.textContent === "Switch to traditional")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(hide).toHaveBeenCalled();
     expect(o.settings.scriptVariant).toBe("traditional");
@@ -603,7 +603,7 @@ describe("the one-time What's new popup", () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(self.settings.showWhatsNew).toBe(false);
-    expect(Notice.instances.at(-1)!.message).toContain("Settings → Chinese → About");
+    expect(Notice.instances.at(-1)!.message).toContain("in the about section");
   });
 
   it("the command shows the notes of the whole running line again on demand, or says there is none", () => {

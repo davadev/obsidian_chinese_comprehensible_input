@@ -37,7 +37,7 @@ afterEach(() => {
 describe("frame", () => {
   it("identifies itself", () => {
     const { view } = makeStats();
-    expect([view.getViewType(), view.getDisplayText(), view.getIcon()]).toEqual(["cci-stats-view", "Chinese Vocabulary Stats", "bar-chart-3"]);
+    expect([view.getViewType(), view.getDisplayText(), view.getIcon()]).toEqual(["cci-stats-view", "Chinese vocabulary stats", "bar-chart-3"]);
   });
 
   it("opens on the dashboard with a header, back button and three tabs", async () => {
@@ -47,7 +47,7 @@ describe("frame", () => {
     expect(qa(root, ".cci-stats-tab").map((t) => t.textContent)).toEqual(["Dashboard", "Flashcards", "Words"]);
     expect(q(root, ".cci-stats-tab.is-active").textContent).toBe("Dashboard");
     expect(q(root, ".cci-stats-title").textContent).toBe("Vocabulary stats");
-    btn(root, "← Back").click();
+    btn(root, "← back").click();
     expect(leaf.detach).toHaveBeenCalled();
   });
 

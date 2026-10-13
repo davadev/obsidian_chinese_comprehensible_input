@@ -296,9 +296,9 @@ describe("unsaved smart-story preview bar", () => {
     expect(regen.hasAttribute("disabled")).toBe(false);
   });
 
-  it("Back to Smart stories opens the stats view in smart mode", async () => {
+  it("Back to smart stories opens the stats view in smart mode", async () => {
     const m = await setup();
-    button(m.root, "Back to Smart stories").click();
+    button(m.root, "Back to smart stories").click();
     await tick();
     expect(m.plugin.settings.flashcardsMode).toBe("smart");
     expect(m.plugin.openStatsView).toHaveBeenCalled();
