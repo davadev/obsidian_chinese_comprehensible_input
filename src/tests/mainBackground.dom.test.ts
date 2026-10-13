@@ -301,6 +301,19 @@ describe("unloading", () => {
     expect(calls).toEqual(["reset", "save", "mirror", "settings"]);
   });
 
+  it("never detaches the open views: the review lint forbids it, and they would reset to their default place", async () => {
+    const detach = vi.fn();
+    const o: any = bind({
+      app: { workspace: { detachLeavesOfType: detach } },
+      resetCrashCounter: vi.fn(async () => {}),
+      vocab: { flushSave: vi.fn(async () => {}), flushMirrorNow: vi.fn(async () => {}) },
+      settingsMirror: undefined,
+    });
+    o.onunload();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(detach).not.toHaveBeenCalled();
+  });
+
   it("a settings mirror that fails to flush, or does not exist, does not break unloading", async () => {
     const failing: any = bind({
       resetCrashCounter: vi.fn(async () => {}),
