@@ -497,7 +497,7 @@ export class ViewToolbar {
       onClose();
     };
     const onDocClick = (ev: MouseEvent) => {
-      if (!menu.contains(ev.target as Node) && ev.target !== anchor) close();
+      if (!ev.composedPath().includes(menu) && ev.target !== anchor) close();
     };
     // Defer so the opening click doesn't immediately close it.
     window.setTimeout(() => {

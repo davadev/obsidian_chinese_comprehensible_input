@@ -80,6 +80,11 @@ jobs:
       - name: Run release guard
         run: env -u GITHUB_REF_NAME -u GITHUB_REF npm run check-release -- --with-lint
 
+      # The auto-review lints without the obsidian/@codemirror type declarations. Warnings from that blind view are
+      # expected; an ERROR is not (it can fail the review). This hides node_modules/obsidian temporarily, so it runs last.
+      - name: Check the Obsidian review's blind view has no errors
+        run: npm run lint:cloud-parity
+
       - name: Upload coverage artifact
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

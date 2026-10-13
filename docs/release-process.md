@@ -523,6 +523,12 @@ a per-rule histogram, and restores them (including on crash or Ctrl-C; if a
 restore ever fails it says so, and `npm ci` repairs it). Measured **3377**
 warnings against the auto-review's 3482.
 
+The thousands of **warnings** are the scanner's blindness and are expected. An **error** in this blind view is not: it
+can fail the review, so the script prints each error-severity finding with file and line, exits 1, and CI runs it (last
+step of `validate`). The first one it ever caught was `ev.target as Node` in `ViewToolbar.ts`: necessary when the types
+resolve, "unnecessary" when they do not. The fix is code that needs no assertion in either view
+(`ev.composedPath().includes(menu)`), not an eslint-disable.
+
 `@typescript-eslint/no-redundant-type-constituents` is enabled precisely because
 it is the rule behind those `'error' type` rows. Under the parity run it reports
 **exactly the same six locations** the auto-review lists:

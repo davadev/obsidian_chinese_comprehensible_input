@@ -12,7 +12,7 @@ npm run test:cov            # vitest + v8 coverage; CI enforces 100 % on all fou
 npm run lint                # local mirror of Obsidian's community-plugin auto-review (0 errors required)
 npm run lint:fix            # apply autofixable rules
 npm run lint:css            # stylelint on styles.css (chrome 138 target)
-npm run lint:cloud-parity   # reproduce the auto-review's type-aware warnings
+npm run lint:cloud-parity   # the review's blind view (types hidden): must report 0 errors; its warnings are expected
 npm run check:layout        # real Chromium layout check (E-ink); check:webkit = WebKit
 npm run check:dead-code     # knip --production: unused files/exports/deps (tests do not count as users)
 npm run check:screenshots   # re-render annotated docs images to a temp dir, verify callout geometry

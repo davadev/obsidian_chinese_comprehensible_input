@@ -20,9 +20,11 @@
 // To see what the cloud sees, we have to reproduce its blindness: hide the
 // type declarations, lint, then put them back.
 //
-// This is a DIAGNOSTIC, not a gate. It is deliberately not wired into
-// `check-release` — the output is thousands of warnings that say more about
-// the scanner's environment than about this code.
+// The warnings are a DIAGNOSTIC (thousands of them say more about the scanner's
+// environment than about this code), but an ERROR-severity finding in this
+// blind view can fail the review, so any error makes this script exit 1 and CI
+// runs it. It is deliberately not part of `check-release`: it renames
+// node_modules directories while it runs.
 //
 // Usage: npm run lint:cloud-parity
 import { rename, access } from "node:fs/promises";
@@ -117,12 +119,14 @@ try {
   let errors = 0;
   let warnings = 0;
   const byRule = new Map();
+  const errorRows = [];
   try {
     for (const f of JSON.parse(r.stdout || "[]")) {
       errors += f.errorCount;
       warnings += f.warningCount;
       for (const m of f.messages) {
         byRule.set(m.ruleId || "(none)", (byRule.get(m.ruleId || "(none)") || 0) + 1);
+        if (m.severity === 2) errorRows.push(`${f.filePath.replace(`${ROOT}/`, "")}:${m.line}:${m.column}  ${m.ruleId}  ${m.message}`);
       }
     }
   } catch {
@@ -134,6 +138,8 @@ try {
   for (const [rule, n] of [...byRule.entries()].sort((a, b) => b[1] - a[1])) {
     console.log(`  ${String(n).padStart(5)}  ${rule}`);
   }
+  if (errors > 0) process.exitCode = 1;
+  if (errorRows.length) console.log(`\nERRORS (these can fail the review):\n${errorRows.map((e) => `  ${e}`).join("\n")}`);
   console.log(
     "\nThese are WARNINGS in the auto-review and do not block a release —\n" +
       "the scorecard's Review verdict stays `Passed`. They are an artifact of\n" +
