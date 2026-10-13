@@ -1,119 +1,59 @@
 # Chinese Comprehensible Input — AGENTS.md
 
+Obsidian plugin. This file holds only what applies to **every** edit. Procedures live in skills (`.claude/skills/`); long rationale in `docs/`.
+
 ## Commands
 
 ```bash
-npm run dev                              # watch-mode esbuild
-npm run build                            # tsc --noEmit --skipLibCheck + production esbuild → main.js
-npm test                                 # vitest (src/tests/**/*.test.ts)
-npm run test:cov                         # vitest run + v8 coverage report (terminal + coverage/index.html + lcov)
-npm run test:cov:open                    # same, then opens the HTML report in your browser
-npm run test:watch                       # vitest watch mode
-npm run lint                             # local mirror of Obsidian's community-plugin auto-review
-npm run lint:fix                         # apply autofixable rules in place
-npm run lint:css                         # stylelint on styles.css, same checks as Obsidian's review (chrome 138 target)
-npm run check-release                    # pre-release validator — REQUIRED before tagging
-npm run check-release -- --tag 0.X.Y     # also checks tag matches manifest.version
-npm run check-release -- --with-build    # also runs `npm run build` + `npm test` + `npm run lint`
-npm run check-release -- --with-lint     # runs the Obsidian-parity lint only (no build/test)
-npm install-scripts ls                   # any dependency install scripts still unreviewed?
-npm run lint:cloud-parity                # reproduce the auto-review's type-aware warnings locally
-node scripts/stamp-prerelease.mjs 0.X.Y-beta.N   # CI-only: stamps a prerelease version into the
-                                                 # working tree. Never commit its output.
+npm run dev                 # watch-mode esbuild
+npm run build               # tsc --noEmit --skipLibCheck + production esbuild → main.js
+npm test                    # vitest (src/tests/**/*.test.ts)
+npm run test:cov            # vitest + v8 coverage; CI enforces 100 % on all four metrics
+npm run lint                # local mirror of Obsidian's community-plugin auto-review (0 errors required)
+npm run lint:fix            # apply autofixable rules
+npm run lint:css            # stylelint on styles.css (chrome 138 target)
+npm run lint:cloud-parity   # reproduce the auto-review's type-aware warnings
+npm run check:layout        # real Chromium layout check (E-ink); check:webkit = WebKit
+npm run check-release       # pre-release validator — REQUIRED before tagging
+                            #   -- --tag 0.X.Y | --with-build | --with-lint | --strict
 ```
 
-Build order: always run `npm run build` (includes type-check). Always run `npm run lint` before tagging — its config (`eslint.config.mjs`) mirrors the Obsidian community-plugin auto-review so 0 errors locally means the cloud review will also pass.
+Always `npm run build` (type-check included) before claiming done. Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts`; UI is tested under happy-dom (`src/tests/*.dom.test.ts`). CI runs build + test + coverage + check-release + layout + webkit on every push to `main` and every PR.
 
-Tests stub `obsidian` via `src/tests/__mocks__/obsidian.ts` (vitest alias in `vitest.config.mts` — `.mts`, so the config is loaded as ESM and uses `import.meta.dirname`). GitHub Actions runs build + test + coverage + `check-release` on every push to `main` and every PR. Releases are still intentionally manual so BRAT assets and notes are reviewed before publishing.
+## Skills: when to use which
 
-### Coverage targets
+| Situation | Skill |
+|---|---|
+| Finishing any feature/fix PR ("is it done?", adding a setting/command/UI) | `feature-done` |
+| Editing `src/`, `styles.css`, settings, sync, editor view | `plugin-design-rules` |
+| Annotated screenshots / numbered callouts in README or docs | `docs-screenshots` |
+| Merged to `main`, needs a tag / BRAT test build | `release-beta` |
+| User explicitly says promote / go stable | `release-stable` |
+| Opening, labelling, or picking issues; Planning board | `triage-issue` |
+| Dependabot PR, `npm install`, package.json, action pins | `dependency-update` |
 
-`npm run test:cov` writes `coverage/index.html` (browsable drill-down), `coverage/lcov.info` (CI / editor integrations), and prints the summary table to the terminal. The whole source is measured at **100 %** (statements, branches, functions, lines) and CI enforces 100 on all four. `exclude` holds only `src/tests/**` and `*.d.ts`; `coverageGate.test.ts` pins that, the thresholds, and that `src/` has no `v8 ignore`. Unreachable code is **deleted**, never ignored or excluded; code reachable from persisted/synced/hand-edited data is kept and tested. UI and `main.ts` are tested under happy-dom on the DOM-aware obsidian stub (`src/tests/*.dom.test.ts`, fixtures in `src/tests/__mocks__/`). `npm run check:layout` (real Chromium) and `npm run check:webkit` (Playwright WebKit, with the beta.4 stylesheet as a canary that must still overflow) run on every PR as CI's `layout` and `webkit` jobs. CI enforces the current thresholds, so raise them only after the new floor is proven stable locally.
+If a skill applies, invoke it; do not reconstruct its steps from memory.
 
-## Critical Constraints
+## Always-on rules
 
-- **Token cache pre-warm MUST happen before editor creation.** `onOpen()` must `await tokenizer.tokenize(body)` before `ensureEditor(body)` — otherwise decorations miss the first paint and annotations fail to render. (Fixed in 0.1.44; do not regress.)
-- **Edit boundary crossing uses compartment + `redecorate()`, not a full editor rebuild.** `reconfigureEditor()` toggles the `editable` `Compartment` and dispatches `cciRedecorateEffect` in one transaction — no `EditorView` destroy/recreate. This avoids white flash and scroll loss. Works for all display modes because `emitDecoration()` already produces `Decoration.mark` (not widgets) when `activeViewMode() === "edit"`.
-- **Frontmatter is stripped at the view boundary.** The editor never sees `---` blocks — handled in `splitFrontmatter()` in `ChineseTextFileView.ts`.
-- **Display mode** is read from `plugin.settings.defaultDisplayMode` at decoration build time — switching mode calls `onChange()` → `handleToolbarChange()` → `redecorate()`, no editor rebuild.
-- **Color visibility** is gated by `showKnownColor` (default off), `showPartialColor` (default on), `showUnknownColor` (default on) — check these if colors seem missing.
-- **Supply-chain gates are part of `check-release`.** It now also asserts (a) `npm audit --omit=dev` is clean — the plugin declares **no** runtime `dependencies`, so this is a regression guard for the day one is added, and (b) `package.json`'s `allowScripts` approves no package for install scripts. **Dev-dependency advisories are printed as a grey `ℹ` note and never block a release** — the test/lint toolchain is never shipped, and `release.yml` runs with `--strict`, so routing them through WARN would let an upstream eslint/vitest CVE hold back an urgent user-facing fix. Full rationale: [`docs/release-process.md`](./docs/release-process.md#npm-install-script-policy).
-- **Dependency-age policy (#150): never adopt a version younger than 14 days.** `.github/dependabot.yml` carries a `cooldown:` for both ecosystems and `.npmrc` sets `min-release-age=14` (needs npm ≥ 11.10; `npm ci` ignores it, Dependabot's cooldown covers the lockfile). `check-release` fails if any of the three disappears. An urgent non-security exception goes in `min-release-age-exclude[]` in the same PR. Security updates are not delayed. Details: [`docs/release-process.md`](./docs/release-process.md#dependency-age-policy).
-- **`@codemirror/state` and `@codemirror/view` are pinned EXACT and must match `obsidian`'s `peerDependencies`.** `obsidian@1.13.1` peers them at `6.5.0` / `6.38.6` exactly; bumping either breaks `npm ci` with `ERESOLVE`. Both are Dependabot-ignored. They move only when the `obsidian` devDependency moves.
-- **Everything that lands in `main.js` is version-pinned, and must stay that way.** Eight `@codemirror/*` / `@lezer/*` packages are bundled (only `lang-markdown` is a direct dep); the other seven are pinned via `overrides` because an unrelated `npm install` once drifted the markdown *grammar* and grew the bundle by 1206 bytes. After any `npm install`, confirm the eight still hold — the build hash is the real check.
-- **`@codemirror/lang-markdown` is BUNDLED into `main.js`, not external** (unlike `@codemirror/state`/`view`/`language`, which are), so bumping it changes shipped bytes. Judge such a bump by: does `@lezer/markdown` (the grammar) move; what is the *locked* delta, not the range; and diff the published `dist/index.js`. **Reachability cannot be judged by grepping `src/`** — `markdown()` defaults to `addKeymap: true` and binds Enter/Backspace itself, and the view is editable in edit mode. Full checklist: [`docs/release-process.md`](./docs/release-process.md).
-- **`eslint` is intentionally NOT Dependabot-ignored.** Ignoring its majors is how the eslint 9 line reached EOL unnoticed. Verify an eslint major by checking the rule counts do not shrink (`npx eslint --print-config`) and that stderr is empty — a finding count of 0/0 also happens when a plugin fails to load.
-- **`npm ls --all` must exit 0** — `check-release` fails otherwise. `npm ci` succeeds even on an inconsistent tree, so this is the only signal; a vitest upgrade once left `esbuild` violating vite's declared range through an entire stable release without anything else noticing.
-- **`esbuild` moves only on a release of its own.** It is the sole dependency whose output reaches the shipped `main.js`, so a bundler bump must never be entangled with other changes. Its Dependabot ignore is deliberately scoped to `version-update:semver-minor`/`-major`: esbuild is a `0.x` package, so breaking changes arrive as *minors* that an `update-types: [minor, patch]` group filter cannot hold back, while scoping to `version-update:*` keeps security PRs firing (a bare ignore would mute those too).
-- **GitHub Actions are pinned to commit SHAs, never tags.** `release.yml` builds the shipped `main.js`, and attestation would faithfully sign a build produced by a hijacked action. Bump within the current major; let Dependabot raise majors as separate PRs. Re-resolve with `gh api repos/<owner>/<repo>/git/ref/tags/<tag> --jq .object.sha`.
-- **Every fix MUST be released with BRAT artifacts immediately.** The user tests via BRAT, so any fix must be tagged + released with `main.js`, `manifest.json`, `styles.css` — no exceptions. Do not leave a fix un-released. **Always start with `npm run check-release`; never skip it.** That script catches missing artifacts (the 0.1.56–0.1.59 iPad regression that shipped without `styles.css` would have failed it) and version skew between `manifest.json` / `package.json` / `versions.json`.
-- **Every release starts as prerelease — never assume stable unless the user explicitly says so.** The `gh release create` command must always use `--prerelease`. Only promote to stable (`gh release edit 0.X.Y --prerelease=false`) when the user explicitly instructs you to do so. The default assumption is always prerelease; stable is opt-in after manual verification.
-- **NEVER let `main`'s `manifest.json` advertise a version that has no published release.** Obsidian reads the default-branch `manifest.json` to decide which version to offer Community Plugin users, then downloads assets from the release **tagged identically to it** — so a `main` that says `0.7.0` while only `0.7.0-beta.1` exists breaks every install and update. Two rules follow, both enforced by `check-release`: (a) never commit a `X.Y.Z-beta.N` version to `main` (the no-tag run fails on any prerelease suffix); (b) don't bump `main` to the next stable version until that stable release is actually published.
-- **Iterate with `X.Y.Z-beta.N` prereleases; the manifest on `main` does NOT move.** While building a feature, `main` keeps advertising the **current stable** version. Each round: branch → PR → CI green → merge to `main` → `git tag X.Y.Z-beta.N && git push`. The `Release` workflow stamps the prerelease version into the working tree (`scripts/stamp-prerelease.mjs`, never committed), builds, validates, and publishes a **prerelease** whose assets carry `X.Y.Z-beta.N`. BRAT reads `manifest.json` from the **release assets** and picks the highest semver including prereleases, so testers get the beta; Obsidian keeps serving the old stable to everyone else. GitHub's `--prerelease` flag alone is *not* the protection — Obsidian never reads it; the default-branch manifest is. Promote to stable only on explicit go-ahead, and **publish the stable release before `main` starts advertising it** (tag the release branch, verify the release, then merge). Full procedure with commands: [`docs/release-process.md`](./docs/release-process.md#prerelease--stable-workflow).
+- Work on a branch (`fix/…`, `feat/…`, `release/X.Y.Z`), PR, CI green, then merge. Never routine work on `main`.
+- Coverage is 100 %. Unreachable code is **deleted**, never `v8 ignore`d or excluded. Code reachable from persisted/synced/hand-edited data is kept and tested.
+- No `!important` and no `text-decoration` longhands in `styles.css`.
+- Group new settings under a heading; cover them in `settingsCoverage.test.ts`.
+- Editor: `await tokenizer.tokenize(body)` before `ensureEditor(body)`; mode/edit switches use the compartment + `redecorate()`, never an `EditorView` rebuild. Details in `plugin-design-rules`.
+- **Every fix is released** as a beta with `main.js`, `manifest.json`, `styles.css` for BRAT. Start with `npm run check-release`; never skip it.
+- **Every release starts as a prerelease** (`X.Y.Z-beta.N`). Stable only on explicit user instruction. `main`'s `manifest.json` must never advertise a version with no published release; never commit a `-beta.N` version to `main`.
+- Releases are tag-driven (`.github/workflows/release.yml`); never `gh release create` by hand.
+- No dependency younger than 14 days; `@codemirror/state|view` pinned exact; bundled packages pinned; Actions pinned to SHAs. See `dependency-update`.
+- Local `npm run lint` must be 0 errors before tagging: a lint error risks community-plugin delisting.
 
-## Release Process
+## Planning
 
-The release pipeline is now **tag-driven** via `.github/workflows/release.yml`. Pushing a SemVer-shaped tag (`0.X.Y` for stable, `0.X.Y-rc.1` / `0.X.Y-beta.2` for prerelease) triggers an Ubuntu runner that re-runs `npm ci` → `npm run lint` → `npm run build` → `npm test` → `npm run check-release -- --tag $TAG --with-build`, then creates the GitHub Release atomically with `main.js`, `manifest.json`, `styles.css` attached. **A single lint Error aborts the pipeline — no release is created.** The dev never types `gh release create` by hand.
-
-0. **Run `npm run check-release -- --with-build` locally first.** Same gate the workflow uses; faster feedback. Must report `0 failed` AND the embedded Obsidian-parity lint step must report `0 errors`. WARN-level findings (yellow `!`) are non-blocking but worth a look. The lint step matches the cloud auto-review's rule set (`eslint-plugin-obsidianmd` + the relevant `@typescript-eslint` type-aware rules); see `eslint.config.mjs`. **A release with even one local lint Error will fail the Obsidian community-plugin auto-review and risk delisting the plugin.**
-1. **Version files.** For a **prerelease**, change nothing — `manifest.json` / `package.json` / `versions.json` stay on the current stable version, and CI stamps the beta version into the working tree only. For the **stable promotion**, bump `manifest.json`, `package.json` and `versions.json` to `X.Y.Z` on a `release/X.Y.Z` branch and refresh `package-lock.json` (`npm install --package-lock-only`) or CI's version-skew check fails.
-2. `npm run build` → produces `main.js`.
-3. `npm test` and `npm run test:cov` locally if you changed code, test config, or release artifacts.
-4. Commit all changes, open the PR, merge after CI green.
-5. **Push the tag.** Prerelease: merge to `main`, then `git tag X.Y.Z-beta.N && git push origin X.Y.Z-beta.N`. Stable: tag the **release branch head** (`git tag X.Y.Z && git push origin X.Y.Z`), let the workflow publish, verify the release and its three assets, and only then merge the PR with `--merge` so `main` starts advertising a version that already exists. If lint / build / tests / check-release fail, the release is never created; delete the tag (`git push origin :<tag> && git tag -d <tag>`), fix, retag — `main` was never touched.
-6. **No manual `gh release create` step.** The workflow runs `gh release create … --latest` for bare SemVer tags and `gh release create … --prerelease` for suffixed tags. Release notes are auto-generated from PRs / commits since the previous tag — edit them in the GitHub UI after the fact if you want richer text.
-7. **Never** create the bare `X.Y.Z` tag early and merely flag it as a GitHub prerelease. Obsidian matches on the tag and ignores that flag, so the half-baked build becomes the advertised release.
-
-BRAT requires the release assets: `main.js`, `styles.css`, `manifest.json`.
-
-**Beta-first workflow.** Every release starts as a prerelease.
-- BRAT testers who added the plugin via **Add Beta Plugin** install it immediately: BRAT reads `manifest.json` from the **release assets** and picks the highest semver *including* prereleases. It is explicitly independent of the version in the repository root.
-- Community Plugin users are unaffected, because `main`'s `manifest.json` still advertises the previous stable version and its release still exists.
-- Promotion to stable is a **new bare tag**, not a flag flip on the prerelease.
-
-### Release Checklist
-
-**Prerelease `X.Y.Z-beta.N`** — nothing on `main` changes:
-- Create a dedicated branch for the fix / feature; PR; CI green; merge to `main`
-- `npm run check-release -- --with-build` locally (no `--tag`) — `0 failed`, lint `0 errors`
-- **Do not touch** `manifest.json` / `package.json` / `versions.json`
-- `git tag X.Y.Z-beta.N && git push origin X.Y.Z-beta.N`
-- The workflow stamps the beta version into the working tree, re-runs lint / build / test / check-release, validates the three artifacts, and publishes a **prerelease**
-- Verify `main`'s manifest still shows the old stable version and its release still resolves
-
-**Stable promotion `X.Y.Z`** — only on explicit go-ahead, and the release is published *before* `main` advertises it:
-- `git checkout -b release/X.Y.Z main`
-- Bump `manifest.json`, `package.json`, `versions.json`; `npm install --package-lock-only`
-- `npm run check-release -- --tag X.Y.Z --with-build --strict`
-- Commit `X.Y.Z — short description`, push, open the PR, CI green
-- `git tag X.Y.Z && git push origin X.Y.Z` — tagging the **release branch head**, so the release is published first
-- Verify: `gh release view X.Y.Z --json tagName,isLatest,assets`
-- `gh pr merge --merge --admin` — use `--merge`, not `--squash`, so the tagged commit stays reachable from `main`
-
-If the workflow fails: delete the tag (`git push origin :<tag> && git tag -d <tag>`), fix on the branch, retag. `main` was never touched, so no partial release is left behind.
-
-Commit convention: `0.X.Y — short description`.
-
-## Release Planning
-
-What goes into the next release is decided by the **Planning project board** ([https://github.com/users/davadev/projects/3](https://github.com/users/davadev/projects/3)) and the rules in [`ROADMAP.md`](./ROADMAP.md). Read both before proposing or starting work.
-
-**Priority order, strictly top-down:**
-1. **Maintenance** (label `maintenance`): bugs, security, dependency/toolchain updates, supply-chain and CI problems, data-safety risks, performance, anything that is not a new feature. Ships as the next **fix release** of the current line (`0.9.x`), without waiting for a feature release.
-2. **User feature requests** (label `user-request`): a reasonable request from an actual user that fits the plugin's scope.
-3. **Planned features** assigned to the next minor releases (see the Release column / ROADMAP.md).
-4. **Long-term direction**, in order: text to speech (#67), custom fine-tuned local LLM (#184), Active Reading (#183). Local-first and offline wherever possible.
-
-**Board rules (every issue, always):**
-- **Every open issue is on the board** with a **Tier** (Maintenance / User request / Planned feature / Long-term / Needs decision) and a **Release** (next fix release, a version such as `0.9.0`, or Unscheduled). Add new issues at creation or at the first triage; do not leave an issue off the board.
-- When creating an issue: add it to the project, set Tier and Release, and apply the matching label (`maintenance`, `security`, `user-request`, `bug`, `enhancement`). Large features start as a research-and-design issue (verified facts / hypotheses / open questions kept separate, a timeboxed spike, explicit continue/stop criteria).
-- Fields: **Status** (Backlog, Ready, In progress, In beta = published prerelease, Done), **Tier** (1 Maintenance, 2 User request, 3 Planned feature, 4 Long-term, 5 Needs decision), **Release** (Next fix release (the option is still labelled 0.8.x on the board), 0.9.0, 0.10.0, Unscheduled; add an option when a new minor release is planned), and **Order** (sequence within the long-term tier). Views (board, roadmap, table) are configured in the web UI.
-- When picking the next release: look at the board top-down by Tier; if any Maintenance item is open, the next release is a fix release containing those items.
-- When a release is published: move its issues to Done, then re-check that the Release column of the remaining issues is still right and update `ROADMAP.md` if the plan changed.
-- Commands: `gh project item-add <number> --owner davadev --url <issue-url>` and `gh project item-edit` (field ids via `gh project field-list <number> --owner davadev --format json`). Needs a token with the `project` scope (`gh auth refresh -s project`).
+Priority, strictly top-down: (1) Maintenance (bugs, security, deps, CI, data safety, performance) → next fix release `0.9.x`; (2) user feature requests; (3) planned features per `ROADMAP.md`; (4) long-term: text to speech (#67), custom local LLM (#184), Active Reading (#183), local-first/offline. Every open issue is on the Planning board https://github.com/users/davadev/projects/3 with Tier and Release (see `triage-issue`).
 
 ## Reference
 
 - Architecture & key file index → [`docs/architecture.md`](./docs/architecture.md)
-- Release policies (CI expectations, branch/PR policy, check-release coverage) → [`docs/release-process.md`](./docs/release-process.md)
-- Direction, priority rules and planned releases → [`ROADMAP.md`](./ROADMAP.md); live backlog → the Planning project board (see Release Planning above)
+- Release policies, CI, check-release coverage, dependency rationale → [`docs/release-process.md`](./docs/release-process.md)
+- Direction and planned releases → [`ROADMAP.md`](./ROADMAP.md)
+- Commit convention: `0.X.Y — short description`.
