@@ -99,5 +99,8 @@ function parseEnhanceResult(raw: string, allowPinyin: boolean): EnhanceResult {
   return result;
 }
 
-/** Exported only for the unit tests in src/tests. */
+/**
+ * Exported only for the unit tests in src/tests.
+ * @public
+ */
 export const __testing = { parseEnhanceResult };

@@ -143,5 +143,8 @@ function clamp(s: string, max: number): string {
   return s.length > max ? s.slice(0, max) : s;
 }
 
-/** Exported only for the unit tests in src/tests. */
+/**
+ * Exported only for the unit tests in src/tests.
+ * @public
+ */
 export const __testing = { parseMnemonicAnswer };

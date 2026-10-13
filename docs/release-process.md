@@ -717,6 +717,19 @@ would drop ~20 KB from `main.js` and remove this risk class permanently. If it
 does not, bundling is mandatory and getting it wrong breaks the reading view
 outright — so this needs its own investigation, not a mid-release guess.
 
+## Dead-code gate (knip)
+
+`npm run check:dead-code` runs `knip --production` from `src/main.ts` (config: `knip.jsonc`). Production mode does **not**
+count `src/tests` as users, so a function, export or file that only a test still reaches is reported: that is legacy or
+half-finished code, and the project rule is to delete it rather than test it. A second pass checks dependencies
+(unused, unlisted, unresolved binaries). CI runs it in the `validate` job.
+
+- Fix a finding by deleting the code. Do not widen `ignoreIssues` to make it pass.
+- A deliberate test seam (for example `__testing`) carries a `@public` JSDoc tag. Generated data files are listed in
+  `ignoreIssues` because their `*_SIZE` constants are asserted by the data tests only.
+- `@lezer/common` is in `ignoreDependencies`: it is an `import type` of a transitive that `overrides` already pins.
+- `knip` is a devDependency like any other: it obeys the 14-day age rule (`min-release-age`), so npm picked 6.38.0.
+
 ## Regenerating the annotated screenshots
 
 The toolbar, lightbulb, Explain, Proof read and What's new images in `resources/screenshots/` are rendered, not captured:

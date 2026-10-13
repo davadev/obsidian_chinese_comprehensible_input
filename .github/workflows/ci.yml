@@ -72,6 +72,11 @@ jobs:
       - name: Lint styles.css (stylelint, as Obsidian's review does)
         run: npm run lint:css
 
+      # knip --production walks from src/main.ts and does not count tests as users, so legacy code and half-finished
+      # features that only a test still reaches fail here. Delete them; do not add ignores to make this pass.
+      - name: Check for dead code (knip)
+        run: npm run check:dead-code
+
       - name: Run release guard
         run: env -u GITHUB_REF_NAME -u GITHUB_REF npm run check-release -- --with-lint
 

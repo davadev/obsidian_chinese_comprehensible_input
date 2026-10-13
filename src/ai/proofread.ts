@@ -7,9 +7,6 @@ import { obj, str } from "./explain";
  * learner is shown and what is written into the note can only differ from the original by the listed spans.
  */
 
-/** Bump when the prompt or the schema changes. */
-export const PROOFREAD_PROMPT_VERSION = 1;
-
 /** More than this in a short selection means the text is not close to correct; the model is told to stop at the worst. */
 export const MAX_CORRECTIONS = 5;
 

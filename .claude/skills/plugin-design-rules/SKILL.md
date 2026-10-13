@@ -36,5 +36,6 @@ description: Design and code rules for this Obsidian plugin that have each preve
 
 ## Tests / lint
 - 100 % coverage on all four metrics; no `v8 ignore`; never widen `exclude` (pinned by `coverageGate.test.ts`).
+- `npm run check:dead-code` (knip, production mode) fails on exports/files only a test reaches. Delete the code; never add it to `ignoreIssues`. A deliberate test seam gets a `@public` JSDoc tag; `import type` of a pinned transitive goes in `ignoreDependencies` with a reason (`knip.jsonc`).
 - `npm run lint` mirrors Obsidian's auto-review; 0 errors before tagging. Verify data claims against real CC-CEDICT (repo ships a 37-entry seed dict).
 - AI prompt changes: run the eval harness (`scripts/model-eval.mjs`, `mnemonic-compare.mjs`) and show before/after samples; the app writes tones/pinyin, not the model.
