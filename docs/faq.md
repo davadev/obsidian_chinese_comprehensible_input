@@ -156,7 +156,7 @@ switch to the other. It keeps the same width either way so the toolbar does not 
 The popup appears once, at the first start of Obsidian after the plugin is updated; an update installed while Obsidian is
 running shows a restart hint first and the popup after the restart. Press **Don't show again** in it, or use **Settings →
 About → Show what's new after an update**, to turn it off. Switching that setting off and on again makes the current
-notes appear at the next start, and **Show what's new now** (also a command) opens them immediately.
+notes appear at the next start, and **Show what's new now** (also a command) opens them immediately, together with the earlier notes of the same release line (for 0.9.1: 0.9.0 and 0.9.1).
 
 <img width="560" src="../resources/screenshots/whats-new-annotated.png" alt="The What's new popup">
 

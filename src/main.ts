@@ -57,7 +57,7 @@ import { prepareSelection } from "./ai/phrase";
 import { isHanChar } from "./ai/mnemonicFacts";
 import { AiSetupModal } from "./ui/AiSetupModal";
 import { WhatsNewModal } from "./ui/whatsNew/WhatsNewModal";
-import { latestNote, notesToShow } from "./ui/whatsNew/releaseNotes";
+import { notesOfLine, notesToShow } from "./ui/whatsNew/releaseNotes";
 import { aiConfigured } from "./ai/aiConfigured";
 import { loadApiKey } from "./ai/secrets";
 import { GenerateStoryModal } from "./ui/GenerateStoryModal";
@@ -388,14 +388,14 @@ export default class CciPlugin extends Plugin {
     new Notice("Release notes turned off. You can turn them back on under Settings → Chinese → About.", 8_000);
   }
 
-  /** The "Show what's new" command: the latest note again, on demand. */
+  /** The "Show what's new" command: the notes of the whole running minor line again, on demand. */
   showWhatsNew(): void {
-    const note = latestNote(this.manifest.version);
-    if (!note) {
+    const notes = notesOfLine(this.manifest.version);
+    if (notes.length === 0) {
       new Notice("There are no release notes for this version.");
       return;
     }
-    new WhatsNewModal(this.app, [note], () => void this.stopShowingWhatsNew()).open();
+    new WhatsNewModal(this.app, notes, () => void this.stopShowingWhatsNew()).open();
   }
 
   /** Is an AI provider usable (AI on, and a key or a server address)? */

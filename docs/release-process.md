@@ -182,7 +182,7 @@ How it behaves, so nobody has to rediscover it:
 - An entry can carry a small illustration (`figure`, drawn in `src/ui/whatsNew/figures.ts` from the real interface elements,
   so it follows the theme and cannot go stale like a screenshot). Keep it to a few per release; a popup of pictures reads as
   clutter. A new figure id needs a builder there.
-- The command **Show what's new** re-opens the newest entry on demand.
+- The command **Show what's new** re-opens the notes of the whole running minor line on demand (0.9.0 and 0.9.1 for a 0.9.1), so anyone can look back at what a skipped or already-seen release brought.
 - **Opt-out.** The popup has a *Don't show again* button, and Settings → About has the same switch (*Show what's new after an update*) plus a *Show what's new now* button. Turning the switch back on clears `lastSeenVersion`, so the next start shows the current note again; that is also how to re-test the popup on a beta, since betas of one X.Y.Z share a single note.
 - A user who skips releases is shown every entry they missed, oldest first.
 
