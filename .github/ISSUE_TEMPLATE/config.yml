@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Docs and FAQ
+    url: https://github.com/davadev/obsidian_chinese_comprehensible_input/blob/main/docs/faq.md
+    about: Common questions and fixes
