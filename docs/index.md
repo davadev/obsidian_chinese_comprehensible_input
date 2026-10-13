@@ -13,7 +13,7 @@ the whole tree from here.
   into and where to find the fix in the rest of these docs.
 - [Roadmap](../ROADMAP.md) — where the plugin is going and how the next release is chosen.
 - [Community plugin submission](./community-plugin-submission.md) —
-  final release and submission checklist.
+  what the directory reads, the manifest rules and the submission steps.
 - [README](../README.md) — what the plugin actually does, plus a
   **[visual tour](../README.md#tour-the-interface)** of the toolbar, reading
   colors, word card, formatting, AI Enhance, and flashcards.

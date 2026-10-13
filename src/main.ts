@@ -840,9 +840,10 @@ export default class CciPlugin extends Plugin {
 
   onunload(): void {
     // Fire-and-forget the flush chain so Obsidian's void-returning Plugin
-    // signature is preserved. Detaching leaves is intentionally skipped:
-    // Obsidian's plugin lifecycle documentation forbids it because it
-    // resets the user's leaf placement on next enable.
+    // signature is preserved. Detaching leaves is intentionally skipped: the
+    // review lint rule `obsidianmd/detach-leaves` forbids it, because the view would come back at its default
+    // location on the next enable even if the learner had moved it. (Obsidian's Workspace page says plugins are
+    // responsible for removing leaves they add; we follow the lint and leave them, which Obsidian shows as empty.)
     void (async () => {
       // Clean shutdown = we ran fine. Reset the crash counter eagerly so
       // user-triggered toggles don't accumulate toward the threshold.
