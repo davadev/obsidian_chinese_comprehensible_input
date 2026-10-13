@@ -68,8 +68,8 @@ sentence you tapped it in:
   request, plus at most one follow-up when a rule was broken. Only sent when you
   press "Explain"; nothing is saved until you press Save. See
   [Explain](./explain.md).
-- **Lightbulb (explain / proof read a phrase)** — only the **text you selected**, with the note's formatting
-  taken off. Explain makes two requests (a quick check, then the explanation), Proof read one, plus at most one
+- **Lightbulb (explain / proof read / simplify a phrase)** — only the **text you selected**, with the note's formatting
+  taken off. Explain makes two requests (a quick check, then the explanation), Proof read and Simplify one each, plus at most one
   follow-up each when a rule was broken. A single word under Explain is sent as the word note above, with its
   sentence. The confirm dialog shows the text and the estimated cost before anything is sent. See
   [Explain](./explain.md).

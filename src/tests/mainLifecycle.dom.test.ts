@@ -171,12 +171,27 @@ describe("what a good load sets up", () => {
     const env = load();
     await env.plugin.onload();
     const s = env.plugin.settings.ai;
-    s.promptExtras = { explain: "e1", phrase: "p1", proofread: "r1" };
-    s.promptOverrides = { explain: "e2", phrase: "p2", proofread: "r2" };
+    s.promptExtras = { explain: "e1", phrase: "p1", proofread: "r1", simplify: "s1" };
+    s.promptOverrides = { explain: "e2", phrase: "p2", proofread: "r2", simplify: "s2" };
     const custom = (svc: any) => svc.custom();
     expect(custom(env.plugin.explain)).toEqual({ extra: "e1", override: "e2" });
     expect(custom(env.plugin.phraseExplain)).toEqual({ extra: "p1", override: "p2" });
     expect(custom(env.plugin.proofread)).toEqual({ extra: "r1", override: "r2" });
+    expect(custom(env.plugin.simplify)).toEqual({ extra: "s1", override: "s2" });
+  });
+
+  it("Simplify measures with the live tokenizer, the learner's vocabulary and the dictionary's Traditional markers", async () => {
+    const env = load();
+    await env.plugin.onload();
+    const p = env.plugin as any;
+    p.tokenizer.tokenize = vi.fn(async () => [{ start: 0, end: 1, surface: "我", isWord: true, candidates: [{ hsk: { source: "2.0", levels: ["1"] } }], confidence: 1 }]);
+    p.vocab.bySurface = (s: string) => (s === "我" ? { status: "known" } : undefined);
+    const svc = p.simplify as any;
+    expect(await svc.measure("我")).toMatchObject({ cost: 0, words: [{ surface: "我", level: 1, known: true }] });
+    expect(p.tokenizer.tokenize).toHaveBeenCalledWith("我");
+    p.dictionary.isTraditionalMarker = (ch: string) => "學習堂".includes(ch);
+    expect(svc.isTraditional("學習堂")).toBe(true);
+    expect(svc.isTraditional("学习堂")).toBe(false);
   });
 
   it("the view factories build the real views for a leaf", async () => {
@@ -262,8 +277,8 @@ describe("the stored settings are merged with the defaults", () => {
     const env = load({ data: { settings: { ai: { ollama: {}, promptExtras: { explain: "in German" }, promptOverrides: { phrase: "MINE" } } } } });
     await env.plugin.onload();
     const ai = env.plugin.settings.ai;
-    expect(ai.promptExtras).toEqual({ explain: "in German", phrase: "", proofread: "" });
-    expect(ai.promptOverrides).toEqual({ explain: "", phrase: "MINE", proofread: "" });
+    expect(ai.promptExtras).toEqual({ explain: "in German", phrase: "", proofread: "", simplify: "" });
+    expect(ai.promptOverrides).toEqual({ explain: "", phrase: "MINE", proofread: "", simplify: "" });
     ai.promptExtras.phrase = "changed";
     expect(DEFAULT_SETTINGS.ai.promptExtras.phrase).toBe("");
   });

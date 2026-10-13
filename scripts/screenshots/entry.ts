@@ -173,7 +173,7 @@ async function explainScene() {
 }
 
 function whatsNewScene() {
-  new WhatsNewModal(fakeApp(), [RELEASE_NOTES[0]], () => {}).open();
+  new WhatsNewModal(fakeApp(), [RELEASE_NOTES.find((n) => n.version === "0.9.0") as (typeof RELEASE_NOTES)[number]], () => {}).open();
 }
 
 /** Draw the dashed boxes and numbered circles (colours from scripts/annotate-screenshots.py). */

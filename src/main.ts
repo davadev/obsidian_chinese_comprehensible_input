@@ -36,6 +36,8 @@ import { EnhanceDictionaryService } from "./ai/EnhanceDictionaryService";
 import { ExplainService } from "./ai/ExplainService";
 import { PhraseExplainService } from "./ai/PhraseExplainService";
 import { ProofreadService } from "./ai/ProofreadService";
+import { SimplifyService } from "./ai/SimplifyService";
+import { measureText } from "./ai/simplifyMeasure";
 import { MnemonicService } from "./ai/MnemonicService";
 import { ChineseTextFileView } from "./view/ChineseTextFileView";
 import {
@@ -50,6 +52,7 @@ import { WordPopup } from "./ui/WordPopup";
 import { BatchMnemonicModal } from "./ui/BatchMnemonicModal";
 import { ExplainModal } from "./ui/ExplainModal";
 import { PhraseModal } from "./ui/PhraseModal";
+import { phraseActionOf } from "./ai/phraseCost";
 import { prepareSelection } from "./ai/phrase";
 import { isHanChar } from "./ai/mnemonicFacts";
 import { AiSetupModal } from "./ui/AiSetupModal";
@@ -84,6 +87,7 @@ export default class CciPlugin extends Plugin {
   explain!: ExplainService;
   phraseExplain!: PhraseExplainService;
   proofread!: ProofreadService;
+  simplify!: SimplifyService;
   popup!: WordPopup;
   /**
    * Per-entry dictionary overrides + user-added custom words. Live at
@@ -589,6 +593,12 @@ export default class CciPlugin extends Plugin {
     this.explain = new ExplainService(this.ai, () => ({ extra: ai().promptExtras.explain, override: ai().promptOverrides.explain }));
     this.phraseExplain = new PhraseExplainService(this.ai, () => ({ extra: ai().promptExtras.phrase, override: ai().promptOverrides.phrase }));
     this.proofread = new ProofreadService(this.ai, () => ({ extra: ai().promptExtras.proofread, override: ai().promptOverrides.proofread }));
+    this.simplify = new SimplifyService(
+      this.ai,
+      (text) => measureText(text, { tokenize: (t) => this.tokenizer.tokenize(t), statusOf: (s) => this.vocab.bySurface(s)?.status }),
+      (text) => looksTraditional(text, this.dictionary),
+      () => ({ extra: ai().promptExtras.simplify, override: ai().promptOverrides.simplify })
+    );
     this.popup = new WordPopup(this);
 
     this.registerView(VIEW_TYPE_CHINESE, (leaf) => new ChineseTextFileView(leaf, this));
@@ -1521,10 +1531,10 @@ export default class CciPlugin extends Plugin {
     this.pendingPhraseStartSurface = null;
     this.refreshChineseViewToolbars();
     if (!this.aiConfigured()) {
-      this.promptAiSetup("Explain and proof read");
+      this.promptAiSetup("Explain, proof read and simplify");
       return;
     }
-    const action = this.settings.phraseAction;
+    const action = phraseActionOf(this.settings.phraseAction);
     if (action === "explain") {
       const words = (await this.tokenizer.tokenize(text)).filter((t) => t.isWord && t.candidates.length > 0);
       const hanChars = Array.from(text).filter(isHanChar).length;

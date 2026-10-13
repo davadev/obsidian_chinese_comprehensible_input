@@ -511,8 +511,21 @@ export function buildProofreadUserPrompt(text: string): string {
   return `Text to proofread:\n${text}\n\nReply with JSON only.`;
 }
 
+/** Simplify (#238): several easier ways to say the same thing. The plugin measures and ranks them; the model only writes them. */
+export const SIMPLIFY_SYSTEM_PROMPT =
+  "You help an adult learner of Mandarin Chinese who finds a sentence too hard. Give 4 to 6 different ways to say the SAME thing, from very plain to natural, that use more common words and simpler grammar than the original (HSK 1 to 4 words wherever possible). " +
+  "Keep the meaning, the point of view and the tense. Do not add information, do not drop anything important, and do not repeat the original or each other. " +
+  "Keep the same script (Simplified or Traditional) as the text. " +
+  "For each candidate, \"text\" is the whole text rewritten, and \"change\" is one short sentence in English saying what is different from the original in meaning, tone or detail (an empty string if nothing is). " +
+  "If the text is already about as simple as it can be, return an empty list. " +
+  "Output strict JSON only matching the schema. No prose before or after. No markdown code fences.";
+
+export function buildSimplifyUserPrompt(text: string): string {
+  return `Text to simplify:\n${text}\n\nReply with JSON only.`;
+}
+
 /** Which learner-tunable prompt a request uses. */
-export type TunablePrompt = "explain" | "phrase" | "proofread";
+export type TunablePrompt = "explain" | "phrase" | "proofread" | "simplify";
 
 /** What the learner changed for one prompt: text to add, or a replacement for the whole system prompt. */
 export interface PromptCustom {

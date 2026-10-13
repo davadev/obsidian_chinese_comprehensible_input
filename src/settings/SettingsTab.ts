@@ -26,6 +26,7 @@ import {
   EXPLAIN_SYSTEM_PROMPT,
   PHRASE_SYSTEM_PROMPT,
   PROOFREAD_SYSTEM_PROMPT,
+  SIMPLIFY_SYSTEM_PROMPT,
   type TunablePrompt,
 } from "../ai/prompts";
 import { deriveHskColorsFromAccent } from "../ui/colorTheme";
@@ -1163,18 +1164,20 @@ export class CciSettingsTab extends PluginSettingTab {
         extra("Explain a word", "explain", "Added to the prompt that writes a word's usage note."),
         extra("Explain a phrase or sentence", "phrase", "Added to the prompt behind the lightbulb tool's Explain."),
         extra("Proof read", "proofread", "Added to the prompt behind the lightbulb tool's Proof read."),
+        extra("Simplify", "simplify", "Added to the prompt behind the lightbulb tool's Simplify."),
         this.mnemonicPromptPage(),
         this.replacePromptsPage(),
       ],
     };
   }
 
-  /** Whole-prompt replacement for the three Explain-family prompts; empty means the built-in one. */
+  /** Whole-prompt replacement for the four Explain-family prompts; empty means the built-in one. */
   private replacePromptsPage(): SettingDefinitionPage {
     const builtins: Record<TunablePrompt, [string, string]> = {
       explain: ["Explain a word", EXPLAIN_SYSTEM_PROMPT],
       phrase: ["Explain a phrase or sentence", PHRASE_SYSTEM_PROMPT],
       proofread: ["Proof read", PROOFREAD_SYSTEM_PROMPT],
+      simplify: ["Simplify", SIMPLIFY_SYSTEM_PROMPT],
     };
     const rows: SettingDefinitionItem[] = [];
     for (const key of Object.keys(builtins) as TunablePrompt[]) {

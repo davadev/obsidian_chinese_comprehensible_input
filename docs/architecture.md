@@ -7,7 +7,7 @@
 - **Decorations:** `src/editor/chineseDecorations.ts` — `ViewPlugin` that builds `Decoration.replace` (RubyWidget for 2-line/3-line) or `Decoration.mark` (color-only/popup-only). Uses a shared LRU token cache (`src/tokenizer/tokenCache.ts`).
 - **Tokenizer:** `src/tokenizer/TokenizerService.ts` — lattice-based (default) or `Intl.Segmenter`. Caches results in the shared module-level cache.
 - **Vocabulary:** `src/vocabulary/` — `WordRecord` store with axes-based color state (`src/vocabulary/axes.ts`). Persisted via Obsidian `loadData`/`saveData`.
-- **AI:** `src/ai/` — `StoryGenerator`, `AiProviderService` (OpenAI-compatible/Ollama), and the structured-output services `MnemonicService`, `ExplainService`, `PhraseExplainService`, `ProofreadService`. Each asks for JSON, validates it against facts the plugin already has, and makes one repair attempt (see [Explain](./explain.md), [Mnemonics](./mnemonics.md)). SSE streaming. Not initialized until user enables it in settings.
+- **AI:** `src/ai/` — `StoryGenerator`, `AiProviderService` (OpenAI-compatible/Ollama), and the structured-output services `MnemonicService`, `ExplainService`, `PhraseExplainService`, `ProofreadService`, `SimplifyService`. Each asks for JSON, validates it against facts the plugin already has, and makes one repair attempt (see [Explain](./explain.md), [Mnemonics](./mnemonics.md)). SSE streaming. Not initialized until user enables it in settings.
 - **Settings:** `src/settings/defaults.ts` — single `DEFAULT_SETTINGS` object. Schema version tracked in `constants.ts`.
 - **Script/region:** `settings.scriptVariant` decides whether the tokenizer trie indexes traditional surfaces as well as simplified (a union, not a swap). Invalidation is centralised in `CciPlugin.applyScriptSideEffects()`, called from `saveSettingsSilently()` — four paths can change the script (settings tab, view toolbar, `importSettings()`, `SettingsMirror`) and the last two replace settings wholesale, so a per-call-site fix would miss them.
 
@@ -21,8 +21,8 @@
 | `src/ai/prompts.ts` | Every built-in prompt and `systemPromptWith()`, which adds the learner's own instructions or replacement (Settings → AI provider → AI prompts) |
 | `src/ai/mnemonicFacts.ts` | What the app computes for a mnemonic itself: word shape, tone numbers, the assembled emoji line |
 | `src/dictionary/radicals.ts` | `radicalOf()`: a character's Kangxi radical from the generated Unihan table (`radicalMap.generated.ts`, `npm run build:radicals`) |
-| `src/ai/explain.ts`, `phrase.ts`, `proofread.ts` | Schemas, validators and the shared `Block` model that the previews and the saved Markdown both render |
-| `src/ui/ExplainModal.ts`, `PhraseModal.ts`, `BatchMnemonicModal.ts` | The Explain, lightbulb (phrase / proof read) and "Mnemonics for this note" dialogs; `usageMeter.ts` shows the OpenAI cost |
+| `src/ai/explain.ts`, `phrase.ts`, `proofread.ts`, `simplify.ts` | Schemas, validators and the shared `Block` model that the previews and the saved Markdown both render; `simplify.ts` also holds the difficulty measure and ranking that pick the simplest rewrite (the word lookup is `simplifyMeasure.ts`) |
+| `src/ui/ExplainModal.ts`, `PhraseModal.ts`, `BatchMnemonicModal.ts` | The Explain, lightbulb (phrase / proof read / simplify) and "Mnemonics for this note" dialogs; `usageMeter.ts` shows the OpenAI cost |
 | `src/ui/whatsNew/` | The one-time "What's new" popup: `releaseNotes.ts` (add an entry per release), `figures.ts` (illustrations drawn from the real UI) |
 | `src/editor/chineseDecorations.ts` | `RubyWidget` + `buildChineseDecorations` ViewPlugin |
 | `src/editor/wordInteractionPlugin.ts` | Click/long-press handler for popup and marking |

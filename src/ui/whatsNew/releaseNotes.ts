@@ -27,6 +27,18 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "0.9.1",
+    title: "What's new in 0.9.1",
+    intro: "A sentence too hard to read? The lightbulb can now find an easier way to say it.",
+    items: [
+      {
+        title: "Simplify a sentence",
+        text:
+          "Tap the lightbulb, choose Simplify in its dropdown, then tap the first and the last word. The AI suggests several easier ways to say the same thing, and the app measures each one against the HSK lists and the words you already know, then shows the simplest with the numbers. One tap puts it into your note. Needs an AI provider.",
+      },
+    ],
+  },
+  {
     version: "0.9.0",
     title: "What's new in 0.9.0",
     intro: "Help while you read: understand a word, understand a sentence, check your own Chinese.",

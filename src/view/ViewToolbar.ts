@@ -11,6 +11,7 @@ import {
 } from "../editor/formatOptions";
 import { normalizeLine2Content, normalizeLine3Content } from "../editor/annotationLines";
 import { overflowMenuTopPx } from "./overflowMenuLayout";
+import { PHRASE_ACTIONS, phraseActionOf } from "../ai/phraseCost";
 import {
   EINK_NUMBER_SCALE_MAX,
   EINK_NUMBER_SCALE_MIN,
@@ -137,7 +138,7 @@ export class ViewToolbar {
         return;
       }
       if (!this.plugin.aiConfigured()) {
-        this.plugin.promptAiSetup("Explain and proof read");
+        this.plugin.promptAiSetup("Explain, proof read and simplify");
         return;
       }
       this.plugin.setActiveViewMode("explain");
@@ -388,7 +389,7 @@ export class ViewToolbar {
   }
 
   private explainBannerText(): string {
-    const verb = this.plugin.settings.phraseAction === "proofread" ? "proof read" : "explain";
+    const verb = PHRASE_ACTIONS[phraseActionOf(this.plugin.settings.phraseAction)].verb;
     if (this.plugin.pendingPhraseStart != null) {
       const s = (this.plugin.pendingPhraseStartSurface ?? "").trim();
       return `${s ? `Start “${s}” selected` : "Start selected"} — tap the last word to ${verb}`;
@@ -399,7 +400,7 @@ export class ViewToolbar {
   private renderExplainBanner(): void {
     const banner = this.bannerEl.createDiv({ cls: "cci-banner is-explain" });
     this.explainLabelEl = banner.createSpan({ text: this.explainBannerText() });
-    const label = () => (this.plugin.settings.phraseAction === "proofread" ? "Proof read ▾" : "Explain ▾");
+    const label = () => `${PHRASE_ACTIONS[phraseActionOf(this.plugin.settings.phraseAction)].label} ▾`;
     const pick = banner.createEl("button", { text: label() });
     let menu: HTMLElement | null = null;
     pick.addEventListener("click", (e) => {
@@ -412,13 +413,14 @@ export class ViewToolbar {
       menu = this.buildChoiceMenu(
         pick,
         [
-          { id: "explain", label: "Explain" },
-          { id: "proofread", label: "Proof read" },
+          { id: "explain", label: PHRASE_ACTIONS.explain.label },
+          { id: "proofread", label: PHRASE_ACTIONS.proofread.label },
+          { id: "simplify", label: PHRASE_ACTIONS.simplify.label },
         ],
-        this.plugin.settings.phraseAction,
+        phraseActionOf(this.plugin.settings.phraseAction),
         (id) => {
           void (async () => {
-            this.plugin.settings.phraseAction = id === "proofread" ? "proofread" : "explain";
+            this.plugin.settings.phraseAction = phraseActionOf(id);
             await this.plugin.saveSettings();
             pick.setText(label());
             this.explainLabelEl.setText(this.explainBannerText());

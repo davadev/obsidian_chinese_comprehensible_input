@@ -6,6 +6,7 @@ import { Notice } from "./__mocks__/obsidian"; // the stub itself: `Notice.insta
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 import { PhraseModal, PhraseSelection } from "../ui/PhraseModal";
 import { estimatePhraseUsd } from "../ai/phraseCost";
+import type { Measured } from "../ai/simplify";
 
 /**
  * The dialog behind the lightbulb tool: it is the confirm step (nothing is sent before the button), checks an explanation
@@ -33,15 +34,21 @@ const EXPLAINED = {
   typo: "",
   notes: [],
 };
+const meas = (text: string, over: Partial<Measured> = {}): Measured => ({ text, words: [], cost: 10, hardest: 5, unknown: 3, chars: Array.from(text).length, ...over });
+const NOTHING = { original: meas(TEXT), ranked: [], best: null };
+const PLAIN = { ...meas("我昨天去商店。", { cost: 3, hardest: 1, unknown: 1 }), change: "Drops 了." };
+const MIDDLE = { ...meas("昨天我去了商店。", { cost: 6, hardest: 2, unknown: 2 }), change: "" };
+const SIMPLER = { original: meas(TEXT), ranked: [PLAIN, MIDDLE], best: PLAIN };
 const USAGE = { ts: 1, provider: "openai", model: "gpt-6-luna", inputTokens: 1000, cachedInputTokens: 0, outputTokens: 2000 };
 
 function make(
   opts: {
     provider?: string;
-    action?: "explain" | "proofread";
+    action?: "explain" | "proofread" | "simplify";
     check?: object | Error;
     explain?: object | Error;
     proof?: object | Error;
+    simplify?: object | Error;
     issues?: string[];
     sel?: Partial<PhraseSelection>;
     replace?: boolean;
@@ -84,6 +91,9 @@ function make(
     },
     proofread: {
       proofread: vi.fn(async () => (emit(), { result: resolve(opts.proof, { corrections: [] }), issues: opts.issues ?? [] })),
+    },
+    simplify: {
+      simplify: vi.fn(async () => (emit(), { ...(resolve(opts.simplify, NOTHING) as object), issues: opts.issues ?? [] })),
     },
   };
   const sel: PhraseSelection = { text: TEXT, raw: TEXT, from: 100, to: 100 + TEXT.length, view: view as any, hasMarkup: false, ...opts.sel };
@@ -478,6 +488,122 @@ describe("proof reading", () => {
     btn(m.root, "Proof read").click();
     m.modal.close();
     d.resolve({ result: { corrections: [] }, issues: [] });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(text(m.root)).toBe("");
+  });
+});
+
+describe("simplifying", () => {
+  it("is the confirm step first: the text, the likely cost, and nothing sent", () => {
+    const { root, plugin } = make({ action: "simplify" });
+    expect(root.querySelector("h2")!.textContent).toBe("Simplify this text");
+    expect(text(root)).toMatch(/Estimated cost (under \$0\.01|about \$\d\.\d\d) on OpenAI\./);
+    expect(plugin.simplify.simplify).not.toHaveBeenCalled();
+  });
+
+  it("shows the simplest rewrite with the measured gain and what it changes, the others folded away, and writes nothing yet", async () => {
+    const { root, plugin, view } = make({ action: "simplify", simplify: SIMPLER });
+    btn(root, "Simplify").click();
+    expect(text(root)).toContain("Finding simpler ways to say it…");
+    await vi.waitFor(() => expect(root.querySelector("h2")!.textContent).toBe("A simpler way to say it"));
+    expect(plugin.simplify.simplify).toHaveBeenCalledWith(TEXT);
+    const quotes = Array.from(root.querySelectorAll("blockquote")).map((q) => q.textContent);
+    expect(quotes).toEqual([TEXT, "我昨天去商店。", "昨天我去了商店。"]);
+    expect(text(root)).toContain("Words you don't know yet: 3 → 1 · Hardest of them: HSK 5 → HSK 1");
+    expect(text(root)).toContain("What changes: Drops 了.");
+    expect(root.querySelector("details summary")!.textContent).toBe("Other ways to say it (1)");
+    expect(view.replaceRange).not.toHaveBeenCalled();
+  });
+
+  it("Apply replaces the whole selection, then marks it applied and leaves the other rewrites unusable", async () => {
+    const { root, view } = make({ action: "simplify", simplify: SIMPLER });
+    btn(root, "Simplify").click();
+    await vi.waitFor(() => expect(btn(root, "Apply")).toBeTruthy());
+    const applies = () => Array.from(root.querySelectorAll<HTMLButtonElement>(".cci-proof-item button")).filter((b) => b.textContent !== "Copy");
+    expect(applies().map((b) => b.disabled)).toEqual([false, false]);
+    applies()[0].click();
+    expect(view.replaceRange).toHaveBeenCalledWith(100, 100 + TEXT.length, TEXT, "我昨天去商店。");
+    expect(applies().map((b) => [b.textContent, b.disabled])).toEqual([["Applied ✓", true], ["Apply", true]]);
+  });
+
+  it("applying another rewrite after a change in the note is refused by the reader and nothing is marked applied", async () => {
+    const { root, view } = make({ action: "simplify", simplify: SIMPLER, replace: false });
+    btn(root, "Simplify").click();
+    await vi.waitFor(() => expect(btn(root, "Apply")).toBeTruthy());
+    btn(root, "Apply").click();
+    expect(view.replaceRange).toHaveBeenCalled();
+    expect(btn(root, "Apply").textContent).toBe("Apply");
+    expect(btn(root, "Apply").disabled).toBe(false);
+  });
+
+  it("cannot apply without the reader, or when the selection had formatting a replacement would lose; Copy still works", async () => {
+    const write = vi.fn(async (_t: string) => {});
+    Object.defineProperty(navigator, "clipboard", { value: { writeText: write }, configurable: true });
+    for (const sel of [{ view: null }, { hasMarkup: true }]) {
+      document.body.innerHTML = "";
+      const { root } = make({ action: "simplify", simplify: SIMPLER, sel });
+      btn(root, "Simplify").click();
+      await vi.waitFor(() => expect(btn(root, "Apply")).toBeTruthy());
+      const apply = btn(root, "Apply") as HTMLButtonElement;
+      expect(apply.disabled).toBe(true);
+      expect(!!apply.title).toBe("hasMarkup" in sel);
+      apply.click();
+      (root.querySelector(".cci-proof-item button:last-of-type") as HTMLButtonElement).click();
+      await vi.waitFor(() => expect(lastNotice()).toBe("Simpler text copied."));
+    }
+    expect(write.mock.calls.at(-1)![0]).toBe("我昨天去商店。");
+  });
+
+  it("when the rewrite is the same text as the note there is nothing to apply", async () => {
+    const same = { original: meas(TEXT), ranked: [{ ...PLAIN, text: TEXT }], best: { ...PLAIN, text: TEXT } };
+    const { root } = make({ action: "simplify", simplify: same });
+    btn(root, "Simplify").click();
+    await vi.waitFor(() => expect(btn(root, "Apply")).toBeTruthy());
+    expect((btn(root, "Apply") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("says the text is already simple when nothing was found, or when no rewrite beats the original, and lists what was tried", async () => {
+    const a = make({ action: "simplify", simplify: NOTHING });
+    btn(a.root, "Simplify").click();
+    await vi.waitFor(() => expect(a.root.querySelector("h2")!.textContent).toBe("Already about as simple as it gets"));
+    expect(text(a.root)).toContain("No simpler way to say this was found.");
+    expect(a.root.querySelector("details")).toBeNull();
+    expect(a.root.querySelector(".cci-proof-item")).toBeNull();
+    document.body.innerHTML = "";
+    const b = make({ action: "simplify", simplify: { original: meas(TEXT, { cost: 1 }), ranked: [MIDDLE], best: null } });
+    btn(b.root, "Simplify").click();
+    await vi.waitFor(() => expect(text(b.root)).toContain("None of the rewrites uses easier words than the original."));
+    expect(b.root.querySelector("details summary")!.textContent).toBe("The rewrites that were tried (1)");
+  });
+
+  it("shows what the plugin could not verify and the cost, regenerates, and reports a failure with Try again", async () => {
+    const a = make({ action: "simplify", simplify: SIMPLER, issues: ["One was unusable."], usage: true });
+    btn(a.root, "Simplify").click();
+    await vi.waitFor(() => expect(text(a.root)).toContain("even after asking again: One was unusable."));
+    expect(text(a.root)).toContain("Cost on OpenAI: $0.0011 (1 request).");
+    btn(a.root, "Regenerate").click();
+    await vi.waitFor(() => expect(a.plugin.simplify.simplify).toHaveBeenCalledTimes(2));
+    btn(a.root, "Close").click();
+    document.body.innerHTML = "";
+    let n = 0;
+    const b = make({ action: "simplify" });
+    b.plugin.simplify.simplify = vi.fn(async () => {
+      if (n++ === 0) throw new Error("boom");
+      return { ...NOTHING, issues: [] };
+    });
+    btn(b.root, "Simplify").click();
+    await vi.waitFor(() => expect(text(b.root)).toContain("That failed: boom"));
+    btn(b.root, "Try again").click();
+    await vi.waitFor(() => expect(text(b.root)).toContain("Already about as simple as it gets"));
+  });
+
+  it("ignores an answer that arrives after the dialog was closed", async () => {
+    const d = deferred<any>();
+    const m = make({ action: "simplify" });
+    m.plugin.simplify.simplify = vi.fn(() => d.promise);
+    btn(m.root, "Simplify").click();
+    m.modal.close();
+    d.resolve({ ...NOTHING, issues: [] });
     await new Promise((r) => setTimeout(r, 0));
     expect(text(m.root)).toBe("");
   });

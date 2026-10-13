@@ -21,7 +21,7 @@ below; deeper explanations live in [`docs/`](./docs/index.md).
 - **2 · Known**, **3 · Unknown**, **4 · Partial** — tap a word to set its status.
 - **5 · Add custom word** — tap characters to build a dictionary entry.
 - **6 · Highlighter** — arm tap-to-format mode (see [Formatting](./docs/formatting.md)).
-- **7 · Lightbulb** — tap the first and the last word of a phrase, then **Explain** it or **Proof read** it (needs AI; see [Explain](./docs/explain.md)).
+- **7 · Lightbulb** — tap the first and the last word of a phrase, then **Explain** it, **Proof read** it or **Simplify** it (needs AI; see [Explain](./docs/explain.md)).
 - **8 · Status / HSK** — one button that shows how words are coloured (by learning status or by HSK level); tap it to switch to the other.
 - **9 · More** — the display menu (below).
 - **10 · Note status bar** — Known / Partial / Unknown / New %, top HSK; tap for full stats.
@@ -212,9 +212,9 @@ Reading real Chinese raises questions a dictionary cannot answer. The plugin can
 - **Why does this word work here?** Tap a word and choose *Explain*: when to use it, how learners get it wrong, similar words and the radical of each character. Save it as a note if it is worth keeping.
 - **What is this sentence doing?** Tap the lightbulb, then the first and last word. You get the meaning, the structure, the job of every word and the grammar points.
 
-<img width="560" src="resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read dropdown">
+<img width="560" src="resources/screenshots/desktop-lightbulb-annotated.png" alt="Lightbulb mode: banner with the Explain / Proof read / Simplify dropdown">
 
-1. **Lightbulb** — armed. 2. **Hint** — tap the last word. 3. **Explain / Proof read** — pick what happens. 4. **Exit**.
+1. **Lightbulb** — armed. 2. **Hint** — tap the last word. 3. **Explain / Proof read / Simplify** — pick what happens. 4. **Exit**.
 
 <p>
 <img width="400" src="resources/screenshots/explain-phrase-annotated.png" alt="A phrase explained word by word">
@@ -224,6 +224,7 @@ Reading real Chinese raises questions a dictionary cannot answer. The plugin can
 
 Left: a phrase explained (1 · meaning, 2 · the job of every word, 3 · what it cost, 4 · save). Right: proof reading (1 · **Apply** one fix into your note, 2 · copy the corrected text, or **Apply all**).
 - **Is my Chinese right?** *Proof read* finds real mistakes in what you wrote, suggests the simplest fix, and puts it into your note with one tap.
+- **Too hard to read?** *Simplify* asks the AI for several easier ways to say the same thing, measures each against the HSK lists and the words you know, and shows the simplest with the numbers.
 - **I keep forgetting the tones.** Mnemonics give each character a picture of its meaning followed by its tone number, written by the plugin so the tone is always right. Fill in a whole note at once from the ⋯ menu.
 - **You stay in control.** Every answer shows what it cost, you can tell the AI how you like things explained (language, level, focus), and nothing is saved to your vault until you say so.
 
@@ -325,7 +326,7 @@ A tiny seed dictionary is bundled for development. For real use, drop a CC-CEDIC
 
 ## Privacy
 
-- **No vault content leaves your device unless you enable an AI provider.** Story generation, Enhance, mnemonics, Explain and Proof read are the features that transmit text (the words, sentence or selection involved, never the whole vault), and they stay off until you configure a provider.
+- **No vault content leaves your device unless you enable an AI provider.** Story generation, Enhance, mnemonics, Explain, Proof read and Simplify are the features that transmit text (the words, sentence or selection involved, never the whole vault), and they stay off until you configure a provider.
 - In OpenAI-compatible mode, story generation sends prompt text and target words to the provider you configured.
 - The optional CC-CEDICT download contacts mdbg.net to fetch the dictionary. It is triggered only when you press the download button, and it **uploads nothing** — it is a plain download.
 - API keys are stored locally in Obsidian local storage and are not written to synced vault files.
