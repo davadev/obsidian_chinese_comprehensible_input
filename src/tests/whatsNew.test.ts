@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RELEASE_NOTES, ReleaseNote, baseVersion, latestNote, notesToShow } from "../ui/whatsNew/releaseNotes";
+import { RELEASE_NOTES, ReleaseNote, baseVersion, latestNote, notesOfLine, notesToShow } from "../ui/whatsNew/releaseNotes";
 import { aiConfigured } from "../ai/aiConfigured";
 import { DEFAULT_SETTINGS } from "../settings/defaults";
 
@@ -57,6 +57,25 @@ describe("latestNote", () => {
     expect(latestNote("0.9.5", NOTES)?.version).toBe("0.9.1");
     expect(latestNote("0.9.0-beta.3", NOTES)?.version).toBe("0.9.0");
     expect(latestNote("0.8.0", NOTES)).toBeNull();
+  });
+});
+
+describe("notesOfLine", () => {
+  const versions = (v: string) => notesOfLine(v, NOTES).map((n) => n.version);
+  it("is every note of the running minor line, oldest first, and nothing of other lines", () => {
+    expect(versions("0.9.1")).toEqual(["0.9.0", "0.9.1"]);
+    expect(versions("0.9.0")).toEqual(["0.9.0"]);
+    expect(versions("0.9.1-beta.2")).toEqual(["0.9.0", "0.9.1"]);
+    expect(versions("0.10.0")).toEqual(["0.10.0"]);
+  });
+  it("does not show notes newer than the running version", () => {
+    expect(versions("0.9.0-beta.3")).toEqual(["0.9.0"]);
+  });
+  it("falls back to the newest note when the running line has none of its own, and is empty without any", () => {
+    expect(versions("0.9.5")).toEqual(["0.9.0", "0.9.1"]);
+    expect(versions("0.11.0")).toEqual(["0.10.0"]);
+    expect(versions("0.8.0")).toEqual([]);
+    expect(versions("nonsense")).toEqual([]);
   });
 });
 

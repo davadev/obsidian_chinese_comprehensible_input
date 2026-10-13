@@ -106,7 +106,22 @@ export function notesToShow(lastSeen: string, current: string, notes: ReleaseNot
     .sort((a, b) => compare(baseVersion(a.version) as [number, number, number], baseVersion(b.version) as [number, number, number]));
 }
 
-/** The newest note that is not newer than `current`, for the "Show what's new" command. */
+/**
+ * What the "Show what's new" command opens: every note of the running minor line (0.9.0 and 0.9.1 for a 0.9.1), oldest
+ * first, so someone can look back at the whole line on demand. The popup after an update shows each release only once;
+ * this is the way back. A version whose line has no note of its own falls back to the newest note there is.
+ */
+export function notesOfLine(current: string, notes: ReleaseNote[] = RELEASE_NOTES): ReleaseNote[] {
+  const cur = baseVersion(current);
+  const line = notesToShow("", current, notes).filter((n) => {
+    const v = baseVersion(n.version);
+    return cur !== null && v !== null && v[0] === cur[0] && v[1] === cur[1];
+  });
+  const latest = latestNote(current, notes);
+  return line.length > 0 ? line : latest ? [latest] : [];
+}
+
+/** The newest note that is not newer than `current`. */
 export function latestNote(current: string, notes: ReleaseNote[] = RELEASE_NOTES): ReleaseNote | null {
   const all = notesToShow("", current, notes);
   return all.length > 0 ? all[all.length - 1] : null;

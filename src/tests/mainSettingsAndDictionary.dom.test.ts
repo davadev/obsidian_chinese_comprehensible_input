@@ -606,10 +606,11 @@ describe("the one-time What's new popup", () => {
     expect(Notice.instances.at(-1)!.message).toContain("Settings → Chinese → About");
   });
 
-  it("the command shows the latest note again on demand, or says there is none", () => {
-    const { self } = make();
+  it("the command shows the notes of the whole running line again on demand, or says there is none", () => {
+    const { self } = make({ manifest: { version: "0.9.1", id: "p" } });
     self.showWhatsNew();
     expect(popup()).toBeTruthy();
+    expect(Array.from(document.body.querySelectorAll(".cci-whatsnew-modal h2")).map((h) => h.textContent)).toEqual(["What's new in 0.9.0", "What's new in 0.9.1"]);
     (Array.from(document.body.querySelectorAll(".cci-whatsnew-modal button")).find((b) => b.textContent === "Don't show again") as HTMLElement).click();
     expect(self.settings.showWhatsNew).toBe(false);
     document.body.innerHTML = "";
