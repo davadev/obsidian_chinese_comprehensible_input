@@ -34,6 +34,13 @@ describe("SimplifyService.simplify", () => {
     expect(out.best).toMatchObject({ text: "天气不好。", change: "note 天气不好。" });
   });
 
+  it("never doubles the punctuation: the rewrite ends like the selection, not like the model's sentence", async () => {
+    const { service } = serviceWith([reply("天气不好，但我们还是走了。", "我们走了。")]);
+    const out = await service.simplify("尽管天气恶劣，我们仍然坚持出发"); // the closing 。 of the sentence is outside the selection
+    expect(out.ranked.map((c) => c.text)).toEqual(["我们走了", "天气不好，但我们还是走了"]);
+    expect(out.best?.text).toBe("我们走了");
+  });
+
   it("proposes nothing when the model says the text is already simple, or only longer rewrites come back", async () => {
     const none = await serviceWith([JSON.stringify({ candidates: [] })]).service.simplify(TEXT);
     expect(none).toMatchObject({ ranked: [], best: null, issues: [] });
