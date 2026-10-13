@@ -438,7 +438,7 @@ export class ChineseTextFileView extends TextFileView {
       })();
     });
 
-    const back = host.createEl("button", { text: "Back to Smart stories" });
+    const back = host.createEl("button", { text: "Back to smart stories" });
     back.addEventListener("click", () => void this.openSmartStories());
   }
 

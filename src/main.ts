@@ -171,7 +171,7 @@ export default class CciPlugin extends Plugin {
       await writeCrashState(this.app.vault.adapter, path, decision.next);
       if (decision.action === "clear-auto-disable") {
         new Notice(
-          "Chinese plugin auto-disabled after repeated crashes. Re-enable in Settings → Community plugins after addressing the cause.",
+          "Chinese plugin auto-disabled after repeated crashes. Re-enable it in Obsidian's community plugins settings after fixing the cause.",
           0
         );
         void this.app.plugins?.disablePlugin?.(this.manifest.id);
@@ -384,7 +384,7 @@ export default class CciPlugin extends Plugin {
   private async stopShowingWhatsNew(): Promise<void> {
     this.settings.showWhatsNew = false;
     await this.saveSettingsSilently();
-    new Notice("Release notes turned off. You can turn them back on under Settings → Chinese → About.", 8_000);
+    new Notice("Release notes turned off. You can turn them back on in this plugin's settings, in the about section.", 8_000);
   }
 
   /** The "Show what's new" command: the notes of the whole running minor line again, on demand. */
@@ -618,7 +618,7 @@ export default class CciPlugin extends Plugin {
     // left-panel ribbon button is redundant. iOS doesn't expose addAction,
     // so the ribbon (== bottom toolbar on mobile) stays as the entry point.
     if (Platform.isMobile) {
-      this.addRibbonIcon("cci-zhong", "Open current note in Chinese Learning View", () => {
+      this.addRibbonIcon("cci-zhong", "Open current note in Chinese learning view", () => {
         void this.openCurrentInChineseView();
       });
     }
@@ -883,7 +883,7 @@ export default class CciPlugin extends Plugin {
       text: "This note looks like Traditional Chinese. Switch so words are recognised correctly?",
     });
     const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
-    row.createEl("button", { text: "Switch to Traditional" }).addEventListener("click", () => {
+    row.createEl("button", { text: "Switch to traditional" }).addEventListener("click", () => {
       notice.hide();
       this.settings.scriptVariant = "traditional";
       void this.saveSettings().then(() => this.offerReindexAfterScriptChange());
@@ -1382,12 +1382,12 @@ export default class CciPlugin extends Plugin {
     });
     this.addCommand({
       id: "open-current-in-chinese-view",
-      name: "Open current note in Chinese Learning View",
+      name: "Open current note in Chinese learning view",
       callback: () => this.openCurrentInChineseView(),
     });
     this.addCommand({
       id: "generate-review-story",
-      name: "Generate Chinese Review Story",
+      name: "Generate Chinese review story",
       callback: () => this.openGenerateStoryModal(),
     });
     this.addCommand({
@@ -1397,7 +1397,7 @@ export default class CciPlugin extends Plugin {
     });
     this.addCommand({
       id: "open-vocab-stats",
-      name: "Data Management",
+      name: "Data management",
       callback: () => this.openStatsView(),
     });
     this.addCommand({
@@ -1610,7 +1610,7 @@ export default class CciPlugin extends Plugin {
   }
 
   /**
-   * Add a "Open in Chinese Learning View" action to every MarkdownView's
+   * Add an "Open in Chinese learning view" action to every MarkdownView's
    * header so the round trip from Obsidian's Markdown editor back to our
    * annotated view is one tap. WeakSet dedupes — file-open fires on every
    * file switch, but MarkdownView instances are reused per leaf.
@@ -1626,7 +1626,7 @@ export default class CciPlugin extends Plugin {
         this.injectedMarkdownViews.add(view);
         continue;
       }
-      view.addAction("cci-zhong", "Open in Chinese Learning View", () => {
+      view.addAction("cci-zhong", "Open in Chinese learning view", () => {
         if (view.file) void this.openFileInChineseView(view.file);
       });
       this.injectedMarkdownViews.add(view);

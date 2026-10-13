@@ -256,7 +256,7 @@ describe("opening notes and views", () => {
       p.injectMarkdownHeaderActions();
       p.injectMarkdownHeaderActions();
       expect(view.addAction).toHaveBeenCalledTimes(1);
-      expect(view.addAction.mock.calls[0].slice(0, 2)).toEqual(["cci-zhong", "Open in Chinese Learning View"]);
+      expect(view.addAction.mock.calls[0].slice(0, 2)).toEqual(["cci-zhong", "Open in Chinese learning view"]);
       view.addAction.mock.calls[0][2]();
       expect(p.openFileInChineseView).toHaveBeenCalledWith(view.file);
     });

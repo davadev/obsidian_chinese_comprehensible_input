@@ -542,7 +542,7 @@ export class CciSettingsTab extends PluginSettingTab {
             },
             {
               name: "Reader font size (px)",
-              desc: "Base font size used inside the Chinese Learning View.",
+              desc: "Base font size used inside the Chinese learning view.",
               control: { type: "slider", key: "readerFontPx", min: 14, max: 40, step: 1 },
             },
             {
@@ -2043,7 +2043,7 @@ export class CciSettingsTab extends PluginSettingTab {
         this.custom("Licenses", (el) => {
           const ul = el.createEl("ul");
           ul.createEl("li", { text: "Dictionary: CC-CEDICT (CC BY-SA 4.0)" });
-          ul.createEl("li", { text: "HSK overlay: Complete HSK Vocabulary (MIT)" });
+          ul.createEl("li", { text: "HSK overlay: Complete HSK vocabulary (MIT)" });
           ul.createEl("li", { text: "Plugin code: MIT" });
           el.createEl("p", {
             text: "See NOTICE.md in the plugin folder for attribution details.",

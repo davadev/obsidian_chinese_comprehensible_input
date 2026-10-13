@@ -21,7 +21,7 @@ export class GenerateStoryModal extends Modal {
     liftModal(this);
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "Generate Chinese Review Story" });
+    contentEl.createEl("h2", { text: "Generate Chinese review story" });
 
     if (!this.plugin.settings.ai.enabled) {
       contentEl.createEl("p", { text: "AI is disabled. Enable it in plugin settings first." });
