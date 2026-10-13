@@ -107,6 +107,16 @@ class FakeButton extends FakeComponent {
   onClick(fn: (evt: MouseEvent) => unknown) { this.buttonEl.addEventListener?.("click", fn as EventListener); return this; }
 }
 
+/** Obsidian's secret picker: shows a secret's name, reports the chosen name. Tests call `change()`. */
+export class SecretComponent {
+  static instances: SecretComponent[] = [];
+  value = "";
+  cb: ((v: string) => unknown) | null = null;
+  constructor(public app: unknown, public containerEl: unknown) { SecretComponent.instances.push(this); }
+  setValue(v: string) { this.value = v; return this; }
+  onChange(cb: (v: string) => unknown) { this.cb = cb; return this; }
+  change(v: string) { this.value = v; return this.cb?.(v); }
+}
 export class Setting {
   settingEl: HTMLElement;
   controlEl: HTMLElement;
@@ -129,6 +139,7 @@ export class Setting {
   addTextArea(cb: (c: FakeText) => unknown) { cb(new FakeText(this.controlEl, "textarea")); return this; }
   addToggle(cb: (c: FakeToggle) => unknown) { cb(new FakeToggle()); return this; }
   addDropdown(cb: (c: FakeDropdown) => unknown) { cb(new FakeDropdown(this.controlEl)); return this; }
+  addComponent<T>(cb: (el: HTMLElement) => T) { cb(this.controlEl); return this; }
   addButton(cb: (c: FakeButton) => unknown) { cb(new FakeButton(this.controlEl)); return this; }
 }
 export class Modal {

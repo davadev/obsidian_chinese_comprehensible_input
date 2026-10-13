@@ -158,19 +158,20 @@ You only do this once.
 In Obsidian → Settings → **Chinese Comprehensible Input** → AI provider:
 
 1. Make sure **Provider** is set to **OpenAI**.
-2. Paste the key into **OpenAI API key**.
+2. In **OpenAI API key**, choose a secret, or create one and paste the key into it. Obsidian keeps the key in its secret storage; the plugin saves only the secret's name.
 3. Click **Test connection**. You should see "AI provider reachable."
 
 If AI is switched on but no key is saved yet, every AI action (Explain, the lightbulb tool, Enhance, Generate with AI,
 Mnemonics for this note, story generation) opens a short "Set up AI" dialog with an **Open settings** button instead of
 failing; for Ollama the same applies while the server address is empty.
 
-The key stays on this device only. It's written to Obsidian's per-vault
-`localStorage` (via `app.saveLocalStorage`), **not** to `data.json` —
-which means it's never copied into a vault sync (iCloud, Obsidian Sync,
-remotely-save, etc.) and never lands in the settings-mirror or export
-files. If you ever want to revoke it, delete the key on the OpenAI side
-at the API-keys page above; the local copy becomes inert.
+The key stays on this device. It lives in Obsidian's secret storage (`app.secretStorage`), **not** in `data.json`,
+so it is never copied into a vault sync (iCloud, Obsidian Sync, remotely-save, etc.) and never lands in the
+settings-mirror or export files; only the secret's name is saved with the settings, and that name is not shared
+between devices. Create the secret again on each device. Versions up to 0.9.1 kept the key in Obsidian's per-vault
+`localStorage`; 0.9.2 copies such a key into the secret storage the first time it starts, so you do not have to paste it
+again, and leaves the old copy in place. Clearing the key in the settings removes both. If you ever want to revoke it,
+delete the key on the OpenAI side at the API-keys page above; the local copy becomes inert.
 
 ---
 

@@ -2,6 +2,7 @@ import {
   App,
   Notice,
   PluginSettingTab,
+  SecretComponent,
   Setting,
   SettingDefinitionEmpty,
   SettingDefinitionItem,
@@ -38,7 +39,7 @@ import {
 } from "../view/einkMode";
 import { VOCAB_MIRROR_PATH_DEFAULT } from "../constants";
 import { WordStatus } from "../vocabulary/VocabularyTypes";
-import type { ScriptVariant } from "./types";
+import type { AiProviderKind, ScriptVariant } from "./types";
 import {
   exportSettings,
   importSettings,
@@ -50,7 +51,7 @@ import {
   computeOpenAiCostUsd,
   resolveOpenAiChoice,
 } from "../ai/openaiProfile";
-import { loadApiKey, saveApiKey } from "../ai/secrets";
+import { clearLegacyKey } from "../ai/secrets";
 import { confirmAsync } from "../ui/confirmInput";
 import { renderBackupList } from "./BackupList";
 import { mirrorPathProblem } from "./mirrorPath";
@@ -60,7 +61,6 @@ const DOCS_BASE =
   "https://github.com/davadev/obsidian_chinese_comprehensible_input/blob/main/docs/";
 
 /** Keys whose value is stored somewhere other than `plugin.settings`.
- *  `secret:` → Obsidian's device-local key store (never data.json).
  *  `ui:` → transient state of this tab (export / import paths). */
 /** Settings whose only effect is a CSS custom property on the view root. They
  *  need the view's appearance re-applied, which `refreshChineseViews()` does
@@ -82,7 +82,6 @@ const APPEARANCE_KEYS = new Set([
 const PATH_KEYS = new Set(["sync.mirrorPath", "sync.settingsMirrorPath"]);
 const PATH_IDLE_MS = 1_500;
 
-const SECRET_PREFIX = "secret:";
 const UI_PREFIX = "ui:";
 
 /**
@@ -112,10 +111,6 @@ export class CciSettingsTab extends PluginSettingTab {
   // ─────────────────────────── value plumbing ───────────────────────────
 
   getControlValue(key: string): unknown {
-    if (key.startsWith(SECRET_PREFIX)) {
-      const provider = key.slice(SECRET_PREFIX.length);
-      return loadApiKey(this.plugin.app, provider === "openai" ? "openai" : "ollama");
-    }
     if (key === UI_PREFIX + "exportPath") return this.exportPath;
     if (key === UI_PREFIX + "importPath") return this.importPath;
     // The box shows what is being typed, not the (older) value that is actually in use.
@@ -128,11 +123,6 @@ export class CciSettingsTab extends PluginSettingTab {
   }
 
   setControlValue(key: string, value: unknown): void | Promise<void> {
-    if (key.startsWith(SECRET_PREFIX)) {
-      const provider = key.slice(SECRET_PREFIX.length);
-      saveApiKey(this.plugin.app, provider === "openai" ? "openai" : "ollama", String(value));
-      return;
-    }
     if (key === UI_PREFIX + "exportPath") {
       this.exportPath = String(value).trim() || SETTINGS_EXPORT_DEFAULT_PATH;
       return;
@@ -316,6 +306,36 @@ export class CciSettingsTab extends PluginSettingTab {
         setting.settingEl.empty();
         setting.settingEl.addClass("cci-settings-prose");
         setting.settingEl.createEl("p", { cls: "cci-settings-warn", text });
+      },
+    };
+  }
+
+  /**
+   * An API-key row. The declarative API has no secret control, so this is the one place that builds Obsidian's
+   * `SecretComponent` by hand. It picks (or creates) a named secret; only that name is stored in the settings.
+   */
+  private secretRow(
+    name: string,
+    desc: string,
+    provider: AiProviderKind,
+    visible: () => boolean
+  ): SettingDefinitionRender {
+    return {
+      name,
+      desc,
+      visible,
+      render: (setting: Setting) => {
+        setting.setName(name).setDesc(desc);
+        setting.addComponent((el) =>
+          new SecretComponent(this.app, el)
+            .setValue(this.plugin.settings.ai.keySecrets[provider])
+            .onChange((secretName: string) => {
+              this.plugin.settings.ai.keySecrets[provider] = secretName;
+              // Clearing the key must really clear it: the pre-0.9.2 copy is a fallback and would bring it back.
+              if (!secretName) clearLegacyKey(this.app, provider);
+              void this.plugin.saveSettings();
+            })
+        );
       },
     };
   }
@@ -981,14 +1001,13 @@ export class CciSettingsTab extends PluginSettingTab {
             "What gets sent, what it costs, how to create an API key, and how to keep the bill under $1/month.",
             "openai-setup.md"
           ), visible: isOpenAi },
-        {
-          name: "OpenAI API key",
-          desc:
-            "Paste your sk-… key. Stored in Obsidian's device-local key store (app.saveLocalStorage), " +
-            "never written to data.json or the settings-mirror file.",
-          visible: isOpenAi,
-          control: { type: "text", key: SECRET_PREFIX + "openai", placeholder: "sk-…" },
-        },
+        this.secretRow(
+          "OpenAI API key",
+          "Choose or create a secret that holds your sk-… key. Obsidian keeps the key itself; " +
+            "only the secret's name is saved here, never the key.",
+          "openai",
+          isOpenAi
+        ),
         {
           name: "OpenAI model",
           desc:
@@ -1020,12 +1039,12 @@ export class CciSettingsTab extends PluginSettingTab {
           visible: isOllama,
           control: { type: "text", key: "ai.ollama.baseUrl" },
         },
-        {
-          name: "Ollama API key (optional)",
-          desc: "Only needed for protected Ollama proxies. Stored in Obsidian's device-local key store, never in data.json.",
-          visible: isOllama,
-          control: { type: "text", key: SECRET_PREFIX + "ollama" },
-        },
+        this.secretRow(
+          "Ollama API key (optional)",
+          "Only needed for protected Ollama proxies. Obsidian keeps the key itself; only the secret's name is saved here.",
+          "ollama",
+          isOllama
+        ),
         {
           name: "Chat model",
           visible: isOllama,

@@ -213,6 +213,8 @@ export interface AiSettings {
    *  config is preserved verbatim so toggling is lossless. */
   provider: AiProviderKind;
   ollama: AiOllamaConfig;
+  /** Name of the Obsidian secret that holds each provider's API key. The key itself is never stored here. */
+  keySecrets: Record<AiProviderKind, string>;
   /**
    * Which of the two hardcoded OpenAI models to use. "default" is the current model; "legacy" is the previous one,
    * kept in case the new one reads worse. Anything else is treated as "default".

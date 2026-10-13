@@ -329,7 +329,7 @@ A tiny seed dictionary is bundled for development. For real use, drop a CC-CEDIC
 - **No vault content leaves your device unless you enable an AI provider.** Story generation, Enhance, mnemonics, Explain, Proof read and Simplify are the features that transmit text (the words, sentence or selection involved, never the whole vault), and they stay off until you configure a provider.
 - In OpenAI-compatible mode, story generation sends prompt text and target words to the provider you configured.
 - The optional CC-CEDICT download contacts mdbg.net to fetch the dictionary. It is triggered only when you press the download button, and it **uploads nothing** — it is a plain download.
-- API keys are stored locally in Obsidian local storage and are not written to synced vault files.
+- API keys are stored locally in Obsidian's secret storage and are not written to synced vault files.
 - No telemetry, no analytics, no usage reporting of any kind.
 
 ## Permissions & network

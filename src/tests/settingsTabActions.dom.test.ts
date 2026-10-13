@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installObsidianDom } from "./__mocks__/obsidianDom";
-import { Notice } from "./__mocks__/obsidian"; // the stub itself: `Notice.instances` is not in the real typings
+import { Notice, SecretComponent } from "./__mocks__/obsidian"; // the stub itself: `Notice.instances` is not in the real typings
 import { all, byName, flush, makeSettingsTab, renderDef } from "./__mocks__/settingsTabHarness";
 import { DEFAULT_SETTINGS, DEFAULT_STATUS_PRIORITY, DEFAULT_TEXT_COLORS } from "../settings/defaults";
 import { SETTINGS_EXPORT_DEFAULT_PATH } from "../settings/SettingsIO";
@@ -81,17 +81,31 @@ describe("the release notes row", () => {
 });
 
 describe("how a key reaches the settings", () => {
-  it("API keys go to the device-local store, per provider, and never to the settings", () => {
-    const { tab, plugin, storage } = makeSettingsTab();
-    tab.setControlValue("secret:openai", "sk-1");
-    tab.setControlValue("secret:ollama", "tok");
-    tab.setControlValue("secret:anything-else", "other");
-    expect(storage.get("cci-ai-apikey-openai")).toBe("sk-1");
-    expect(storage.get("cci-ai-apikey-ollama")).toBe("other");
-    expect(tab.getControlValue("secret:openai")).toBe("sk-1");
-    expect(tab.getControlValue("secret:ollama")).toBe("other");
+  const keyRow = (tab: any, name: string) => {
+    const row = byName(tab, name);
+    renderDef(row);
+    return SecretComponent.instances.at(-1)!;
+  };
+
+  it("an API key row picks a named secret: only the name is saved, never the key", () => {
+    const { tab, plugin, secrets } = makeSettingsTab();
+    secrets.set("my-openai", "sk-1");
+    const openai = keyRow(tab, "OpenAI API key");
+    expect(openai.value).toBe("");
+    openai.change("my-openai");
+    keyRow(tab, "Ollama API key (optional)").change("my-ollama");
+    expect(plugin.settings.ai.keySecrets).toEqual({ openai: "my-openai", ollama: "my-ollama" });
     expect(JSON.stringify(plugin.settings)).not.toContain("sk-1");
-    expect(plugin.saveSettings).not.toHaveBeenCalled();
+    expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
+    expect(keyRow(tab, "OpenAI API key").value).toBe("my-openai");
+  });
+
+  it("clearing the key also forgets the old localStorage copy, so the fallback cannot bring it back", () => {
+    const { tab, plugin, storage } = makeSettingsTab({ settings: (s) => (s.ai.keySecrets.openai = "my-openai") });
+    storage.set("cci-ai-apikey-openai", "sk-old");
+    keyRow(tab, "OpenAI API key").change("");
+    expect(plugin.settings.ai.keySecrets.openai).toBe("");
+    expect(storage.has("cci-ai-apikey-openai")).toBe(false);
   });
 
   it("the export and import paths are just fields of the tab: export falls back to the default, import may be empty", () => {

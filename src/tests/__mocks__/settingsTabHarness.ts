@@ -27,6 +27,7 @@ export function makeSettingsTab(over: { settings?: (s: any) => void; plugin?: Re
   const settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
   over.settings?.(settings);
   const storage = new Map<string, string>();
+  const secrets = new Map<string, string>();
   const files = new Map<string, string>();
   const adapter = {
     exists: vi.fn(async (p: string) => files.has(p)),
@@ -42,6 +43,11 @@ export function makeSettingsTab(over: { settings?: (s: any) => void; plugin?: Re
       vault: { configDir: ".obsidian", adapter },
       loadLocalStorage: vi.fn((k: string) => storage.get(k) ?? null),
       saveLocalStorage: vi.fn((k: string, v: string | null) => void (v === null ? storage.delete(k) : storage.set(k, v))),
+      secretStorage: {
+        getSecret: (id: string) => secrets.get(id) ?? null,
+        setSecret: (id: string, v: string) => void secrets.set(id, v),
+        listSecrets: () => [...secrets.keys()],
+      },
       setting: undefined,
     },
     saveSettings: vi.fn(async () => {}),
@@ -78,7 +84,7 @@ export function makeSettingsTab(over: { settings?: (s: any) => void; plugin?: Re
     ...over.plugin,
   };
   const tab = new CciSettingsTab(plugin.app, plugin) as any;
-  return { tab: tab as CciSettingsTab & Record<string, any>, plugin, storage, files, adapter };
+  return { tab: tab as CciSettingsTab & Record<string, any>, plugin, storage, secrets, files, adapter };
 }
 
 export function walk(items: Def[], visit: (d: Def, path: string[]) => void, path: string[] = []): void {

@@ -7,13 +7,13 @@ import { applyCustomColors } from "../ui/colorTheme";
 export const SETTINGS_EXPORT_DEFAULT_PATH = "Chinese Learning/cci-settings-export.json";
 
 /** Per-section sensitive / device-local keys we never propagate via export
- *  or settings-mirror. API keys live in Obsidian's localStorage (see
- *  `src/ai/secrets.ts`) so they never appear in settings — only the
- *  device-local usage log needs stripping here. The legacy `ollama.apiKey`
+ *  or settings-mirror. API keys live in Obsidian's secret storage (see
+ *  `src/ai/secrets.ts`) so they never appear in settings; only the secrets' names do, and those are per device
+ *  (another device has its own secret store), so they are stripped here with the device-local usage log. The legacy `ollama.apiKey`
  *  field still exists in the type for runtime overlay but is always "" at
  *  rest, so we also drop it defensively in case an older blob set it. */
 const FILTER_OUT = {
-  ai: ["ollama.apiKey", "usageLog"] as const,
+  ai: ["ollama.apiKey", "keySecrets", "usageLog"] as const,
   sync: [
     "mirrorPath",
     "settingsMirrorPath",

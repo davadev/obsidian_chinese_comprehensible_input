@@ -171,13 +171,13 @@ export class AiProviderService {
 
   /** Resolve which provider config drives a request. For openai, builds
    *  the hardcoded profile; for ollama, returns the saved config. In
-   *  both cases the apiKey is overlaid from device-local localStorage
+   *  both cases the apiKey is overlaid from Obsidian secret storage
    *  (secrets module) so credentials never appear in the settings blob.
    *  Public so the story generator + stats panel can read the active
    *  model name. */
   resolveActive(): { active: AiOllamaConfig; provider: AiProviderKind } {
     const s = this.getSettings();
-    const apiKey = loadApiKey(this.app, s.provider);
+    const apiKey = loadApiKey(this.app, s, s.provider);
     if (s.provider === "openai") {
       return { active: buildOpenAiActiveConfig(apiKey, s.openaiModel), provider: "openai" };
     }

@@ -101,6 +101,7 @@ export function fakeApp() {
     stat: vi.fn(async () => null),
   };
   const storage = new Map<string, string>();
+  const secrets = new Map<string, string>();
   const vaultHandlers: Array<{ name: string; cb: (...a: any[]) => unknown }> = [];
   const workspaceHandlers: Array<{ name: string; cb: (...a: any[]) => unknown }> = [];
   const layoutReady: Array<() => void> = [];
@@ -131,7 +132,12 @@ export function fakeApp() {
     plugins: { disablePlugin: vi.fn(async () => {}) },
     loadLocalStorage: vi.fn((k: string) => storage.get(k) ?? null),
     saveLocalStorage: vi.fn((k: string, v: string | null) => void (v === null ? storage.delete(k) : storage.set(k, v))),
+    secretStorage: {
+      getSecret: (id: string) => secrets.get(id) ?? null,
+      setSecret: (id: string, v: string) => void secrets.set(id, v),
+      listSecrets: () => [...secrets.keys()],
+    },
     setting: undefined,
   };
-  return { app, files, binary, adapter, storage, vaultHandlers, workspaceHandlers, layoutReady };
+  return { app, files, binary, adapter, storage, secrets, vaultHandlers, workspaceHandlers, layoutReady };
 }
