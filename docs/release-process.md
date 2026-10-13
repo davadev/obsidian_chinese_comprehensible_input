@@ -157,6 +157,13 @@ A release that changes something a user can see, or has to relearn (a moved butt
 an entry in `RELEASE_NOTES` in `src/ui/whatsNew/releaseNotes.ts`, newest first, with the version as plain `X.Y.Z`. Add it in
 the same PR as the change, so a user is never surprised by a change the popup does not mention.
 
+**Notes stack within a minor line, and are never removed from it.** Someone who skipped a release is shown every section
+they missed, oldest first, under a line that says so ("You are catching up on 2 updates: 0.9.0, then 0.9.1."), while
+someone who already saw 0.9.0 gets only 0.9.1. So a 0.9.2 must still carry the 0.9.0 and 0.9.1 entries: only when the
+minor number moves (0.10.0) may the old line be dropped. `check-release` enforces it by comparing `releaseNotes.ts` with
+the one in the latest stable tag and failing if an entry of the same `X.Y` line has gone (CI fetches full history for
+this; a checkout without tags skips the check).
+
 How it behaves, so nobody has to rediscover it:
 
 - After an upgrade the popup shows each entry **once**. `settings.lastSeenVersion` (per device, never synced; listed in

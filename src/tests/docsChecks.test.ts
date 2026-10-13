@@ -4,7 +4,9 @@ import path from "node:path";
 import {
   baseVersion,
   brokenScreenshotRefs,
+  droppedWhatsNewEntries,
   hasWhatsNewEntry,
+  releaseNoteVersions,
   isMinorRelease,
   unindexedDocs,
 } from "../../scripts/lib/docsChecks.mjs";
@@ -41,6 +43,22 @@ describe("hasWhatsNewEntry", () => {
   });
   it("ignores the version mentioned in a comment", () => {
     expect(hasWhatsNewEntry(`// version: "0.9.5" later`, "0.9.5")).toBe(false);
+  });
+});
+
+describe("the What's new stack is append-only within a minor line", () => {
+  const entries = (...vs: string[]) => vs.map((v) => `  {\n    version: "${v}",\n  },`).join("\n");
+  it("lists the versions an entry list carries", () => {
+    expect(releaseNoteVersions(entries("0.9.1", "0.9.0"))).toEqual(["0.9.1", "0.9.0"]);
+    expect(releaseNoteVersions('// version: "0.9.5" in a comment')).toEqual([]);
+  });
+  it("reports an earlier entry of the same line that has gone", () => {
+    expect(droppedWhatsNewEntries(entries("0.9.1", "0.9.0"), entries("0.9.2", "0.9.1"), "0.9.2")).toEqual(["0.9.0"]);
+  });
+  it("is quiet when nothing of the line was removed, and lets a new minor line start fresh", () => {
+    expect(droppedWhatsNewEntries(entries("0.9.0"), entries("0.9.1", "0.9.0"), "0.9.1")).toEqual([]);
+    expect(droppedWhatsNewEntries(entries("0.9.1", "0.9.0"), entries("0.10.0"), "0.10.0")).toEqual([]);
+    expect(droppedWhatsNewEntries(entries("0.8.2", "0.9.0"), entries("0.9.0"), "0.9.0")).toEqual([]);
   });
 });
 

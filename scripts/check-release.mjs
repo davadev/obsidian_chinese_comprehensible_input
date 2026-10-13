@@ -24,7 +24,7 @@ import {
   checkNpmrc,
   npmSupportsMinReleaseAge,
 } from "./lib/supplyChainChecks.mjs";
-import { baseVersion, brokenScreenshotRefs, hasWhatsNewEntry, isMinorRelease, unindexedDocs } from "./lib/docsChecks.mjs";
+import { baseVersion, brokenScreenshotRefs, droppedWhatsNewEntries, hasWhatsNewEntry, isMinorRelease, unindexedDocs } from "./lib/docsChecks.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -626,6 +626,20 @@ if (manifest) {
       warn(`What's new has an entry for ${base}`, "add one to RELEASE_NOTES in src/ui/whatsNew/releaseNotes.ts (see the feature-done skill)");
     } else {
       note(`What's new has no entry for patch release ${base}`, "fine if nothing user-visible changed");
+    }
+  }
+
+  // Append-only within a minor line: compare with the notes shipped in the latest stable tag.
+  if (base && notes !== null) {
+    const tag = spawnSync("git", ["describe", "--tags", "--abbrev=0", "--match", "[0-9]*.[0-9]*.[0-9]*", "--exclude", "*-*"], { cwd: ROOT, encoding: "utf8" });
+    const prevTag = tag.status === 0 ? tag.stdout.trim() : "";
+    const prev = prevTag ? spawnSync("git", ["show", `${prevTag}:src/ui/whatsNew/releaseNotes.ts`], { cwd: ROOT, encoding: "utf8" }) : null;
+    if (prev && prev.status === 0) {
+      const dropped = droppedWhatsNewEntries(prev.stdout, notes, base);
+      if (dropped.length === 0) pass(`What's new keeps every ${base.split(".").slice(0, 2).join(".")}.x entry from ${prevTag}`);
+      else fail(`What's new keeps every ${base.split(".").slice(0, 2).join(".")}.x entry from ${prevTag}`, `removed: ${dropped.join(", ")}. Notes stack within a minor line so a user who skipped a release still sees it.`);
+    } else {
+      skip("What's new keeps earlier entries of this minor line", "no stable release tag in this checkout (CI fetches full history)");
     }
   }
 
