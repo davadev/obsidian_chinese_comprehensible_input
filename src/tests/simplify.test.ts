@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_CANDIDATES,
+  alignEnds,
   Measured,
   UNRATED_LEVEL,
   candidateProblem,
@@ -35,6 +36,28 @@ describe("normaliseSimplify", () => {
   });
 });
 
+describe("alignEnds: a rewrite starts and ends like the selection", () => {
+  it("drops the closing punctuation the selection did not include, so applying cannot double it", () => {
+    expect(alignEnds("天气不好，但我们还是按原来的计划出发。", "尽管天气恶劣，我们仍然坚持按原计划出发")).toBe("天气不好，但我们还是按原来的计划出发");
+  });
+
+  it("adds the closing punctuation the selection had, and keeps the selection's own when the rewrite used another", () => {
+    expect(alignEnds("我们走了", "我们出发了。")).toBe("我们走了。");
+    expect(alignEnds("我们走了！", "我们出发了。")).toBe("我们走了。");
+  });
+
+  it("does the same at the start (opening quotes), with surrounding spaces and several marks", () => {
+    expect(alignEnds("“我们走了。”", "我们出发了")).toBe("我们走了");
+    expect(alignEnds("我们走了", "“我们出发了。”")).toBe("“我们走了。”");
+    expect(alignEnds("我们走了。", "我们出发了 \n")).toBe("我们走了 \n");
+  });
+
+  it("leaves punctuation inside the rewrite alone, and a rewrite that is only punctuation as it is", () => {
+    expect(alignEnds("天气不好，我们走了。", "天气恶劣，我们出发")).toBe("天气不好，我们走了");
+    expect(alignEnds("。。", "我们出发了")).toBe("。。");
+  });
+});
+
 describe("candidateProblem / validateSimplify / usableCandidates", () => {
   const ok = { text: "天气不好，我们还是走了。", change: "" };
 
@@ -56,6 +79,23 @@ describe("candidateProblem / validateSimplify / usableCandidates", () => {
     expect(candidateProblem({ text: "天氣不好。", change: "" }, "天氣很好。", trad)).toBeNull();
   });
 
+  it("counts a rewrite that differs from the selection only in its end punctuation as the same", () => {
+    expect(candidateProblem({ text: "我们出发了。", change: "" }, "我们出发了", simplified)).toMatch(/same as the original/);
+    expect(candidateProblem({ text: "我们出发了", change: "" }, "我们出发了。", simplified)).toMatch(/same as the original/);
+  });
+
+  it("gives usable candidates the selection's own end punctuation, and drops one that becomes a duplicate", () => {
+    const got = usableCandidates(
+      { candidates: [{ text: "天气不好，我们走了。", change: "a" }, { text: "天气不好，我们走了", change: "b" }, { text: "天气不好。", change: "c" }] },
+      ORIGINAL.replace(/。$/, ""),
+      simplified
+    );
+    expect(got).toEqual([
+      { text: "天气不好，我们走了", change: "a" },
+      { text: "天气不好", change: "c" },
+    ]);
+  });
+
   it("flags too many candidates", () => {
     const many = Array.from({ length: MAX_CANDIDATES + 1 }, (_, i) => ({ text: `第${i}个`, change: "" }));
     expect(validateSimplify({ candidates: many }, ORIGINAL, simplified)).toEqual([`Give at most ${MAX_CANDIDATES} candidates; you sent ${MAX_CANDIDATES + 1}.`]);
@@ -65,7 +105,7 @@ describe("candidateProblem / validateSimplify / usableCandidates", () => {
     const list = [ok, ok, { text: "", change: "" }, { text: ORIGINAL, change: "" }, ...Array.from({ length: 9 }, (_, i) => ({ text: `我们走了${i}`, change: "" }))];
     const got = usableCandidates({ candidates: list }, ORIGINAL, simplified);
     expect(got).toHaveLength(MAX_CANDIDATES);
-    expect(got[0]).toBe(ok);
+    expect(got[0]).toEqual(ok);
     expect(new Set(got.map((c) => c.text)).size).toBe(MAX_CANDIDATES);
   });
 });

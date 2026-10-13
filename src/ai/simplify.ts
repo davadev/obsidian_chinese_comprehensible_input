@@ -43,10 +43,27 @@ export function normaliseSimplify(raw: unknown): SimplifyResult {
   };
 }
 
+const LEADING_PUNCTUATION = /^[\p{P}\s]+/u;
+const TRAILING_PUNCTUATION = /[\p{P}\s]+$/u;
+
+/**
+ * The rewrite with the selection's own leading and trailing punctuation. The learner selects from the first word to the
+ * last, so the sentence's closing 。 or an opening quote is usually just outside the selection; a rewrite brings its own,
+ * and applying it would double them (“…出发。。”). Whatever the selection starts and ends with is what the rewrite starts and
+ * ends with, including nothing.
+ */
+export function alignEnds(rewrite: string, original: string): string {
+  const core = rewrite.replace(LEADING_PUNCTUATION, "").replace(TRAILING_PUNCTUATION, "");
+  if (!core) return rewrite;
+  const start = LEADING_PUNCTUATION.exec(original)?.[0] ?? "";
+  const end = TRAILING_PUNCTUATION.exec(original)?.[0] ?? "";
+  return `${start}${core}${end}`;
+}
+
 /** What is wrong with one candidate, in words the model can act on; null when it is usable. */
 export function candidateProblem(c: Candidate, original: string, isTraditional: (s: string) => boolean): string | null {
   if (!c.text || !Array.from(c.text).some(isHanChar)) return `"${c.text}" is not Chinese text.`;
-  if (c.text === original.trim()) return `"${c.text}" is the same as the original; every candidate must be a different way to say it.`;
+  if (alignEnds(c.text, original) === original) return `"${c.text}" is the same as the original; every candidate must be a different way to say it.`;
   if (isTraditional(c.text) && !isTraditional(original)) return `"${c.text}" is in Traditional characters but the text is Simplified; keep the script of the text.`;
   return null;
 }
@@ -62,14 +79,16 @@ export function validateSimplify(r: SimplifyResult, original: string, isTraditio
   return issues;
 }
 
-/** The candidates worth measuring: usable, different from the original, no duplicates, at most MAX_CANDIDATES. */
+/** The candidates worth measuring: usable, different from the original, no duplicates, at most MAX_CANDIDATES. Their text carries the selection's own end punctuation. */
 export function usableCandidates(r: SimplifyResult, original: string, isTraditional: (s: string) => boolean): Candidate[] {
   const seen = new Set<string>();
   const out: Candidate[] = [];
   for (const c of r.candidates) {
-    if (candidateProblem(c, original, isTraditional) || seen.has(c.text)) continue;
-    seen.add(c.text);
-    out.push(c);
+    if (candidateProblem(c, original, isTraditional)) continue;
+    const text = alignEnds(c.text, original);
+    if (seen.has(text)) continue;
+    seen.add(text);
+    out.push({ ...c, text });
     if (out.length === MAX_CANDIDATES) break;
   }
   return out;
