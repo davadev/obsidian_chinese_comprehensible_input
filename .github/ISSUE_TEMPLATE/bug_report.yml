@@ -1,0 +1,36 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open a Chinese note\n2. ..."
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Settings → Community plugins, or the BRAT beta tag (for example 0.9.0-beta.20)
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      multiple: true
+      options: [Desktop (macOS), Desktop (Windows), Desktop (Linux), iPhone/iPad, Android, E-ink reader]
+    validations:
+      required: true
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data safety
+      options:
+        - label: My notes or vocabulary were changed or lost (say so above; this is treated as top priority)

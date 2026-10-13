@@ -20,6 +20,7 @@ installObsidianDom();
 (window as any).activeDocument = document;
 (window as any).activeWindow = window;
 
+type Rect = { left: number; top: number; width: number; height: number };
 type Callout = { sel: string; n: number; text?: string; pad?: number; nth?: number; side?: "right" | "top" | "bottom" };
 const scene = new URLSearchParams(location.search).get("scene") ?? "";
 
@@ -177,6 +178,7 @@ function whatsNewScene() {
 
 /** Draw the dashed boxes and numbered circles (colours from scripts/annotate-screenshots.py). */
 function callouts(items: Callout[], side: "right" | "top" | "bottom") {
+  const report: { n: number; box: Rect; circle: { cx: number; cy: number } }[] = [];
   const layer = document.body.appendChild(document.createElement("div"));
   layer.className = "co-layer";
   const origin = document.documentElement.getBoundingClientRect();
@@ -198,7 +200,13 @@ function callouts(items: Callout[], side: "right" | "top" | "bottom") {
     const cx = where === "right" ? origin.width - 24 : r.left - origin.left + r.width / 2;
     const cy = where === "right" ? r.top - origin.top + r.height / 2 : where === "bottom" ? origin.height - 22 : 22;
     Object.assign(c.style, { left: `${cx - 13}px`, top: `${cy - 13}px` });
+    report.push({
+      n: it.n,
+      box: { left: r.left - origin.left - pad, top: r.top - origin.top - pad, width: r.width + pad * 2, height: r.height + pad * 2 },
+      circle: { cx, cy },
+    });
   }
+  return report;
 }
 
 const TOOLBAR: Callout[] = [
@@ -286,8 +294,10 @@ async function main() {
     c.firstElementChild?.classList.add("modal");
   });
   const want = new URLSearchParams(location.search).get("callouts") !== "0";
-  if (want) callouts(items, side);
+  const report = want ? callouts(items, side) : [];
   document.documentElement.setAttribute("data-content-height", String(Math.ceil(document.body.getBoundingClientRect().height)));
+  // render-screenshots.mjs checks this geometry (scripts/lib/calloutChecks.mjs) before it accepts the image.
+  document.documentElement.setAttribute("data-callout-report", JSON.stringify(report));
 }
 
 main().catch((e) => {

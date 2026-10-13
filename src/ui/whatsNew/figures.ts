@@ -7,6 +7,7 @@ import { setIcon } from "obsidian";
  */
 
 export type FigureId = "toolbar" | "mnemonic";
+/** Every figure id; the What's new tests walk it so a new figure cannot ship undrawn. @public */
 export const FIGURE_IDS: FigureId[] = ["toolbar", "mnemonic"];
 
 /** The toolbar's icon buttons in order, as in `ViewToolbar`: known, unknown, partial, add custom word, highlighter. */

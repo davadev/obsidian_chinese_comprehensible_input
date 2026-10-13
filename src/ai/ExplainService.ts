@@ -105,5 +105,8 @@ function parse(raw: string): ExplainResult {
   return normaliseExplain(parsed);
 }
 
-/** Exported only for the unit tests in src/tests. */
+/**
+ * Exported only for the unit tests in src/tests.
+ * @public
+ */
 export const __testing = { parse };

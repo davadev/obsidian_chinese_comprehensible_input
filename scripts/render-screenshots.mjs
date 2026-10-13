@@ -9,17 +9,23 @@
  *
  * Needs a headless Chromium ($CHROME_HEADLESS_SHELL, else Playwright's cache). No new dependency.
  *
- * Usage:  node scripts/render-screenshots.mjs [scene ...]     (no argument = all scenes)
+ * Every scene's callout geometry is checked (numbers 1..n in order, boxes and circles inside the image, no overlapping
+ * circles); a bad scene fails the run. `--check` renders to a temp folder, leaves resources/screenshots untouched and
+ * exits non-zero on any problem: CI uses it, so a UI change that breaks an annotated image fails the PR.
+ *
+ * Usage:  node scripts/render-screenshots.mjs [--check] [scene ...]     (no scene = all scenes)
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { checkCallouts } from "./lib/calloutChecks.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const OUT = join(ROOT, "resources/screenshots");
+const checkOnly = process.argv.includes("--check");
+const OUT = checkOnly ? mkdtempSync(join(tmpdir(), "cci-shots-check-")) : join(ROOT, "resources/screenshots");
 
 /** scene -> [output file, viewport width in CSS px] */
 const SCENES = {
@@ -44,6 +50,10 @@ function findChrome() {
         const p = join(cache, d, `chrome-headless-shell-${arch}`, "chrome-headless-shell");
         if (existsSync(p)) return p;
       }
+  }
+  for (const bin of ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]) {
+    const r = spawnSync("which", [bin], { encoding: "utf8" });
+    if (r.status === 0 && r.stdout.trim()) return r.stdout.trim();
   }
   return null;
 }
@@ -103,7 +113,9 @@ const file = join(dir, "page.html");
 writeFileSync(file, page);
 
 const base = ["--headless", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=2", "--virtual-time-budget=4000", "--allow-file-access-from-files"];
-const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(SCENES);
+const requested = process.argv.slice(2).filter((a) => !a.startsWith("--"));
+const wanted = requested.length ? requested : Object.keys(SCENES);
+const allProblems = [];
 for (const scene of wanted) {
   const spec = SCENES[scene];
   if (!spec) throw new Error(`unknown scene ${scene}; known: ${Object.keys(SCENES).join(", ")}`);
@@ -115,6 +127,14 @@ for (const scene of wanted) {
   const m = /data-content-height="(\d+)"/.exec(dom);
   if (!m) throw new Error(`scene ${scene}: the page did not publish its height (script failed?)`);
   const height = Number(m[1]);
+  const rep = /data-callout-report="([^"]*)"/.exec(dom);
+  const items = rep ? JSON.parse(rep[1].replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&")) : [];
+  for (const p of checkCallouts({ width, height, items })) allProblems.push(`${scene}: ${p}`);
   execFileSync(chrome, [...base, `--window-size=${width},${height}`, `--screenshot=${join(OUT, name)}`, url], { stdio: ["ignore", "ignore", "inherit"] });
-  console.log(`wrote ${name} — ${width}x${height} CSS px at 2x (${statSync(join(OUT, name)).size} bytes)`);
+  console.log(`wrote ${name} — ${width}x${height} CSS px at 2x (${statSync(join(OUT, name)).size} bytes), ${items.length} callouts checked`);
+}
+
+if (allProblems.length) {
+  console.error(`\ncallout problems:\n${allProblems.map((p) => `  - ${p}`).join("\n")}`);
+  process.exit(1);
 }

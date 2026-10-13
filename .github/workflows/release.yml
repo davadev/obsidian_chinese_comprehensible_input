@@ -62,6 +62,29 @@ jobs:
           # same workspace. Nothing here does git writes — `gh` uses an
           # explicit GH_TOKEN env instead.
           persist-credentials: false
+          # Full history: the next step asks which branches contain the tagged commit.
+          fetch-depth: 0
+
+      # A release must come from reviewed code. A prerelease tag has to sit on `main` (merge first, then tag). A stable
+      # tag is pushed on the `release/X.Y.Z` branch head BEFORE that branch merges, so it may also sit on a release
+      # branch. Anything else (a feature branch, a stale commit) is refused before anything is built or published.
+      - name: Check the tag is on main or a release branch
+        run: |
+          set -euo pipefail
+          if git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "tag ${GITHUB_REF_NAME} is on main"
+            exit 0
+          fi
+          if [[ "${GITHUB_REF_NAME}" != *-* ]]; then
+            for branch in $(git for-each-ref --format='%(refname:short)' 'refs/remotes/origin/release/*'); do
+              if git merge-base --is-ancestor "${GITHUB_SHA}" "${branch}"; then
+                echo "stable tag ${GITHUB_REF_NAME} is on ${branch}"
+                exit 0
+              fi
+            done
+          fi
+          echo "::error::${GITHUB_REF_NAME} (${GITHUB_SHA}) is not on main (prerelease) or on a release/* branch (stable). Merge first, then retag."
+          exit 1
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

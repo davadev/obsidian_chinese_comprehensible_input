@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Dead-code gate (`npm run check:dead-code`). The `!` suffix marks what ships: knip --production walks from
+  // src/main.ts and does NOT count tests as users, so code that only a test still calls is reported. That is the
+  // point: legacy and half-finished features get deleted, not tested (see AGENTS.md).
+  "entry": ["src/main.ts!"],
+  "project": ["src/**/*.ts!", "!src/tests/**"],
+  // An export that is only used inside its own file is not "unused".
+  "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    // Written by scripts/build-*.mjs; the *_SIZE constants are asserted by the data tests only.
+    "src/dictionary/*.generated.ts": ["exports"]
+  },
+  "ignoreDependencies": [
+    // `import type` only (erased at build). A transitive of @codemirror/language, version-pinned via `overrides`.
+    "@lezer/common"
+  ]
+}
