@@ -35,6 +35,17 @@ describe("WhatsNewModal", () => {
     expect(close).toHaveBeenCalled();
   });
 
+  it("tells someone who skipped a release that they are catching up, and says nothing for a single note", () => {
+    const a = new WhatsNewModal(new App() as any, NOTES, () => {});
+    a.onOpen();
+    expect(a.contentEl.querySelectorAll(".cci-whatsnew-catchup")).toHaveLength(1);
+    expect(a.contentEl.textContent).toContain("You are catching up on 2 updates: 0.9.0, then 0.9.1.");
+    expect(a.contentEl.querySelectorAll("h2")).toHaveLength(2);
+    const b = new WhatsNewModal(new App() as any, [NOTES[0]], () => {});
+    b.onOpen();
+    expect(b.contentEl.textContent).not.toContain("catching up");
+  });
+
   it("draws an item's illustration under its text, and only for items that have one", () => {
     const withFigure: ReleaseNote[] = [{ version: "0.9.0", title: "T", intro: "I", items: [{ title: "A", text: "a", figure: "toolbar" }, { title: "B", text: "b" }] }];
     const modal = new WhatsNewModal(new App() as any, withFigure, () => {});

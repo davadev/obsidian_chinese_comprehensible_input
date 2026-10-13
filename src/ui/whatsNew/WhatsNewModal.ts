@@ -18,6 +18,13 @@ export class WhatsNewModal extends Modal {
     liftModal(this);
     const { contentEl } = this;
     contentEl.addClass("cci-whatsnew-modal");
+    // Someone who skipped a release gets every section they missed, oldest first; say so, so two headings are not a surprise.
+    if (this.notes.length > 1) {
+      contentEl.createEl("p", {
+        cls: "cci-whatsnew-catchup",
+        text: `You are catching up on ${this.notes.length} updates: ${this.notes.map((n) => n.version).join(", then ")}.`,
+      });
+    }
     this.notes.forEach((note) => {
       contentEl.createEl("h2", { text: note.title });
       contentEl.createEl("p", { cls: "cci-whatsnew-intro", text: note.intro });

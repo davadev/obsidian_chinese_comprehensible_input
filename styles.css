@@ -2243,7 +2243,8 @@
 }
 
 /* One-time "What's new" popup and the "Set up AI" prompt. */
-.cci-whatsnew-modal .cci-whatsnew-intro {
+.cci-whatsnew-modal .cci-whatsnew-intro,
+.cci-whatsnew-modal .cci-whatsnew-catchup {
   color: var(--text-muted);
 }
 .cci-whatsnew-modal .cci-whatsnew-list {

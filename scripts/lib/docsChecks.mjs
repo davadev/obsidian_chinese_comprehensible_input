@@ -37,3 +37,18 @@ export function brokenScreenshotRefs(sources, existing) {
   }
   return broken;
 }
+
+/** Every `version: "X.Y.Z"` of a RELEASE_NOTES source. */
+export const releaseNoteVersions = (releaseNotesSource) =>
+  [...releaseNotesSource.matchAll(/^\s*version:\s*"(\d+\.\d+\.\d+)"/gm)].map((m) => m[1]);
+
+/**
+ * The What's new stack is append-only within a minor line (0.9.x): a user who skipped 0.9.0 must still be told about it
+ * when 0.9.2 arrives. Returns the entries of the previous release that belong to `currentBase`'s line (same X.Y) and are
+ * gone from the current source. A new minor line (0.10.0) may start fresh.
+ */
+export function droppedWhatsNewEntries(previousSource, currentSource, currentBase) {
+  const line = currentBase.split(".").slice(0, 2).join(".");
+  const now = new Set(releaseNoteVersions(currentSource));
+  return releaseNoteVersions(previousSource).filter((v) => v.split(".").slice(0, 2).join(".") === line && !now.has(v));
+}

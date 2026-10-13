@@ -35,6 +35,8 @@ jobs:
           # same workspace. Nothing here does git writes — `gh` uses an
           # explicit GH_TOKEN env instead.
           persist-credentials: false
+          # Tags and history: check-release compares the What's new notes with the latest stable release's.
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
