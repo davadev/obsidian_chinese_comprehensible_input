@@ -22,17 +22,19 @@ Always `npm run build` (type-check included) before claiming done. Tests stub `o
 
 ## Skills: when to use which
 
-| Situation | Skill |
-|---|---|
-| Finishing any feature/fix PR ("is it done?", adding a setting/command/UI) | `feature-done` |
-| Editing `src/`, `styles.css`, settings, sync, editor view | `plugin-design-rules` |
-| Annotated screenshots / numbered callouts in README or docs | `docs-screenshots` |
-| Merged to `main`, needs a tag / BRAT test build | `release-beta` |
-| User explicitly says promote / go stable | `release-stable` |
-| Opening, labelling, or picking issues; Planning board | `triage-issue` |
-| Dependabot PR, `npm install`, package.json, action pins | `dependency-update` |
+Project skills live in `.claude/skills/<name>/SKILL.md`. Load one with the `Skill` tool (or `/<name>`) **before** starting the work it covers, then follow its checklist step by step. Do not reconstruct the steps from memory.
 
-If a skill applies, invoke it; do not reconstruct its steps from memory.
+| Trigger (user words or situation) | Skill |
+|---|---|
+| About to open/merge a feature or fix PR; adding a setting, command or UI; "is it done?", "what else needs updating?" | `feature-done` |
+| About to edit `src/`, `styles.css`, settings, sync/mirror or the editor view | `plugin-design-rules` |
+| Annotated screenshot, numbered callouts, README/docs images, misaligned boxes | `docs-screenshots` |
+| Change merged to `main` and needs testing; "release", "tag", "ship a beta", "publish" | `release-beta` |
+| User **explicitly** says "promote", "go stable", "release for everyone" | `release-stable` |
+| Opening/labelling an issue, "what's next?", Planning board, after a release | `triage-issue` |
+| Dependabot PR, `npm install/update`, `package.json`, `.npmrc`, action pins | `dependency-update` |
+
+Typical flow for a change: `plugin-design-rules` (while coding) → `feature-done` (before the PR; it calls `docs-screenshots` if a documented screen changed) → merge → `release-beta` → later, only when told, `release-stable`. `triage-issue` brackets the flow (issue before, board update after). When unsure which release skill applies, it is `release-beta`.
 
 ## Always-on rules
 
