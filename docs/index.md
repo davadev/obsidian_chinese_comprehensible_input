@@ -73,6 +73,11 @@ the whole tree from here.
   when two devices set different statuses on the same word, how the
   priority list is used.
 
+## For contributors
+
+- [Architecture and key file index](./architecture.md) — how the code is organised and where to look.
+- [Release process](./release-process.md) — CI expectations, the prerelease → stable workflow, and the guards `check-release` runs.
+
 ## See also
 
 - [Source on GitHub](https://github.com/davadev/obsidian_chinese_comprehensible_input)

@@ -24,6 +24,7 @@ import {
   checkNpmrc,
   npmSupportsMinReleaseAge,
 } from "./lib/supplyChainChecks.mjs";
+import { baseVersion, brokenScreenshotRefs, hasWhatsNewEntry, isMinorRelease, unindexedDocs } from "./lib/docsChecks.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -612,6 +613,36 @@ if (manifest) {
         (offenders.length > 3 ? ` (+${offenders.length - 3} more)` : "")
     );
   }
+}
+
+// === Docs and What's new ===
+{
+  const base = manifest ? baseVersion(manifest.version) : null;
+  const notes = await readText("src/ui/whatsNew/releaseNotes.ts");
+  if (base && notes !== null) {
+    if (hasWhatsNewEntry(notes, base)) {
+      pass(`What's new has an entry for ${base}`);
+    } else if (isMinorRelease(base)) {
+      warn(`What's new has an entry for ${base}`, "add one to RELEASE_NOTES in src/ui/whatsNew/releaseNotes.ts (see the feature-done skill)");
+    } else {
+      note(`What's new has no entry for patch release ${base}`, "fine if nothing user-visible changed");
+    }
+  }
+
+  const docNames = (await readdir(join(ROOT, "docs")).catch(() => [])).filter((n) => n.endsWith(".md"));
+  const index = await readText("docs/index.md");
+  if (index !== null) {
+    const missing = unindexedDocs(docNames, index);
+    if (missing.length === 0) pass("every docs page is linked from docs/index.md");
+    else fail("every docs page is linked from docs/index.md", missing.join(", "));
+  }
+
+  const sources = { "README.md": (await readText("README.md")) ?? "" };
+  for (const n of docNames) sources[`docs/${n}`] = (await readText(`docs/${n}`)) ?? "";
+  const shots = await readdir(join(ROOT, "resources/screenshots")).catch(() => []);
+  const broken = brokenScreenshotRefs(sources, shots);
+  if (broken.length === 0) pass("README/docs only reference screenshots that exist");
+  else fail("README/docs only reference screenshots that exist", broken.join(", "));
 }
 
 // === Release assets: only expected distributable files ===
