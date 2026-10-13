@@ -9,7 +9,7 @@ Run through every line before the PR is marked ready. Skip a line only when it t
 
 1. **Branch + PR**: work on `fix/<slug>` or `feat/<slug>`, never on `main`.
 2. **Tests**: new/changed code has tests; `npm run test:cov` stays at 100 % (no `v8 ignore`; unreachable code is deleted, see `plugin-design-rules`).
-3. **Checks**: `npm run build` (includes tsc), `npm run lint` (0 errors), `npm run check:dead-code` (new code is reachable from `src/main.ts`; nothing left half-finished), `npm run lint:css` if `styles.css` changed, `npm run check:layout` if layout/E-ink changed.
+3. **Checks**: `npm run build` (includes tsc), `npm run lint` (0 errors AND 0 warnings), `npm run check:dead-code` (new code is reachable from `src/main.ts`; nothing left half-finished), `npm run lint:css` if `styles.css` changed, `npm run check:layout` if layout/E-ink changed.
 4. **Settings**: new setting goes under a section heading (never appended flat) and is covered in `src/tests/settingsCoverage.test.ts` (tab control, or `NOT_IN_SETTINGS_TAB` with a reason). Remind the user a full Obsidian restart is needed to see a new group.
 5. **Docs**: update the matching `docs/<page>.md` and `docs/index.md` if a page was added; `README.md` if user-visible (incl. numbered legends); `docs/architecture.md` file index if files were added/moved; `docs/faq.md` if it answers a likely question.
 6. **What's new**: user-visible or must-relearn change → entry in `RELEASE_NOTES` in `src/ui/whatsNew/releaseNotes.ts` (newest first, plain `X.Y.Z`, short and benefit-led). New `figure` id → builder in `src/ui/whatsNew/figures.ts`. For a minor release also extend `docs/release-notes-X.Y.0.md`.

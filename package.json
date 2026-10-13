@@ -11,7 +11,7 @@
 		"build:radicals": "node scripts/build-radicals.mjs",
 		"build:fixture": "node scripts/build-cedict-fixture.mjs",
 		"check-release": "node scripts/check-release.mjs",
-		"lint": "eslint 'src/**/*.ts'",
+		"lint": "eslint 'src/**/*.ts' --max-warnings=0",
 		"lint:fix": "eslint 'src/**/*.ts' --fix",
 		"lint:css": "stylelint styles.css",
 		"lint:cloud-parity": "node scripts/lint-cloud-parity.mjs",

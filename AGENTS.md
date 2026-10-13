@@ -49,7 +49,7 @@ Typical flow for a change: `plugin-design-rules` (while coding) → `feature-don
 - **Every release starts as a prerelease** (`X.Y.Z-beta.N`). Stable only on explicit user instruction. `main`'s `manifest.json` must never advertise a version with no published release; never commit a `-beta.N` version to `main`.
 - Releases are tag-driven (`.github/workflows/release.yml`); never `gh release create` by hand.
 - No dependency younger than 14 days; `@codemirror/state|view` pinned exact; bundled packages pinned; Actions pinned to SHAs. See `dependency-update`.
-- Local `npm run lint` must be 0 errors before tagging: a lint error risks community-plugin delisting.
+- **Zero warnings and zero errors, always.** `npm run lint` (enforced with `--max-warnings=0`), `lint:css`, `build`, `check:dead-code` and `check-release` (`0 failed, 0 warned`) must all be clean before a PR is ready and before any tag; the Obsidian auto-review must pass. Never leave a warning behind as "pre-existing" or "non-blocking": fix it, or tell the user why it cannot be fixed yet. Never silence a rule or add an ignore to get to zero.
 
 ## Planning
 
