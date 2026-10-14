@@ -90,7 +90,11 @@ export function normalisePhrase(raw: unknown): PhraseResult {
     expresses: text(o.expresses),
     register: text(o.register),
     structure: text(o.structure),
-    breakdown: rows(o.breakdown, (x) => ({ text: text(x.text), pinyin: text(x.pinyin), role: text(x.role), meaning: text(x.meaning) })),
+    // Punctuation is not a word: a model that lists "，" as an entry (with no pinyin or role, as smaller local models
+    // do) must not fail the "every row is filled in" check for it. The cover check ignores punctuation anyway.
+    breakdown: rows(o.breakdown, (x) => ({ text: text(x.text), pinyin: text(x.pinyin), role: text(x.role), meaning: text(x.meaning) })).filter(
+      (w) => /[\p{L}\p{N}]/u.test(w.text)
+    ),
     grammarPoints: rows(o.grammarPoints, (x) => ({ point: text(x.point), explanation: text(x.explanation), example: text(x.example) })),
     typo: text(o.typo),
     notes: Array.isArray(o.notes) ? o.notes.map(text).filter(Boolean) : [],
@@ -137,8 +141,18 @@ export function validatePhrase(r: PhraseResult, selection: string): string[] {
   const issues: string[] = [];
   if (!r.translation) issues.push('"translation" is empty.');
   if (!r.structure) issues.push('"structure" is empty.');
-  if (r.breakdown.length === 0 || r.breakdown.some((w) => !w.text || !w.pinyin || !w.role || !w.meaning)) {
+  if (r.breakdown.length === 0) {
     issues.push('"breakdown" needs an entry for every word, each with its text, pinyin, grammatical role and meaning.');
+  }
+  // Name the gaps: "fill in every field" tells a small model nothing, while "昨天 has no meaning" is something it can fix.
+  const gaps = r.breakdown.flatMap((w) => {
+    const missing = (["pinyin", "role", "meaning"] as const).filter((f) => !w[f]);
+    return missing.length > 0 ? [`${w.text} (${missing.join(", ")})`] : [];
+  });
+  if (gaps.length > 0) {
+    issues.push(
+      `"breakdown" has entries with missing fields: ${gaps.slice(0, 6).join("; ")}${gaps.length > 6 ? "; …" : ""}. Every word needs its tone-marked pinyin, grammatical role and meaning.`
+    );
   }
   const expected = squash(selection);
   const got = squash(r.breakdown.map((w) => w.text).join(""));

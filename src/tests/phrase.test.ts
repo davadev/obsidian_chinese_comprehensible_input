@@ -72,6 +72,8 @@ describe("schemas and normalisers", () => {
     const r = normalisePhrase({ translation: 3, breakdown: [null, "x", { text: " 我 " }], grammarPoints: "no", notes: ["a", 2, ""] });
     expect(r.translation).toBe("");
     expect(r.breakdown).toEqual([{ text: "我", pinyin: "", role: "", meaning: "" }]);
+    // punctuation is not a word, and an entry with no text at all is nothing
+    expect(normalisePhrase({ breakdown: [{ text: "，" }, { text: "、。" }, { text: "" }, { text: "我", pinyin: "wǒ", role: "r", meaning: "I" }] }).breakdown).toHaveLength(1);
     expect(r.grammarPoints).toEqual([]);
     expect(r.notes).toEqual(["a"]);
     expect(normalisePhrase(null).structure).toBe("");
@@ -136,6 +138,17 @@ describe("validatePhrase", () => {
     expect(validatePhrase(swapped, TEXT)).toHaveLength(1);
   });
 
+  it("names up to six words with gaps, and says there are more", () => {
+    const r = clone(FULL);
+    r.breakdown = Array.from({ length: 8 }, (_, i) => ({ text: `字${i}`, pinyin: "", role: "r", meaning: "m" }));
+    const [msg] = validatePhrase(r, "字0字1字2字3字4字5字6字7");
+    expect(msg).toContain("字0 (pinyin); 字1 (pinyin); 字2 (pinyin); 字3 (pinyin); 字4 (pinyin); 字5 (pinyin); …");
+    const two = clone(FULL);
+    two.breakdown[0].pinyin = "";
+    two.breakdown[0].meaning = "";
+    expect(validatePhrase(two, TEXT)[0]).toContain(`${two.breakdown[0].text} (pinyin, meaning).`);
+  });
+
   it("shortens long text in the message", () => {
     const long = "我".repeat(60);
     const r = clone(FULL);
@@ -148,7 +161,7 @@ describe("validatePhrase", () => {
     r.breakdown[1].role = "";
     r.grammarPoints[0].explanation = "";
     expect(validatePhrase(r, TEXT)).toEqual([
-      '"breakdown" needs an entry for every word, each with its text, pinyin, grammatical role and meaning.',
+      `"breakdown" has entries with missing fields: ${r.breakdown[1].text} (role). Every word needs its tone-marked pinyin, grammatical role and meaning.`,
       'Each entry in "grammarPoints" needs the point and an explanation.',
     ]);
   });
