@@ -354,6 +354,7 @@ describe("the story modal, the word popup and marking", () => {
       dictionary: { lookup: () => [], isTraditionalMarker: () => false },
       vocab: { bySurface: () => undefined },
       explain: { generate: () => new Promise(() => {}) },
+      ai: { observe: () => () => {} },
       aiUsageListeners: new Set(),
     });
     on.openExplainModal("方便", "住在这里很方便。");

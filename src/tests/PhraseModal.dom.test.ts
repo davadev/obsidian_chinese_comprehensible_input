@@ -85,6 +85,7 @@ function make(
       listeners.add(cb);
       return () => void listeners.delete(cb);
     },
+    ai: { observe: () => () => {} },
     phraseExplain: {
       check: vi.fn(async () => (emit(), resolve(opts.check, { verdict: "ok", note: "", original: "", suggestion: "" }))),
       explain: vi.fn(async () => (emit(), { result: resolve(opts.explain, EXPLAINED), issues: opts.issues ?? [] })),
@@ -161,7 +162,8 @@ describe("explaining", () => {
     const { root, plugin, created, modal } = make();
     btn(root, "Explain").click();
     expect(text(root)).toContain("Writing the explanation…");
-    expect(root.querySelector("progress")).toBeTruthy();
+    expect(root.querySelector(".cci-ai-status")!.textContent).toContain("Request sent to OpenAI. Waiting for the answer…");
+    expect(root.querySelector("progress")).toBeNull();
     await vi.waitFor(() => expect(btn(root, "Save as note")).toBeTruthy());
     expect(plugin.phraseExplain.check).toHaveBeenCalledWith(TEXT);
     expect(plugin.phraseExplain.explain).toHaveBeenCalledWith(TEXT, undefined);
@@ -315,7 +317,7 @@ describe("explaining", () => {
     expect(close).toHaveBeenCalled();
   });
 
-  it("stops the progress clock when the screen changes or the dialog closes", async () => {
+  it("stops the status clock when the screen changes or the dialog closes", async () => {
     vi.useFakeTimers();
     try {
       const m = make();

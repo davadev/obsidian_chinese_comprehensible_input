@@ -49,6 +49,7 @@ function make(
   app.metadataCache = { getFileCache: () => ({ frontmatter: { "cci-explain": true, "cci-word": "方便|fang1 bian4" } }) };
   app.workspace = { getLeaf: vi.fn(() => leaf) };
   const listeners = new Set<(e: any) => void>();
+  const activity = new Set<(a: any) => void>();
   const inner: (i: any) => Promise<any> = opts.explain ?? (async () => ({ result: clone(FULL), issues: [] }));
   const plugin: any = {
     settings,
@@ -56,6 +57,12 @@ function make(
       listeners.add(cb);
       return () => void listeners.delete(cb);
     }),
+    ai: {
+      observe: vi.fn((cb: (a: any) => void) => {
+        activity.add(cb);
+        return () => void activity.delete(cb);
+      }),
+    },
     dictionary: { lookup: (s: string) => (s === "方便" ? [ENTRY] : []), isTraditionalMarker: () => false },
     vocab: { bySurface: () => undefined },
     explain: {
@@ -69,7 +76,7 @@ function make(
   const modal = new ExplainModal(app, plugin, "方便", "住在这里很方便。");
   modal.open();
   const root = modal.contentEl as HTMLElement;
-  return { modal, root, plugin, app, created, leaf };
+  return { modal, root, plugin, app, created, leaf, say: (a: any) => activity.forEach((l) => l(a)) };
 }
 const btn = (r: HTMLElement, text: string) => Array.from(r.querySelectorAll("button")).find((b) => b.textContent === text)!;
 const text = (r: HTMLElement) => r.textContent ?? "";
@@ -105,28 +112,38 @@ describe("writing the explanation", () => {
     expect(close).toHaveBeenCalled();
   });
 
-  it("shows a progress bar that fills while the answer is awaited, shows the seconds, and stops when it arrives", async () => {
+  it("says only what is known while the answer is awaited: the request is out, the seconds, then what arrives, then the check", async () => {
     vi.useFakeTimers();
     try {
       const d = deferred<any>();
-      const { root } = make({ explain: () => d.promise });
-      const bar = () => root.querySelector("progress") as HTMLProgressElement;
-      expect(bar().value).toBe(0);
-      vi.advanceTimersByTime(10_000);
-      const at10 = bar().value;
-      expect(at10).toBeGreaterThan(30);
-      expect(root.querySelector(".cci-explain-progress")!.textContent).toContain("10 s");
-      vi.advanceTimersByTime(110_000);
-      // it slows down and never reaches the end before the answer does
-      expect(bar().value).toBeGreaterThan(at10);
-      expect(bar().value).toBeLessThan(95.01);
+      const { root, say } = make({ explain: () => d.promise });
+      const line = () => root.querySelector(".cci-ai-status")!.textContent;
+      expect(root.querySelector("progress")).toBeNull();
+      expect(line()).toBe("Request sent to OpenAI. Waiting for the answer… 0 s");
+      vi.advanceTimersByTime(12_000);
+      expect(line()).toBe("Request sent to OpenAI. Waiting for the answer… 12 s");
+      say({ kind: "receiving", chars: 340 });
+      expect(line()).toBe("Request: OpenAI is answering… 340 characters so far.");
+      say({ kind: "received" });
+      expect(line()).toBe("Request: the answer is here, checking it…");
+      // the repair is a second request, and the clock starts over for it
+      say({ kind: "sending" });
+      vi.advanceTimersByTime(3_000);
+      expect(line()).toBe("Request 2 sent to OpenAI. Waiting for the answer… 3 s");
       d.resolve({ result: clone(FULL), issues: [] });
       await vi.advanceTimersByTimeAsync(0);
-      expect(root.querySelector("progress")).toBeNull();
+      expect(root.querySelector(".cci-ai-status")).toBeNull();
       expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("names Ollama when that is the provider, and a retried first request is still request 1", () => {
+    const { root, say } = make({ provider: "ollama", explain: () => new Promise(() => {}) });
+    say({ kind: "sending" });
+    say({ kind: "sending" });
+    expect(root.querySelector(".cci-ai-status")!.textContent).toBe("Request sent to your Ollama server. Waiting for the answer… 0 s");
   });
 
   it("stops the clock when the dialog is closed or the request fails", async () => {

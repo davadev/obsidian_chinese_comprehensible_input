@@ -2252,14 +2252,27 @@ body.theme-dark {
   color: var(--text-warning, var(--text-muted));
   font-size: var(--font-ui-small);
 }
-.cci-explain-modal .cci-explain-progress {
+/* What the AI request is doing: a pulsing dot and one honest line. No bar: nothing here knows how far along it is. */
+.cci-explain-modal .cci-ai-status {
   display: flex;
   align-items: center;
   gap: 0.6rem;
   margin: 0.8rem 0;
 }
-.cci-explain-modal .cci-explain-progress progress {
-  flex: 1;
+.cci-explain-modal .cci-ai-status-dot {
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  animation: cci-ai-pulse 1.2s ease-in-out infinite;
+}
+@keyframes cci-ai-pulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cci-explain-modal .cci-ai-status-dot { animation: none; }
 }
 .cci-explain-modal .cci-explain-actions {
   display: flex;

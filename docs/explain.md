@@ -2,7 +2,7 @@
 
 **Explain** writes a thorough usage note for one word: not just the translation (the dictionary card and **Enhance**
 already do that), but *when you need it, how to use it, how learners get it wrong, and what its characters are*. It shows the
-note in a dialog first (with a progress bar while it is written, usually 20 to 40 seconds); nothing is saved to your vault until you press **Save**.
+note in a dialog first (while it is written the dialog shows what is really happening: request sent, the seconds waited, how much of the answer has arrived where it streams, then the check); nothing is saved to your vault until you press **Save**.
 
 It appears on the word card as **Explain**, next to Mnemonic and Edit. If AI is not set up yet, pressing it explains what
 is missing and takes you to the settings. It works with or without a sentence; if you opened the card from a sentence, that sentence is sent too so the model can pick the sense

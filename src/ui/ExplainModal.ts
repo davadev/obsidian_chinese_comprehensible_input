@@ -6,7 +6,7 @@ import { OPENAI_MODELS, resolveOpenAiChoice } from "../ai/openaiProfile";
 import { countTraditionalMarkers } from "../dictionary/scriptDetect";
 import { describeIssues, renderExplainBlocks } from "./explainPreview";
 import { copyMarkdown, openInReader, saveExplanation } from "./explainFiles";
-import { startProgressClock } from "./progressClock";
+import { startAiStatus } from "./aiStatus";
 import { UsageMeter } from "./usageMeter";
 import { liftModal } from "./modalLayer";
 
@@ -25,7 +25,7 @@ export class ExplainModal extends Modal {
   private meta!: ExplainMeta;
   private existing: TFile | null = null;
   private meter: UsageMeter;
-  /** Stops the clock behind the progress bar; set only while an answer is being waited for. */
+  /** Stops the status line and its clock; set only while an answer is being waited for. */
   private stopProgress: (() => void) | null = null;
 
   constructor(
@@ -91,8 +91,8 @@ export class ExplainModal extends Modal {
 
   private async generate(): Promise<void> {
     const run = ++this.runId;
-    this.heading("Writing the explanation… this usually takes 20 to 40 seconds.");
-    this.stopProgress = startProgressClock(this.contentEl);
+    this.heading("Writing the explanation…");
+    this.stopProgress = startAiStatus(this.contentEl, this.plugin.ai, this.plugin.settings.ai.provider);
     const bar = this.actions();
     bar.createEl("button", { text: "Cancel" }).addEventListener("click", () => this.close());
     this.meter.usd = 0;
