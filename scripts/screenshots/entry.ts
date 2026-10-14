@@ -49,6 +49,7 @@ function aiPlugin(extra: Record<string, unknown>) {
       listeners.add(cb);
       return () => void listeners.delete(cb);
     },
+    ai: { observe: () => () => {} },
     emit,
     ...extra,
   };
