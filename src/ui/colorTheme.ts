@@ -11,18 +11,18 @@ export function applyCustomColors(settings: CciSettings): void {
   const root = activeDocument.body;
   applyTextColors(settings, root);
   const c = settings.customColors;
-  root.style.setProperty("--cci-color-known", c.known);
-  root.style.setProperty("--cci-color-partial", c.partial);
-  root.style.setProperty("--cci-color-unknown", c.unknown);
-  root.style.setProperty("--cci-color-new", c.new);
+  root.style.setProperty("--cci-user-color-known", c.known);
+  root.style.setProperty("--cci-user-color-partial", c.partial);
+  root.style.setProperty("--cci-user-color-unknown", c.unknown);
+  root.style.setProperty("--cci-user-color-new", c.new);
   for (const level of ["1", "2", "3", "4", "5", "6", "7"] as const) {
-    root.style.setProperty(`--cci-color-hsk-${level}`, c.hsk[level]);
+    root.style.setProperty(`--cci-user-color-hsk-${level}`, c.hsk[level]);
   }
 }
 
 /**
  * Reader font colors (#22). When the feature is off the properties are
- * REMOVED rather than set to a theme value — styles.css declares them as
+ * REMOVED rather than set to a theme value — styles.css derives `--cci-text-*` from them and reads
  * `var(--cci-text-chars, var(--text-normal))` etc., so an absent property
  * is what hands control back to the active theme (including live theme /
  * dark-mode switches). Setting them to a snapshot of the theme color
@@ -30,14 +30,14 @@ export function applyCustomColors(settings: CciSettings): void {
  */
 function applyTextColors(settings: CciSettings, root: HTMLElement): void {
   const t = settings.textColors;
-  const vars = ["--cci-text-chars", "--cci-text-pinyin", "--cci-text-gloss"] as const;
+  const vars = ["--cci-user-text-chars", "--cci-user-text-pinyin", "--cci-user-text-gloss"] as const;
   if (!t?.enabled) {
     for (const v of vars) root.style.removeProperty(v);
     return;
   }
-  root.style.setProperty("--cci-text-chars", t.chars);
-  root.style.setProperty("--cci-text-pinyin", t.pinyin);
-  root.style.setProperty("--cci-text-gloss", t.gloss);
+  root.style.setProperty("--cci-user-text-chars", t.chars);
+  root.style.setProperty("--cci-user-text-pinyin", t.pinyin);
+  root.style.setProperty("--cci-user-text-gloss", t.gloss);
 }
 
 /**

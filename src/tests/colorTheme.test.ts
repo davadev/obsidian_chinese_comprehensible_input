@@ -23,17 +23,17 @@ describe("colorTheme", () => {
 
   it("applyCustomColors writes all top-level and HSK CSS vars", () => {
     applyCustomColors(DEFAULT_SETTINGS);
-    expect(setProperty).toHaveBeenCalledWith("--cci-color-known", DEFAULT_SETTINGS.customColors.known);
-    expect(setProperty).toHaveBeenCalledWith("--cci-color-partial", DEFAULT_SETTINGS.customColors.partial);
-    expect(setProperty).toHaveBeenCalledWith("--cci-color-unknown", DEFAULT_SETTINGS.customColors.unknown);
-    expect(setProperty).toHaveBeenCalledWith("--cci-color-new", DEFAULT_SETTINGS.customColors.new);
-    expect(setProperty).toHaveBeenCalledWith("--cci-color-hsk-7", DEFAULT_SETTINGS.customColors.hsk["7"]);
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-color-known", DEFAULT_SETTINGS.customColors.known);
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-color-partial", DEFAULT_SETTINGS.customColors.partial);
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-color-unknown", DEFAULT_SETTINGS.customColors.unknown);
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-color-new", DEFAULT_SETTINGS.customColors.new);
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-color-hsk-7", DEFAULT_SETTINGS.customColors.hsk["7"]);
     expect(setProperty).toHaveBeenCalledTimes(11);
   });
 
   it("applyCustomColors clears the text-color vars while the feature is off", () => {
     applyCustomColors(DEFAULT_SETTINGS);
-    for (const v of ["--cci-text-chars", "--cci-text-pinyin", "--cci-text-gloss"]) {
+    for (const v of ["--cci-user-text-chars", "--cci-user-text-pinyin", "--cci-user-text-gloss"]) {
       expect(removeProperty).toHaveBeenCalledWith(v);
       expect(setProperty).not.toHaveBeenCalledWith(v, expect.anything());
     }
@@ -44,9 +44,9 @@ describe("colorTheme", () => {
       ...DEFAULT_SETTINGS,
       textColors: { enabled: true, chars: "#111111", pinyin: "#222222", gloss: "#333333" },
     });
-    expect(setProperty).toHaveBeenCalledWith("--cci-text-chars", "#111111");
-    expect(setProperty).toHaveBeenCalledWith("--cci-text-pinyin", "#222222");
-    expect(setProperty).toHaveBeenCalledWith("--cci-text-gloss", "#333333");
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-text-chars", "#111111");
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-text-pinyin", "#222222");
+    expect(setProperty).toHaveBeenCalledWith("--cci-user-text-gloss", "#333333");
     expect(removeProperty).not.toHaveBeenCalled();
   });
 

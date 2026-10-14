@@ -1,22 +1,40 @@
 /* Chinese Comprehensible Input — view styles. Theme-friendly via Obsidian CSS variables. */
 
 /*
- * Word-color custom properties. JS overrides these on document.body when the
- * user picks new colors in Settings. Defaults match the historical hardcoded
- * values so untouched installs look identical.
+ * Word-color custom properties. JS writes the colors the user picked in Settings to document.body as
+ * `--cci-user-color-*`; the `--cci-color-*` properties the rules below read are derived from them here, so the
+ * defaults match the historical hardcoded values and untouched installs look identical.
+ *
+ * A dark theme mixes each color with white: the mid-tone tints and borders that read well on a light page are dim on
+ * a dark one. `--cci-dark-keep` is the share of the chosen color that is kept (the rest is white); it is the one
+ * number to retune. Both rules sit on `body`, where JS writes the user values, so a theme switch is live.
  */
-:root {
-  --cci-color-known: #2ea043;
-  --cci-color-partial: #dcb41e;
-  --cci-color-unknown: #dc3c3c;
-  --cci-color-new: #58a6ff;
-  --cci-color-hsk-1: #dc3c3c;
-  --cci-color-hsk-2: #e08c2a;
-  --cci-color-hsk-3: #dcb41e;
-  --cci-color-hsk-4: #2ea043;
-  --cci-color-hsk-5: #3aa0c0;
-  --cci-color-hsk-6: #586bdc;
-  --cci-color-hsk-7: #9c4dc6;
+body {
+  --cci-dark-keep: 65%;
+  --cci-color-known: var(--cci-user-color-known, #2ea043);
+  --cci-color-partial: var(--cci-user-color-partial, #dcb41e);
+  --cci-color-unknown: var(--cci-user-color-unknown, #dc3c3c);
+  --cci-color-new: var(--cci-user-color-new, #58a6ff);
+  --cci-color-hsk-1: var(--cci-user-color-hsk-1, #dc3c3c);
+  --cci-color-hsk-2: var(--cci-user-color-hsk-2, #e08c2a);
+  --cci-color-hsk-3: var(--cci-user-color-hsk-3, #dcb41e);
+  --cci-color-hsk-4: var(--cci-user-color-hsk-4, #2ea043);
+  --cci-color-hsk-5: var(--cci-user-color-hsk-5, #3aa0c0);
+  --cci-color-hsk-6: var(--cci-user-color-hsk-6, #586bdc);
+  --cci-color-hsk-7: var(--cci-user-color-hsk-7, #9c4dc6);
+}
+body.theme-dark {
+  --cci-color-known: color-mix(in srgb, var(--cci-user-color-known, #2ea043) var(--cci-dark-keep), white);
+  --cci-color-partial: color-mix(in srgb, var(--cci-user-color-partial, #dcb41e) var(--cci-dark-keep), white);
+  --cci-color-unknown: color-mix(in srgb, var(--cci-user-color-unknown, #dc3c3c) var(--cci-dark-keep), white);
+  --cci-color-new: color-mix(in srgb, var(--cci-user-color-new, #58a6ff) var(--cci-dark-keep), white);
+  --cci-color-hsk-1: color-mix(in srgb, var(--cci-user-color-hsk-1, #dc3c3c) var(--cci-dark-keep), white);
+  --cci-color-hsk-2: color-mix(in srgb, var(--cci-user-color-hsk-2, #e08c2a) var(--cci-dark-keep), white);
+  --cci-color-hsk-3: color-mix(in srgb, var(--cci-user-color-hsk-3, #dcb41e) var(--cci-dark-keep), white);
+  --cci-color-hsk-4: color-mix(in srgb, var(--cci-user-color-hsk-4, #2ea043) var(--cci-dark-keep), white);
+  --cci-color-hsk-5: color-mix(in srgb, var(--cci-user-color-hsk-5, #3aa0c0) var(--cci-dark-keep), white);
+  --cci-color-hsk-6: color-mix(in srgb, var(--cci-user-color-hsk-6, #586bdc) var(--cci-dark-keep), white);
+  --cci-color-hsk-7: color-mix(in srgb, var(--cci-user-color-hsk-7, #9c4dc6) var(--cci-dark-keep), white);
 }
 
 
@@ -873,6 +891,21 @@
   text-align: center;
   user-select: none;
   margin: 0 1px;
+}
+/* The reader rows take the optional per-row font colors (#22). JS writes the user's picks as
+   `--cci-user-text-*`; while "Use custom text colors" is off they are absent, the derived properties below are then
+   invalid, and the fallbacks in each row's `var()` keep the active theme's colors.
+   In a dark theme the characters always follow the theme (the default custom color is black, which vanished on a dark
+   page) and the pinyin / translation picks are lightened like the word colors. */
+.cci-view {
+  --cci-text-chars: var(--cci-user-text-chars);
+  --cci-text-pinyin: var(--cci-user-text-pinyin);
+  --cci-text-gloss: var(--cci-user-text-gloss);
+}
+.theme-dark .cci-view {
+  --cci-text-chars: initial;
+  --cci-text-pinyin: color-mix(in srgb, var(--cci-user-text-pinyin) var(--cci-dark-keep), white);
+  --cci-text-gloss: color-mix(in srgb, var(--cci-user-text-gloss) var(--cci-dark-keep), white);
 }
 /* The three reader rows honour the optional per-row font colors (#22).
    While "Use custom text colors" is off the --cci-text-* properties are

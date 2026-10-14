@@ -29,8 +29,13 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   {
     version: "0.9.2",
     title: "What's new in 0.9.2",
-    intro: "Your AI key now lives where Obsidian keeps secrets.",
+    intro: "Dark mode reads better, and your AI key now lives where Obsidian keeps secrets.",
     items: [
+      {
+        title: "Dark mode colors",
+        text:
+          "In a dark theme the Chinese characters now follow the theme instead of staying black, and the word colors you chose are lightened so they stand out on a dark page. Light themes look exactly as before.",
+      },
       {
         title: "API keys in Obsidian's secret storage",
         text:

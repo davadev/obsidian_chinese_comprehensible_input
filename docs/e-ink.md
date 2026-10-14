@@ -95,7 +95,7 @@ in E-ink mode there is **one highlight, in one grey**:
 In two-line and three-line mode the pinyin and translation rows (and the mnemonic row) are drawn
 **black**: small grey text is hard to read on e-paper. This replaces the theme's grey and your own
 "Pinyin color" / "English translation color" (those two pickers are switched off while E-ink mode is
-on; your values are kept and come back when you turn it off). The characters color is not affected.
+on; your values are kept and come back when you turn it off). The characters color is not affected (a dark theme always shows the theme's own text for the characters).
 On a dark theme these rows keep the theme's text colour, since black would not show.
 
 ## The CSS snippet
@@ -186,7 +186,8 @@ If you are using the version posted in #112, three things are worth fixing:
    (`cci-color-known` on the stat cards, `cci-row-color-known` on table rows),
    the triage buttons (`is-known`) and the toolbar banner — stripping
    backgrounds and adding 3px underlines in places you probably did not intend.
-3. **The `:root` block was inert.** The plugin writes `--cci-color-known` and
+3. **The `:root` block was inert.** (Since 0.9.2 the plugin writes the user's picks as `--cci-user-color-*` and the
+   stylesheet derives `--cci-color-*` from them on `body`, so a dark theme can lighten them.) At the time the plugin wrote `--cci-color-known` and
    friends as inline styles on `document.body` whenever custom colours are set
    (the default), and an inline style beats `:root`. That is why the original
    needed `!important` on the class rules — they were the only part doing
