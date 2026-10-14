@@ -19,6 +19,8 @@
 | `src/view/ChineseTextFileView.ts` | CM6 editor host, toolbar wiring, `onOpen`/`setViewData` |
 | `src/view/ViewToolbar.ts` | Toolbar with display mode selector, marking buttons, overflow menu |
 | `src/ai/prompts.ts` | Every built-in prompt and `systemPromptWith()`, which adds the learner's own instructions or replacement (Settings → AI provider → AI prompts) |
+| `src/ai/secrets.ts` | API keys: reads the named secret from `app.secretStorage`, falls back to and migrates the pre-0.9.2 localStorage copy (kept for downgrades); settings hold only `ai.keySecrets` names |
+| `src/ai/aiActivity.ts`, `src/ui/aiStatus.ts` | What an AI request is doing (`AiProviderService.observe`) and the one honest status line the dialogs show (no progress bar; mobile `requestUrl` buffers, so it only knows "waiting N s") |
 | `src/ai/mnemonicFacts.ts` | What the app computes for a mnemonic itself: word shape, tone numbers, the assembled emoji line |
 | `src/dictionary/radicals.ts` | `radicalOf()`: a character's Kangxi radical from the generated Unihan table (`radicalMap.generated.ts`, `npm run build:radicals`) |
 | `src/ai/explain.ts`, `phrase.ts`, `proofread.ts`, `simplify.ts` | Schemas, validators and the shared `Block` model that the previews and the saved Markdown both render; `simplify.ts` also holds the difficulty measure and ranking that pick the simplest rewrite (the word lookup is `simplifyMeasure.ts`) |

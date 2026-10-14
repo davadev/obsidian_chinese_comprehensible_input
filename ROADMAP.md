@@ -48,6 +48,7 @@ Every release, whatever its tier, goes through the normal prerelease loop descri
 | Release | Contents | Issues |
 |---|---|---|
 | **0.9.x** | Maintenance as it arises (fix releases). | whatever is tagged *maintenance* on the board |
+| **0.9.2** (released) | Maintenance: API keys in Obsidian's secret storage (#246), UI text in sentence case and enforced by lint (#249), dark-theme readability (#254), an honest status line instead of a guessed progress bar (#256), phrase-explain warnings from small local models (#258), docs and comment fixes (#248, #250). Not done: right-to-left support (#247). | #246 #248 #249 #250 #254 #256 #258 |
 | **0.9.1** (released) | **Simplify** in the lightbulb dropdown: the AI proposes several ways to say a sentence, the plugin ranks them by HSK level and the learner's own vocabulary and proposes the simplest, which can be applied. Also: What's new stacks per minor line and "Show what's new" opens the whole line. Follow-up not shipped: Save as note. | #238 |
 | **0.10.0** | Import a web article by URL (or via the official Web Clipper) and read it in the reader, with a coverage preview. | #187 |
 
