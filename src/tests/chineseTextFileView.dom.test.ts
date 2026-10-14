@@ -56,6 +56,12 @@ describe("ChineseTextFileView mounted in a DOM (#119)", () => {
     expect(before.contentDOM.getAttribute("contenteditable")).toBe("false");
     state.mode = "edit";
     view.reconfigureEditor();
+    // The scroll position is put back on the next frame; wait for it, so that code runs inside this test every time
+    // instead of only when the frame happens to fire before the test file is torn down.
+    const scroll = vi.spyOn(before, "dispatch");
+    await new Promise<void>((done) => window.requestAnimationFrame(() => done()));
+    expect(scroll).toHaveBeenCalledTimes(1);
+    scroll.mockRestore();
     expect(editorOf(view)).toBe(before);
     expect(root.querySelector(".cm-editor")).toBe(dom);
     expect(destroy).not.toHaveBeenCalled();
