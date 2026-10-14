@@ -2,6 +2,7 @@ import { App, normalizePath, Notice, Platform, requestUrl } from "obsidian";
 import { AiOllamaConfig, AiProviderKind, AiSettings, AiUsageEntry } from "../settings/types";
 import { buildOpenAiActiveConfig, openAiExtraBody } from "./openaiProfile";
 import { loadApiKey } from "./secrets";
+import type { AiActivity, AiActivityListener } from "./aiActivity";
 
 /**
  * Native fetch is used deliberately on the streaming paths instead of
@@ -164,6 +165,36 @@ export class AiProviderService {
     private onUsage: (entry: AiUsageEntry) => void
   ) {}
 
+  private activityListeners = new Set<AiActivityListener>();
+  private lastReceivingAt = 0;
+
+  /** Be told what each request is doing (sent, answer arriving, answer complete) until the returned function is called. */
+  observe(listener: AiActivityListener): () => void {
+    this.activityListeners.add(listener);
+    return () => void this.activityListeners.delete(listener);
+  }
+
+  private emit(activity: AiActivity): void {
+    for (const l of this.activityListeners) l(activity);
+  }
+
+  /** The answer has this many characters so far. Said at most four times a second: a line of text needs no more. */
+  private noteReceiving(chars: number): void {
+    const now = Date.now();
+    if (now - this.lastReceivingAt < 250) return;
+    this.lastReceivingAt = now;
+    this.emit({ kind: "receiving", chars });
+  }
+
+  /** One request, announced before it is sent and again when its answer is complete. */
+  private async observed(run: () => Promise<string>): Promise<string> {
+    this.lastReceivingAt = 0;
+    this.emit({ kind: "sending" });
+    const out = await run();
+    this.emit({ kind: "received" });
+    return out;
+  }
+
   /** Standard prefix for every DebugSession in this service. */
   private newDbg(label: string): DebugSession {
     return new DebugSession(this.getSettings().debug, label, this.app, this.getDebugFolder());
@@ -201,10 +232,10 @@ export class AiProviderService {
    */
   async chatJson(systemPrompt: string, userPrompt: string, schemaName: string, schema: object, strictSchema = false): Promise<string> {
     try {
-      return await this.chatJsonOnce(systemPrompt, userPrompt, schemaName, schema, strictSchema);
+      return await this.observed(() => this.chatJsonOnce(systemPrompt, userPrompt, schemaName, schema, strictSchema));
     } catch (err) {
       if (strictSchema && /\b(400|422)\b/.test((err as Error).message)) {
-        return this.chatJsonOnce(systemPrompt, userPrompt, schemaName, schema, false);
+        return this.observed(() => this.chatJsonOnce(systemPrompt, userPrompt, schemaName, schema, false));
       }
       throw err;
     }
@@ -517,7 +548,10 @@ export class AiProviderService {
           try {
             const json = JSON.parse(line) as MaybeChatJson;
             const piece = json?.message?.content;
-            if (typeof piece === "string") content += piece;
+            if (typeof piece === "string") {
+              content += piece;
+              this.noteReceiving(content.length);
+            }
             if (json?.done) {
               this.maybeRecordUsageFromOllamaResponse(json, provider);
               dbg.done(`Ollama done. ${content.length} chars in ${chunkCount} chunks.`);
@@ -686,7 +720,10 @@ export class AiProviderService {
           try {
             const json = JSON.parse(payload) as MaybeChatJson;
             const delta = json?.choices?.[0]?.delta?.content;
-            if (typeof delta === "string") content += delta;
+            if (typeof delta === "string") {
+              content += delta;
+              this.noteReceiving(content.length);
+            }
             const finish = json?.choices?.[0]?.finish_reason;
             if (finish) lastFinish = finish;
             this.maybeRecordUsageFromOpenAi(json, provider, s.chatModel);

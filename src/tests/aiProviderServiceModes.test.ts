@@ -607,6 +607,95 @@ describe("streaming on mobile (requestUrl)", () => {
   });
 });
 
+describe("what the service reports about a request", () => {
+  const watch = (svc: AiProviderService) => {
+    const seen: unknown[] = [];
+    const off = svc.observe((a) => void seen.push(a));
+    return { seen, off };
+  };
+
+  it("announces a request before it is sent and again when its answer is complete", async () => {
+    const { svc } = make({ ollama: { stream: false } });
+    const { seen } = watch(svc);
+    await chat(svc);
+    expect(seen).toEqual([{ kind: "sending" }, { kind: "received" }]);
+  });
+
+  it("says how much of a streamed answer has arrived, at most four times a second", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    fetchMock().mockResolvedValue(streaming([sse("你"), sse("好"), "data: [DONE]\n"]));
+    const { svc } = make({ ollama: { stream: true } });
+    const { seen } = watch(svc);
+    const done = chat(svc);
+    await vi.advanceTimersByTimeAsync(0);
+    await done;
+    // both deltas arrive in the same instant: only the first is reported
+    expect(seen).toEqual([{ kind: "sending" }, { kind: "receiving", chars: 1 }, { kind: "received" }]);
+  });
+
+  it("reports again once a quarter of a second has passed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    let i = 0;
+    const parts = [sse("你"), sse("好"), "data: [DONE]\n"];
+    fetchMock().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: { get: () => "text/event-stream" },
+      body: {
+        getReader: () => ({
+          read: async () => {
+            vi.setSystemTime(1_000_000 + i * 300);
+            return i < parts.length ? { done: false, value: enc.encode(parts[i++]) } : { done: true, value: undefined };
+          },
+        }),
+      },
+    });
+    const { svc } = make({ ollama: { stream: true } });
+    const { seen } = watch(svc);
+    await chat(svc);
+    expect(seen).toEqual([{ kind: "sending" }, { kind: "receiving", chars: 1 }, { kind: "receiving", chars: 2 }, { kind: "received" }]);
+  });
+
+  it("does the same for a streamed Ollama answer", async () => {
+    fetchMock().mockResolvedValue(streaming([ndjson({ message: { content: "你" } }), ndjson({ done: true })]));
+    const { svc } = make({ ollama: { stream: true, endpointMode: "ollama" } });
+    const { seen } = watch(svc);
+    await chat(svc);
+    expect(seen).toEqual([{ kind: "sending" }, { kind: "receiving", chars: 1 }, { kind: "received" }]);
+  });
+
+  it("has nothing to say while waiting where the answer cannot stream (a phone)", async () => {
+    Platform.isMobile = true;
+    h.requestUrl.mockResolvedValue({ status: 200, text: sse("你") + "data: [DONE]\n" });
+    const { svc } = make({ ollama: { stream: true } });
+    const { seen } = watch(svc);
+    await chat(svc);
+    expect(seen).toEqual([{ kind: "sending" }, { kind: "received" }]);
+  });
+
+  it("a request that fails is announced as sent and never as received, and a stopped listener hears nothing more", async () => {
+    fetchMock().mockResolvedValue(buffered("nope", 500));
+    const { svc } = make({ ollama: { stream: false } });
+    const { seen, off } = watch(svc);
+    await expect(chat(svc)).rejects.toThrow();
+    expect(seen).toEqual([{ kind: "sending" }]);
+    off();
+    await expect(chat(svc)).rejects.toThrow();
+    expect(seen).toHaveLength(1);
+  });
+
+  it("repeating a request after the server refused the schema is announced as another request", async () => {
+    fetchMock().mockResolvedValueOnce(buffered("bad schema", 400)).mockResolvedValueOnce(buffered(chatEnvelope("ok")));
+    const { svc } = make({ ollama: { stream: false } });
+    const { seen } = watch(svc);
+    await svc.chatJson("S", "U", "Story", SCHEMA, true);
+    expect(seen).toEqual([{ kind: "sending" }, { kind: "sending" }, { kind: "received" }]);
+  });
+});
+
 describe("the debug log", () => {
   it("is silent unless switched on", async () => {
     await chat(make().svc);

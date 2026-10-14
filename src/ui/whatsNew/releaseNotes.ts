@@ -27,6 +27,18 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "0.9.3",
+    title: "What's new in 0.9.3",
+    intro: "AI dialogs now tell you what is really happening.",
+    items: [
+      {
+        title: "No more guessed progress bar",
+        text:
+          "While the AI writes an explanation, the dialog shows only what is known: the request was sent, how many seconds you have waited, and, where the answer streams in, how much of it has arrived, then the check of the answer. On a phone the answer comes in one piece, so there it shows the waiting time.",
+      },
+    ],
+  },
+  {
     version: "0.9.2",
     title: "What's new in 0.9.2",
     intro: "Dark mode reads better, and your AI key now lives where Obsidian keeps secrets.",

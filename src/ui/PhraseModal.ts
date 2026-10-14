@@ -11,7 +11,7 @@ import { formatUsd } from "../vocabulary/batchMnemonics";
 import { copyMarkdown, saveExplanation } from "./explainFiles";
 import { describeIssues, renderExplainBlocks } from "./explainPreview";
 import { liftModal } from "./modalLayer";
-import { startProgressClock } from "./progressClock";
+import { startAiStatus } from "./aiStatus";
 import { UsageMeter } from "./usageMeter";
 
 /** What the learner selected in the note. */
@@ -89,12 +89,11 @@ export class PhraseModal extends Modal {
     return PHRASE_ACTIONS[this.action].label;
   }
 
-  private heading(title: string, sub?: string): void {
+  private heading(title: string): void {
     this.stopProgress?.();
     this.stopProgress = null;
     this.contentEl.empty();
     this.contentEl.createEl("h2", { text: title });
-    if (sub) this.contentEl.createEl("p", { cls: "cci-explain-muted", text: sub });
   }
 
   private actions(): HTMLElement {
@@ -139,8 +138,8 @@ export class PhraseModal extends Modal {
 
   private async run(): Promise<void> {
     const run = ++this.runId;
-    this.heading(RUNNING_TITLE[this.action], "This usually takes 10 to 40 seconds.");
-    this.stopProgress = startProgressClock(this.contentEl);
+    this.heading(RUNNING_TITLE[this.action]);
+    this.stopProgress = startAiStatus(this.contentEl, this.plugin.ai, this.plugin.settings.ai.provider);
     this.button(this.actions(), "Cancel", () => this.close());
     this.meter.usd = 0;
     this.meter.requests = 0;
