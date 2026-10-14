@@ -242,6 +242,10 @@ colors**. The plugin derives a sensible default HSK palette from your
 Obsidian accent color on first install — most users never need to
 change this.
 
+On a **dark theme** the colors you chose are lightened automatically (mixed with white), because the mid-tone tints
+and underlines that read well on a light page look dim on a dark one. The base is still the color you picked, and
+nothing changes on a light theme.
+
 ### Reader text colors
 
 The status / HSK colors above are **background** tints. Separately, under
@@ -256,13 +260,17 @@ color of each of the three reader rows:
 
 The master toggle is **off by default**, and while it is off your theme
 decides all three colors (`--text-normal` / `--text-muted` /
-`--text-faint`) — which is what keeps dark themes readable. Turn it on
-and you get black characters with grey pinyin and grey translation, each
-adjustable with a color picker. Turning it back off restores the theme's
-colors immediately.
+`--text-faint`). Turn it on and you get black characters with grey pinyin and
+grey translation, each adjustable with a color picker. Turning it back off
+restores the theme's colors immediately.
+
+**Dark themes keep themselves readable.** The characters color is used on light
+themes only; on a dark theme the characters always follow the theme (black on a
+dark page would vanish). The pinyin and translation colors you chose are
+lightened there, like the word colors above.
 
 In [E-ink mode](./e-ink.md#annotation-rows) the pinyin and translation rows are drawn black
-whatever you chose here, and their two pickers are switched off; the characters color still applies.
+whatever you chose here, and their two pickers are switched off; the characters color still applies on a light theme.
 
 This lives in settings only, not in the view toolbar: it's a "set it
 once" preference, unlike the display mode. Background tints, highlights,

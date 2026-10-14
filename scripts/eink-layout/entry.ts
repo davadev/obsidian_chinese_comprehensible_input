@@ -574,7 +574,7 @@ function rowColours() {
   for (const eink of [true, false]) for (const custom of [true, false]) for (const dark of [true, false]) {
     const { view, root } = mount({ mode: "three-line", branch: "perchar", len: 2, font: 22, spacing: 1, annot: 100 });
     if (eink) root.setAttribute("data-eink", "");
-    if (custom) root.style.cssText += ";--cci-text-chars:rgb(1, 2, 3);--cci-text-pinyin:rgb(10, 20, 30);--cci-text-gloss:rgb(40, 50, 60)";
+    if (custom) root.style.cssText += ";--cci-user-text-chars:rgb(1, 2, 3);--cci-user-text-pinyin:rgb(10, 20, 30);--cci-user-text-gloss:rgb(40, 50, 60)";
     document.body.classList.toggle("theme-dark", dark);
     document.body.style.setProperty("--text-normal", "rgb(238, 238, 238)");
     const stack = view.contentDOM.querySelector(".cci-stack") as HTMLElement;
@@ -582,12 +582,19 @@ function rowColours() {
     mnemonic.className = "cci-stack-gloss cci-stack-mnemonic";
     stack.prepend(mnemonic);
     const c = (sel: string | HTMLElement) => getComputedStyle(typeof sel === "string" ? stack.querySelector(sel)! : sel).color;
+    // The colour a word's tint is built from: a probe reads the derived property as the browser resolves it. The
+    // user's pick is set the way the plugin writes it.
+    document.body.style.setProperty("--cci-user-color-new", "rgb(0, 0, 255)");
+    const probe = document.createElement("div");
+    probe.style.background = "var(--cci-color-new)";
+    root.appendChild(probe);
     out[`${eink ? "eink" : "off"}|${custom ? "custom" : "theme"}|${dark ? "dark" : "light"}`] = {
-      pinyin: c(".cci-stack-pinyin"), gloss: c(".cci-stack-gloss:not(.cci-stack-mnemonic)"), mnemonic: c(mnemonic), chars: c(".cci-stack-chars"),
+      word: getComputedStyle(probe).backgroundColor, pinyin: c(".cci-stack-pinyin"), gloss: c(".cci-stack-gloss:not(.cci-stack-mnemonic)"), mnemonic: c(mnemonic), chars: c(".cci-stack-chars"),
     };
     view.destroy();
   }
   document.body.classList.remove("theme-dark");
+  document.body.style.removeProperty("--cci-user-color-new");
   return out;
 }
 

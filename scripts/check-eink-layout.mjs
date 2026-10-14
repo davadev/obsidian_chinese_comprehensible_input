@@ -274,6 +274,24 @@ for (const custom of ["custom", "theme"]) {
     `E-ink off, ${custom} text colours: rows keep their own colour; the characters row never changes`, JSON.stringify(off));
 }
 
+// ---- dark theme (#254): characters follow the theme, the chosen colours are lightened, light is unchanged ----
+const rgbOf = (s) => {
+  const m = s.match(/^rgb\((\d+), (\d+), (\d+)\)$/);
+  if (m) return [+m[1], +m[2], +m[3]];
+  const c = s.match(/^color\(srgb ([\d.]+) ([\d.]+) ([\d.]+)/);
+  return c ? [+c[1] * 255, +c[2] * 255, +c[3] * 255] : null;
+};
+const sumOf = (s) => { const v = rgbOf(s); return v ? v[0] + v[1] + v[2] : NaN; };
+const lightCustom = rows["off|custom|light"], darkCustom = rows["off|custom|dark"], darkTheme = rows["off|theme|dark"];
+note(lightCustom.chars === "rgb(1, 2, 3)", "custom text colours, light theme: the characters use the chosen colour", lightCustom.chars);
+note(darkCustom.chars === "rgb(238, 238, 238)", "custom text colours, dark theme: the characters follow the theme (not the chosen black)", darkCustom.chars);
+note(sumOf(darkCustom.pinyin) > sumOf(lightCustom.pinyin) && sumOf(darkCustom.gloss) > sumOf(lightCustom.gloss),
+  "custom text colours, dark theme: pinyin and translation are lighter than the chosen colours", JSON.stringify([lightCustom.pinyin, darkCustom.pinyin]));
+note(darkTheme.pinyin !== lightCustom.pinyin && darkTheme.chars === "rgb(238, 238, 238)", "custom text colours off, dark theme: rows follow the theme", JSON.stringify(darkTheme));
+note(lightCustom.word === "rgb(0, 0, 255)", "light theme: a chosen word colour is used as picked", lightCustom.word);
+const [dr, dg, db] = rgbOf(darkCustom.word) ?? [NaN, NaN, NaN];
+note(dr > 60 && dg > 60 && db > 250 && dr < 120, "dark theme: a chosen word colour is mixed with white (kept 65 %)", darkCustom.word);
+
 // ---- the digit's bottom edge against the underline's bottom edge, from pixels ----
 const SCALE = 4;           // device pixels per CSS pixel: 0.25px resolution
 const ALIGN_TOL = 1.0;     // |digit bottom - underline bottom| in CSS px (measured worst: 0.5)

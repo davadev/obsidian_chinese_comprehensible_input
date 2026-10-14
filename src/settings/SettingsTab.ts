@@ -694,7 +694,7 @@ export class CciSettingsTab extends PluginSettingTab {
         desc: "Off: follow the theme. On: use the three colors below.",
         control: { type: "toggle", key: "textColors.enabled" },
       },
-      { name: "Characters color", control: { type: "color", key: "textColors.chars" } },
+      { name: "Characters color (light themes)", control: { type: "color", key: "textColors.chars" } },
       {
         name: "Pinyin color",
         control: { type: "color", key: "textColors.pinyin", disabled: this.einkOn },
