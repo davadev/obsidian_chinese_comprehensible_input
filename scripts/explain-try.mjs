@@ -80,19 +80,48 @@ async function oneText(text) {
   return issues;
 }
 
-const summary = [`### Explain trial (${id}, ${mode})`, ``, `| word | seconds | issues | cost |`, `| --- | --- | --- | --- |`];
+/**
+ * What the plugin's status line is told during one request (the real AiProviderService.observe events): when the request
+ * was sent, when the first text arrived, how often it was told about progress, when the answer was complete. Times are
+ * seconds since the word started. "–" where the service said nothing (an event that never came is a fact too).
+ */
+function traceOf(ai, t0) {
+  const events = [];
+  const off = ai.observe((a) => events.push({ at: (Date.now() - t0) / 1000, ...a }));
+  const first = (kind) => events.find((e) => e.kind === kind);
+  const fmt = (e) => (e ? e.at.toFixed(1) : "–");
+  return {
+    stop: () => off(),
+    cells: () => {
+      const rec = events.filter((e) => e.kind === "receiving");
+      const sent = events.filter((e) => e.kind === "sending").length;
+      const done = events.filter((e) => e.kind === "received");
+      return `${sent} | ${fmt(first("receiving"))} | ${rec.length} | ${rec.length ? rec[rec.length - 1].chars : "–"} | ${fmt(done[done.length - 1])}`;
+    },
+  };
+}
+
+const summary = [
+  `### Explain trial (${id}, ${mode})`,
+  ``,
+  `| word | seconds | issues | cost | requests sent | first text at (s) | progress events | chars at last event | answer complete at (s) |`,
+  `| --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
+];
 for (const word of words) {
   const t0 = Date.now();
   const before = { ...usage };
+  const trace = traceOf(mode === "word" ? service.ai : phraseServices.phrase.ai, t0);
   if (mode !== "word") {
     try {
       const issues = await oneText(word);
       const cost = costUsd(price, { inputTokens: usage.inputTokens - before.inputTokens, cachedInputTokens: usage.cachedInputTokens - before.cachedInputTokens, outputTokens: usage.outputTokens - before.outputTokens });
-      summary.push(`| ${word} | ${((Date.now() - t0) / 1000).toFixed(1)} | ${issues.length ? issues.join(" ") : "none"} | $${cost.toFixed(4)} |`);
+      summary.push(`| ${word} | ${((Date.now() - t0) / 1000).toFixed(1)} | ${issues.length ? issues.join(" ") : "none"} | $${cost.toFixed(4)} | ${trace.cells()} |`);
       console.log(`${word}: ok, ${issues.length} issue(s)`);
     } catch (err) {
-      summary.push(`| ${word} | – | FAILED: ${whole(err)} | – |`);
+      summary.push(`| ${word} | – | FAILED: ${whole(err)} | – | ${trace.cells()} |`);
       console.log(`${word}: FAILED ${whole(err)}`);
+    } finally {
+      trace.stop();
     }
     continue;
   }
@@ -113,11 +142,13 @@ for (const word of words) {
     const md = lib.renderExplainMarkdown(result, meta);
     writeFileSync(path.join(outDir, lib.explainFileName(word, inputForWord.pinyin)), md);
     const cost = costUsd(price, { inputTokens: usage.inputTokens - before.inputTokens, cachedInputTokens: usage.cachedInputTokens - before.cachedInputTokens, outputTokens: usage.outputTokens - before.outputTokens });
-    summary.push(`| ${word} | ${((Date.now() - t0) / 1000).toFixed(1)} | ${issues.length ? issues.join(" ") : "none"} | $${cost.toFixed(4)} |`);
+    summary.push(`| ${word} | ${((Date.now() - t0) / 1000).toFixed(1)} | ${issues.length ? issues.join(" ") : "none"} | $${cost.toFixed(4)} | ${trace.cells()} |`);
     console.log(`${word}: ok, ${issues.length} issue(s)`);
   } catch (err) {
-    summary.push(`| ${word} | – | FAILED: ${whole(err)} | – |`);
+    summary.push(`| ${word} | – | FAILED: ${whole(err)} | – | ${trace.cells()} |`);
     console.log(`${word}: FAILED ${whole(err)}`);
+  } finally {
+    trace.stop();
   }
 }
 const text = summary.join("\n");
