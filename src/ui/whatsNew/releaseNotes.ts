@@ -27,6 +27,22 @@ export interface ReleaseNote {
 
 export const RELEASE_NOTES: ReleaseNote[] = [
   {
+    version: "0.9.4",
+    title: "What's new in 0.9.4",
+    intro: "A maintenance release: safer settings and a cleaner plugin.",
+    items: [
+      {
+        title: "Settings keep their defaults",
+        text:
+          "Settings groups such as Spaced repetition, Sync and Stories now fill in any option they are missing with its default, and a change made right after installing can no longer touch the built-in defaults. Nothing for you to do.",
+      },
+      {
+        title: "Under the hood",
+        text: "Updated development tools and a small cleanup so Obsidian's plugin review stays green.",
+      },
+    ],
+  },
+  {
     version: "0.9.2",
     title: "What's new in 0.9.2",
     intro: "Dark mode reads better, AI dialogs tell the truth about progress, and your AI key now lives where Obsidian keeps secrets.",
