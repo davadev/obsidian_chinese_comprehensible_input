@@ -45,11 +45,22 @@ const SHOWN_AS: Record<number, string> = { 140: "艹", 162: "辶", 163: "阝", 1
 let numbers: Uint8Array | null = null;
 let simplifiedBits: Uint8Array | null = null;
 
+const B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+/** Reads the generated tables (standard alphabet, padding optional) by hand: six bits per letter, a byte whenever eight are ready. */
 function decode(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
+  const out: number[] = [];
+  let acc = 0;
+  let bits = 0;
+  for (const ch of b64.replace(/=+$/, "")) {
+    acc = (acc << 6) | B64_ALPHABET.indexOf(ch);
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out.push((acc >> bits) & 255);
+    }
+  }
+  return Uint8Array.from(out);
 }
 
 /**
