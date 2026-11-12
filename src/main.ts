@@ -67,6 +67,10 @@ import { BackupContext, BackupService, RestoreResult, StartupResult, createGzipC
 import { formatBytes } from "./data/backupPolicy";
 import { RestoreBackupModal } from "./ui/RestoreBackupModal";
 
+/** Settings that are a group of plain values, and top-level lists: loaded as copies completed from the defaults. */
+const SETTING_GROUPS = ["exposure", "srs", "story", "sync", "showHskColors", "progressChartSeries", "hskCoverageBuckets"] as const;
+const SETTING_LISTS = ["enabledFormats", "formatOrder", "formatHidden", "topicRadarTopics"] as const;
+
 /** A plugin load within this many ms of the page starting is Obsidian starting up, not a reload after an update. */
 const PLUGIN_STARTUP_WINDOW_MS = 45_000;
 
@@ -477,6 +481,15 @@ export default class CciPlugin extends Plugin {
     if (dm === "popup-only" || dm === "color-only") {
       this.settings.defaultDisplayMode = "none";
     }
+    // Every plain group is completed key by key and is always a copy: a blob that lacks a group (a fresh install) or a
+    // key of one (written before the key existed, hand-edited, or mirrored from an older device) must get the default,
+    // and the defaults object must never be the one a settings change writes into.
+    for (const key of SETTING_GROUPS) {
+      const saved = (migrated as Record<string, unknown>)[key];
+      const kept = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+      (this.settings as unknown as Record<string, unknown>)[key] = { ...structuredClone(DEFAULT_SETTINGS[key]), ...kept };
+    }
+    for (const key of SETTING_LISTS) this.settings[key] = [...this.settings[key]] as never;
     // Same for the Explain settings (#186): a blob from before 0.9.0 has none, and a hand-edited one may miss a key.
     this.settings.explain = { ...DEFAULT_SETTINGS.explain, ...this.settings.explain };
     // Merge customColors deeply so older blobs missing hsk subkeys get the defaults.
