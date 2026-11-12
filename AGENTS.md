@@ -35,8 +35,9 @@ Project skills live in `.claude/skills/<name>/SKILL.md`. Load one with the `Skil
 | User **explicitly** says "promote", "go stable", "release for everyone" | `release-stable` |
 | Opening/labelling an issue, "what's next?", Planning board, after a release | `triage-issue` |
 | Dependabot PR, `npm install/update`, `package.json`, `.npmrc`, action pins | `dependency-update` |
+| Bug audit before stable, "find bugs", "audit", "review since last stable" | `bug-hunt` |
 
-Typical flow for a change: `plugin-design-rules` (while coding) → `feature-done` (before the PR; it calls `docs-screenshots` if a documented screen changed) → merge → `release-beta` → later, only when told, `release-stable`. `triage-issue` brackets the flow (issue before, board update after). When unsure which release skill applies, it is `release-beta`.
+Typical flow for a change: `plugin-design-rules` (while coding) → `feature-done` (before the PR; it calls `docs-screenshots` if a documented screen changed) → merge → `release-beta` → later, `bug-hunt` and then, only when told, `release-stable`. `triage-issue` brackets the flow (issue before, board update after). When unsure which release skill applies, it is `release-beta`.
 
 ## Always-on rules
 
