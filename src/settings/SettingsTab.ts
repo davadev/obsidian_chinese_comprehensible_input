@@ -329,7 +329,8 @@ export class CciSettingsTab extends PluginSettingTab {
         setting.addComponent((el) =>
           new SecretComponent(this.app, el)
             .setValue(this.plugin.settings.ai.keySecrets[provider])
-            .onChange((secretName: string) => {
+            .onChange((value: string | null) => {
+              const secretName = value ?? "";
               this.plugin.settings.ai.keySecrets[provider] = secretName;
               // Clearing the key must really clear it: the pre-0.9.2 copy is a fallback and would bring it back.
               if (!secretName) clearLegacyKey(this.app, provider);

@@ -111,11 +111,11 @@ class FakeButton extends FakeComponent {
 export class SecretComponent {
   static instances: SecretComponent[] = [];
   value = "";
-  cb: ((v: string) => unknown) | null = null;
+  cb: ((v: string | null) => unknown) | null = null;
   constructor(public app: unknown, public containerEl: unknown) { SecretComponent.instances.push(this); }
   setValue(v: string) { this.value = v; return this; }
-  onChange(cb: (v: string) => unknown) { this.cb = cb; return this; }
-  change(v: string) { this.value = v; return this.cb?.(v); }
+  onChange(cb: (v: string | null) => unknown) { this.cb = cb; return this; }
+  change(v: string | null) { this.value = v ?? ""; return this.cb?.(v); }
 }
 export class Setting {
   settingEl: HTMLElement;

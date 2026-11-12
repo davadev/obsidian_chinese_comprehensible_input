@@ -306,8 +306,8 @@ Pin **within the major currently in use** and let Dependabot raise major bumps a
 `obsidian` declares **exact** `peerDependencies`:
 
 ```
-"@codemirror/state": "6.5.0",
-"@codemirror/view":  "6.38.6"
+"@codemirror/state": "6.7.6",
+"@codemirror/view":  "6.43.13"
 ```
 
 Both are therefore pinned **exact** in `package.json`, and both are in

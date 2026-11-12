@@ -6,7 +6,7 @@ description: Rules for bumping npm dependencies, GitHub Actions, or the bundler 
 # Dependency updates
 
 - **Age**: never adopt a version younger than 14 days (`.npmrc` `min-release-age=14`, Dependabot `cooldown:`; check-release fails if either disappears). Urgent non-security exception → `min-release-age-exclude[]` in the same PR. Security updates are not delayed.
-- **Pinned EXACT, matching `obsidian`'s peers**: `@codemirror/state` (6.5.0) and `@codemirror/view` (6.38.6). Move only when the `obsidian` devDependency moves; Dependabot-ignored.
+- **Pinned EXACT, matching `obsidian`'s peers**: `@codemirror/state` (6.7.6) and `@codemirror/view` (6.43.13). Move only when the `obsidian` devDependency moves; Dependabot-ignored.
 - **Bundled into `main.js`**: 8 `@codemirror/*` / `@lezer/*` packages (only `lang-markdown` is direct; others pinned via `overrides`). After any `npm install`, confirm all eight still hold; the build hash is the real check. For a `lang-markdown` bump: does `@lezer/markdown` move, what is the *locked* delta, diff the published `dist/index.js`. Reachability can't be judged by grepping `src/` (`markdown()` binds Enter/Backspace itself).
 - **esbuild** moves only on a release of its own; never entangled with other changes.
 - **eslint** is NOT Dependabot-ignored. For a major: confirm rule counts do not shrink (`npx eslint --print-config`) and stderr is empty (0/0 also happens when a plugin fails to load).

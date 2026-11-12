@@ -108,6 +108,14 @@ describe("how a key reaches the settings", () => {
     expect(storage.has("cci-ai-apikey-openai")).toBe(false);
   });
 
+  it("Obsidian reports a cleared secret as null: it is stored as an empty name and forgets the old copy", () => {
+    const { tab, plugin, storage } = makeSettingsTab({ settings: (s) => (s.ai.keySecrets.openai = "my-openai") });
+    storage.set("cci-ai-apikey-openai", "sk-old");
+    keyRow(tab, "OpenAI API key").change(null);
+    expect(plugin.settings.ai.keySecrets.openai).toBe("");
+    expect(storage.has("cci-ai-apikey-openai")).toBe(false);
+  });
+
   it("the export and import paths are just fields of the tab: export falls back to the default, import may be empty", () => {
     const { tab, plugin } = makeSettingsTab();
     expect(tab.getControlValue("ui:exportPath")).toBe(SETTINGS_EXPORT_DEFAULT_PATH);
