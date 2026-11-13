@@ -51,6 +51,7 @@ Typical flow for a change: `plugin-design-rules` (while coding) → `feature-don
 - Releases are tag-driven (`.github/workflows/release.yml`); never `gh release create` by hand.
 - No dependency younger than 14 days; `@codemirror/state|view` pinned exact; bundled packages pinned; Actions pinned to SHAs. See `dependency-update`.
 - **Zero warnings and zero errors, always.** `npm run lint` (enforced with `--max-warnings=0`), `lint:css`, `build`, `check:dead-code` and `check-release` (`0 failed, 0 warned`) must all be clean before a PR is ready and before any tag; the Obsidian auto-review must pass. Never leave a warning behind as "pre-existing" or "non-blocking": fix it, or tell the user why it cannot be fixed yet. Never silence a rule or add an ignore to get to zero.
+- **Dependabot gate.** Before every beta and every stable run the Dependabot gate in `dependency-update`: fold every open Dependabot PR into the next beta; stable needs 0 open alerts (turn alerts on if the API says they are disabled).
 
 ## Planning
 

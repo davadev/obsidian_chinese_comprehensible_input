@@ -7,6 +7,8 @@ description: Promote a tested beta to stable X.Y.Z. ONLY on the user's explicit 
 
 Only run after the user explicitly says so. The stable release must be **published before `main` advertises it** (Obsidian reads `main`'s manifest, then downloads from the release with the same tag).
 
+**Alert gate.** Run the Dependabot gate in `dependency-update` before tagging: **0 open alerts**, or the user has been told which remain and why. Dependabot PRs that opened after the tested beta go into the next beta, not into this stable.
+
 ## Steps
 1. `git checkout -b release/X.Y.Z main`.
 2. Bump `manifest.json`, `package.json`, `versions.json` to `X.Y.Z`; `npm install --package-lock-only` (else CI version-skew check fails).
