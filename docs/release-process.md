@@ -315,6 +315,24 @@ Both are therefore pinned **exact** in `package.json`, and both are in
 `ERESOLVE` failure — that is exactly what killed Dependabot PR #78. They move
 by hand, and only when the `obsidian` devDependency moves.
 
+`obsidian` itself is Dependabot-ignored for minor and major updates (scoped, so
+security updates still arrive). 1.14 peer-pins CodeMirror 6.7.6 / 6.43.13, and
+view 6.43 breaks `posAtCoords` in the three-line click layout check (6.41.0
+passes); the bump waits until that is understood.
+
+**Dev advisories are cleared with parent-scoped `overrides`**, never a global
+one. `minimatch` (`>=7.0.0 <11.0.1`) has no patch in the majors eslint,
+typescript-estree, config-array, eslint-plugin-n and
+eslint-plugin-json-schema-validator use, so each of those parents is overridden
+to 11.0.1; the unaffected 3.x copies stay. `moment` (`<2.31.0`) is pulled only by
+`obsidian`, so `"obsidian": { "moment": "2.31.0" }`. After changing `overrides`
+a stale nested lockfile entry can survive: prove it with `rm -rf node_modules
+&& npm ci && npm ls --all` (exit 0, no `invalid`) and `npm audit` (0), deleting
+any `node_modules/<parent>/node_modules/<pkg>` entry from `package-lock.json`
+if one remains. Check `npx eslint --print-config src/main.ts` still lists the
+same number of rules (176 at 0.9.5). These override only dev tooling; the
+shipped `main.js` hash does not change.
+
 Three more entries carry a major-version ignore, each for a stated reason:
 
 | Package | Why majors are held |
