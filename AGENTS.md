@@ -16,6 +16,7 @@ npm run lint:cloud-parity   # the review's blind view (types hidden): must repor
 npm run check:layout        # real Chromium layout check (E-ink); check:webkit = WebKit
 npm run check:dead-code     # knip --production: unused files/exports/deps (tests do not count as users)
 npm run check:screenshots   # re-render annotated docs images to a temp dir, verify callout geometry
+npm run sync                # fetch, fast-forward a clean main, `npm ci` when package-lock.json moved, report what the lane did
 npm run check-release       # pre-release validator — REQUIRED before tagging
                             #   -- --tag 0.X.Y | --with-build | --with-lint | --strict
 ```
@@ -51,7 +52,8 @@ Typical flow for a change: `plugin-design-rules` (while coding) → `feature-don
 - Releases are tag-driven (`.github/workflows/release.yml`); never `gh release create` by hand.
 - No dependency younger than 14 days; `@codemirror/state|view` pinned exact; bundled packages pinned; Actions pinned to SHAs. See `dependency-update`.
 - **Zero warnings and zero errors, always.** `npm run lint` (enforced with `--max-warnings=0`), `lint:css`, `build`, `check:dead-code` and `check-release` (`0 failed, 0 warned`) must all be clean before a PR is ready and before any tag; the Obsidian auto-review must pass. Never leave a warning behind as "pre-existing" or "non-blocking": fix it, or tell the user why it cannot be fixed yet. Never silence a rule or add an ignore to get to zero.
-- **Dependabot gate.** Before every beta and every stable run the Dependabot gate in `dependency-update`: fold every open Dependabot PR into the next beta; stable needs 0 open alerts (turn alerts on if the API says they are disabled).
+- **GitHub changes main without you.** The Dependabot auto-merge lane merges dependency bumps that leave `main.js` byte-identical (see `dependency-update`, "Auto-merge lane"), so a checkout is stale by default. A SessionStart hook runs `npm run sync`; run it yourself before creating a branch, before a PR and before a tag, and act on every `NEEDS A HUMAN` line. Never work from a `node_modules` that does not match `package-lock.json`.
+- **Dependabot gate.** Before every beta and every stable run the Dependabot gate in `dependency-update`. An open Dependabot PR now means the lane left it for a human: fold it into the next beta. A `needs-beta` issue is a security fix that changes shipped bytes: cut a beta. Stable needs 0 open alerts (turn alerts on if the API says they are disabled).
 
 ## Planning
 

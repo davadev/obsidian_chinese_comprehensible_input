@@ -24,3 +24,18 @@ description: Rules for bumping npm dependencies, GitHub Actions, or the bundler 
 2. **Alerts.** `gh api repos/<owner>/<repo>/dependabot/alerts --jq '[.[]|select(.state=="open")]|length'`. HTTP 403 "Dependabot alerts are disabled" means they are off: turn them on with `gh api -X PUT repos/<owner>/<repo>/vulnerability-alerts` (repo admin; a GET of the same path answering 204 means on), then re-read in a few minutes. Optionally `gh api -X PUT repos/<owner>/<repo>/automated-security-fixes`. Guide: playbook `SUPPLY-CHAIN.md`, "Turning on Dependabot alerts".
 3. **Fix, do not dismiss.** Lockfile first (`npm update <pkg>`, exact bump for a direct dependency), then parent-scoped `overrides`, then a clean `rm -rf node_modules && npm ci && npm ls --all && npm audit`. Never dismiss an alert to get green.
 4. **Stable needs 0 open alerts.** If one cannot be fixed (no patch yet, a parent breaks under the override), tell the user which and why before tagging stable; the user decides.
+
+## Auto-merge lane (no human needed for the boring ones)
+
+Dependabot PRs merge themselves when every one of these holds (rules: `scripts/lib/automergePolicy.mjs`, knobs: `.github/automerge.json`):
+- author `dependabot[bot]`, branch in this repo, only `package.json` + `package-lock.json` changed, and only dependency versions (and plain-semver `overrides`) moved;
+- every changed lockfile entry is from `registry.npmjs.org` with a sha512 integrity, no install script, same major (0.x minors count as majors), nothing on the denylist (`esbuild`, `@codemirror/*`, `obsidian`, `typescript`, `@types/node`);
+- the new versions are old enough: critical advisory 0 days, other security fix 3 days, routine bump 14 days;
+- `validate` is green on the exact head commit, `main` has not moved since the build, and `sha256(main.js)` built from the PR equals the one built from `main` (`shipped-bytes` CI job; the build must also be reproducible).
+
+Outcomes, always commented on the PR: **merge** (pinned with `--match-head-commit`, then CI is dispatched on `main` because a `GITHUB_TOKEN` merge starts no push workflow), **skip** (a human looks; the reasons are in the comment), **needs-beta** (security fix that changes shipped bytes: PR labelled, issue opened, never merged: cut a beta with `release-beta`).
+
+- `"dryRun": true` in `.github/automerge.json` comments the verdict and never merges. Flip it only after the verdicts of 2-3 real Dependabot PRs looked right.
+- Red CI on `main` after an auto-merge opens an `automerge-broke-main` issue and pauses the lane. Revert or fix forward, then close the issue.
+- Never widen the lane to workflow files, `scripts`, or `src/`: a bot that may edit the code that approves it approves itself. Majors, Actions pins, `esbuild`, `@codemirror/*`, `obsidian` stay manual on purpose.
+- The weekly `Dependency sweep` issue (`deps-sweep.yml`) is the one list of what is stuck; read it instead of the PR tab.
