@@ -4,8 +4,11 @@
 # found" only AFTER a release is published. These PRs surface the same signal
 # BEFORE we tag, which is the whole point of having them.
 #
-# PR-only by design: nothing here auto-merges, so Dependabot can never affect a
-# release on its own.
+# Dependabot never merges anything itself. The auto-merge lane (.github/workflows/dependabot-automerge.yml, rules in
+# scripts/lib/automergePolicy.mjs, knobs in .github/automerge.json) merges a PR only when it is a plain dependency bump,
+# CI is green on the exact head commit, and the built main.js is byte-identical to main's. A PR that would change the
+# shipped bytes is never merged unattended: a security fix gets the `needs-beta` label and an issue, everything else
+# waits for a human.
 #
 # IMPORTANT: never reply `@dependabot ignore ...` on a PR. That stores the
 # ignore in Dependabot's server-side state rather than in this file — invisible
@@ -19,6 +22,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    labels:
+      - dependencies
     # Do not adopt a new version immediately (#150). Supply-chain attacks are
     # usually a malicious release that is live for hours to a few days before it
     # is noticed and pulled. Without this block Dependabot still applies its own
