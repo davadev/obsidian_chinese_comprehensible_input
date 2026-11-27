@@ -49,7 +49,7 @@ export async function renderBackupList(parent: HTMLElement, host: BackupListHost
   if (entries.length === 0) {
     parent.createDiv({
       cls: "setting-item-description",
-      text: "No backups yet. One is taken the first time the plugin runs after an update, or when you choose Back up now.",
+      text: "No backups yet. Back up now to make one, or the plugin will make one the first time it runs after an update.",
     });
     return;
   }

@@ -48,7 +48,7 @@ function toolbarFigure(fig: HTMLElement): void {
 function mnemonicFigure(fig: HTMLElement): void {
   const word = fig.createDiv({ cls: "cci-fig-word" });
   word.createDiv({ cls: "cci-fig-mnemonic", text: "🗺️²📖¹🏛️³" });
-  word.createDiv({ cls: "cci-fig-pinyin", text: "tú shū guǎn" });
+  word.createDiv({ cls: "cci-fig-pinyin", attr: { lang: "zh-Latn" } }).appendText("tú shū guǎn");
   word.createDiv({ cls: "cci-fig-hanzi", text: "图书馆" });
   fig.createDiv({
     cls: "cci-fig-caption",

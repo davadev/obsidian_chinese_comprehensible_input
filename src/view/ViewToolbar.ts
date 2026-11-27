@@ -596,7 +596,7 @@ export class ViewToolbar {
       onClose();
     };
     const off = (e: MouseEvent) => {
-      if (e.target instanceof Node && menu.contains(e.target)) return;
+      if (e.composedPath().includes(menu)) return;
       close();
     };
 

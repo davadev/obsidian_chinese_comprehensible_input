@@ -147,7 +147,7 @@ describe("the example sentence", () => {
     await vi.waitFor(() => expect(q(m.root, ".cci-triage-hit")).toBeTruthy());
     expect(q(m.root, ".cci-triage-hit").textContent).toBe("学习");
     expect(q(m.root, ".cci-triage-context").textContent).toBe("我喜欢学习汉语！");
-    expect(q(m.root, ".cci-triage-context-src").textContent).toBe("from b.md");
+    expect(q(m.root, ".cci-triage-context-src").textContent).toBe("From b.md");
     q(m.root, ".cci-triage-context-src a").click();
     expect(m.plugin.app.workspace.openLinkText).toHaveBeenCalledWith("b.md", "", false);
   });
