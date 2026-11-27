@@ -19,7 +19,7 @@
 		"check:dead-code": "knip --production && knip --no-config-hints --include dependencies,unlisted,binaries,unresolved",
 		"check:layout": "node scripts/check-eink-layout.mjs",
 		"check:screenshots": "node scripts/render-screenshots.mjs --check",
-		"check:webkit": "node scripts/check-webkit-layout.mjs",
+		"check:webkit": "node scripts/check-webkit-layout.mjs && node scripts/check-webkit-layout.mjs --historical",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:cov": "vitest run --coverage",
@@ -54,7 +54,8 @@
 		"tslib": "^2.9.1",
 		"typescript": "^5.4.5",
 		"typescript-eslint": "^8.72.1",
-		"vitest": "5.1.0"
+		"vitest": "5.1.0",
+		"webkit-regression-driver": "npm:playwright-core@1.64.1"
 	},
 	"allowScripts": {
 		"esbuild": false,

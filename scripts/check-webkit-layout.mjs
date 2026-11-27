@@ -19,7 +19,8 @@
  * Playwright's WebKit is the closest thing to iOS Safari that runs on a Linux runner (shared WebCore line breaking,
  * which is where the bug lived), but it is a different port from iOS. Checked, not assumed: see the canary.
  *
- * Needs the browser once: `npx playwright install webkit` (CI does this at job time, never in `npm ci`). Without it,
+ * Run the current browser on real CSS, and the regression browser on both stylesheets. Install both as in ci.yml.
+ * Without a browser,
  * on a developer machine this prints how to install it and exits 0; with CI set it FAILS.
  * Not part of check-release or release.yml: those must stay offline and deterministic.
  */
@@ -32,8 +33,11 @@ import { bundleHarness, THEME } from "./eink-layout/bundle.mjs";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(join(ROOT, p), "utf8");
 
+const historical = process.argv.includes("--historical");
+const driver = historical ? "webkit-regression-driver" : "playwright";
 function unavailable(why) {
-  const msg = `check:webkit cannot run: ${why}\nInstall the browser with: npx playwright install webkit`;
+  const cli = historical ? "node node_modules/webkit-regression-driver/cli.js" : "npx playwright";
+  const msg = `check:webkit cannot run: ${why}\nInstall the browser with: ${cli} install webkit`;
   if (process.env.CI) {
     console.error(`${msg}\nFAILING because CI is set: a skipped WebKit check would look like a passing one.`);
     process.exit(1);
@@ -44,7 +48,7 @@ function unavailable(why) {
 
 let webkit;
 try {
-  ({ webkit } = await import("playwright"));
+  ({ webkit } = await import(driver));
 } catch (e) {
   unavailable(`the playwright package is not installed (${e.message.split("\n")[0]})`);
 }
@@ -94,7 +98,7 @@ const note = (ok, label, detail = "") => {
   if (!ok) failures.push(label);
 };
 
-console.log(`WebKit layout check — ${await browser.version()} (Playwright WebKit), floor ${FLOOR}px\n`);
+console.log(`WebKit layout check — ${browser.version()} (${driver}), floor ${FLOOR}px\n`);
 
 const real = await overflow("real", realCss);
 for (const [name, r] of Object.entries(real)) {
@@ -102,10 +106,12 @@ for (const [name, r] of Object.entries(real)) {
     `${r.widths} widths, ${r.over} overflow${r.over ? ` (worst ${r.worst.toFixed(0)}px)` : ""}, wraps at ${r.multi}`);
 }
 
-const canary = await overflow("canary", canaryCss);
-const bad = canary["hsk plain"];
-note(bad.over > 0, "canary: the beta.4 stylesheet overflows here (this WebKit can see the bug)",
-  `${bad.over} of ${bad.widths} widths overflow${bad.over ? ` (worst ${bad.worst.toFixed(0)}px)` : " — the gate above proves nothing in this WebKit"}`);
+if (historical) {
+  const canary = await overflow("canary", canaryCss);
+  const bad = canary["hsk plain"];
+  note(bad.over > 0, "canary: the beta.4 stylesheet overflows here (this WebKit can see the bug)",
+    `${bad.over} of ${bad.widths} widths overflow${bad.over ? ` (worst ${bad.worst.toFixed(0)}px)` : " — the gate above proves nothing in this WebKit"}`);
+}
 
 await browser.close();
 console.log(`\n${failures.length ? failures.length + " check(s) FAILED" : "all checks passed"}.`);

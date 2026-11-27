@@ -70,8 +70,8 @@ It runs in Chromium only, and WebKit (iPhone) has already behaved differently on
 
 **`npm run check:webkit`** runs the harness's wrapping measurement (a paragraph of adjacent numbered words must wrap at every width, three kinds of line) in Playwright's WebKit, as the `webkit` job in `ci.yml` (about 1¼ minutes). It checks two things, and the second is what makes the first mean anything:
 
-1. the real `styles.css` must wrap, with no sideways overflow;
-2. a **canary**, the 0.7.8-beta.4 stylesheet kept verbatim in `scripts/eink-layout/fixtures/`, must still overflow. If it does not, this WebKit cannot see the known bug, so the job **fails** instead of passing on nothing.
+1. the real `styles.css` must wrap, with no sideways overflow, on both the current and historical browsers;
+2. a **canary**, the 0.7.8-beta.4 stylesheet kept verbatim in `scripts/eink-layout/fixtures/`, must still overflow on the historical browser. Playwright 1.65's WebKit no longer reproduces the bug; the historical driver stays pinned at 1.64.1. Install its browser with `node node_modules/webkit-regression-driver/cli.js install webkit` alongside the current one.
 
 Measured, not assumed (2026-10-09): on macOS WebKit 26.6 the beta.4 stylesheet overflows at 43 of 43 widths (beta.5 and current: 0 of 43; Chromium: 0 of 43 for all three, which is why the desktop check passed it). The Linux Playwright WebKit that CI uses reproduces it too: the same 43 of 43, worst 2004 px. Two things that did **not** reproduce it, which is why the canary is a whole file: a single `white-space: nowrap` rule added to the current stylesheet, and beta.4's e-ink block swapped into the current stylesheet. The bug needs beta.4's whole stylesheet.
 

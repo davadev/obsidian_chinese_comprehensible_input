@@ -46,7 +46,7 @@ export class WordPopup {
 
     this.outsideHandler = (e: MouseEvent) => {
       if (!this.el) return;
-      if (e.target instanceof Node && this.el.contains(e.target)) return;
+      if (e.composedPath().includes(this.el)) return;
       this.close();
     };
     window.setTimeout(() => {

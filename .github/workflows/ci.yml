@@ -175,7 +175,9 @@ jobs:
         run: npm ci
 
       - name: Install WebKit
-        run: npx playwright install --with-deps webkit
+        run: |
+          npx playwright install --with-deps webkit
+          node node_modules/webkit-regression-driver/cli.js install --with-deps webkit
 
       # Fails (does not skip) when WebKit cannot start, because CI is set.
       - name: Check wrapping in WebKit

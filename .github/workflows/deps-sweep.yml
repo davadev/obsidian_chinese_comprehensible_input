@@ -20,6 +20,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      vulnerability-alerts: read
       issues: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -28,8 +29,8 @@ jobs:
     steps:
       - name: Collect and report
         run: |
-          # GITHUB_TOKEN cannot read Dependabot alerts (HTTP 403): the line stays empty then, and GitHub's own alert emails remain the signal.
-          alerts=$(gh api "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" --jq '.[] | "- alert: `\(.dependency.package.name)` \(.security_advisory.severity): \(.security_advisory.summary)"' 2>/dev/null || true)
+          # A failed read must fail the job before we create, overwrite, or close a report.
+          alerts=$(gh api --paginate "repos/$GH_REPO/dependabot/alerts?state=open&per_page=100" --jq '.[] | "- alert: `\(.dependency.package.name)` \(.security_advisory.severity): \(.security_advisory.summary)"')
           stuck=$(gh pr list --author "app/dependabot" --state open --json number,title,createdAt --jq '.[] | select((now - (.createdAt | fromdateiso8601)) > 864000) | "- PR #\(.number) open for over 10 days: \(.title)"')
           flagged=$(gh issue list --state open --json number,title,labels --jq '.[] | select(.labels | map(.name) | any(. == "needs-beta" or . == "automerge-broke-main")) | "- issue #\(.number): \(.title)"')
           body=$(printf '%s\n%s\n%s\n' "$alerts" "$stuck" "$flagged" | sed '/^$/d')

@@ -893,7 +893,7 @@ export default class CciPlugin extends Plugin {
 
     const notice = new Notice("", 15000);
     notice.messageEl.createDiv({
-      text: "This note looks like Traditional Chinese. Switch so words are recognised correctly?",
+      text: "This note looks like it uses traditional Chinese characters. Switch so words are recognised correctly?",
     });
     const row = notice.messageEl.createDiv({ cls: "cci-notice-actions" });
     row.createEl("button", { text: "Switch to traditional" }).addEventListener("click", () => {

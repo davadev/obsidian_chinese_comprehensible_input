@@ -890,7 +890,7 @@ export class StatsView extends ItemView {
       ctxBox.createSpan({ cls: "cci-triage-hit", text: matched });
       ctxBox.appendText(after);
       const src = card.createDiv({ cls: "cci-triage-context-src" });
-      src.createSpan({ text: "from " });
+      src.createSpan({ text: "From " });
       const a = src.createEl("a", { text: ctx.notePath, href: "#" });
       a.addEventListener("click", (ev) => {
         ev.preventDefault();

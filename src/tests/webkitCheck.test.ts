@@ -32,11 +32,13 @@ describe("the WebKit layout check", () => {
 
   it("is a script, an exact-pinned dev dependency (never runtime), and a CI job that downloads the browser at job time", () => {
     const pkg = JSON.parse(read("package.json"));
-    expect(pkg.scripts["check:webkit"]).toBe("node scripts/check-webkit-layout.mjs");
+    expect(pkg.scripts["check:webkit"]).toBe("node scripts/check-webkit-layout.mjs && node scripts/check-webkit-layout.mjs --historical");
+    expect(pkg.devDependencies["webkit-regression-driver"]).toBe("npm:playwright-core@1.64.1");
     expect(pkg.devDependencies.playwright).toMatch(/^\d+\.\d+\.\d+$/);
     expect(pkg.dependencies?.playwright).toBeUndefined();
     const ci = read(".github/workflows/ci.yml");
     expect(ci).toMatch(/npx playwright install --with-deps webkit/);
+    expect(ci).toContain("node node_modules/webkit-regression-driver/cli.js install --with-deps webkit");
     expect(ci).toMatch(/npm run check:webkit/);
   });
 

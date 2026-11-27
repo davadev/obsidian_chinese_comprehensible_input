@@ -750,8 +750,8 @@ function attachOpenInChineseView(
  */
 export function markdownLinkClickHandler(plugin: CciPlugin) {
   return EditorView.domEventHandlers({
-    mousedown: (ev) => {
-      if (!(ev.target instanceof HTMLElement)) return false;
+    mousedown: (ev, view) => {
+      if (!(ev.target instanceof view.dom.ownerDocument.defaultView!.HTMLElement)) return false;
       const el = ev.target.closest(".cci-md-link");
       if (!el) return false;
       const href = el.getAttribute("data-cci-href");
